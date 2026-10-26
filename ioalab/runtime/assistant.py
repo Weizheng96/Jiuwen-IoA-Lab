@@ -15,12 +15,10 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from a2c.card import card_digest as digest_of
 from a2c.client import Client
-from a2c.codec import digest_bytes
-from a2c.errors import A2CError
 
 from .llm import LLM, parse_json
+from .ops import DelegationOps
 
 log = logging.getLogger("ioalab.assistant")
 
@@ -29,19 +27,16 @@ def _out(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False)
 
 
-def _summary(template: Mapping[str, Any]) -> dict:
-    return {k: v for k, v in template.items() if k not in ("signatures", "a2cVersion", "kind", "samples")}
-
-
 class Hooks:
     """助手运行时向平台要的东西（全部同步，可在工作线程调用）。"""
 
     def __init__(self, *, search: Callable[[str, int], list[dict]], reputation: Callable[[str], dict],
                  wallet: Callable[[], str], confirm: Callable[[str, str, str], bool],
                  arbitrate: Callable[[str, int, str], dict], on_phase: Callable[[str, str, dict], None],
-                 market: str) -> None:
+                 market: str, tried: Callable[[str], list[str]] | None = None) -> None:
         self.search, self.reputation, self.wallet, self.confirm = search, reputation, wallet, confirm
         self.arbitrate, self.on_phase, self.market = arbitrate, on_phase, market
+        self.tried = tried or (lambda nid: [])
 
 
 PERSONA = """你是「{name}」，一位个人助手，替用户在智能体交易市场里委托专业服务智能体干活。你遵守 A2C 合同协议的流程：
@@ -73,37 +68,30 @@ class AssistantRuntime:
         self.home.mkdir(parents=True, exist_ok=True)
         self._agent = None
 
-    # ── 工具（绑定到一条需求）───────────────────────────────────────
+    # ── 工具（绑定到一条需求）：DelegationOps 的薄包装，REST 用同一套 ops ─────
+    def ops(self, need: Mapping[str, Any]) -> DelegationOps:
+        return DelegationOps(self, need)
+
     def tools(self, need: Mapping[str, Any]) -> list:
         from openjiuwen.core.foundation.tool import tool
 
-        client, hooks = self.client, self.hooks
-        scope = need["scope"]
-        sign1_user = scope.get("sign1") == "user"
-        sign7_user = scope.get("sign7") == "user"
-        auto = bool(need.get("auto_sign", 1))
-        scope_digest = digest_bytes(json.dumps(scope, ensure_ascii=False, sort_keys=True).encode())
-        materials = {m["name"]: m for m in need.get("materials", [])}
-        budget = float(scope.get("budget", 0) or 0)
-        state = {"tried": [], "card": None}
+        ops = self.ops(need)
 
-        def confirm_or_fail(kind: str, text: str) -> str | None:
-            if auto:
-                return None
-            ok = hooks.confirm(need["id"], kind, text)
-            return None if ok else "用户拒绝了这一步"
+        async def call(fn, *a):
+            try:
+                return _out(await asyncio.to_thread(fn, *a))
+            except Exception as e:  # noqa: BLE001
+                return _out({"error": str(e)[:400]})
 
         @tool
         async def search_services(query: str, top_k: int = 8) -> str:
-            """在小艺开放平台（Agent 交易市场）按语义检索被认证的服务方。
+            """在交易中心（Agent 交易市场）按语义检索被认证的服务方。
 
             Args:
                 query: 用一句话描述要委托的事
                 top_k: 最多返回几家
             """
-            hits = await asyncio.to_thread(hooks.search, query, top_k)
-            return _out([{"provider": h["card"].get("url"), "name": h["name"], "description": h["description"],
-                          "status": h["card"].get("status"), "a2c": h["card"].get("a2c")} for h in hits])
+            return await call(ops.search, query, top_k)
 
         @tool
         async def get_reputation(provider: str) -> str:
@@ -112,7 +100,7 @@ class AssistantRuntime:
             Args:
                 provider: 服务方 URL（search_services 返回的 provider）
             """
-            return _out(await asyncio.to_thread(hooks.reputation, provider))
+            return await call(ops.reputation, provider)
 
         @tool
         async def list_templates(provider: str) -> str:
@@ -121,26 +109,12 @@ class AssistantRuntime:
             Args:
                 provider: 服务方 URL
             """
-            try:
-                ts = await asyncio.to_thread(client.get_templates, provider)
-            except Exception as e:  # noqa: BLE001
-                return _out({"error": str(e)[:300]})
-            return _out([_summary(t) for t in ts])
+            return await call(ops.templates, provider)
 
         @tool
         async def list_materials() -> str:
             """列出用户为这条需求准备的材料（名字、声明属性、预览），拟卡时按名字引用。"""
-            out = []
-            for m in materials.values():
-                try:
-                    preview = Path(m["path"]).read_text(encoding="utf-8")[:300]
-                except Exception:  # noqa: BLE001
-                    preview = ""
-                out.append({"name": m["name"], "declared": m.get("declared", {}), "preview": preview})
-            return _out(out)
-
-        def _mats(names: list[str]) -> dict:
-            return {n: (Path(materials[n]["path"]).read_bytes(), materials[n].get("declared", {})) for n in names if n in materials}
+            return await call(ops.materials)
 
         @tool
         async def draft_card(template_digest: str, card_id: str, spec: dict, material_names: list[str] | None = None) -> str:
@@ -149,25 +123,10 @@ class AssistantRuntime:
             Args:
                 template_digest: list_templates 返回的 templateDigest
                 card_id: 你起的卡号，如 C-001
-                spec: {交付件名: {键: 值}}，键与取值须符合模板 specSchema（枚举必须在域内）
+                spec: {交付件名: {键: 值}}，键与取值须符合模板 specSchema（枚举必须在域内；const 的键不填）
                 material_names: 要交给服务方的材料名（list_materials 里的 name），按模板 inputs 的 name 一一对应
             """
-            def go():
-                t = client.template(template_digest)
-                signers = {"slot1": "user" if sign1_user else "client", "slot7": "user" if sign7_user else "client"}
-                d = client.draft_card(t, card_id=card_id, spec=spec, materials=_mats(material_names or []), signers=signers,
-                                      delegation_scope_digest=scope_digest)
-                cd = digest_of(d.card)
-                total = float(d.card["derived"]["total"])
-                if budget and total > budget:
-                    return {"error": f"合计 {total} 超过预算上限 {budget}，不能签"}
-                pre = {n: r.status for n, r in client.precheck(t, d.card, {n: b for n, (b, _x) in _mats(material_names or []).items()}).items()}
-                state["card"] = cd
-                return {"cardDigest": cd, "derived": d.card["derived"], "notices": d.notices, "inputPrecheck": pre}
-            try:
-                return _out(await asyncio.to_thread(go))
-            except Exception as e:  # noqa: BLE001
-                return _out({"error": str(e)[:400]})
+            return await call(ops.draft, template_digest, card_id, spec, material_names or [])
 
         @tool
         async def sign_card(card_digest: str) -> str:
@@ -176,27 +135,7 @@ class AssistantRuntime:
             Args:
                 card_digest: draft_card 返回的 cardDigest
             """
-            def go():
-                card = client.card(card_digest)
-                t = client.template(card["templateDigest"])
-                total = card["derived"]["total"]
-                why = confirm_or_fail("sign", f"签署合同卡 {card.get('cardId')}：服务方 {t['provider']}，合计 {total} 虚拟币")
-                if why:
-                    return {"error": why}
-                card = client.sign(card)
-                hooks.on_phase(need["id"], "signed", {"cardDigest": card_digest, "provider": t["provider"]})
-                if t["formation"] == "countersign":
-                    out = client.countersign(card)
-                    if isinstance(out, str):
-                        state["tried"].append(t["provider"])
-                        hooks.on_phase(need["id"], "declined", {"cardDigest": card_digest, "provider": t["provider"], "reason": out})
-                        return {"countersigned": False, "reason": out, "hint": "换下一家" if len(state["tried"]) < 3 else "已换过 3 家，可以放弃"}
-                    return {"countersigned": True}
-                return {"signed": True}
-            try:
-                return _out(await asyncio.to_thread(go))
-            except Exception as e:  # noqa: BLE001
-                return _out({"error": str(e)[:400]})
+            return await call(ops.sign, card_digest)
 
         @tool
         async def submit_request(template_digest: str, request_id: str, spec: dict, material_names: list[str] | None = None) -> str:
@@ -208,26 +147,7 @@ class AssistantRuntime:
                 spec: {交付件名: {键: 值}}
                 material_names: 要交的材料名
             """
-            def go():
-                t = client.template(template_digest)
-                signers = {"slot1": "user" if sign1_user else "client", "slot7": "user" if sign7_user else "client"}
-                req = client.draft_request(t, request_id=request_id, version=1, spec=spec, materials=_mats(material_names or []),
-                                           signers=signers, delegation_scope_digest=scope_digest)
-                out = client.submit_request(req)
-                if isinstance(out, str):
-                    state["tried"].append(t["provider"])
-                    hooks.on_phase(need["id"], "returned", {"provider": t["provider"], "reason": out})
-                    return {"reason": out}
-                cd = digest_of(out)
-                total = float(out["derived"]["total"])
-                if budget and total > budget:
-                    return {"cardDigest": cd, "error": f"报价 {total} 超过预算 {budget}，不要采纳"}
-                state["card"] = cd
-                return {"cardDigest": cd, "derived": out["derived"], "acceptance": list(out.get("acceptance", {}).keys())}
-            try:
-                return _out(await asyncio.to_thread(go))
-            except Exception as e:  # noqa: BLE001
-                return _out({"error": str(e)[:400]})
+            return await call(ops.submit_request, template_digest, request_id, spec, material_names or [])
 
         @tool
         async def adopt(card_digest: str) -> str:
@@ -236,18 +156,7 @@ class AssistantRuntime:
             Args:
                 card_digest: submit_request 返回的 cardDigest
             """
-            def go():
-                card = client.card(card_digest)
-                why = confirm_or_fail("sign", f"采纳提案型合同卡 {card.get('cardId')}，合计 {card['derived']['total']} 虚拟币")
-                if why:
-                    return {"error": why}
-                client.adopt(card)
-                hooks.on_phase(need["id"], "signed", {"cardDigest": card_digest, "provider": card["provider"]})
-                return {"adopted": True}
-            try:
-                return _out(await asyncio.to_thread(go))
-            except Exception as e:  # noqa: BLE001
-                return _out({"error": str(e)[:400]})
+            return await call(ops.adopt, card_digest)
 
         @tool
         async def start(card_digest: str) -> str:
@@ -256,22 +165,12 @@ class AssistantRuntime:
             Args:
                 card_digest: 已生效的合同卡摘要
             """
-            def go():
-                out = client.start(client.card(card_digest))
-                if "rejection" in out:
-                    return {"rejected": out["rejection"].get("reason")}
-                client.watch(card_digest, hooks.market)
-                hooks.on_phase(need["id"], "started", {"cardDigest": card_digest})
-                return {"started": True}
-            try:
-                return _out(await asyncio.to_thread(go))
-            except Exception as e:  # noqa: BLE001
-                return _out({"error": str(e)[:400]})
+            return await call(ops.start, card_digest)
 
         @tool
         async def wallet() -> str:
             """看自己钱包的余量（虚拟币）。"""
-            return await asyncio.to_thread(hooks.wallet)
+            return await call(ops.wallet)
 
         return [search_services, get_reputation, list_templates, list_materials, draft_card, sign_card, submit_request,
                 adopt, start, wallet]

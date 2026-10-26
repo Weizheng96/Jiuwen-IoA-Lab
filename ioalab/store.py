@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE, pw_
 CREATE TABLE IF NOT EXISTS wallets (user_id TEXT PRIMARY KEY, balance TEXT NOT NULL DEFAULT '0', payer_thumbprint TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS wallet_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL, user_id TEXT, delta TEXT, balance TEXT, kind TEXT, ref TEXT, by TEXT, note TEXT);
 CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, owner_id TEXT, role TEXT, name TEXT, definition TEXT, status TEXT DEFAULT 'online', created REAL, meta TEXT DEFAULT '{}');
-CREATE TABLE IF NOT EXISTS needs (id TEXT PRIMARY KEY, owner_id TEXT, assistant_id TEXT, text TEXT, scope TEXT, auto_sign INTEGER DEFAULT 1, state TEXT DEFAULT 'queued', card_digest TEXT, result TEXT, created REAL, updated REAL, llm_calls INTEGER DEFAULT 0, tokens INTEGER DEFAULT 0, trace TEXT DEFAULT '[]');
+CREATE TABLE IF NOT EXISTS needs (id TEXT PRIMARY KEY, owner_id TEXT, assistant_id TEXT, text TEXT, scope TEXT, auto_sign INTEGER DEFAULT 1, state TEXT DEFAULT 'queued', card_digest TEXT, result TEXT, created REAL, updated REAL, llm_calls INTEGER DEFAULT 0, tokens INTEGER DEFAULT 0, trace TEXT DEFAULT '[]', driver TEXT DEFAULT 'hosted');
 CREATE TABLE IF NOT EXISTS orders (card_digest TEXT PRIMARY KEY, need_id TEXT, owner_id TEXT, assistant_id TEXT, provider_id TEXT, template_digest TEXT, formation TEXT, total TEXT, state TEXT, phase TEXT, created REAL, updated REAL, detail TEXT DEFAULT '{}');
 CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, at REAL, run_id TEXT, kind TEXT, op TEXT, sender TEXT, receiver TEXT, card_digest TEXT, period INTEGER, amount TEXT, outcome TEXT, detail TEXT);
 CREATE TABLE IF NOT EXISTS paid (ref TEXT, purpose TEXT, period INTEGER, at REAL, PRIMARY KEY (ref, purpose, period));
@@ -46,6 +46,13 @@ class DB:
         self.conn.execute("PRAGMA foreign_keys=ON")
         with self.lock:
             self.conn.executescript(SCHEMA)
+            self._migrate()
+
+    def _migrate(self) -> None:
+        """老库补列（新列都带默认值，CREATE TABLE IF NOT EXISTS 不会改已有表）。"""
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(needs)").fetchall()}
+        if "driver" not in cols:
+            self.conn.execute("ALTER TABLE needs ADD COLUMN driver TEXT DEFAULT 'hosted'")
 
     # ── 事务 ────────────────────────────────────────────────────────────
     class _Tx:

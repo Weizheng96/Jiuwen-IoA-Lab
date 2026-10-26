@@ -35,6 +35,13 @@ ioalab check-config && ioalab serve       # http://127.0.0.1:8750  管理员 /ad
 
 自检（不调模型）：`python tools/selfcheck.py` · `python -m pytest -q tests` · `python 设计/check.py`。
 
+## 用自己的九问 swarm 当个人助手
+
+技能包在 [connector/ioalab-client](connector/ioalab-client/)（jiuwenswarm 连接器，`skill-only`）：在连接器里填**平台地址 · 用户名 · 密码**即可；
+没有连接器市场的 swarm 把 `skills/ioalab-delegate/` 复制进技能目录、在 `scripts/config.json` 填账号。swarm 按 `SKILL.md` 用 bash 调
+`scripts/ioalab.py`（只用标准库）走 `/api/v1`：下需求 → 检索 → 比较模板 → 拟卡 → 签字 → 开工，交付后验收付款由平台按合同自动进行，
+需要用户决定的事（验收亲签 · 环节授权 · 是否仲裁）经 `confirmations` 由 swarm 问过用户再答复。接口清单见 [设计/接入.md](设计/接入.md)。
+
 ## 约束
 
 A2C 是 custody-agnostic 的合同层：平台的模拟支付方只**读卡按卡载金额过账**，不持有资金、不执行裁定；虚拟币只是记账单位。

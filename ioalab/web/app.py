@@ -46,6 +46,7 @@ def create_app(platform: Platform) -> FastAPI:
             return await call_next(request)
 
     app.add_middleware(OriginCheck)
+    from .api_v1 import build_router
 
     @app.exception_handler(A2CError)
     async def _a2c_error(request: Request, exc: A2CError):
@@ -163,8 +164,9 @@ def create_app(platform: Platform) -> FastAPI:
         scope = b.get("scope") or {}
         scope.setdefault("sign1", "user" if b.get("sign1") else "client")
         scope.setdefault("sign7", "user" if b.get("sign7") else "client")
-        return platform.create_need(uid, asst["id"], b.get("text", ""), scope, auto_sign=bool(b.get("autoSign", False)),
-                                    materials=b.get("materials") or [])
+        if any("path" in (m or {}) for m in (b.get("materials") or [])):
+            raise HTTPException(400, "材料不接受服务器路径；请用 /api/v1 的上传接口")
+        return platform.create_need(uid, asst["id"], b.get("text", ""), scope, auto_sign=bool(b.get("autoSign", False)), materials=[])
 
     @app.get("/api/needs")
     async def my_needs(uid: str = Depends(current_user)):
@@ -200,6 +202,8 @@ def create_app(platform: Platform) -> FastAPI:
         b = await body(request)
         platform.answer_confirmation(uid, cid, bool(b.get("granted")))
         return {"ok": True}
+
+    app.include_router(build_router(platform, current_user))
 
     # ── 管理员 API ────────────────────────────────────────────────────
     @app.post("/api/admin/login")

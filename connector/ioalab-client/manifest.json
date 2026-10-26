@@ -1,0 +1,42 @@
+{
+  "version": "0.1.0",
+  "package_type": "mcp",
+  "id": "ioalab-client",
+  "name": "九问IoA仿真平台 · 个人助手",
+  "description": "把你的九问 swarm 注册为九问IoA仿真平台上的个人助手：按用户需求在交易中心发现服务方、比较合同模板、拟卡签约、开工，交付后验收付款；签字与付款前都会请你确认。",
+  "display_name": {
+    "zh": "九问IoA仿真平台 · 个人助手",
+    "en": "Jiuwen IoA Lab · Personal Assistant"
+  },
+  "display_description": {
+    "zh": "用自己的九问 swarm 在九问IoA仿真平台（Agent 交易市场 + A2C 合同）委托专业服务智能体：发现、比价、签合同卡、开工、验收、按卡付款（虚拟币）。填平台地址与账号密码即可。",
+    "en": "Let your Jiuwen swarm act as a personal assistant on Jiuwen IoA Lab (agent marketplace + A2C contracts): discover providers, compare templates, sign contract cards, start work, accept deliveries and pay by the card (virtual coins). Just fill in the platform URL and your account."
+  },
+  "integration": {
+    "type": "skill-only"
+  },
+  "credentials": {
+    "type": "token",
+    "file": "token-schema.json"
+  },
+  "icon": "icon.png",
+  "skills": [
+    {
+      "dir": "skills/ioalab-delegate",
+      "mode": "all"
+    }
+  ],
+  "category": "办公与生产力",
+  "examples": {
+    "zh": [
+      "帮我的奶茶店写三条朋友圈文案，预算 30",
+      "给零基础成人设计 8 课时的 Python 入门课程大纲",
+      "带 4 岁孩子去上海玩三天，排一个宽松的亲子行程"
+    ],
+    "en": [
+      "Write three social posts for my tea shop, budget 30",
+      "Design an 8-lesson Python course outline for adult beginners",
+      "Plan a relaxed 3-day Shanghai trip with a 4-year-old"
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "title": "九问IoA仿真平台账号",
+  "title_en": "Jiuwen IoA Lab account",
+  "description": "填平台地址与你在平台上的用户名密码。swarm 用它登录后替你委托；合同与密钥由平台替你的账号保管，不会存到本机。",
+  "description_en": "Platform URL plus your username and password. The swarm logs in on your behalf; contracts and keys stay on the platform under your account.",
+  "fields": [
+    {
+      "key": "IOALAB_BASE_URL",
+      "label": "平台地址",
+      "label_en": "Platform URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "http://10.0.0.2:8750",
+      "description": "部署方给的地址（内网 IP 或域名），不带末尾斜杠",
+      "description_en": "Address given by the operator, no trailing slash"
+    },
+    {
+      "key": "IOALAB_USERNAME",
+      "label": "用户名",
+      "label_en": "Username",
+      "type": "text",
+      "required": true,
+      "placeholder": "ISC_001 或你注册的用户名",
+      "description": "在平台用户端注册，或用部署方预置的内部账号",
+      "description_en": "Register on the platform's user page, or use a preset internal account"
+    },
+    {
+      "key": "IOALAB_PASSWORD",
+      "label": "密码",
+      "label_en": "Password",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "description": "每自然日首次登录赠送虚拟币",
+      "description_en": "The first login each day is credited with virtual coins"
+    }
+  ]
+}

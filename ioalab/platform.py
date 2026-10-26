@@ -300,7 +300,7 @@ class Platform:
         hooks = Hooks(search=lambda q, k: self._search(q, k, by=aid), reputation=lambda pid: self.market.reputation(pid), wallet=lambda: str(self.wallets.balance(owner)),
                       confirm=lambda need_id, kind, text: self.confirm(owner, need_id, kind, text),
                       arbitrate=lambda cd, period, ground: self._arbitrate_for(aid, cd, period, ground),
-                      on_phase=self._on_phase, market=self.market_id)
+                      on_phase=self._on_phase, market=self.market_id, tried=self.tried)
         rt = AssistantRuntime(agent_id=aid, name=row["name"], client=client, llm=self.llm, hooks=hooks,
                               home=self.s.data / "deliveries" / aid, loop=self.loop or asyncio.get_event_loop())
         self.assistants[aid] = rt
@@ -406,26 +406,66 @@ class Platform:
 
     # ── 需求与订单 ───────────────────────────────────────────────────
     def create_need(self, owner_id: str, assistant_id: str, text: str, scope: Mapping[str, Any], *, auto_sign: bool = True,
-                    materials: list[Mapping[str, Any]] | None = None, by: str = "") -> dict:
+                    materials: list[Mapping[str, Any]] | None = None, by: str = "", driver: str = "hosted") -> dict:
+        """driver：hosted 由平台内 ReActAgent 跑第一轮；external 由用户的九问 swarm 经 /api/v1 逐步驱动（不排 _run_need）。"""
         if assistant_id not in self.assistants:
             fail(CARD_INVALID, "助手不存在")
+        if not text:
+            fail(CARD_INVALID, "需求不能为空")
+        if driver not in ("hosted", "external"):
+            fail(CARD_INVALID, "driver 只能是 hosted 或 external")
         day = time.strftime("%Y-%m-%d")
         n = self.db.one("SELECT COUNT(*) AS n FROM needs WHERE owner_id=? AND created>=?", owner_id,
                         time.mktime(time.strptime(day, "%Y-%m-%d")))["n"]
         if n >= self.s.needs_per_day and not by:
             fail(CARD_INVALID, f"今日需求已达上限 {self.s.needs_per_day}")
-        if self.db.one("SELECT 1 FROM needs WHERE assistant_id=? AND state IN ('queued','running','started')", assistant_id):
+        if self.db.one("SELECT 1 FROM needs WHERE assistant_id=? AND state IN ('queued','running','started','open')", assistant_id):
             fail(CARD_INVALID, "该助手还有一条需求在进行中")
         nid = "need-" + uuid.uuid4().hex[:8]
         sc = {"category": scope.get("category", "不限"), "budget": scope.get("budget", 30), "perTx": scope.get("perTx", scope.get("budget", 30)),
               "validity": scope.get("validity", "P7D"), "sign1": scope.get("sign1", "client"), "sign7": scope.get("sign7", "client"),
               "nonce": uuid.uuid4().hex}
-        self.db.run("INSERT INTO needs (id, owner_id, assistant_id, text, scope, auto_sign, state, created, updated, trace) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    nid, owner_id, assistant_id, text, jdump({**sc, "materials": materials or []}), int(auto_sign), "queued", now(), now(), "[]")
-        self.bus.emit("platform", "need.create", sender=by or owner_id, receiver=assistant_id, outcome=nid, detail={"text": text[:120]})
-        if self.loop and self.started:
+        state = "open" if driver == "external" else "queued"
+        self.db.run("INSERT INTO needs (id, owner_id, assistant_id, text, scope, auto_sign, state, created, updated, trace, driver) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    nid, owner_id, assistant_id, text, jdump({**sc, "materials": materials or []}), int(auto_sign), state, now(), now(), "[]", driver)
+        self.bus.emit("platform", "need.create", sender=by or owner_id, receiver=assistant_id, outcome=nid, detail={"text": text[:120], "driver": driver})
+        if driver == "hosted" and self.loop and self.started:
             self.loop.call_soon_threadsafe(lambda: self.need_tasks.__setitem__(nid, self.loop.create_task(self._run_need(nid))))
         return self.need(nid)
+
+    def ops_for(self, need: Mapping[str, Any]):
+        """一条需求上的委托方操作（swarm 驾驭时由 /api/v1 逐步调用）。"""
+        rt = self.assistants.get(need["assistant_id"]) or fail(CARD_INVALID, "助手不存在")
+        if need["state"] not in ("open", "running", "started"):
+            fail(CARD_INVALID, f"需求已{need['state']}，不能再操作")
+        return rt.ops(need)
+
+    def tried(self, nid: str) -> list[str]:
+        """这条需求上已被拒绝 / 退回的服务方（换家计数的依据）。"""
+        out = [o["provider_id"] for o in self.db.rows("SELECT provider_id FROM orders WHERE need_id=? AND state='declined'", nid)]
+        for e in self.db.rows("SELECT detail FROM events WHERE op='request.returned' AND detail LIKE ?", f'%"need": "{nid}"%'):
+            d = jload(e["detail"])
+            if d.get("provider"):
+                out.append(d["provider"])
+        return out
+
+    def abandon_need(self, nid: str) -> None:
+        n = self.need(nid)
+        if self.db.one("SELECT 1 FROM orders WHERE need_id=? AND state IN ('started','completed','arbitrated')", nid):
+            fail(CARD_INVALID, "已开工的需求不能放弃；要停请走解除")
+        self._set_need(nid, state="abandoned")
+        self.bus.emit("platform", "need.failed", sender=n["assistant_id"], outcome=nid, detail={"reason": "放弃"})
+
+    def terminate_order(self, order: Mapping[str, Any], agree: bool = True) -> dict:
+        """解除：协商解除（先取服务方报价、按报价补余额）或单方解除。"""
+        rt = self.assistants[order["assistant_id"]]
+        cd = order["card_digest"]
+        quote = rt.client.termination_quote(cd) if agree else None
+        out = rt.client.terminate(cd, quote=quote)
+        self.db.run("UPDATE orders SET state='terminated', phase=?, updated=? WHERE card_digest=?", "已解除" + ("（协商）" if agree else "（单方）"), now(), cd)
+        self._set_need(order["need_id"], state="terminated")
+        self.bus.emit("platform", "order.terminated", sender=order["assistant_id"], card_digest=cd, outcome="agreed" if agree else "unilateral")
+        return {"terminated": True, "agreed": agree, "quote": quote, "result": out}
 
     def need(self, nid: str) -> dict:
         row = self.db.one("SELECT * FROM needs WHERE id=?", nid) or fail(CARD_INVALID, "需求不存在")
@@ -509,10 +549,13 @@ class Platform:
             self.db.run("UPDATE orders SET state='declined', phase=?, updated=? WHERE card_digest=?", "服务方拒绝：" + str(detail.get("reason"))[:80], now(), cd)
         elif phase == "returned":                           # 提案卡被退回：没有卡，只记事件（助手换家的依据）
             self.bus.emit("platform", "request.returned", sender=need["assistant_id"], receiver=str(detail.get("provider") or ""),
-                          outcome=str(detail.get("reason") or "")[:60], detail={"provider": detail.get("provider"), "reason": detail.get("reason")})
+                          outcome=str(detail.get("reason") or "")[:60], detail={"provider": detail.get("provider"), "reason": detail.get("reason"), "need": nid})
             return
         elif phase == "started" and cd:
             self.db.run("UPDATE orders SET state='started', phase='已开工', updated=? WHERE card_digest=?", now(), cd)
+            if need.get("driver") == "external":            # swarm 驾驭没有 _run_need 收尾：开工即定约
+                self._set_need(nid, state="started", card_digest=cd)
+                self.bus.emit("platform", "need.contracted", sender=need["assistant_id"], card_digest=cd, outcome=nid)
         elif phase == "fetched" and cd:
             self.db.run("UPDATE orders SET phase=?, updated=? WHERE card_digest=?", f"第 {detail.get('period')} 期已签收", now(), cd)
         elif phase == "verified" and cd:
@@ -654,6 +697,11 @@ class Platform:
     async def _purge_loop(self) -> None:
         while True:
             await asyncio.sleep(60)
+            # swarm 驾驭的需求：30 分钟没签出卡就作废
+            for n in self.db.rows("SELECT id, assistant_id FROM needs WHERE driver='external' AND state='open' AND updated<?", now() - 1800):
+                if not self.db.one("SELECT 1 FROM orders WHERE need_id=? AND state NOT IN ('declined')", n["id"]):
+                    self._set_need(n["id"], state="failed")
+                    self.bus.emit("platform", "need.failed", sender=n["assistant_id"], outcome=n["id"], detail={"reason": "30 分钟内未定约"})
             for rt in list(self.services.values()):
                 try:
                     gone = await asyncio.to_thread(rt.provider.purge_lapsed)
