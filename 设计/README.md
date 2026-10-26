@@ -3,6 +3,10 @@
 九问IoA仿真平台（Jiuwen IoA Lab）的设计现状。只写现状；历史在 [变更记录.md](变更记录.md) 与 [变更/](变更/)。
 本仓版本唯一的一处：[VERSION](VERSION)。核对：`python 设计/check.py`。
 
+版本策略与 A2C 一致：当前采用 `v0.0.N`，由 `v0.0.1` 起步。设计或口径变更时，Codex 可自动将最后一位 +1；
+倒数第二位及更高位仅由用户明确决定，不自动进位。各产物的 `VERSION` 记录其依据的本仓设计版本；
+A2C 依赖版本独立记录在下方及 `vendor/wheels/SOURCE.json`，不随本仓重新编号而改变。
+
 依据的 A2C 设计版本：v0.0.19（协议、合同卡、验收器、交易市场的定义在 A2C 主仓 [AgentContractProtocol/设计](https://github.com/Weizheng96/AgentContractProtocol/tree/main/设计)；
 本仓用的 a2c SDK wheel 来源见 [vendor/wheels/SOURCE.json](../vendor/wheels/SOURCE.json)）。
 

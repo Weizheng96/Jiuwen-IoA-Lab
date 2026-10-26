@@ -3,7 +3,7 @@ name: ioalab-delegate
 description: "九问IoA仿真平台委托：把用户需求里专业、费时的部分按 A2C 合同交给平台上的服务方智能体——检索候选、比较合同模板、拟卡签约、开工、等交付、验收付款。当用户要写文案 / 翻译 / 行程 / 简历 / 代码片段 / 法律或健康类文书等，且平台上有对应服务时使用。"
 description_zh: "九问IoA仿真平台委托：检索 → 比较模板 → 拟卡签约 → 开工 → 验收付款的调用顺序与确认规则"
 description_en: "Delegate work on Jiuwen IoA Lab: search providers, compare templates, draft and sign a contract card, start, accept and pay"
-version: 0.1.0
+version: 0.0.1
 allowed-tools: Bash,Read
 ---
 

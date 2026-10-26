@@ -45,4 +45,4 @@ ioalab check-config && ioalab serve       # http://127.0.0.1:8750  管理员 /ad
 ## 约束
 
 A2C 是 custody-agnostic 的合同层：平台的模拟支付方只**读卡按卡载金额过账**，不持有资金、不执行裁定；虚拟币只是记账单位。
-文案与代码里不得出现 [CLAUDE.md](CLAUDE.md) §一 列出的资金类禁用词（`tools/selfcheck.py` 拦）。
+文案与代码里不得出现 [AGENTS.md](AGENTS.md) §一 列出的资金类禁用词（`tools/selfcheck.py` 拦）。
