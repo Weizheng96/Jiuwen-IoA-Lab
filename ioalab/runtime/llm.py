@@ -77,21 +77,55 @@ class Usage:
 
 
 class LLM:
+    FAILOVER_AFTER = 3          # 两分钟内连续几次连接类失败就切端点
+    FAILOVER_WINDOW = 120.0
+
     def __init__(self, settings: Settings) -> None:
         self.s = settings
         self.gate = Gate(settings.llm_concurrency)
         self.usage = Usage()
         self.enabled = bool(settings.llm.get("api_key"))
+        self.bases = [b for b in (settings.llm.get("api_base"), settings.llm.get("fallback_base")) if b]
+        self.active = 0
+        self._fail_at: list[float] = []
+        self._flock = threading.Lock()
+        self.on_failover = None                     # 平台挂钩：切端点时发事件
+        self.failovers = 0
         if self.enabled:
             # httpx 在 Windows 上会读注册表里的系统代理（如 127.0.0.1:7890），模型请求经它中转会间歇性挂住到超时；
             # 把模型主机与回环地址加进 NO_PROXY，直连
-            host = self.s.llm["api_base"].split("//", 1)[-1].split("/", 1)[0]
             for var in ("NO_PROXY", "no_proxy"):
                 cur = [x for x in os.environ.get(var, "").split(",") if x]
-                for h in (host, "127.0.0.1", "localhost"):
+                for h in [b.split("//", 1)[-1].split("/", 1)[0] for b in self.bases] + ["127.0.0.1", "localhost"]:
                     if h not in cur:
                         cur.append(h)
                 os.environ[var] = ",".join(cur)
+
+    @property
+    def api_base(self) -> str:
+        return self.bases[self.active] if self.bases else ""
+
+    def note_failure(self, reason: str = "") -> bool:
+        """连接类失败记一次；两分钟内满 FAILOVER_AFTER 次且配了备用端点就切换。返回是否切了。"""
+        with self._flock:
+            now_ = time.time()
+            self._fail_at = [t for t in self._fail_at if now_ - t < self.FAILOVER_WINDOW] + [now_]
+            if len(self.bases) < 2 or len(self._fail_at) < self.FAILOVER_AFTER:
+                return False
+            self._fail_at.clear()
+            self.active = (self.active + 1) % len(self.bases)
+            self.failovers += 1
+        log.warning("LLM endpoint failover → %s (%s)", self.api_base, reason[:120])
+        if self.on_failover:
+            try:
+                self.on_failover(self.api_base, reason)
+            except Exception as e:  # noqa: BLE001
+                log.debug("failover hook failed: %s", e)
+        return True
+
+    def note_success(self) -> None:
+        with self._flock:
+            self._fail_at.clear()
 
     # ── openJiuwen ────────────────────────────────────────────────────
     def agent_config(self, persona: str, *, max_iterations: int = 12, temperature: float = 0.2):
@@ -100,7 +134,7 @@ class LLM:
         if not self.enabled:
             raise RuntimeError("未配置模型凭据（APIkey/*apiKey*.csv）")
         # OpenAI 兼容端点 + 关思考（冒烟：关思考 1.7–3.6 s，开思考 4–18 s 且带工具时可能超时）；不共用进程级 HTTP 客户端
-        client = ModelClientConfig(client_provider="OpenAI", api_base=self.s.llm["api_base"], api_key=self.s.llm["api_key"],
+        client = ModelClientConfig(client_provider="OpenAI", api_base=self.api_base, api_key=self.s.llm["api_key"],
                                    timeout=120, max_retries=2, use_shared_llm_http_client=False)
         req = ModelRequestConfig(model=self.s.agent_model, temperature=temperature, reasoning={"mode": "disabled"})
         return ReActAgentConfig(model_client_config=client, model_config_obj=req,
@@ -120,10 +154,12 @@ class LLM:
             for attempt in range(3):                      # 网络抖动：退避重试，仍不通就抛给调用方走退路
                 try:
                     with self.gate.sem:
-                        r = httpx.post(self.s.llm["api_base"] + "/embeddings", json={"model": self.s.embedding_model, "input": batch},
+                        r = httpx.post(self.api_base + "/embeddings", json={"model": self.s.embedding_model, "input": batch},
                                        headers={"Authorization": "Bearer " + self.s.llm["api_key"]}, timeout=60, trust_env=False)
+                    self.note_success()
                     break
-                except httpx.HTTPError:
+                except httpx.HTTPError as e:
+                    self.note_failure(f"embed: {e}")
                     if attempt == 2:
                         raise
                     time.sleep(5 * (attempt + 1))
@@ -148,10 +184,12 @@ class LLM:
             try:
                 async with self.gate.asem():
                     async with httpx.AsyncClient(timeout=180) as http:
-                        r = await http.post(self.s.llm["api_base"] + "/chat/completions", json=body,
+                        r = await http.post(self.api_base + "/chat/completions", json=body,
                                             headers={"Authorization": "Bearer " + self.s.llm["api_key"]})
+                self.note_success()
             except httpx.HTTPError as e:              # 网络抖动：连接 / 读超时，退避后重试
                 last = e
+                self.note_failure(f"chat: {e}")
                 await asyncio.sleep(10 * (attempt + 1))
                 continue
             if r.status_code != 200:

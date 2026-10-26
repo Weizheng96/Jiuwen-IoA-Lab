@@ -31,7 +31,8 @@ def _llm() -> dict:
     key = _env("IOALAB_LLM_API_KEY")
     if not key:
         return {}
-    return {"api_key": key, "api_base": _env("IOALAB_LLM_BASE_URL", DEFAULT_LLM_BASE).rstrip("/")}
+    return {"api_key": key, "api_base": _env("IOALAB_LLM_BASE_URL", DEFAULT_LLM_BASE).rstrip("/"),
+            "fallback_base": _env("IOALAB_LLM_BASE_URL_FALLBACK").rstrip("/")}
 
 
 @dataclass

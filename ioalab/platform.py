@@ -117,6 +117,8 @@ class Platform:
         self.auth = Auth(self.db, settings)
         self.packages = PackageStore(settings.data / "packages")
         self.llm = LLM(settings)
+        self.llm.on_failover = lambda base, reason: self.bus.emit("platform", "llm.failover", sender="platform", outcome=base,
+                                                                 detail={"reason": reason[:160], "n": self.llm.failovers})
         self.keys = Directory()
         self.keystore = KeyStore(settings.data / "keys")
         self.router = A2ARouter()
@@ -502,6 +504,8 @@ class Platform:
                     # 已开工的单不重跑第一轮（重跑会再拟一张卡）
                     # 已开工的单不重跑第一轮；只签了卡还没开工（forming）的，重跑时提示助手直接拿那张卡开工
                     forming = self.db.one("SELECT card_digest, provider_id FROM orders WHERE need_id=? AND state='forming' ORDER BY created DESC LIMIT 1", nid)
+                    if transient:
+                        self.llm.note_failure(f"round1: {msg[:120]}")
                     if transient and self.db.one("SELECT 1 FROM orders WHERE need_id=? AND state NOT IN ('declined','forming')", nid) is None:
                         if forming:
                             need = {**need, "resume": {"cardDigest": forming["card_digest"], "provider": forming["provider_id"]}}
@@ -770,7 +774,8 @@ class Platform:
                            "active_needs": q("SELECT COUNT(*) AS n FROM needs WHERE state IN ('open','queued','running','started')"),
                            "pending_confirmations": q("SELECT COUNT(*) AS n FROM confirmations WHERE state='pending'")},
             "llm": {"key_configured": self.llm.enabled, "model": self.s.agent_model, "a2x_model": self.s.a2x_model, "embed_model": self.s.embedding_model,
-                    "calls": sum(u["calls"] for u in usage), "tokens": sum(u["tokens"] for u in usage), "concurrency": self.s.llm_concurrency},
+                    "calls": sum(u["calls"] for u in usage), "tokens": sum(u["tokens"] for u in usage), "concurrency": self.s.llm_concurrency,
+                    "endpoint": self.llm.api_base, "fallback": len(self.llm.bases) > 1, "failovers": self.llm.failovers},
             "sandbox": {"concurrency": self.s.sandbox_concurrency, "available": getattr(self.sandbox_gate, "_value", None)},
             "bus": {"run": self.bus.run_id, "events": q("SELECT COUNT(*) AS n FROM events WHERE run_id=?", self.bus.run_id), "subscribers": len(self.bus.subscribers),
                     "seq": (self.db.one("SELECT MAX(seq) AS n FROM events") or {}).get("n") or 0},

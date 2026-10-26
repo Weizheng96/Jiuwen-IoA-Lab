@@ -511,7 +511,7 @@ async function loadComponents() {
     comp('支付中心', 'pay', [['钱包', c.payment.wallets], ['流通量', `${money(c.payment.circulating)} 虚拟币`], ['今日过账', `${c.payment.transfers_today} 笔 · ${money(c.payment.volume_today)}`], ['累计过账', c.payment.transfers_total]]) +
     comp('服务运行时', 'provider', [['在线服务', c.services.online], ['工作中', c.services.working], ['排队任务', c.services.queued], ['接满', c.services.busy.length ? c.services.busy.map(esc).join('、') : '—']]) +
     comp('助手运行时', 'agent', [['助手', `${c.assistants.total}（swarm 驾驭过 ${c.assistants.external_driven}）`], ['进行中需求', c.assistants.active_needs], ['待确认', c.assistants.pending_confirmations], ['背景流量', `${c.traffic.level} · 已投 ${c.traffic.dispatched}`]]) +
-    comp('模型', 'agent', [['key', yn(c.llm.key_configured)], ['助手 / 服务方', esc(c.llm.model)], ['A2X / 嵌入', `${esc(c.llm.a2x_model)} / ${esc(c.llm.embed_model)}`], ['调用 / token', `${c.llm.calls} / ${c.llm.tokens}`], ['并发闸 · 沙箱', `${c.llm.concurrency} · ${c.sandbox.available}/${c.sandbox.concurrency}`]]) +
+    comp('模型', 'agent', [['key', yn(c.llm.key_configured)], ['端点', `${esc((c.llm.endpoint || '').replace(/^https?:\/\//, '').split('/')[0])}${c.llm.fallback ? ` · 备用 ✓ 切换 ${c.llm.failovers}` : ''}`], ['助手 / 服务方', esc(c.llm.model)], ['A2X / 嵌入', `${esc(c.llm.a2x_model)} / ${esc(c.llm.embed_model)}`], ['调用 / token', `${c.llm.calls} / ${c.llm.tokens}`], ['并发闸 · 沙箱', `${c.llm.concurrency} · ${c.sandbox.available}/${c.sandbox.concurrency}`]]) +
     comp('事件总线 · 配置', 'ext', [['运行', esc(c.bus.run)], ['本轮事件', c.bus.events], ['WS 连接', c.bus.subscribers], ['对外地址', esc(c.config.public_url)], ['模式 · 注册', `${esc(c.config.mode)} · ${esc(c.config.registration)}`], ['版本', esc(c.config.version)]]);
 }
 $('btnCompsRefresh').onclick = loadComponents;

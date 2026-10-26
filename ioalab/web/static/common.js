@@ -49,7 +49,7 @@ const OP_LABELS = {
   'discovery.search': '市场检索（A2X）', 'confirm.request': '上升用户确认', 'confirm.answer': '用户答复',
   'order.signed': '签1 采纳合同卡', 'order.declined': '服务方拒绝复签', 'request.returned': '提案卡被退回', 'order.started': '已开工', 'order.fetched': '取件签收',
   'order.verified': '验收器判定（签6）', 'order.accepted': '验收付款（签7）', 'order.arbitrated': '裁定', 'order.completed': '结清',
-  'order.paid-late': '补付本期款', 'order.error': '处理出错', 'order.step-answered': '环节授权答复', 'arbitration.ruling': '裁定文书', 'order.terminated': '合同解除', 'traffic.level': '背景流量档位',
+  'order.paid-late': '补付本期款', 'order.error': '处理出错', 'order.step-answered': '环节授权答复', 'arbitration.ruling': '裁定文书', 'order.terminated': '合同解除', 'traffic.level': '背景流量档位', 'llm.failover': '模型端点切换',
 };
 function labelOf(ev) {
   const op = ev.op || '';
