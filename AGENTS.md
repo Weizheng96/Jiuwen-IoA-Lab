@@ -11,12 +11,12 @@
 
 | 唯一事实来源 | 记什么 | 要求 |
 |---|---|---|
-| [设计/](设计/README.md) | 平台设计现状（八份文档） | 精简，只写现状 |
+| [设计/](设计/README.md) | 平台设计现状（九份文档） | 精简，只写现状 |
 | [设计/VERSION](设计/VERSION) | 本仓版本号，**唯一的一处**，当前格式 `v0.0.N`，由 `v0.0.1` 起步 | Codex 可自动递增最后一位；倒数第二位及更高位仅由用户明确决定，不自动进位 |
 | [设计/README.md](设计/README.md) 的「依据的 A2C 设计版本」 | 本仓依据哪一版 A2C 设计 | 必须与 `vendor/wheels/SOURCE.json` 一致（`设计/check.py` 核） |
 
 历史在 [设计/变更记录.md](设计/变更记录.md)（变更表）与 [设计/变更/](设计/变更/)（来龙去脉）。
-`ioalab/` `sdk/` `official-services/` `experiments/` `connector/` `examples/` `deploy/` 各有 `VERSION` 记它依据的本仓版本；README、docstring、设计文档里**不得散写版本号**。
+`ioalab/` `sdk/` `official-services/` `experiments/` `connector/` `examples/` `deploy/` `personal-assistant/` `demo/` 各有 `VERSION` 记它依据的本仓版本；README、docstring、设计文档里**不得散写版本号**。
 
 | 情形 | 做法 |
 |---|---|
@@ -65,4 +65,4 @@ Windows 本地验证使用 `.venv/Scripts/python.exe`；Linux 部署使用 `.ven
 
 ## 五、执行边界
 
-核心不创建或运行个人助手，不保存用户/服务私钥，不替用户取件验收、签字付款。`sdk/`直接依赖A2C，不依赖核心包；官方服务在独立进程经公开接口接入，Swarm按需运行；实验客户端同样走SDK。先改设计、版本和变更记录，再动实现；未完成的产物如实登记落后。
+核心不创建或运行个人助手；随部署附带的管理员助手在personal-assistant独立进程经公开SDK接入。核心不保存用户/服务私钥，不替用户取件验收、签字付款。`sdk/`直接依赖A2C，不依赖核心包；官方服务在独立进程经公开接口接入，Swarm按需运行；实验客户端同样走SDK。先改设计、版本和变更记录，再动实现；未完成的产物如实登记落后。
