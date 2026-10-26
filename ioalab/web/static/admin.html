@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智能体互联网仿真 · 管理员控制台</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">智能体互联网仿真<small>管理员控制台</small></div>
+  <span class="badge info" id="runTag"></span>
+  <span class="badge" id="modeTag"></span>
+  <span class="badge market" id="discTag"></span>
+  <div class="spacer"></div>
+  <span class="replay-badge hide" id="replayBadge"><i></i><span id="replayText">回放</span></span>
+  <span class="who" id="wsBox"><span class="dot off" id="wsDot"></span><span id="wsText">未连接</span></span>
+  <button class="btn sm hide" id="btnLogout">退出</button>
+</div>
+
+<div class="page" id="loginView">
+  <div class="panel auth">
+    <h2>管理员登录</h2>
+    <div class="form">
+      <label>口令</label><input id="adminPw" type="password" placeholder="IOALAB_ADMIN_PASSWORD 或 data/admin.secret">
+      <div class="full"><button class="btn primary" id="btnLogin" style="width:100%">登录</button></div>
+      <div class="full hint">不走手机号；/admin、/api/admin/*、/ws/admin 全受保护。</div>
+    </div>
+  </div>
+</div>
+<div class="page hide" id="deniedView"><div class="panel warn"><h2>需要管理员会话</h2><p id="deniedText">回放数据需要管理员登录后才能读取。</p></div></div>
+
+<div class="page hide" id="mainView">
+  <div class="tiles" id="tiles"></div>
+  <div class="ctl hide" id="ctl">
+    <button class="btn sm primary" id="btnPlay">▶ 播放</button>
+    <button class="btn sm" id="btnAgain">↺ 重放</button>
+    <span class="pos" id="pos">0.0 s / 0 s</span>
+    <div class="bar"><i id="posBar"></i></div>
+    <span class="mute" id="ctlNote">按真实间隔推进，间隔 &gt; 1.5 s 压到 1.5 s</span>
+  </div>
+  <div class="tabs" id="tabs">
+    <button data-tab="stream" class="on">实时交易流<span class="n" id="nStream">0</span></button>
+    <button data-tab="lanes">泳道视图<span class="n" id="nLanes">0</span></button>
+    <button data-tab="users">用户与钱包</button>
+    <button data-tab="registry">服务注册表</button>
+    <button data-tab="dispatch">投放</button>
+    <button data-tab="needs">需求列表</button>
+    <button data-tab="orders">订单</button>
+    <button data-tab="search">合同卡检索</button>
+    <button data-tab="runs">回放</button>
+  </div>
+
+  <div class="view on" id="view-stream">
+    <div class="toolbar">
+      <button class="btn sm" id="btnGroup">按卡聚合</button>
+      <input id="streamFilter" placeholder="筛选：标签 / 参与方 / 卡摘要">
+      <span class="mute" id="streamNote">每条事件一行：时间 · 标签 · 发起方 → 接收方 · 卡 · 期 · 金额 · 结果；点一行看报文要点</span>
+    </div>
+    <div class="stream" id="stream">
+      <div class="hdr"><span>时间</span><span>标签</span><span>发起方 → 接收方</span><span>卡</span><span>期</span><span class="right">金额</span><span>结果</span></div>
+      <div id="streamBody"></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-lanes">
+    <div class="toolbar"><span class="mute">每张卡一行：助手 → 服务方 · 阶段 发现 / 定约 / 开工 / 交付 / 验收 / 结清 · 签名链按事件流推进</span></div>
+    <div id="lanes"><div class="empty" id="lanesEmpty">尚无合同卡——投放需求后，每张卡在这里占一行</div></div>
+  </div>
+
+  <div class="view" id="view-users">
+    <div class="panel user" style="margin-bottom:16px">
+      <h2>创建虚拟用户</h2>
+      <div class="form" style="grid-template-columns:90px 160px 90px 160px 90px 160px 1fr">
+        <label>数量</label><input id="vuCount" type="number" value="1" min="1" max="50">
+        <label>助手名</label><input id="vuAsst" value="小艺" placeholder="留空则不建助手">
+        <label>发放</label><input id="vuCredit" type="number" value="0" min="0" placeholder="虚拟币">
+        <div><button class="btn primary" id="btnVu">创建</button></div>
+      </div>
+    </div>
+    <div class="panel"><h2>用户与钱包 <span class="tools"><button class="btn sm" id="btnUsersRefresh">刷新</button></span></h2><div id="usersTable"></div></div>
+  </div>
+
+  <div class="view" id="view-registry">
+    <div class="panel provider">
+      <h2>服务注册表 <span class="badge market" id="taxTag"></span><span class="tools"><input id="regFilter" placeholder="筛选名称 / 领域" style="width:260px"><button class="btn sm" id="btnRegRefresh">刷新</button></span></h2>
+      <div id="registryTable"></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-dispatch">
+    <div class="grid2" style="grid-template-columns:1fr 520px">
+      <div class="panel market">
+        <h2>种子需求 <span class="tag">seed 时写下</span><span class="tools"><button class="btn sm" id="btnSeed">注入种子（服务 + 助手）</button><button class="btn sm" id="btnSeedNeedsRefresh">刷新</button><button class="btn primary sm" id="btnDispatch">投放选中（间隔 2 秒）</button></span></h2>
+        <div class="list-check" id="seedNeeds"></div>
+      </div>
+      <div class="panel">
+        <h2>手填一条</h2>
+        <div class="form">
+          <label>助手</label><select id="dpAsst"></select>
+          <label>需求</label><textarea id="dpText" placeholder="一句话"></textarea>
+          <label>预算上限</label><input id="dpBudget" type="number" value="30">
+          <label>类别</label><input id="dpCat" value="不限">
+          <label>仿真代签</label><span class="sw on" id="dpAuto"><span class="tg"></span>开</span>
+          <div class="full"><button class="btn primary" id="btnDispatchOne">投放</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="view" id="view-needs">
+    <div class="panel market"><h2>需求列表 <span class="tools"><button class="btn sm" id="btnNeedsRefresh">刷新</button></span></h2><div id="needsTable"></div></div>
+  </div>
+
+  <div class="view" id="view-orders">
+    <div class="panel provider"><h2>订单 <span class="tools"><button class="btn sm" id="btnOrdersRefresh">刷新</button></span></h2><div id="ordersTable"></div></div>
+  </div>
+
+  <div class="view" id="view-search">
+    <div class="panel market">
+      <h2>合同卡检索</h2>
+      <div class="form"><label>卡摘要</label><div class="row"><input id="searchCd" placeholder="sha256:… 或前几位"><button class="btn primary" id="btnSearch">检索</button></div></div>
+      <div id="searchResult" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-runs">
+    <div class="panel"><h2>回放 <span class="tag">事件出自真实运行</span><span class="tools"><button class="btn sm" id="btnNewRun">开新一轮记录</button></span></h2>
+      <p>每次运行的事件落在 data/runs/&lt;run&gt;/events.jsonl；回放用同一套渲染，按 JS 虚拟时钟推进。<code>&amp;auto=1</code> 隐藏登录与控制条、载入即播；<code>&amp;tab=lanes</code> 直接进泳道视图。</p>
+      <div id="runsList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="caption hide" id="caption"></div>
+<div class="titlecard hide" id="titleCard"></div>
+<div class="modal" id="orderModal"><div class="box">
+  <h2>订单详情 <code id="omCd" class="mono fg2"></code><span class="x" id="omClose">×</span></h2>
+  <div id="omBody"></div>
+</div></div>
+
+<script src="/static/common.js"></script>
+<script src="/static/admin.js"></script>
+</body>
+</html>

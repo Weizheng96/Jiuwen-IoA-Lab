@@ -1,0 +1,72 @@
+{
+  "id": "weekly-report",
+  "name": "周报速成铺",
+  "description": "按你给的事项关键词生成一份工作周报：本周进展、下周计划、风险三节，每个事项都要写到；预批准型，5 虚拟币，30 分钟内交付。",
+  "tags": [
+    "周报",
+    "文案",
+    "办公"
+  ],
+  "runnable": true,
+  "formation": "preapproval",
+  "deliverable": {
+    "name": "report",
+    "title": "周报",
+    "file": "report.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"thisWeek\": [..], \"nextWeek\": [..], \"risks\": [..]}，三节都非空；spec.keywords 用逗号分隔事项，每个事项可含多个关键词（用 | 分隔），每个关键词都要在周报全文中出现",
+    "specSchema": {
+      "keywords": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "role": {
+        "type": "string",
+        "maxLength": 40
+      }
+    }
+  },
+  "inputs": [],
+  "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+  },
+  "pricing": {
+    "price": "5"
+  },
+  "verifier": {
+    "id": "weekly_report@1.0",
+    "reads": [
+      "spec.report.keywords"
+    ]
+  },
+  "notCovered": [
+    "事实准确性"
+  ],
+  "generator": {
+    "system": "你替规格 role 这个岗位写本周工作周报。硬性判据（验收器会机械检查）：1）输出三节 thisWeek / nextWeek / risks，每节都是非空字符串数组；2）规格 keywords 是事项列表，逗号分隔，每个事项可能含多个关键词（用 | 分隔）——每一个关键词都必须原样出现在周报的某一条里（最稳妥的做法是 thisWeek 每个事项一条、句子里原样写出该事项的全部关键词）。语气平实、每条一句话、带进度或数字。",
+    "output": "{\"thisWeek\": [\"完成登录页改版的联调\"], \"nextWeek\": [\"推进支付接口灰度\"], \"risks\": [\"第三方接口文档延期\"]}"
+  },
+  "sample": {
+    "thisWeek": [
+      "完成登录页改版的前后端联调，核心流程已通过测试",
+      "支付接口联调完成 80%，剩余退款分支待对接",
+      "周报自动化脚本上线，每周一自动汇总数据"
+    ],
+    "nextWeek": [
+      "登录页改版灰度上线 10% 用户",
+      "完成支付接口退款分支联调并进入回归测试",
+      "周报自动化补充图表输出"
+    ],
+    "risks": [
+      "支付方沙箱环境不稳定，联调进度可能延后两天",
+      "灰度期间若登录异常需快速回滚"
+    ]
+  },
+  "sample_spec": {
+    "keywords": "登录页|改版,支付接口|联调,周报|自动化",
+    "role": "前端开发"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "id": "trip-plan",
+  "name": "两日行程定制所",
+  "description": "定制两天城市行程：按城市与预算上限排每天 3 个以上景点并估算花费，合计不超预算；提案型（先付 1 虚拟币拟卡费，服务方按需求报价 10–30 虚拟币），30 分钟内交付。",
+  "tags": [
+    "行程规划",
+    "旅行",
+    "周末"
+  ],
+  "runnable": true,
+  "formation": "proposal",
+  "deliverable": {
+    "name": "trip",
+    "title": "两日行程",
+    "file": "trip.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"days\": [{\"day\": 1, \"spots\": [\"景点\"], \"cost\": 花费}, {\"day\": 2, ...}]}。恰好 spec.days 天，每天 spots ≥ 3 个，各天 cost 合计 ≤ spec.budget",
+    "specSchema": {
+      "city": {
+        "type": "string",
+        "maxLength": 20
+      },
+      "budget": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 5000
+      },
+      "days": {
+        "const": 2
+      }
+    }
+  },
+  "inputs": [],
+  "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+  },
+  "pricing": {
+    "proposalFee": 1,
+    "range": [10, 30]
+  },
+  "verifier": {
+    "id": "trip_plan@1.0",
+    "reads": [
+      "spec.trip.city",
+      "spec.trip.budget",
+      "spec.trip.days"
+    ]
+  },
+  "notCovered": [
+    "景点开放时间",
+    "交通实时状况"
+  ],
+  "generator": {
+    "quote_system": "你是行程定制服务方，按规格里的城市与预算给出整数报价（虚拟币），只在参考价区间内取值：预算高、景点多则报价高。只输出 JSON：{\"price\": 整数, \"summary\": \"一句话\"}。",
+    "system": "你是旅行规划师，为规格 city 排 days 天的行程。硬性判据（验收器会机械检查）：1）days 数组恰好 days 项，每项有 day（1、2）、spots（景点名字符串数组）与 cost（整数，当天门票 + 餐饮 + 交通估算，单位元）；2）每天 spots 至少 3 个；3）所有天的 cost 合计必须 ≤ 规格 budget——预算按 budget 的 60%–90% 安排即可，留出余量。景点真实存在、同一天的景点地理上顺路。",
+    "output": "{\"days\": [{\"day\": 1, \"spots\": [\"西湖\", \"雷峰塔\", \"河坊街\"], \"cost\": 420}, {\"day\": 2, \"spots\": [\"灵隐寺\", \"龙井村\", \"西溪湿地\"], \"cost\": 380}]}"
+  },
+  "sample": {
+    "days": [
+      {"day": 1, "spots": ["西湖（断桥、白堤）", "雷峰塔", "河坊街", "南宋御街"], "cost": 520},
+      {"day": 2, "spots": ["灵隐寺", "龙井村", "西溪湿地"], "cost": 460}
+    ]
+  },
+  "sample_spec": {
+    "city": "杭州",
+    "budget": 1500
+  }
+}

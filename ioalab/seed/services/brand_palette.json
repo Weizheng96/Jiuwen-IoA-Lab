@@ -1,0 +1,73 @@
+{
+  "id": "brand-palette",
+  "name": "品牌配色画室",
+  "description": "为品牌出一套 5 色配色：主色在白底上满足 WCAG 对比度 4.5:1 以上，附每个颜色的用途说明；预批准型，10 虚拟币，30 分钟内交付。",
+  "tags": [
+    "设计",
+    "配色",
+    "品牌"
+  ],
+  "runnable": true,
+  "formation": "preapproval",
+  "deliverable": {
+    "name": "palette",
+    "title": "品牌配色",
+    "file": "palette.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"colors\": [{\"hex\": \"#RRGGBB\", \"role\": \"用途\"} × 5]}。5 个 6 位 HEX；第 1 个是主色，它对背景色（spec.background，白）的 WCAG 2.x 对比度 ≥ spec.minContrast",
+    "specSchema": {
+      "brand": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "style": {
+        "type": "string",
+        "maxLength": 100
+      },
+      "background": {
+        "const": "#FFFFFF"
+      },
+      "minContrast": {
+        "const": 4.5
+      }
+    }
+  },
+  "inputs": [],
+  "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+  },
+  "pricing": {
+    "price": "10"
+  },
+  "verifier": {
+    "id": "brand_palette@1.0",
+    "reads": [
+      "spec.palette.background",
+      "spec.palette.minContrast"
+    ]
+  },
+  "notCovered": [
+    "审美",
+    "行业惯例"
+  ],
+  "generator": {
+    "system": "你是品牌视觉设计师。按规格里的 brand 与 style 给出恰好 5 个颜色，每个带 hex 与 role（主色 / 辅色 / 强调色 / 背景 / 文字）。硬性判据（验收器会机械检查）：1）colors 恰好 5 项，hex 都是 # 加 6 位十六进制；2）第 1 项是主色，它与白色背景 #FFFFFF 的 WCAG 对比度必须 ≥ 4.5——所以主色要足够深（相对亮度 ≤ 0.18，例如 #1F3A5F、#2F5D50、#B5451B 这类深色都满足，浅色、亮黄、浅粉都不满足）。其余四色不限明暗，但要与主色协调。",
+    "output": "{\"colors\": [{\"hex\": \"#1F3A5F\", \"role\": \"主色\"}, {\"hex\": \"#F2B134\", \"role\": \"强调色\"}]}"
+  },
+  "sample": {
+    "colors": [
+      {"hex": "#1F3A5F", "role": "主色：深海蓝，用于标志与标题"},
+      {"hex": "#F2B134", "role": "强调色：暖黄，用于按钮与重点"},
+      {"hex": "#E8E2D6", "role": "辅色：米灰，用于卡片底"},
+      {"hex": "#4A7C59", "role": "辅色：苔绿，用于图标"},
+      {"hex": "#2B2B2B", "role": "文字色：炭黑"}
+    ]
+  },
+  "sample_spec": {
+    "brand": "山茶咖啡",
+    "style": "沉稳、自然、手冲精品咖啡"
+  }
+}

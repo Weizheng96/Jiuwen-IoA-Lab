@@ -1,0 +1,26 @@
+[Unit]
+Description=Jiuwen IoA Lab (九问IoA仿真平台)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ioalab
+Group=ioalab
+# 工作目录放在数据区：openJiuwen 会往当前目录写 logs/，不要落在代码目录
+WorkingDirectory=/var/lib/ioalab
+EnvironmentFile=/etc/ioalab/ioalab.env
+ExecStartPre=/opt/ioalab/.venv/bin/ioalab check-config
+ExecStart=/opt/ioalab/.venv/bin/ioalab serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+# 单进程单 worker（SQLite WAL）；不要加 --workers
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/ioalab
+
+[Install]
+WantedBy=multi-user.target

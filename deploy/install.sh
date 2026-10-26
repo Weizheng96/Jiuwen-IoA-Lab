@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# 九问IoA仿真平台（Jiuwen IoA Lab）· 裸 Linux 安装（无 Docker）：
+#   /opt/ioalab（本仓库，含 .venv）· /etc/ioalab/ioalab.env · /var/lib/ioalab（数据）· systemd 单元 ioalab.service
+#
+#   sudo git clone --recursive https://github.com/Weizheng96/Jiuwen-IoA-Lab.git /opt/ioalab
+#   sudo /opt/ioalab/deploy/install.sh            # 幂等；装完先编辑 /etc/ioalab/ioalab.env（key · PUBLIC_URL）
+#   sudo systemctl enable --now ioalab            # 首次启动自动注入内部账号 · 服务 · 分类树
+#
+# 可选环境变量：PYTHON=python3.11（解释器）· IOALAB_APP_DIR=/opt/ioalab · IOALAB_STATE_DIR=/var/lib/ioalab · IOALAB_USER=ioalab
+set -euo pipefail
+
+APP_DIR="${IOALAB_APP_DIR:-/opt/ioalab}"
+STATE_DIR="${IOALAB_STATE_DIR:-/var/lib/ioalab}"
+ENV_FILE=/etc/ioalab/ioalab.env
+SVC_USER="${IOALAB_USER:-ioalab}"
+PY="${PYTHON:-python3.11}"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+
+say() { echo "[ioalab-install] $*"; }
+need() { command -v "$1" >/dev/null 2>&1 || { say "缺少命令：$1"; exit 1; }; }
+
+[ "$(id -u)" -eq 0 ] || { say "请用 root（sudo）运行"; exit 1; }
+need git
+command -v "$PY" >/dev/null 2>&1 || { say "需要 Python 3.11（$PY 不存在）：apt install python3.11 python3.11-venv"; exit 1; }
+"$PY" -c 'import sys; assert sys.version_info[:2] == (3, 11), sys.version' || { say "解释器必须是 3.11"; exit 1; }
+
+# ── 代码目录 ────────────────────────────────────────────────────────
+if [ "$HERE" != "$APP_DIR" ]; then
+  say "代码不在 $APP_DIR（当前 $HERE）：复制过去（已有则更新）"
+  mkdir -p "$APP_DIR"
+  cp -a "$HERE/." "$APP_DIR/"
+fi
+cd "$APP_DIR"
+git submodule update --init --recursive
+[ -f vendor/A2X-registry/pyproject.toml ] || { say "子模块 vendor/A2X-registry 未取到"; exit 1; }
+
+# ── 账号与目录 ───────────────────────────────────────────────────────
+id -u "$SVC_USER" >/dev/null 2>&1 || useradd --system --home-dir "$STATE_DIR" --shell /usr/sbin/nologin "$SVC_USER"
+mkdir -p "$STATE_DIR/data" "$STATE_DIR/a2c-cache" /etc/ioalab
+chown -R "$SVC_USER:$SVC_USER" "$STATE_DIR"
+chmod 750 "$STATE_DIR"
+
+# ── 虚拟环境与依赖（离线可行：a2c 是入库的 wheel，A2X 是子模块；其余走 PyPI）────
+if [ ! -x .venv/bin/python ]; then
+  "$PY" -m venv .venv
+fi
+.venv/bin/python -m pip install -q --upgrade pip
+.venv/bin/python -m pip install -q -r requirements.txt
+.venv/bin/python -m pip install -q -e .
+.venv/bin/ioalab --help >/dev/null
+
+# ── 配置文件（已存在则不动）────────────────────────────────────────────
+if [ ! -f "$ENV_FILE" ]; then
+  cp deploy/ioalab.env.example "$ENV_FILE"
+  ADMIN_PW="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(12))')"
+  SECRET="$(.venv/bin/python -c 'import secrets; print(secrets.token_hex(32))')"
+  sed -i "s#^IOALAB_ADMIN_PASSWORD=.*#IOALAB_ADMIN_PASSWORD=$ADMIN_PW#" "$ENV_FILE"
+  sed -i "s#^IOALAB_SECRET=.*#IOALAB_SECRET=$SECRET#" "$ENV_FILE"
+  sed -i "s#^IOALAB_DATA=.*#IOALAB_DATA=$STATE_DIR/data#" "$ENV_FILE"
+  sed -i "s#^A2C_CACHE_DIR=.*#A2C_CACHE_DIR=$STATE_DIR/a2c-cache#" "$ENV_FILE"
+  IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  [ -n "$IP" ] && sed -i "s#^IOALAB_PUBLIC_URL=.*#IOALAB_PUBLIC_URL=http://$IP:8750#" "$ENV_FILE"
+  chmod 640 "$ENV_FILE"; chown root:"$SVC_USER" "$ENV_FILE"
+  say "已生成 $ENV_FILE（管理员口令：$ADMIN_PW）—— 请填 IOALAB_LLM_API_KEY，核对 IOALAB_PUBLIC_URL"
+else
+  say "$ENV_FILE 已存在，不改"
+fi
+
+# ── 预热验收器沙箱的 wasm 运行时（随 a2c wheel 入库，首次解压约 14 MB）──
+sudo -u "$SVC_USER" env A2C_CACHE_DIR="$STATE_DIR/a2c-cache" .venv/bin/python - <<'PY'
+from a2c.verifier import sandbox
+for rid in sandbox.runtimes():
+    print("[ioalab-install] wasm 运行时就位：", sandbox.install(rid))
+PY
+
+# ── systemd ─────────────────────────────────────────────────────────
+sed -e "s#/opt/ioalab#$APP_DIR#g" -e "s#/var/lib/ioalab#$STATE_DIR#g" -e "s#^User=.*#User=$SVC_USER#" -e "s#^Group=.*#Group=$SVC_USER#" \
+  deploy/ioalab.service > /etc/systemd/system/ioalab.service
+systemctl daemon-reload
+say "安装完成。下一步："
+say "  1) 编辑 $ENV_FILE：IOALAB_LLM_API_KEY · IOALAB_PUBLIC_URL（首次启动后不可改）"
+say "  2) sudo -u $SVC_USER env \$(grep -v '^#' $ENV_FILE | xargs) $APP_DIR/.venv/bin/ioalab check-config"
+say "  3) sudo systemctl enable --now ioalab && journalctl -u ioalab -f"
+say "  4) 可选：deploy/nginx.conf 反代与 HTTPS"

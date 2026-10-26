@@ -1,0 +1,3 @@
+[submodule "vendor/A2X-registry"]
+	path = vendor/A2X-registry
+	url = https://github.com/Weizheng96/A2X-registry.git

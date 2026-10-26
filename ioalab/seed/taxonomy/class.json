@@ -1,0 +1,74 @@
+{
+  "version": "2.0-hierarchical",
+  "categories": {
+    "root": {
+      "name": "All API Services",
+      "description": "Root node containing all API services across all functional domains"
+    },
+    "cat_brand_design": {
+      "name": "品牌视觉设计",
+      "description": "为品牌提供整体视觉方案，包括Logo、配色、海报、包装等平面设计，支持多场景应用，也涵盖空间布局与功能动线的视觉化表达。",
+      "decision_rule": "如果服务核心是创建品牌视觉资产或空间功能布局方案并输出可落地的设计稿，分类于此"
+    },
+    "cat_competitor_data": {
+      "name": "竞品数据采集",
+      "description": "从公开渠道收集竞品价格、评价、功能等信息，形成对比表格或清单，支持决策参考。",
+      "decision_rule": "如果服务主要完成竞品公开数据的采集与整理，分类于此"
+    },
+    "cat_content_creation": {
+      "name": "内容创作",
+      "description": "撰写适用于社交媒体、公众号、直播等平台的原创文案，含推文、口播稿、短视频脚本等。",
+      "decision_rule": "如果服务主要产出用于传播的口语化或叙事性文本内容，分类于此"
+    },
+    "cat_data_analysis": {
+      "name": "数据分析",
+      "description": "对结构化数据进行统计分析、建模与洞察输出，包括问卷、用户行为、销售趋势等。",
+      "decision_rule": "如果服务核心是基于数据生成结论或预测，分类于此"
+    },
+    "cat_data_extraction": {
+      "name": "数据采集与自动化脚本",
+      "description": "提供网页爬虫、Python脚本等工具，实现公开数据提取或重复任务自动化处理，交付可运行代码或结构化数据。",
+      "decision_rule": "如果服务核心是编写小型自动化脚本（如爬虫、数据清洗）以获取或处理数据，分类于此"
+    },
+    "cat_education_tutoring": {
+      "name": "教育辅导",
+      "description": "针对学生提供作业讲解、考试复习、讲义制作、长难句分析等个性化教学服务。",
+      "decision_rule": "如果服务核心是为学生提供针对性辅导与学习材料，分类于此"
+    },
+    "cat_event_planning": {
+      "name": "行程与活动规划",
+      "description": "定制旅行、婚礼、亲子、商务等场景的行程安排，含交通、预算、景点推荐。",
+      "decision_rule": "如果服务核心是制定详细行程计划并控制预算与时间，分类于此"
+    },
+    "cat_home_design": {
+      "name": "家居空间设计",
+      "description": "针对60㎡以下小户型提供收纳优化、动线改造、家具尺寸规划及水电点位标注等设计方案。",
+      "decision_rule": "如果服务核心是基于房屋现状提供空间布局、拆改建议、家具配置与分项报价，分类于此"
+    },
+    "cat_legal_advice": {
+      "name": "法律咨询与审查",
+      "description": "提供合同审阅、劳动纠纷解答、知识产权注册、公司架构设计等法律服务。",
+      "decision_rule": "如果服务核心是提供具有法律效力的书面建议或风险评估，分类于此"
+    },
+    "cat_photo_editing": {
+      "name": "照片后期处理",
+      "description": "人像精修、证件照换底、老照片修复、建筑透视校正、批量调色等图像处理服务。",
+      "decision_rule": "如果服务主要对照片进行修饰、修复或风格化处理，分类于此"
+    },
+    "cat_product_copy": {
+      "name": "电商详情页文案",
+      "description": "撰写结构化产品详情页文案，包含卖点、FAQ与转化引导。",
+      "decision_rule": "如果服务核心是为电商平台生成高转化率的产品描述，分类于此"
+    },
+    "cat_translation": {
+      "name": "多语言翻译",
+      "description": "合同、技术文档、留学材料、字幕等专业文本的中英、日、德、法等语种互译。",
+      "decision_rule": "如果服务核心是提供准确、符合语境的专业翻译，分类于此"
+    },
+    "cat_video_production": {
+      "name": "视频剪辑与制作",
+      "description": "婚礼纪念片、Vlog粗剪、课程录屏去口误、加章节标题与重点标注等视频后期处理。",
+      "decision_rule": "如果服务主要交付经过剪辑、调色、配乐的成片，分类于此"
+    }
+  }
+}

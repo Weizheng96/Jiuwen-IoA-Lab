@@ -1,0 +1,217 @@
+{
+  "version": "2.0-hierarchical",
+  "root": "root",
+  "categories": {
+    "root": {
+      "children": [
+        "cat_brand_design",
+        "cat_competitor_data",
+        "cat_content_creation",
+        "cat_data_analysis",
+        "cat_data_extraction",
+        "cat_education_tutoring",
+        "cat_event_planning",
+        "cat_home_design",
+        "cat_legal_advice",
+        "cat_photo_editing",
+        "cat_product_copy",
+        "cat_translation",
+        "cat_video_production"
+      ],
+      "services": [
+        "svc-coding-02",
+        "svc-coding-04",
+        "svc-coding-05",
+        "svc-coding-06"
+      ]
+    },
+    "cat_brand_design": {
+      "children": [],
+      "services": [
+        "svc-brand-palette",
+        "svc-ecommerce-ops-01",
+        "svc-graphic-design-01",
+        "svc-graphic-design-02",
+        "svc-graphic-design-03",
+        "svc-graphic-design-04",
+        "svc-graphic-design-05",
+        "svc-graphic-design-06"
+      ]
+    },
+    "cat_competitor_data": {
+      "children": [],
+      "services": [
+        "svc-coding-03",
+        "svc-data-analysis-05",
+        "svc-ecommerce-ops-06",
+        "svc-tax-finance-04"
+      ]
+    },
+    "cat_content_creation": {
+      "children": [],
+      "services": [
+        "svc-baby-names",
+        "svc-copywriting-01",
+        "svc-copywriting-02",
+        "svc-copywriting-03",
+        "svc-copywriting-04",
+        "svc-copywriting-05",
+        "svc-copywriting-06",
+        "svc-diet-plan-01",
+        "svc-diet-plan-02",
+        "svc-diet-plan-03",
+        "svc-diet-plan-04",
+        "svc-diet-plan-05",
+        "svc-diet-plan-06",
+        "svc-ecommerce-ops-03",
+        "svc-ecommerce-ops-04",
+        "svc-ecommerce-ops-06",
+        "svc-graphic-design-05",
+        "svc-ppt-outline",
+        "svc-resume-01",
+        "svc-resume-02",
+        "svc-resume-03",
+        "svc-resume-04",
+        "svc-resume-05",
+        "svc-resume-06",
+        "svc-resume-polish",
+        "svc-tax-finance-02",
+        "svc-wechat-posts",
+        "svc-weekly-menu",
+        "svc-weekly-report"
+      ]
+    },
+    "cat_data_analysis": {
+      "children": [],
+      "services": [
+        "svc-coding-01",
+        "svc-data-analysis-01",
+        "svc-data-analysis-02",
+        "svc-data-analysis-03",
+        "svc-data-analysis-04",
+        "svc-data-analysis-06",
+        "svc-ecommerce-ops-02",
+        "svc-ecommerce-ops-05",
+        "svc-tax-finance-01",
+        "svc-tax-finance-02",
+        "svc-tax-finance-03",
+        "svc-tax-finance-04",
+        "svc-tax-finance-05",
+        "svc-tax-finance-06"
+      ]
+    },
+    "cat_data_extraction": {
+      "children": [],
+      "services": [
+        "svc-coding-01",
+        "svc-coding-03",
+        "svc-data-analysis-05",
+        "svc-data-analysis-06",
+        "svc-regex-snippet"
+      ]
+    },
+    "cat_education_tutoring": {
+      "children": [],
+      "services": [
+        "svc-data-analysis-03",
+        "svc-diet-plan-05",
+        "svc-resume-01",
+        "svc-translate-06",
+        "svc-tutoring-01",
+        "svc-tutoring-02",
+        "svc-tutoring-03",
+        "svc-tutoring-04",
+        "svc-tutoring-05",
+        "svc-tutoring-06",
+        "svc-video-edit-03"
+      ]
+    },
+    "cat_event_planning": {
+      "children": [],
+      "services": [
+        "svc-diet-plan-06",
+        "svc-ecommerce-ops-05",
+        "svc-trip-plan",
+        "svc-trip-plan-01",
+        "svc-trip-plan-02",
+        "svc-trip-plan-03",
+        "svc-trip-plan-04",
+        "svc-trip-plan-05",
+        "svc-trip-plan-06"
+      ]
+    },
+    "cat_home_design": {
+      "children": [],
+      "services": [
+        "svc-home-design-01",
+        "svc-home-design-02",
+        "svc-home-design-03",
+        "svc-home-design-04",
+        "svc-home-design-05",
+        "svc-home-design-06"
+      ]
+    },
+    "cat_legal_advice": {
+      "children": [],
+      "services": [
+        "svc-law-consult-01",
+        "svc-law-consult-02",
+        "svc-law-consult-03",
+        "svc-law-consult-04",
+        "svc-law-consult-05",
+        "svc-law-consult-06",
+        "svc-tax-finance-05"
+      ]
+    },
+    "cat_photo_editing": {
+      "children": [],
+      "services": [
+        "svc-photo-retouch-01",
+        "svc-photo-retouch-02",
+        "svc-photo-retouch-03",
+        "svc-photo-retouch-04",
+        "svc-photo-retouch-05",
+        "svc-photo-retouch-06"
+      ]
+    },
+    "cat_product_copy": {
+      "children": [],
+      "services": [
+        "svc-copywriting-04",
+        "svc-ecommerce-ops-03",
+        "svc-ecommerce-ops-04",
+        "svc-ecommerce-ops-06",
+        "svc-graphic-design-04",
+        "svc-photo-retouch-01",
+        "svc-resume-01",
+        "svc-resume-06",
+        "svc-resume-polish"
+      ]
+    },
+    "cat_translation": {
+      "children": [],
+      "services": [
+        "svc-translate-01",
+        "svc-translate-02",
+        "svc-translate-03",
+        "svc-translate-04",
+        "svc-translate-05",
+        "svc-translate-06",
+        "svc-translate-zh-en"
+      ]
+    },
+    "cat_video_production": {
+      "children": [],
+      "services": [
+        "svc-copywriting-03",
+        "svc-video-edit-01",
+        "svc-video-edit-02",
+        "svc-video-edit-03",
+        "svc-video-edit-04",
+        "svc-video-edit-05",
+        "svc-video-edit-06"
+      ]
+    }
+  },
+  "build_status": "complete"
+}

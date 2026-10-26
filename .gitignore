@@ -1,0 +1,24 @@
+# 运行期数据：SQLite · 私钥 · 交付件 · A2X 数据集 · 回放事件 · 日志
+data/
+logs/
+
+# 凭据与本机配置
+.env
+*.env
+!deploy/ioalab.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
