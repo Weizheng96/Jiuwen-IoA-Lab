@@ -319,6 +319,43 @@ def create_app(platform: Platform) -> FastAPI:
                 await asyncio.sleep(gap)
         return {"needs": out}
 
+    @app.get("/api/admin/components")
+    async def components(_: str = Depends(require_admin)):
+        return await asyncio.to_thread(platform.components)
+
+    @app.get("/api/admin/traffic")
+    async def traffic_get(_: str = Depends(require_admin)):
+        return platform.traffic.status()
+
+    @app.post("/api/admin/traffic")
+    async def traffic_set(request: Request, _: str = Depends(require_admin)):
+        b = await body(request)
+        return platform.traffic.set_level(str(b.get("level", "off")))
+
+    @app.post("/api/admin/dispatch-pool")
+    async def dispatch_pool(request: Request, _: str = Depends(require_admin)):
+        """从需求池随机投放：body {domain?, count, gap}；只投给空闲的内部用户助手。"""
+        b = await body(request)
+        count, gap, domain = int(b.get("count", 1)), float(b.get("gap", 1.0)), (b.get("domain") or "")
+        pool = [n for n in platform.traffic.pool() if not domain or n.get("domain") == domain]
+        if not pool:
+            raise HTTPException(400, "需求池为空或该领域没有需求")
+        out, skipped = [], 0
+        for i in range(count):
+            idle = platform.traffic.idle_assistants()
+            if not idle:
+                skipped += 1
+                continue
+            a = platform.traffic.rng.choice(idle)
+            n = platform.traffic.rng.choice(pool)
+            if float(platform.wallets.balance(a["owner_id"])) < 40:
+                platform.grant(a["owner_id"], s.login_credit, by="admin", note="投放前补币")
+            out.append(platform.create_need(a["owner_id"], a["id"], n["text"], n.get("scope") or {}, auto_sign=bool(n.get("autoSign", True)),
+                                            materials=n.get("materials") or [], by="admin")["id"])
+            if gap and i < count - 1:
+                await asyncio.sleep(gap)
+        return {"needs": out, "skipped": skipped}
+
     @app.get("/api/admin/seed-needs")
     async def seed_needs(_: str = Depends(require_admin)):
         """seed 时写下的 10 条可投放需求（含助手 id 与材料路径），供「一键投放」用。"""

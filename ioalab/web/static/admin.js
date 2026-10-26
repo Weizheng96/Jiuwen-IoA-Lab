@@ -15,18 +15,21 @@ const SCRIPT = Q.get('script') || '';
 const SRC = (Q.get('src') || '').replace(/\/$/, '');
 let REPLAY = Q.get('replay') || (SCRIPT ? 'script' : '');
 const AUTO = Q.get('auto') === '1';
+const VIEW = Q.get('view') || '';                 // panorama：双屏试用布局（全景 + 实时流 + 组件条）
 const cases = new Cases();
 const allEvents = [];
 const seenSeq = new Set();
 let grouped = REPLAY ? Q.get('group') !== '0' : false;
 let filterText = '';
 let ws = null, wsTimer = 0, statsTimer = 0, listTimer = 0;
-let USERS = [], REGISTRY = [], ORDERS = [], SEED_NEEDS = [];
+let USERS = [], REGISTRY = [], CATEGORIES = [], ORDERS = [], SEED_NEEDS = [];
+let compsTimer = 0;
 let touched = { c: null, at: 0 };
 const R = { events: [], vt: [], idx: 0, total: 0, done: false };
 const S = { steps: [], idx: 0 };          // 剧本模式：按时点执行的步
 
 if (AUTO) document.body.classList.add('auto');
+if (VIEW === 'panorama') { document.body.classList.add('trial'); }
 
 /* ── 登录 ──────────────────────────────────────────────────── */
 $('btnLogin').onclick = async () => {
@@ -39,27 +42,38 @@ $('btnLogout').onclick = async () => { await api('/api/auth/logout', {}); locati
 async function enter() {
   $('loginView').classList.add('hide'); $('mainView').classList.remove('hide'); $('btnLogout').classList.remove('hide');
   await loadNames();
+  Panorama.init(USERS, REGISTRY, CATEGORIES, { replay: !!REPLAY, baseSeq: 0 });
+  Focus.listeners.push(onFocus);
   if (REPLAY) await startReplay(); else await startLive();
-  showTab(Q.get('tab') || 'stream');
+  if (VIEW === 'panorama') { $('mainView').classList.add('trial-grid'); ['view-panorama', 'view-stream', 'view-components'].forEach(id => $(id).classList.add('on')); loadComponents(); compsTimer = setInterval(loadComponents, 5000); }
+  else showTab(Q.get('tab') || (REPLAY ? 'stream' : 'panorama'));
+  if (Q.get('focus')) Focus.set(Q.get('focus'));
   requestAnimationFrame(loop);
 }
 async function loadNames() {
   try {
     const [u, r] = SRC ? await Promise.all([api(SRC + '/users.json'), api(SRC + '/registry.json')])
       : await Promise.all([api('/api/admin/users'), api('/api/admin/registry')]);
-    USERS = u; REGISTRY = r.services || []; Names.seedUsers(USERS); Names.seedServices(REGISTRY);
+    USERS = u; REGISTRY = r.services || []; CATEGORIES = r.categories || []; Names.seedUsers(USERS); Names.seedServices(REGISTRY);
     $('taxTag').textContent = '分类树 ' + (r.taxonomy || '—');
   } catch (e) { toast('名字映射加载失败：' + e.message, 'bad'); }
 }
+function onFocus(acct) {
+  $('focusTag').classList.toggle('on', !!acct);
+  $('focusName').textContent = acct ? Names.of(acct) : '';
+  Panorama.focus(acct);
+  const u = new URL(location.href); if (acct) u.searchParams.set('focus', acct); else u.searchParams.delete('focus'); history.replaceState(null, '', u);
+}
+$('focusClear').onclick = () => Focus.clear();
 
 /* ── 页签 ──────────────────────────────────────────────────── */
-const LOADERS = { users: loadUsers, registry: loadRegistry, dispatch: loadDispatch, needs: loadNeeds, orders: loadOrders, runs: loadRuns };
+const LOADERS = { users: loadUsers, registry: loadRegistry, dispatch: loadDispatch, needs: loadNeeds, orders: loadOrders, runs: loadRuns, components: loadComponents };
 function showTab(name) {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + name));
   if (LOADERS[name]) LOADERS[name]();
   clearInterval(listTimer);
-  if (!REPLAY && /users|registry|needs|orders/.test(name)) listTimer = setInterval(LOADERS[name], 5000);
+  if (!REPLAY && /users|registry|needs|orders|components|dispatch/.test(name)) listTimer = setInterval(LOADERS[name], 5000);
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
@@ -121,6 +135,7 @@ function rowEl(ev) {
     <span class="ellipsis">${Names.html(ev.sender)}<span class="arrow">→</span>${Names.html(ev.receiver)}</span>
     <span class="cd">${esc(shortCd(ev.cardDigest))}</span><span class="mute">${ev.period ? esc(ev.period) : ''}</span>
     <span class="amt">${ev.amount ? money(ev.amount) : ''}</span><span class="out ${outcomeClass(ev.outcome)}" title="${esc(ev.outcome)}">${esc(outcomeOf(ev))}</span>`;
+  Focus.mark(d, Focus.accountsOf(ev));
   d.onclick = () => {
     const old = d.querySelector('.detail');
     if (old) { old.remove(); d.classList.remove('sel'); return; }
@@ -145,6 +160,7 @@ function groupEl(c) {
   h.onclick = () => { g.classList.toggle('open'); h.innerHTML = groupHeader(c); };
   g.appendChild(h); g.appendChild(b);
   c.el = g; h.innerHTML = groupHeader(c);
+  Focus.mark(g, Focus.accountsOfCase(c));
   Born.add(g);
   return g;
 }
@@ -160,6 +176,7 @@ function addToStream(ev, c, isNew) {
   else if (body.firstChild !== c.el) body.insertBefore(c.el, body.firstChild);
   if (matches(ev)) c.el.querySelector('.gb').appendChild(rowEl(ev));
   c.el.querySelector('.gh').innerHTML = groupHeader(c);
+  Focus.mark(c.el, Focus.accountsOfCase(c));
   if (REPLAY && AUTO && !c.isPlatform) {          // 录制：只展开当前活跃的卡，别的收起
     cases.list.forEach(x => { if (x.el && x !== c && x.el.classList.contains('open')) { x.el.classList.remove('open'); x.el.querySelector('.gh').innerHTML = groupHeader(x); } });
     if (!c.el.classList.contains('open')) { c.el.classList.add('open'); c.el.querySelector('.gh').innerHTML = groupHeader(c); }
@@ -189,6 +206,7 @@ function updateLane(c) {
   if (c.isPlatform || (!c.assistant && !c.cd)) return;
   if (!c.laneEl) { const ph = $('lanesEmpty'); if (ph) ph.remove(); c.laneEl = el('div', 'lane'); c.laneEl.dataset.key = c.key; $('lanes').appendChild(c.laneEl); Born.add(c.laneEl); }
   c.laneEl.innerHTML = laneInner(c);
+  Focus.mark(c.laneEl, Focus.accountsOfCase(c));
 }
 
 /* ── 归并一条事件 ───────────────────────────────────────────── */
@@ -199,6 +217,7 @@ function ingest(ev) {
   const { c, isNew } = cases.ingest(ev);
   addToStream(ev, c, isNew);
   updateLane(c);
+  Panorama.apply(ev);
   touched = { c, at: Clock.now() };
   $('nStream').textContent = allEvents.length;
   $('nLanes').textContent = cases.list.filter(x => x.laneEl).length;
@@ -207,7 +226,12 @@ function ingest(ev) {
 /* ── 实时：WebSocket ─────────────────────────────────────────── */
 async function startLive() {
   await pollStats(); statsTimer = setInterval(pollStats, 3000);
-  try { (await api('/api/admin/events?after=0&limit=1000')).forEach(ev => { ev.label = ev.label || labelOf(ev); ingest(ev); }); } catch (e) { /* 空运行 */ }
+  let hist = [];
+  try { hist = await api('/api/admin/events?after=0&limit=1000'); } catch (e) { /* 空运行 */ }
+  // 初始余量已含历史事件：全景对历史事件只画状态不记钱（baseSeq 之后的才记）
+  Panorama.init(USERS, REGISTRY, CATEGORIES, { replay: false, baseSeq: hist.length ? Math.max(...hist.map(e => e.seq || 0)) : 0 });
+  hist.forEach(ev => { ev.label = ev.label || labelOf(ev); ingest(ev); });
+  Panorama.restore(cases.list);
   $('streamBody').querySelectorAll('.ev, .group').forEach(n => { n.style.opacity = 1; }); Born.list.length = 0;
   connectWs();
 }
@@ -289,6 +313,7 @@ function resetReplay() {
   Clock.pause(); Clock.paused = 0; R.idx = 0; S.idx = 0; R.done = false;
   allEvents.length = 0; seenSeq.clear(); cases.list.length = 0; cases.byCard = {}; cases.pendingByAsst = {}; cases.platform = null;
   $('streamBody').innerHTML = ''; $('lanes').innerHTML = '<div class="empty" id="lanesEmpty">尚无合同卡</div>'; Born.list.length = 0; replayStats();
+  Panorama.init(USERS, REGISTRY, CATEGORIES, { replay: true, baseSeq: 0 });
 }
 $('btnPlay').onclick = () => { if (R.done) resetReplay(); if (Clock.playing) { Clock.pause(); $('btnPlay').textContent = '▶ 播放'; } else { Clock.play(); $('btnPlay').textContent = '⏸ 暂停'; } };
 $('btnAgain').onclick = () => { resetReplay(); Clock.play(); $('btnPlay').textContent = '⏸ 暂停'; };
@@ -298,6 +323,7 @@ function loop() {
   const n = Clock.now();
   if (REPLAY) stepReplay(n);
   animateBorn(n);
+  Panorama.tick(n);
   const live = touched.c && n - touched.at < 1500 ? touched.c : null;
   cases.list.forEach(c => { [c.el, c.laneEl].forEach(x => { if (x) x.classList.toggle('live', c === live); }); });
   requestAnimationFrame(loop);
@@ -309,7 +335,7 @@ async function loadUsers() {
   const KIND_ORDER = { isp: 0, isc: 1, external: 2, virtual: 3 };
   const rows = [...USERS].sort((a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) || String(a.username).localeCompare(String(b.username)));
   $('usersTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>用户名</th><th>种类</th><th>显示名</th><th class="num">余量</th><th>智能体</th><th>最近登录</th><th></th></tr>` +
-    rows.map(u => `<tr data-acct="${esc(u.id)}"><td><b>${esc(u.username)}</b><br><code class="mute">${esc(u.id)}</code></td><td><span class="badge kind-${esc(u.kind)}">${esc(OUTCOME[u.kind] || u.kind)}</span></td><td>${esc(u.display_name || '')}${u.note ? ` <span class="mute">${esc(u.note)}</span>` : ''}</td>
+    rows.map(u => `<tr data-accts="${esc(u.id)}" class="${Focus.acct === u.id ? 'hit' : ''}"><td><b data-acct="${esc(u.id)}" style="cursor:pointer">${esc(u.username)}</b><br><code class="mute">${esc(u.id)}</code></td><td><span class="badge kind-${esc(u.kind)}">${esc(OUTCOME[u.kind] || u.kind)}</span></td><td>${esc(u.display_name || '')}${u.note ? ` <span class="mute">${esc(u.note)}</span>` : ''}</td>
       <td class="num" style="color:var(--c-pay)">${money(u.balance)}</td><td>${(u.agents || []).map(a => `<span class="who ${a.role === 'assistant' ? 'agent' : 'provider'}"><i></i>${esc(a.name)}</span>`).join(' ')}</td>
       <td class="nowrap mute">${u.last_login ? ymdhm(u.last_login) : '—'}</td><td class="nowrap"><button class="btn sm" data-w="${esc(u.id)}" data-d="1">发放</button> <button class="btn sm" data-w="${esc(u.id)}" data-d="-1">扣减</button></td></tr>`).join('') + '</table>'
     : '<div class="empty">还没有账号</div>';
@@ -341,31 +367,47 @@ async function loadRegistry() {
 }
 function renderRegistry() {
   const f = $('regFilter').value.trim().toLowerCase();
-  const rows = REGISTRY.filter(s => !f || (s.name + ' ' + (s.tags || []).join(' ') + ' ' + s.id).toLowerCase().includes(f));
-  $('registryTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>#</th><th>名称</th><th>领域标签</th><th>成约方式</th><th class="num">价</th><th>状态</th><th>信誉</th><th>服务方</th></tr>` +
-    rows.map((s, i) => `<tr><td class="mute">${i + 1}</td><td><span class="who provider"><i></i>${esc(s.name)}</span>${s.runnable ? ' <span class="badge ok">可运行</span>' : ''}</td>
-      <td>${(s.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join(' ')}</td><td>${esc(FORMATION[s.formation] || s.formation)}</td>
+  const rows = REGISTRY.filter(s => !f || (s.name + ' ' + (s.tags || []).join(' ') + ' ' + s.id + ' ' + (s.category || '') + ' ' + Names.of(s.owner_id || '')).toLowerCase().includes(f));
+  $('registryTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>#</th><th>名称</th><th>领域 · 标签</th><th>成约 · 上限</th><th class="num">价</th><th>状态</th><th>信誉</th><th>账号 · id</th></tr>` +
+    rows.map((s, i) => `<tr data-accts="${esc(s.owner_id || '')}" class="${Focus.acct && Focus.acct === s.owner_id ? 'hit' : ''}"><td class="mute">${i + 1}</td><td>${Names.html(s.id)}${s.runnable ? ' <span class="badge ok">可运行</span>' : ''}</td>
+      <td>${s.category ? `<span class="badge market">${esc((CATEGORIES.find(c => c.id === s.category) || {}).name || s.category)}</span> ` : ''}${(s.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join(' ')}</td><td>${esc(FORMATION[s.formation] || s.formation)}${s.capacity ? ` <span class="mute">× ${esc(s.capacity)}</span>` : ''}</td>
       <td class="num">${s.price !== null && s.price !== undefined ? esc(s.price) : '<span class="mute">报价</span>'}</td>
       <td><span class="badge ${s.status === 'online' ? 'ok' : s.status === 'busy' ? 'warn' : ''}">${esc(OUTCOME[s.status] || s.status)}</span></td>
       <td class="mono">${s.reputation ? `${s.reputation.completed} 单 · ${s.reputation.successRate === null ? '—' : Math.round(s.reputation.successRate * 100) + '%'}` : '—'}</td>
-      <td><code class="mute">${esc(s.id)}</code></td></tr>`).join('') + '</table>' : '<div class="empty">注册表为空——到「投放」页注入种子</div>';
+      <td>${s.owner_id ? Names.html(s.owner_id) : ''}<br><code class="mute">${esc(s.id)}</code></td></tr>`).join('') + '</table>' : '<div class="empty">注册表为空——首次启动会自动注入种子</div>';
 }
 $('regFilter').oninput = renderRegistry; $('btnRegRefresh').onclick = loadRegistry;
 
 /* ── 投放 ────────────────────────────────────────────────────── */
 async function loadDispatch() {
   try { SEED_NEEDS = await api('/api/admin/seed-needs'); } catch (e) { SEED_NEEDS = []; }
-  $('seedNeeds').innerHTML = SEED_NEEDS.length ? SEED_NEEDS.map((n, i) => `<label><input type="checkbox" data-i="${i}" checked><span class="ellipsis">${esc(n.text)}</span>
+  const domains = [...new Set(SEED_NEEDS.map(n => n.domain).filter(Boolean))];
+  const cur = $('dpDomain').value;
+  $('dpDomain').innerHTML = '<option value="">全部领域</option>' + domains.map(d => `<option value="${esc(d)}"${d === cur ? ' selected' : ''}>${esc((CATEGORIES.find(c => c.id === 'cat_' + d) || {}).name || d)}</option>`).join('');
+  $('seedNeeds').innerHTML = SEED_NEEDS.length ? SEED_NEEDS.map((n, i) => `<label><input type="checkbox" data-i="${i}"><span class="ellipsis" title="${esc(n.text)}">${esc(n.text)}</span>
     <span>${Names.html(n.assistant_id)}</span><span class="mute">${esc(n.service || '')} · 预算 ${esc((n.scope || {}).budget ?? '')}${n.autoSign === false ? ' · 手动亲签' : ''}</span></label>`).join('')
-    : '<div class="empty">没有种子需求（seed 后 data/dispatch.json 才有）</div>';
+    : '<div class="empty">需求池为空（种子注入后 data/dispatch.json 才有）</div>';
+  try { renderTraffic(await api('/api/admin/traffic')); } catch (e) { /* 忽略 */ }
   const assts = [];
   USERS.forEach(u => (u.agents || []).forEach(a => { if (a.role === 'assistant') assts.push(a); }));
   $('dpAsst').innerHTML = assts.length ? assts.map(a => `<option value="${esc(a.id)}">${esc(Names.of(a.id))} · ${esc(a.id)}</option>`).join('') : '<option value="">没有助手</option>';
 }
 $('btnSeedNeedsRefresh').onclick = loadDispatch;
+function renderTraffic(t) {
+  document.querySelectorAll('[data-traffic]').forEach(b => b.classList.toggle('active', b.dataset.traffic === t.level));
+  $('trafficStat').textContent = `已投 ${t.dispatched} · 未成 ${t.failed} · 降档 ${t.downshifts} · 空闲助手 ${t.idle_assistants} · 池 ${t.pool}`;
+}
+document.querySelectorAll('[data-traffic]').forEach(b => b.onclick = async () => {
+  try { renderTraffic(await api('/api/admin/traffic', { level: b.dataset.traffic })); toast('背景流量：' + b.dataset.traffic, 'ok'); } catch (e) { toast(e.message, 'bad'); }
+});
+$('btnDispatchPool').onclick = async () => {
+  $('btnDispatchPool').disabled = true;
+  try { const r = await api('/api/admin/dispatch-pool', { domain: $('dpDomain').value, count: Number($('dpCount').value) || 1, gap: 1 }); toast(`已投放 ${r.needs.length} 条${r.skipped ? `（${r.skipped} 条没有空闲助手）` : ''}`, 'ok'); }
+  catch (e) { toast(e.message, 'bad'); } finally { $('btnDispatchPool').disabled = false; }
+};
 $('btnSeed').onclick = async () => {
   $('btnSeed').disabled = true; toast('正在注入种子，可能需要一会儿…');
-  try { const r = await api('/api/admin/seed', {}); toast(`种子完成：服务 ${r.services} · 助手 ${r.assistants} · 分类树 ${r.taxonomy}`, 'ok'); await loadNames(); loadDispatch(); }
+  try { const r = await api('/api/admin/seed', {}); toast(`种子完成：领域 ${r.domains} · 服务 ${r.services} · ISP ${r.isp} · ISC ${r.isc} · 分类树 ${r.taxonomy}`, 'ok'); await loadNames(); loadDispatch(); }
   catch (e) { toast(e.message, 'bad'); } finally { $('btnSeed').disabled = false; }
 };
 $('btnDispatch').onclick = async () => {
@@ -393,7 +435,7 @@ async function loadNeeds() {
   let rows;
   try { rows = await api(SRC ? SRC + '/needs.json' : '/api/admin/needs'); } catch (e) { return toast(e.message, 'bad'); }
   $('needsTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>时间</th><th>需求</th><th>助手</th><th>状态</th><th>合同卡</th><th class="num">模型调用 / token</th><th>工具轨迹</th></tr>` +
-    rows.map((n, i) => `<tr><td class="nowrap mute">${ymdhm(n.created)}</td><td class="ellipsis" style="max-width:480px" title="${esc(n.text)}">${esc(n.text)}</td><td>${Names.html(n.assistant_id)}</td>
+    rows.map((n, i) => `<tr data-accts="${esc(n.owner_id || '')}" class="${Focus.acct && Focus.acct === n.owner_id ? 'hit' : ''}"><td class="nowrap mute">${ymdhm(n.created)}</td><td class="ellipsis" style="max-width:480px" title="${esc(n.text)}">${esc(n.text)}${n.driver === 'external' ? ' <span class="badge info">swarm 驾驭</span>' : ''}</td><td>${Names.html(n.assistant_id)}</td>
       <td><span class="badge ${stateClass(n.state)}">${esc(STATE[n.state] || n.state)}</span></td><td>${n.card_digest ? `<a href="#" data-cd="${esc(n.card_digest)}" class="mono">${esc(shortCd(n.card_digest))}</a>` : ''}</td>
       <td class="num">${n.llm_calls || 0} / ${n.tokens || 0}</td><td><button class="btn sm" data-tr="${i}">${(n.trace || []).length} 步</button></td></tr>
       <tr class="hide" id="trace-${i}"><td colspan="7"><div class="trace">${(n.trace || []).map((t, k) => `${String(k + 1).padStart(2, '0')} ${esc(t.tool)}  ${esc(t.args)}\n   → ${esc(t.result)}`).join('\n') || '（无）'}${n.result ? '\n\n结论：' + esc(JSON.stringify(n.result)) : ''}</div></td></tr>`).join('') + '</table>'
@@ -407,7 +449,7 @@ $('btnNeedsRefresh').onclick = loadNeeds;
 async function loadOrders() {
   try { ORDERS = SRC ? Object.values(await api(SRC + '/orders.json')) : await api('/api/admin/orders'); } catch (e) { return toast(e.message, 'bad'); }
   $('ordersTable').innerHTML = ORDERS.length ? `<table class="tbl"><tr><th>合同卡</th><th>助手 → 服务方</th><th>需求</th><th>成约</th><th>阶段</th><th>状态</th><th class="num">总价</th><th>更新</th></tr>` +
-    ORDERS.map(o => `<tr class="click" data-cd="${esc(o.card_digest)}"><td><code class="mono" style="color:var(--c-market)">${esc(shortCd(o.card_digest))}</code></td>
+    ORDERS.map(o => `<tr class="click ${Focus.acct && [o.owner_id, Names.accountOf(o.provider_id)].includes(Focus.acct) ? 'hit' : ''}" data-cd="${esc(o.card_digest)}" data-accts="${esc([o.owner_id, Names.accountOf(o.provider_id)].filter(Boolean).join(' '))}"><td><code class="mono" style="color:var(--c-market)">${esc(shortCd(o.card_digest))}</code></td>
       <td>${Names.html(o.assistant_id)}<span class="arrow">→</span><span class="who provider"><i></i>${esc(o.provider_name || Names.of(o.provider_id))}</span></td>
       <td class="ellipsis" style="max-width:360px">${esc(o.need_text || '')}</td><td>${esc(FORMATION[o.formation] || o.formation)}</td><td>${esc(o.phase)}</td>
       <td><span class="badge ${stateClass(o.state)}">${esc(STATE[o.state] || o.state)}</span></td><td class="num" style="color:var(--c-pay)">${money(o.total)}</td><td class="nowrap mute">${ymdhm(o.updated)}</td></tr>`).join('') + '</table>'
@@ -453,6 +495,26 @@ async function openOrder(cd) {
       <span>${Names.html(ev.sender)}<span class="arrow">→</span>${Names.html(ev.receiver)}</span><span class="${outcomeClass(ev.outcome)}">${ev.amount ? `<span class="mono" style="color:var(--c-pay)">${money(ev.amount)}</span> ` : ''}${esc(outcomeOf(ev))}</span></div>`; }).join('') + '</div>';
   $('omBody').innerHTML = h; $('orderModal').classList.add('on');
 }
+
+/* ── 组件面板 ─────────────────────────────────────────────────── */
+function comp(title, cls, rows) {
+  return `<div class="comp ${cls}"><h3>${esc(title)}</h3><div class="kv">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</div></div>`;
+}
+async function loadComponents() {
+  let c;
+  try { c = await api('/api/admin/components'); } catch (e) { return toast(e.message, 'bad'); }
+  const yn = b => b ? '<span class="ok">✓ 已配置</span>' : '<span class="bad">✗ 未配置</span>';
+  $('comps').innerHTML =
+    comp('注册中心（A2X）', 'market', [['服务', `${c.registry.services}（在线 ${c.registry.online}）`], ['类目', c.registry.categories], ['分类树', c.registry.taxonomy], ['最近检索', OUTCOME[c.registry.last_mode] || c.registry.last_mode || '—']]) +
+    comp('合同模板公示', 'market', [['已签认模板', c.templates.endorsed], ['签3 快照', c.templates.snapshots], ['认证记录', c.templates.certifications]]) +
+    comp('信誉与仲裁', 'market', [['结清', c.ledger.completed], ['裁定', c.ledger.rulings], ['被拒 / 退回', c.ledger.declined]]) +
+    comp('支付中心', 'pay', [['钱包', c.payment.wallets], ['流通量', `${money(c.payment.circulating)} 虚拟币`], ['今日过账', `${c.payment.transfers_today} 笔 · ${money(c.payment.volume_today)}`], ['累计过账', c.payment.transfers_total]]) +
+    comp('服务运行时', 'provider', [['在线服务', c.services.online], ['工作中', c.services.working], ['排队任务', c.services.queued], ['接满', c.services.busy.length ? c.services.busy.map(esc).join('、') : '—']]) +
+    comp('助手运行时', 'agent', [['助手', `${c.assistants.total}（swarm 驾驭过 ${c.assistants.external_driven}）`], ['进行中需求', c.assistants.active_needs], ['待确认', c.assistants.pending_confirmations], ['背景流量', `${c.traffic.level} · 已投 ${c.traffic.dispatched}`]]) +
+    comp('模型', 'agent', [['key', yn(c.llm.key_configured)], ['助手 / 服务方', esc(c.llm.model)], ['A2X / 嵌入', `${esc(c.llm.a2x_model)} / ${esc(c.llm.embed_model)}`], ['调用 / token', `${c.llm.calls} / ${c.llm.tokens}`], ['并发闸 · 沙箱', `${c.llm.concurrency} · ${c.sandbox.available}/${c.sandbox.concurrency}`]]) +
+    comp('事件总线 · 配置', 'ext', [['运行', esc(c.bus.run)], ['本轮事件', c.bus.events], ['WS 连接', c.bus.subscribers], ['对外地址', esc(c.config.public_url)], ['模式 · 注册', `${esc(c.config.mode)} · ${esc(c.config.registration)}`], ['版本', esc(c.config.version)]]);
+}
+$('btnCompsRefresh').onclick = loadComponents;
 
 /* ── 回放列表 ─────────────────────────────────────────────────── */
 async function loadRuns() {

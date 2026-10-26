@@ -73,3 +73,29 @@ def test_admin_api(platform, client):
     assert client.get("/api/admin/orders").status_code == 200
     assert client.get("/api/admin/needs").status_code == 200
     assert client.get("/api/orders/sha256:" + "0" * 64).status_code == 404
+
+
+def test_components_traffic_and_pool(platform, client):
+    """组件面板字段齐全；背景流量档位切换；从需求池投放只投给空闲的内部用户助手。"""
+    pf = platform
+    as_admin(client, pf)
+    c = client.get("/api/admin/components").json()
+    for k in ("registry", "templates", "ledger", "payment", "services", "assistants", "llm", "sandbox", "bus", "traffic", "config"):
+        assert k in c, k
+    assert c["registry"]["taxonomy"] in ("available", "nonexistent", "unavailable", "stale", "unknown") and c["config"]["version"].startswith("v")
+    assert c["llm"]["key_configured"] is False and c["bus"]["run"] == pf.bus.run_id
+    t = client.get("/api/admin/traffic").json()
+    assert t["level"] == "off" and t["interval_s"] == 0
+    assert client.post("/api/admin/traffic", json={"level": "weird"}).status_code == 400
+    t = client.post("/api/admin/traffic", json={"level": "low"}).json()
+    assert t["level"] == "low" and t["interval_s"] == 180
+    assert client.post("/api/admin/traffic", json={"level": "off"}).json()["level"] == "off"
+    # 需求池：注入（幂等，强制跑一遍以写 dispatch.json）后能投；桩模式没有模型，需求会走到 failed，这里只验投放本身
+    pf.ensure_seeded(force=True)
+    r = client.post("/api/admin/dispatch-pool", json={"domain": "writing", "count": 2, "gap": 0})
+    assert r.status_code == 200 and len(r.json()["needs"]) == 2, r.text
+    rows = {n["id"]: n for n in client.get("/api/admin/needs").json()}
+    for nid in r.json()["needs"]:
+        assert rows[nid]["driver"] == "hosted" and rows[nid]["state"] in ("queued", "running", "failed", "started", "completed")
+    assert client.post("/api/admin/dispatch-pool", json={"domain": "no-such-domain", "count": 1}).status_code == 400
+    assert c["traffic"]["pool"] >= 0 and client.get("/api/admin/traffic").json()["pool"] == 24

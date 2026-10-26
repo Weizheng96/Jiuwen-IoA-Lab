@@ -41,6 +41,7 @@ from .runtime.llm import LLM
 from .runtime.packages import PackageStore, only_script_verifiers
 from .runtime.service import ServiceRuntime
 from .store import DB, SqliteStore, jdump, jload, now
+from .traffic import Traffic
 
 log = logging.getLogger("ioalab.platform")
 _SLUG = re.compile(r"[^a-z0-9-]")
@@ -126,6 +127,7 @@ class Platform:
         self.need_tasks: dict[str, asyncio.Task] = {}
         self.need_gate: asyncio.Semaphore | None = None
         self.started = False
+        self.traffic = Traffic(self)
 
         base = settings.base_url
         self.market_id = f"{base}/a2a/market"
@@ -212,6 +214,7 @@ class Platform:
         self.loop.create_task(self._purge_loop())
         if self.s.autoseed:
             self.loop.create_task(self._bootstrap())
+        self.traffic.ensure_running()
 
     async def _bootstrap(self) -> None:
         """首次启动自动注入内部账号与服务（要向市场发 template.endorse，须等 HTTP 服务开始监听）。"""
@@ -524,10 +527,12 @@ class Platform:
                 self._set_need(nid, state=state, card_digest=order["card_digest"], result=res, trace=out["trace"],
                                llm_calls=usage["calls"] + len(out["trace"]), tokens=usage["tokens"])
                 self.bus.emit("platform", "need.contracted", sender=need["assistant_id"], card_digest=order["card_digest"], outcome=nid)
+                self.traffic.observe(nid, state)
             else:
                 self._set_need(nid, state="failed", result=res, trace=out["trace"], llm_calls=len(out["trace"]), tokens=usage["tokens"])
                 self.bus.emit("platform", "need.failed", sender=need["assistant_id"], outcome=nid,
                               detail={"reason": (res.get("failed") if isinstance(res, dict) else str(res))[:200]})
+                self.traffic.observe(nid, "failed")
 
     def _on_phase(self, nid: str, phase: str, detail: Mapping[str, Any]) -> None:
         """助手运行时每到一个阶段回调一次：维护 orders 表，发平台事件。"""
@@ -731,6 +736,48 @@ class Platform:
                 "llm_calls": q("SELECT COALESCE(SUM(llm_calls),0) AS n FROM needs"), "tokens": q("SELECT COALESCE(SUM(tokens),0) AS n FROM needs"),
                 "discovery": self.discovery.last_mode or ("a2x-tree" if self.discovery.llm_configured else "vector"),
                 "taxonomy": self.discovery.taxonomy_state(), "run": self.bus.run_id, "mode": self.s.mode}
+
+    def components(self) -> dict:
+        """管理员「组件」面板：各内部组件的实时状态。"""
+        q = lambda sql, *a: self.db.one(sql, *a)["n"]  # noqa: E731
+        day0 = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
+        busy = [rt.name for rt in self.services.values()
+                if rt.definition.get("formation") in ("countersign", "proposal") and len([t for t in rt.accepted if time.time() - t < 300]) >= int(rt.definition.get("capacity", 1))]
+        usage = self.llm.usage.by_key.values()
+        version = ""
+        try:
+            version = (PKG.parent / "设计" / "VERSION").read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
+        return {
+            "registry": {"services": q("SELECT COUNT(*) AS n FROM agents WHERE role='service'"),
+                         "online": q("SELECT COUNT(*) AS n FROM agents WHERE role='service' AND status='online'"),
+                         "categories": len([c for c in self.discovery.categories() if c["services"]]),
+                         "taxonomy": self.discovery.taxonomy_state(), "last_mode": self.discovery.last_mode},
+            "templates": {"endorsed": len(self.market.market.store.all("templates")), "snapshots": len(self.market.market.store.all("snapshots")),
+                          "certifications": q("SELECT COUNT(*) AS n FROM certifications")},
+            "ledger": {"completed": q("SELECT COUNT(*) AS n FROM orders WHERE state='completed'"), "rulings": q("SELECT COUNT(*) AS n FROM rulings"),
+                       "declined": q("SELECT COUNT(*) AS n FROM orders WHERE state='declined'") + q("SELECT COUNT(*) AS n FROM events WHERE op='request.returned'")},
+            "payment": {"wallets": q("SELECT COUNT(*) AS n FROM wallets"),
+                        "circulating": str(sum(money(r["balance"]) for r in self.db.rows("SELECT balance FROM wallets"))),
+                        "transfers_today": q("SELECT COUNT(*) AS n FROM transfers WHERE at>=?", day0),
+                        "volume_today": str(sum(money(r["amount"]) for r in self.db.rows("SELECT amount FROM transfers WHERE at>=?", day0))),
+                        "transfers_total": q("SELECT COUNT(*) AS n FROM transfers")},
+            "services": {"online": sum(1 for rt in self.services.values()), "working": q("SELECT COUNT(*) AS n FROM orders WHERE state='started'"),
+                         "queued": sum(rt.queue.qsize() for rt in self.services.values()), "busy": busy},
+            "assistants": {"total": len(self.assistants),
+                           "external_driven": q("SELECT COUNT(*) AS n FROM agents WHERE role='assistant' AND meta LIKE '%\"last_driver\": \"external\"%'"),
+                           "active_needs": q("SELECT COUNT(*) AS n FROM needs WHERE state IN ('open','queued','running','started')"),
+                           "pending_confirmations": q("SELECT COUNT(*) AS n FROM confirmations WHERE state='pending'")},
+            "llm": {"key_configured": self.llm.enabled, "model": self.s.agent_model, "a2x_model": self.s.a2x_model, "embed_model": self.s.embedding_model,
+                    "calls": sum(u["calls"] for u in usage), "tokens": sum(u["tokens"] for u in usage), "concurrency": self.s.llm_concurrency},
+            "sandbox": {"concurrency": self.s.sandbox_concurrency, "available": getattr(self.sandbox_gate, "_value", None)},
+            "bus": {"run": self.bus.run_id, "events": q("SELECT COUNT(*) AS n FROM events WHERE run_id=?", self.bus.run_id), "subscribers": len(self.bus.subscribers),
+                    "seq": (self.db.one("SELECT MAX(seq) AS n FROM events") or {}).get("n") or 0},
+            "traffic": self.traffic.status(),
+            "config": {"mode": self.s.mode, "public_url": self.s.public_url, "registration": self.s.registration, "login_credit": self.s.login_credit,
+                       "isc_count": self.s.isc_count, "version": version},
+        }
 
     def order_detail(self, cd: str) -> dict:
         o = self.db.one("SELECT * FROM orders WHERE card_digest=?", cd) or fail(CARD_INVALID, "订单不存在")

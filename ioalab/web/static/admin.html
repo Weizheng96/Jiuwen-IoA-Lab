@@ -3,16 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>智能体互联网仿真 · 管理员控制台</title>
+<title>九问IoA仿真平台 · 管理员控制台</title>
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/panorama.css">
 </head>
 <body>
 <div class="topbar">
-  <div class="brand">智能体互联网仿真<small>管理员控制台</small></div>
+  <div class="brand">九问IoA仿真平台<small>管理员控制台</small></div>
   <span class="badge info" id="runTag"></span>
   <span class="badge" id="modeTag"></span>
   <span class="badge market" id="discTag"></span>
   <div class="spacer"></div>
+  <span id="focusTag"><span>聚焦</span><b id="focusName"></b><span class="x" id="focusClear" title="还原（Esc）">×</span></span>
   <span class="replay-badge hide" id="replayBadge"><i></i><span id="replayText">回放</span></span>
   <span class="who" id="wsBox"><span class="dot off" id="wsDot"></span><span id="wsText">未连接</span></span>
   <button class="btn sm hide" id="btnLogout">退出</button>
@@ -40,8 +42,10 @@
     <span class="mute" id="ctlNote">按真实间隔推进，间隔 &gt; 1.5 s 压到 1.5 s</span>
   </div>
   <div class="tabs" id="tabs">
-    <button data-tab="stream" class="on">实时交易流<span class="n" id="nStream">0</span></button>
+    <button data-tab="panorama" class="on">全景</button>
+    <button data-tab="stream">实时交易流<span class="n" id="nStream">0</span></button>
     <button data-tab="lanes">泳道视图<span class="n" id="nLanes">0</span></button>
+    <button data-tab="components">组件</button>
     <button data-tab="users">用户与钱包</button>
     <button data-tab="registry">服务注册表</button>
     <button data-tab="dispatch">投放</button>
@@ -51,7 +55,33 @@
     <button data-tab="runs">回放</button>
   </div>
 
-  <div class="view on" id="view-stream">
+  <div class="view on" id="view-panorama">
+    <div class="pn-top"><div class="counters" id="pnCounters"></div><span class="hint">点任一助手或服务方：同账号的智能体与事件高亮，其余变淡；再点或 Esc 还原</span></div>
+    <div class="pn" id="pn">
+      <div class="pn-col pn-left"><div class="pn-h">账号与个人助手</div><div class="pn-list" id="pnAsstList"></div></div>
+      <div class="pn-col pn-mid">
+        <div class="pn-infra market" id="pnMarket">
+          <div class="title">交易中心<small>Agent 交易市场 · A2C 合同层</small></div>
+          <div class="subs">
+            <div class="sub" id="pnRegistry"><b>注册中心</b><span id="pnRegStat">A2X 注册表</span></div>
+            <div class="sub" id="pnTemplates"><b>合同模板公示</b><span id="pnTplStat">已签认 0 份</span></div>
+            <div class="sub" id="pnNotary"><b>存证与签名</b><span id="pnNotaryStat">签3 快照 0 · 签5 时间戳 0</span></div>
+            <div class="sub" id="pnLedger"><b>信誉日志 · 仲裁</b><span id="pnLedgerStat">结清 0 · 裁定 0</span></div>
+          </div>
+        </div>
+        <div class="pn-infra pay" id="pnPay"><div class="title">支付中心<small>虚拟币账本 · 读卡按卡载金额过账 · 不持有资金</small></div><div class="stat" id="pnPayStat">过账 0 笔 · 合计 0.00</div></div>
+      </div>
+      <div class="pn-col pn-right"><div class="pn-h">服务方 · 按领域（ISP 账号）</div><div class="pn-blocks" id="pnBlocks"></div></div>
+      <svg id="pnWires" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div class="view" id="view-components">
+    <div class="toolbar"><span class="mute">内部组件的实时状态，每 5 秒刷新</span><button class="btn sm" id="btnCompsRefresh">刷新</button></div>
+    <div class="comps" id="comps"></div>
+  </div>
+
+  <div class="view" id="view-stream">
     <div class="toolbar">
       <button class="btn sm" id="btnGroup">按卡聚合</button>
       <input id="streamFilter" placeholder="筛选：标签 / 参与方 / 卡摘要">
@@ -91,7 +121,13 @@
   <div class="view" id="view-dispatch">
     <div class="grid2" style="grid-template-columns:1fr 520px">
       <div class="panel market">
-        <h2>种子需求 <span class="tag">seed 时写下</span><span class="tools"><button class="btn sm" id="btnSeed">注入种子（服务 + 助手）</button><button class="btn sm" id="btnSeedNeedsRefresh">刷新</button><button class="btn primary sm" id="btnDispatch">投放选中（间隔 2 秒）</button></span></h2>
+        <h2>需求池 <span class="tag">每领域 3 条 · 投给内部用户的助手</span><span class="tools"><select id="dpDomain" style="width:140px"><option value="">全部领域</option></select><input id="dpCount" type="number" value="4" min="1" max="24" style="width:70px" title="条数"><button class="btn primary sm" id="btnDispatchPool">随机投放</button><button class="btn sm" id="btnSeedNeedsRefresh">刷新</button><button class="btn primary sm" id="btnDispatch">投放选中（间隔 2 秒）</button></span></h2>
+        <div class="toolbar" style="margin:0 0 10px">
+          <span class="mute">背景流量</span>
+          <button class="btn sm" data-traffic="off">关</button><button class="btn sm" data-traffic="low">低（3 分钟一条）</button><button class="btn sm" data-traffic="normal">正常（1 分钟一条）</button>
+          <span class="mute" id="trafficStat"></span>
+          <button class="btn sm" id="btnSeed" title="首次启动已自动注入；这里只在需要时重跑（幂等）">重跑种子注入</button>
+        </div>
         <div class="list-check" id="seedNeeds"></div>
       </div>
       <div class="panel">
@@ -140,6 +176,7 @@
 </div></div>
 
 <script src="/static/common.js"></script>
+<script src="/static/panorama.js"></script>
 <script src="/static/admin.js"></script>
 </body>
 </html>

@@ -49,7 +49,7 @@ const OP_LABELS = {
   'discovery.search': '市场检索（A2X）', 'confirm.request': '上升用户确认', 'confirm.answer': '用户答复',
   'order.signed': '签1 采纳合同卡', 'order.declined': '服务方拒绝复签', 'request.returned': '提案卡被退回', 'order.started': '已开工', 'order.fetched': '取件签收',
   'order.verified': '验收器判定（签6）', 'order.accepted': '验收付款（签7）', 'order.arbitrated': '裁定', 'order.completed': '结清',
-  'order.paid-late': '补付本期款', 'order.error': '处理出错', 'order.step-answered': '环节授权答复', 'arbitration.ruling': '裁定文书', 'order.terminated': '合同解除',
+  'order.paid-late': '补付本期款', 'order.error': '处理出错', 'order.step-answered': '环节授权答复', 'arbitration.ruling': '裁定文书', 'order.terminated': '合同解除', 'traffic.level': '背景流量档位',
 };
 function labelOf(ev) {
   const op = ev.op || '';
@@ -80,12 +80,14 @@ const Names = {
   map: {},            // id → 名字
   kind: {},           // id → 颜色类
   ownerAsst: {},      // 用户 id → 助手 id
+  owner: {},          // 任何智能体 id → 账号 id（聚焦按账号做）
   seedUsers(users) {
     const seen = {};
     users.forEach(u => {
       const nm = u.display_name || u.username || u.note || u.id;
       this.map[u.id] = nm; this.kind[u.id] = 'user';
       (u.agents || []).forEach(a => {
+        this.owner[a.id] = u.id;
         if (a.role === 'assistant') {
           let n = a.name || a.id;
           if (seen[n]) { n = `${a.name}（${u.display_name || u.username || ''}）`; }
@@ -95,7 +97,8 @@ const Names = {
       });
     });
   },
-  seedServices(services) { services.forEach(s => { this.map[s.id] = s.name; this.kind[s.id] = 'provider'; }); },
+  seedServices(services) { services.forEach(s => { this.map[s.id] = s.name; this.kind[s.id] = 'provider'; if (s.owner_id) this.owner[s.id] = s.owner_id; }); },
+  accountOf(id) { const k = this.key(id); if (!k) return ''; if (k.startsWith('u-')) return k; return this.owner[k] || ''; },
   seedMine(me) {
     this.map[me.id] = '我'; this.kind[me.id] = 'user';
     (me.agents || []).forEach(a => { this.map[a.id] = a.name; this.kind[a.id] = a.role === 'assistant' ? 'agent' : 'provider'; });
@@ -121,8 +124,46 @@ const Names = {
     if (k === 'market') return 'market'; if (k === 'pay') return 'pay'; if (k === 'platform' || k === 'admin') return 'platform';
     return this.kind[k] || (k.startsWith('asst-') ? 'agent' : k.startsWith('svc-') ? 'provider' : k.startsWith('u-') ? 'user' : 'platform');
   },
-  html(id) { if (!id) return '<span class="mute">—</span>'; return `<span class="who ${this.kindOf(id)}"><i></i>${esc(this.of(id))}</span>`; },
+  html(id) { if (!id) return '<span class="mute">—</span>'; const a = this.accountOf(id); return `<span class="who ${this.kindOf(id)}"${a ? ` data-acct="${esc(a)}"` : ''}><i></i>${esc(this.of(id))}</span>`; },
 };
+
+/* ── 聚焦：点任一助手 / 服务方 → 按账号高亮，其余变淡 ─────────── */
+const Focus = {
+  acct: null, listeners: [],
+  set(acct) {
+    this.acct = acct && acct !== this.acct ? acct : null;
+    document.body.classList.toggle('focus-on', !!this.acct);
+    this.refresh();
+    this.listeners.forEach(f => { try { f(this.acct); } catch (e) { console.error(e); } });
+  },
+  clear() { if (this.acct) this.set(null); },
+  /** 一条事件涉及的账号：发起方 / 接收方的账号 + 所属卡的助手与服务方的账号 */
+  accountsOf(ev, c) {
+    const out = new Set();
+    [ev.sender, ev.receiver].forEach(id => { const a = Names.accountOf(id); if (a) out.add(a); });
+    const cs = c || (ev.cardDigest && typeof cases !== 'undefined' ? cases.byCard[ev.cardDigest] : null);
+    if (cs) { [cs.assistant, cs.provider].forEach(id => { const a = Names.accountOf(id); if (a) out.add(a); }); }
+    if (ev.detail && ev.detail.provider) { const a = Names.accountOf(ev.detail.provider); if (a) out.add(a); }
+    return [...out];
+  },
+  accountsOfCase(c) { return [...new Set([Names.accountOf(c.assistant), Names.accountOf(c.provider)].filter(Boolean))]; },
+  mark(el, accts) {
+    if (!el) return;
+    el.dataset.accts = (accts || []).join(' ');
+    if (this.acct) el.classList.toggle('hit', (accts || []).includes(this.acct));
+  },
+  refresh() {
+    document.querySelectorAll('[data-accts]').forEach(el => {
+      if (!this.acct) el.classList.remove('hit');
+      else el.classList.toggle('hit', el.dataset.accts.split(' ').includes(this.acct));
+    });
+  },
+};
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-acct]');
+  if (t && t.dataset.acct) { e.stopPropagation(); Focus.set(t.dataset.acct); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') Focus.clear(); });
 const WHO_COLOR = { agent: 'var(--c-agent)', user: 'var(--c-user)', market: 'var(--c-market)', pay: 'var(--c-pay)', provider: 'var(--c-provider)', platform: 'var(--c-ext)' };
 
 /* ── 签名链 ─────────────────────────────────────────────────── */
