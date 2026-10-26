@@ -1,81 +1,75 @@
-"""种子：100 份服务定义（12 可运行 + 88 牌子）、10 条需求、A2X 分类树。
+"""种子：8 个领域 × 6 个可接单的服务、内部账号、需求池、确定性分类树。部署时随平台自带（首次启动自动注入）。
 
-  services/*.json    可运行的服务定义（验收器源码在 verifier.source）
-  placeholders.py    90 块牌子的生成规则（15 个领域 × 6 家）；其中 ALTERNATES 两块改成可运行（撞单被拒后的换家对象）
-  needs.json         10 条需求（两对撞同一待批准型服务）；材料在 materials/
-  taxonomy/          离线建好的 A2X 分类树（taxonomy.json · class.json · build_config.json）
+  domains/<nn>-<slug>.json   领域文件：ISP 账号 · 分类树叶类 · 6 份服务定义（4 预批准 + 1 待批准 + 1 提案型）
+  verifiers/common.py        声明式验收规则引擎；verifiers/<name>.py 脚本验收器
+  needs/<slug>.json          需求池：每领域 3 条，材料在 materials/
+  accounts.py                ISP_/ISC_ 内部账号
 """
 from __future__ import annotations
 
 import json
 import shutil
 from pathlib import Path
-from typing import Any
+
+from . import domains as _domains
 
 HERE = Path(__file__).parent
 
 
 def load_definitions() -> list[dict]:
-    out = []
-    for p in sorted((HERE / "services").glob("*.json")):
-        d = json.loads(p.read_text(encoding="utf-8"))
-        src = HERE / "services" / (p.stem + ".py")
-        if "verifier" in d and "source" not in d["verifier"] and src.exists():
-            d["verifier"]["source"] = src.read_text(encoding="utf-8")
-        out.append(d)
-    try:
-        from .placeholders import placeholders
-        out.extend(placeholders())
-    except ImportError:
-        pass
-    base = {d["id"]: d for d in out}
-    for pid, bid in ALTERNATES.items():           # 两块牌子改成可运行的替代服务：名字、描述、标签不变（分类树不用重建），其余随底本
-        p, b = base[pid], base[bid]
-        keep = {k: p[k] for k in ("id", "name", "description", "tags") + (("pricing",) if b.get("formation") != "proposal" else ()) if k in p}
-        p.clear()
-        p.update({k: v for k, v in b.items() if k not in keep})
-        p.update(keep)
-        p["runnable"] = True
-        p.pop("timeout_reject", None)
-    return out
+    """全部服务定义（含 verifier.source · category · origin）。"""
+    return _domains.definitions()
 
 
-# 牌子 → 以哪个可运行服务为底（同一分类树叶类、检索能命中的替代者，供撞单被拒后换家）：
-# 简历一页精炼室 ← 简历润色工作室（待批准型）· 周末城市漫游手册社 ← 两日行程定制所（提案型，拟卡时退回）
-ALTERNATES = {"resume-01": "resume-polish", "trip-plan-01": "trip-plan"}
+def load_domains() -> list[dict]:
+    return _domains.load_domains()
 
 
 def load_needs() -> list[dict]:
-    p = HERE / "needs.json"
-    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+    """需求池（每条带 domain 与 service）。"""
+    out = []
+    for p in sorted((HERE / "needs").glob("*.json")):
+        for n in json.loads(p.read_text(encoding="utf-8")):
+            out.append({**n, "domain": p.stem})
+    return out
 
 
 def seed_all(platform, only: str | None = None) -> dict:
-    """建齐内部账号（ISP_/ISC_），服务归 ISP 账号（签模板 + A2X），每个 ISC 账号一个平台驾驭的助手；需求池里的材料就位。幂等。"""
+    """建齐内部账号（ISP_/ISC_）→ 服务归各领域的 ISP 账号（签模板 + A2X）→ 按领域建分类树 → 每个 ISC 账号一个平台驾驭的助手
+    → 需求池材料就位、写 data/dispatch.json。幂等。"""
     from .accounts import ensure_accounts
     acc = ensure_accounts(platform)
-    defs = load_definitions()
-    items = [(acc["isp"][i % len(acc["isp"])], d) for i, d in enumerate(defs)]      # 领域文件就位后按领域归属（P2a）
+    uid_of = {platform.db.one("SELECT username FROM users WHERE id=?", uid)["username"]: uid for uid in acc["isp"]}
+    doms = load_domains()
+    items = []
+    for d in doms:
+        owner = uid_of.get(d["account"]) or acc["isp"][0]
+        items += [(owner, s) for s in d["services"]]
     platform.seed_services(items)
-    needs = load_needs()
-    assistants = []
-    mat_dir = platform.s.data / "needs"
+    members = {d["category"]["id"]: ["svc-" + s["id"] for s in d["services"]] for d in doms}
+    platform.discovery.build_domains([d["category"] for d in doms], members)
     for uid in acc["isc"]:
         if not platform.db.one("SELECT 1 FROM agents WHERE owner_id=? AND role='assistant'", uid):
             platform.register_assistant(uid, "九问 Swarm")
+    needs = load_needs()
+    mat_dir = platform.s.data / "needs" / "pool"
+    pool = []
     for i, n in enumerate(needs):
-        u = {"id": acc["isc"][i % len(acc["isc"])]}
-        a = platform.db.one("SELECT id FROM agents WHERE owner_id=? AND role='assistant'", u["id"])
+        uid = acc["isc"][i % len(acc["isc"])]
+        a = platform.db.one("SELECT id FROM agents WHERE owner_id=? AND role='assistant'", uid)
         mats = []
         for m in n.get("materials", []):
             src = HERE / "materials" / m["file"]
-            dst = mat_dir / f"{i + 1:02d}" / m["file"]
+            dst = mat_dir / n["domain"] / m["file"]
             dst.parent.mkdir(parents=True, exist_ok=True)
             if src.exists():
                 shutil.copyfile(src, dst)
             mats.append({"name": m["name"], "path": str(dst), "declared": m.get("declared", {})})
-        assistants.append({"assistant_id": a["id"], "owner_id": u["id"], "text": n["text"], "scope": n.get("scope", {}),
-                           "autoSign": n.get("autoSign", True), "materials": mats, "service": n.get("service")})
-    (platform.s.data / "dispatch.json").write_text(json.dumps(assistants, ensure_ascii=False, indent=1), encoding="utf-8")
-    return {"isp": len(acc["isp"]), "isc": len(acc["isc"]), "services": len(items), "needs": len(assistants),
+        pool.append({"assistant_id": a["id"], "owner_id": uid, "domain": n["domain"], "service": n["service"], "text": n["text"],
+                     "scope": n.get("scope", {}), "autoSign": n.get("autoSign", True), "materials": mats})
+    (platform.s.data / "dispatch.json").write_text(json.dumps(pool, ensure_ascii=False, indent=1), encoding="utf-8")
+    return {"isp": len(acc["isp"]), "isc": len(acc["isc"]), "domains": len(doms), "services": len(items), "needs": len(pool),
             "taxonomy": platform.discovery.taxonomy_state()}
+
+
+__all__ = ["load_definitions", "load_domains", "load_needs", "seed_all"]

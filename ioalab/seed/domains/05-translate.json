@@ -1,0 +1,639 @@
+{
+ "slug": "translate",
+ "label": "翻译本地化",
+ "account": "ISP_005",
+ "category": {
+  "id": "cat_translate",
+  "name": "翻译本地化",
+  "description": "中英互译、术语表、字幕翻译、合同译审、产品本地化方案等语言服务。",
+  "decision_rule": "需求是把文字从一种语言译成另一种语言、统一术语、做字幕或本地化时在此找"
+ },
+ "services": [
+  {
+   "id": "translate-zh-en",
+   "name": "中英翻译快译所",
+   "description": "把中文材料译成英文：按原文字数计价，每字 0.02 虚拟币（500 字约 10 虚拟币），可指定术语表；预批准型，30 分钟内交付。",
+   "tags": [
+    "翻译",
+    "英语",
+    "中译英"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "translation",
+    "title": "译文",
+    "file": "translation.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"translation\": \"英文译文\"}。英文词数 / 原文字数 ∈ [0.4, 1.0]；术语表（spec.terms，逗号分隔，每项「中文=English」或只写 English）里的每个英文术语都要出现在译文里（不分大小写，单复数不限）",
+    "specSchema": {
+     "terms": {
+      "type": "string",
+      "maxLength": 200
+     }
+    }
+   },
+   "inputs": [
+    {
+     "name": "source",
+     "title": "原文",
+     "description": "中文原文（UTF-8 文本）；chars 为去除空白后的字符数，计价与验收都按它算",
+     "required": true,
+     "specSchema": {
+      "chars": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 20000
+      }
+     },
+     "reviewBeforeSigning": false
+    }
+   ],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "0.02 * inputs.source.chars"
+   },
+   "verifier": {
+    "id": "translate_zh_en@1.0",
+    "reads": [
+     "inputs.source.chars",
+     "spec.translation.terms"
+    ],
+    "script": "translate_zh_en.py"
+   },
+   "notCovered": [
+    "文风",
+    "地道程度"
+   ],
+   "generator": {
+    "system": "你是专业的中译英译员。把「材料」里的 source 全文译成自然、准确的英文，不增删内容。硬性判据（验收器会机械检查）：1）英文词数必须在原文字数（输入声明里的 chars）的 0.4 倍到 1.0 倍之间，不要扩写，也不要漏译；2）规格 terms 是术语表，逗号分隔，每项形如「中文=English」或只有 English，等号右边的每个英文术语都必须原样出现在译文里（大小写与单复数不限），遇到对应中文一律用该术语。",
+    "output": "{\"translation\": \"English translation here\"}"
+   },
+   "sample": {
+    "translation": "Cha Xiaoman is a bubble tea shop on a neighborhood street corner, founded in 2021 by two college classmates. Its signature drink is cold brew oolong: high-mountain oolong tea from Fujian, steeped at low temperature for twelve hours, crisp on the palate with a lingering sweetness, with no flavoring and no added sugar. Besides cold brew oolong, the shop also offers fresh fruit tea all year round and a limited edition drink that changes every week; all fruit is bought and used on the same day.\n\nWe believe a good cup of tea needs no complicated recipe. The tea base is brewed fresh every day, the milk foam is whipped from fresh milk, and the syrup is made by our staff from yellow rock sugar. Customers can freely choose sweetness and ice, or swap milk for oat milk. A small blackboard in the shop lists the origin of the day's tea leaves and the brewing parameters, and anyone is welcome to ask.\n\nTo thank the neighbors who keep coming back, we launched a membership card: buy ten cups and get one free, and upgrade to a large cup for free during your birthday month. Members can also reserve the limited edition drink a day ahead and pick it up in store. We also partner with the bakery nearby to offer a tea-and-pastry set every Friday afternoon.\n\nIn the coming year, we plan to open a second shop in the next community and launch mini-program ordering so nobody has to queue. Wherever we open, Cha Xiaoman will keep the same standard: the origin of the tea is visible, the ingredients are clearly listed, and prices are not raised at will. Come and sit with us often."
+   },
+   "sample_spec": {
+    "terms": "冷萃乌龙=cold brew oolong,鲜果茶=fresh fruit tea,会员卡=membership card,限定饮品=limited edition drink"
+   },
+   "sample_inputs": {
+    "source": {
+     "chars": 407
+    }
+   }
+  },
+  {
+   "id": "translate-en-zh",
+   "name": "英译中快译社",
+   "description": "把一段英文译成自然的中文（≤ 1500 字符），中文占比 ≥ 60%；预批准型，7 虚拟币，30 分钟内交付。",
+   "tags": [
+    "翻译本地化",
+    "英语",
+    "英译中"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "zh",
+    "title": "中文译文",
+    "file": "zh.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"translation\": \"中文译文\"}；译文 20–3000 字且中文字符占比 ≥ 60%",
+    "specSchema": {
+     "source": {
+      "type": "string",
+      "maxLength": 1500
+     },
+     "style": {
+      "type": "string",
+      "maxLength": 40
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "7"
+   },
+   "verifier": {
+    "id": "translate_en_zh@1.0",
+    "checks": [
+     {
+      "kind": "str_len",
+      "path": "translation",
+      "min": 20,
+      "max": 3000
+     },
+     {
+      "kind": "cjk_ratio",
+      "path": "translation",
+      "min": 0.6
+     }
+    ]
+   },
+   "notCovered": [
+    "文体润色"
+   ],
+   "generator": {
+    "system": "你是英译中译者。把规格 source 译成 style 风格的中文。1）译文完整对应原文，不增删内容；2）译文以中文为主（中文字符占比 ≥ 60%），专有名词可保留英文并在首次出现时加中文注释。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"translation\": \"……\"}"
+   },
+   "sample": {
+    "translation": "我们的目标不是做出更多功能，而是让每一个功能都值得存在。请在本周五前把你的提案发给产品负责人。"
+   },
+   "sample_spec": {
+    "source": "Our goal is not to ship more features, but to make every feature worth existing. Please send your proposal to the product lead by this Friday.",
+    "style": "简洁"
+   }
+  },
+  {
+   "id": "glossary",
+   "name": "术语表编纂处",
+   "description": "按领域编一份 20 条中英术语表，中文术语互不重复；预批准型，8 虚拟币，30 分钟内交付。",
+   "tags": [
+    "翻译本地化",
+    "术语",
+    "词表"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "glossary",
+    "title": "术语表",
+    "file": "glossary.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"terms\": [{\"zh\": \"\", \"en\": \"\", \"note\": \"\"} × 20]}；恰好 spec.count 条，zh 互不重复",
+    "specSchema": {
+     "domain": {
+      "type": "string",
+      "maxLength": 60
+     },
+     "count": {
+      "const": 20
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "8"
+   },
+   "verifier": {
+    "id": "glossary@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "terms",
+      "eq": "spec.glossary.count"
+     },
+     {
+      "kind": "keys",
+      "path": "terms[]",
+      "required": [
+       "zh",
+       "en",
+       "note"
+      ]
+     },
+     {
+      "kind": "unique",
+      "path": "terms[].zh"
+     },
+     {
+      "kind": "each_str_len",
+      "path": "terms[].en",
+      "min": 2
+     }
+    ]
+   },
+   "notCovered": [
+    "术语在特定客户内部的用法"
+   ],
+   "generator": {
+    "system": "你是术语专家，为领域 domain 编术语表。1）terms 恰好 count 条；2）每条 zh、en、note（用法或易混点，可一句话）；3）zh 互不重复，优先行业通用译法。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"terms\": [{\"zh\": \"合同卡\", \"en\": \"contract card\", \"note\": \"A2C 术语\"}]}"
+   },
+   "sample": {
+    "terms": [
+     {
+      "zh": "合同",
+      "en": "contract",
+      "note": "通用译法"
+     },
+     {
+      "zh": "验收",
+      "en": "acceptance",
+      "note": "通用译法"
+     },
+     {
+      "zh": "定金",
+      "en": "deposit",
+      "note": "通用译法"
+     },
+     {
+      "zh": "分期付款",
+      "en": "installment",
+      "note": "通用译法"
+     },
+     {
+      "zh": "签名",
+      "en": "signature",
+      "note": "通用译法"
+     },
+     {
+      "zh": "时间戳",
+      "en": "timestamp",
+      "note": "通用译法"
+     },
+     {
+      "zh": "摘要",
+      "en": "digest",
+      "note": "通用译法"
+     },
+     {
+      "zh": "仲裁",
+      "en": "arbitration",
+      "note": "通用译法"
+     },
+     {
+      "zh": "裁定",
+      "en": "ruling",
+      "note": "通用译法"
+     },
+     {
+      "zh": "信誉",
+      "en": "reputation",
+      "note": "通用译法"
+     },
+     {
+      "zh": "服务方",
+      "en": "provider",
+      "note": "通用译法"
+     },
+     {
+      "zh": "委托方",
+      "en": "client",
+      "note": "通用译法"
+     },
+     {
+      "zh": "模板",
+      "en": "template",
+      "note": "通用译法"
+     },
+     {
+      "zh": "提案",
+      "en": "proposal",
+      "note": "通用译法"
+     },
+     {
+      "zh": "报价",
+      "en": "quote",
+      "note": "通用译法"
+     },
+     {
+      "zh": "交付件",
+      "en": "deliverable",
+      "note": "通用译法"
+     },
+     {
+      "zh": "存证",
+      "en": "anchor",
+      "note": "通用译法"
+     },
+     {
+      "zh": "解除",
+      "en": "termination",
+      "note": "通用译法"
+     },
+     {
+      "zh": "期限",
+      "en": "deadline",
+      "note": "通用译法"
+     },
+     {
+      "zh": "凭证",
+      "en": "voucher",
+      "note": "通用译法"
+     }
+    ]
+   },
+   "sample_spec": {
+    "domain": "智能体合同协议"
+   }
+  },
+  {
+   "id": "subtitle-translate",
+   "name": "字幕翻译铺",
+   "description": "把 | 分隔的英文字幕行逐句译成中文，条数与原文一致；预批准型，9 虚拟币，30 分钟内交付。",
+   "tags": [
+    "翻译本地化",
+    "字幕",
+    "英译中"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "subs",
+    "title": "中文字幕",
+    "file": "subs.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"subtitles\": [{\"index\": 1, \"zh\": \"\"}]}；恰好 spec.count 条，zh 非空且以中文为主",
+    "specSchema": {
+     "lines": {
+      "type": "string",
+      "maxLength": 2000
+     },
+     "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 80
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "9"
+   },
+   "verifier": {
+    "id": "subtitle_translate@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "subtitles",
+      "eq": "spec.subs.count"
+     },
+     {
+      "kind": "keys",
+      "path": "subtitles[]",
+      "required": [
+       "index",
+       "zh"
+      ]
+     },
+     {
+      "kind": "each_str_len",
+      "path": "subtitles[].zh",
+      "min": 1,
+      "max": 60
+     },
+     {
+      "kind": "cjk_ratio",
+      "path": "subtitles[].zh",
+      "min": 0.5
+     }
+    ]
+   },
+   "notCovered": [
+    "时间轴对齐"
+   ],
+   "generator": {
+    "system": "你是字幕译者。规格 lines 是用 | 分隔的 count 行英文字幕。1）subtitles 恰好 count 条，index 从 1 递增，与原文行一一对应；2）每条 zh ≤ 60 字、口语化、以中文为主。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"subtitles\": [{\"index\": 1, \"zh\": \"你好，欢迎回来。\"}]}"
+   },
+   "sample": {
+    "subtitles": [
+     {
+      "index": 1,
+      "zh": "你好，欢迎回来。"
+     },
+     {
+      "index": 2,
+      "zh": "今天我们来聊聊时间管理。"
+     },
+     {
+      "index": 3,
+      "zh": "先说一个常见误区。"
+     }
+    ]
+   },
+   "sample_spec": {
+    "lines": "Hi, welcome back.|Today we talk about time management.|Let's start with a common myth.",
+    "count": 3
+   }
+  },
+  {
+   "id": "contract-translate-review",
+   "name": "合同译审室",
+   "description": "合同条款中译英并出译审意见：译文 + ≥ 1 条术语或歧义提示；待批准型（服务方先看条款再接单），25 虚拟币，30 分钟内交付。",
+   "tags": [
+    "翻译本地化",
+    "合同",
+    "译审"
+   ],
+   "runnable": true,
+   "formation": "countersign",
+   "deliverable": {
+    "name": "review",
+    "title": "合同译审",
+    "file": "review.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"translation\": \"English\", \"issues\": [{\"term\": \"\", \"note\": \"\"}]}；译文英文占主（中文占比 ≤ 10%）且 ≥ 20 字符，issues ≥ 1",
+    "specSchema": {
+     "clauses": {
+      "type": "string",
+      "maxLength": 1500
+     },
+     "jurisdiction": {
+      "type": "string",
+      "maxLength": 40
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "25"
+   },
+   "verifier": {
+    "id": "contract_translate_review@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "translation",
+       "issues"
+      ]
+     },
+     {
+      "kind": "str_len",
+      "path": "translation",
+      "min": 20,
+      "max": 4000
+     },
+     {
+      "kind": "cjk_ratio",
+      "path": "translation",
+      "max": 0.1
+     },
+     {
+      "kind": "list_len",
+      "path": "issues",
+      "min": 1
+     },
+     {
+      "kind": "keys",
+      "path": "issues[]",
+      "required": [
+       "term",
+       "note"
+      ]
+     }
+    ]
+   },
+   "notCovered": [
+    "法律效力判断"
+   ],
+   "generator": {
+    "system": "你是法律翻译审校。把规格 clauses 译成英文（适用法域 jurisdiction）。1）translation 是完整英文译文；2）issues ≥ 1 条，指出术语选择或原文歧义（term 与 note）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"translation\": \"Either party may terminate…\", \"issues\": [{\"term\": \"解除\", \"note\": \"译为 terminate 而非 rescind\"}]}"
+   },
+   "sample": {
+    "translation": "Either party may terminate this Agreement by giving the other party thirty (30) days' prior written notice.",
+    "issues": [
+     {
+      "term": "解除",
+      "note": "按英美法惯用 terminate；rescind 多指自始撤销，含义不同。"
+     }
+    ]
+   },
+   "sample_spec": {
+    "clauses": "任何一方均可提前三十日书面通知对方解除本协议。",
+    "jurisdiction": "香港"
+   }
+  },
+  {
+   "id": "localization-plan",
+   "name": "本地化方案所",
+   "description": "为产品进入多个语言市场出本地化方案：每个地区的范围与风险；提案型（先付 1 虚拟币拟卡费，服务方按地区数报价 15–60 虚拟币），30 分钟内交付。",
+   "tags": [
+    "翻译本地化",
+    "本地化",
+    "出海"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "l10n",
+    "title": "本地化方案",
+    "file": "l10n.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"locales\": [{\"locale\": \"\", \"scope\": [\"\"], \"risks\": [\"\"]}]}；spec.locales（逗号分隔）每个都要有一项，每项 scope ≥ 2、risks ≥ 1",
+    "specSchema": {
+     "product": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "locales": {
+      "type": "string",
+      "maxLength": 200
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     15,
+     60
+    ]
+   },
+   "verifier": {
+    "id": "localization_plan@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "locales[]",
+      "required": [
+       "locale",
+       "scope",
+       "risks"
+      ]
+     },
+     {
+      "kind": "contains_all",
+      "path": "locales[].locale",
+      "words": "spec.l10n.locales"
+     },
+     {
+      "kind": "list_len",
+      "path": "locales[].scope",
+      "min": 2
+     },
+     {
+      "kind": "list_len",
+      "path": "locales[].risks",
+      "min": 1
+     }
+    ]
+   },
+   "notCovered": [
+    "翻译本身"
+   ],
+   "generator": {
+    "system": "你是本地化项目经理，为产品 product 进入 locales（逗号分隔的地区）出方案。1）每个地区一项，locale 原样照抄；2）scope ≥ 2 项（界面、文档、支付、法规等）；3）risks ≥ 1 条。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"locales\": [{\"locale\": \"ja-JP\", \"scope\": [\"界面文案\", \"客服模板\"], \"risks\": [\"敬语层级\"]}]}",
+    "quote_system": "你是服务方，按规格给出整数报价（虚拟币），只在参考价区间内取值：工作量大、要求多则报价高。只输出 JSON：{\"price\": 整数, \"summary\": \"一句话\"}。"
+   },
+   "sample": {
+    "locales": [
+     {
+      "locale": "ja-JP",
+      "scope": [
+       "界面文案与帮助中心",
+       "支付方式接入"
+      ],
+      "risks": [
+       "敬语层级与假名换行"
+      ]
+     },
+     {
+      "locale": "de-DE",
+      "scope": [
+       "界面文案",
+       "隐私条款"
+      ],
+      "risks": [
+       "GDPR 合规文案"
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "product": "记账应用",
+    "locales": "ja-JP,de-DE"
+   }
+  }
+ ]
+}

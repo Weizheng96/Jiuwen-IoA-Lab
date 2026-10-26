@@ -1,0 +1,1046 @@
+{
+ "slug": "health",
+ "label": "医疗健康",
+ "account": "ISP_001",
+ "category": {
+  "id": "cat_health",
+  "name": "医疗健康",
+  "description": "用药提醒、体检报告解读提纲、健身与饮食周计划、就诊科室建议、康复训练方案等健康生活类文书；只做信息整理与计划编排，不替代诊疗。",
+  "decision_rule": "需求与身体健康、用药、体检、健身、饮食、康复、就诊有关时在此找"
+ },
+ "services": [
+  {
+   "id": "med-reminder",
+   "name": "用药提醒表工坊",
+   "description": "按药名与服药频次排一周用药提醒表：7 天、每天列每种药的服用时间与注意事项；预批准型，6 虚拟币，30 分钟内交付。",
+   "tags": [
+    "医疗健康",
+    "用药",
+    "提醒"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "schedule",
+    "title": "一周用药提醒表",
+    "file": "schedule.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"days\": [{\"day\": \"周一\", \"items\": [{\"medicine\": \"药名\", \"time\": \"08:00\", \"note\": \"\"}]} × 7]}；恰好 7 天，每天 ≥ 1 项，spec.medicines（逗号分隔）里每种药都要出现",
+    "specSchema": {
+     "medicines": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "frequency": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "days": {
+      "const": 7
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "6"
+   },
+   "verifier": {
+    "id": "med_reminder@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "days",
+      "eq": "spec.schedule.days"
+     },
+     {
+      "kind": "keys",
+      "path": "days[]",
+      "required": [
+       "day",
+       "items"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "days[].items",
+      "min": 1
+     },
+     {
+      "kind": "keys",
+      "path": "days[].items[]",
+      "required": [
+       "medicine",
+       "time",
+       "note"
+      ]
+     },
+     {
+      "kind": "contains_all",
+      "path": "days",
+      "words": "spec.schedule.medicines"
+     }
+    ]
+   },
+   "notCovered": [
+    "剂量是否恰当",
+    "药物相互作用"
+   ],
+   "generator": {
+    "system": "你是社区药师。按规格 medicines（逗号分隔的药名）与 frequency（服药频次说明）排 7 天用药提醒表。1）days 恰好 7 项（周一…周日），每项 items ≥ 1；2）每项 item 有 medicine、time（HH:MM）、note（饭前饭后等，可空字符串）；3）每种药名至少出现一次，药名原样照抄。不做剂量调整建议。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"days\": [{\"day\": \"周一\", \"items\": [{\"medicine\": \"二甲双胍\", \"time\": \"08:00\", \"note\": \"随早餐服\"}]}]}"
+   },
+   "sample": {
+    "days": [
+     {
+      "day": "周一",
+      "items": [
+       {
+        "medicine": "二甲双胍",
+        "time": "08:00",
+        "note": "随早餐服"
+       },
+       {
+        "medicine": "阿托伐他汀",
+        "time": "21:00",
+        "note": "睡前"
+       }
+      ]
+     },
+     {
+      "day": "周二",
+      "items": [
+       {
+        "medicine": "二甲双胍",
+        "time": "08:00",
+        "note": "随早餐服"
+       },
+       {
+        "medicine": "阿托伐他汀",
+        "time": "21:00",
+        "note": "睡前"
+       }
+      ]
+     },
+     {
+      "day": "周三",
+      "items": [
+       {
+        "medicine": "二甲双胍",
+        "time": "08:00",
+        "note": "随早餐服"
+       },
+       {
+        "medicine": "阿托伐他汀",
+        "time": "21:00",
+        "note": "睡前"
+       }
+      ]
+     },
+     {
+      "day": "周四",
+      "items": [
+       {
+        "medicine": "二甲双胍",
+        "time": "08:00",
+        "note": "随早餐服"
+       },
+       {
+        "medicine": "阿托伐他汀",
+        "time": "21:00",
+        "note": "睡前"
+       }
+      ]
+     },
+     {
+      "day": "周五",
+      "items": [
+       {
+        "medicine": "二甲双胍",
+        "time": "08:00",
+        "note": "随早餐服"
+       },
+       {
+        "medicine": "阿托伐他汀",
+        "time": "21:00",
+        "note": "睡前"
+       }
+      ]
+     },
+     {
+      "day": "周六",
+      "items": [
+       {
+        "medicine": "二甲双胍",
+        "time": "08:00",
+        "note": "随早餐服"
+       },
+       {
+        "medicine": "阿托伐他汀",
+        "time": "21:00",
+        "note": "睡前"
+       }
+      ]
+     },
+     {
+      "day": "周日",
+      "items": [
+       {
+        "medicine": "二甲双胍",
+        "time": "08:00",
+        "note": "随早餐服"
+       },
+       {
+        "medicine": "阿托伐他汀",
+        "time": "21:00",
+        "note": "睡前"
+       }
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "medicines": "二甲双胍,阿托伐他汀",
+    "frequency": "二甲双胍每天一次随早餐，阿托伐他汀每晚一次"
+   }
+  },
+  {
+   "id": "checkup-brief",
+   "name": "体检报告解读提纲社",
+   "description": "按体检指标名列一份解读提纲：每项指标的含义、常见影响因素与下一步建议，外加一段总体提示；预批准型，8 虚拟币，30 分钟内交付。",
+   "tags": [
+    "医疗健康",
+    "体检",
+    "解读"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "brief",
+    "title": "体检解读提纲",
+    "file": "brief.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"items\": [{\"indicator\": \"指标名\", \"meaning\": \"\", \"advice\": \"\"}], \"summary\": \"\"}；spec.indicators（逗号分隔）里每个指标都要有一项，summary 20–300 字",
+    "specSchema": {
+     "indicators": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "age": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 120
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "8"
+   },
+   "verifier": {
+    "id": "checkup_brief@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "items",
+       "summary"
+      ]
+     },
+     {
+      "kind": "keys",
+      "path": "items[]",
+      "required": [
+       "indicator",
+       "meaning",
+       "advice"
+      ]
+     },
+     {
+      "kind": "contains_all",
+      "path": "items",
+      "words": "spec.brief.indicators"
+     },
+     {
+      "kind": "str_len",
+      "path": "summary",
+      "min": 20,
+      "max": 300
+     }
+    ]
+   },
+   "notCovered": [
+    "诊断结论",
+    "用药建议"
+   ],
+   "generator": {
+    "system": "你是全科医生助理，为一位 age 岁的体检者写指标解读提纲。1）spec indicators（逗号分隔）里的每个指标各写一项，indicator 字段原样照抄指标名；2）meaning 讲该指标反映什么，advice 讲生活方式建议与是否需要复查；3）summary 20–300 字的总体提示，说明提纲不替代医生面诊。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"items\": [{\"indicator\": \"血压\", \"meaning\": \"反映心血管负荷\", \"advice\": \"低盐饮食，复测三次取均值\"}], \"summary\": \"……\"}"
+   },
+   "sample": {
+    "items": [
+     {
+      "indicator": "血压",
+      "meaning": "反映动脉压力水平与心血管负荷。",
+      "advice": "低盐饮食、规律作息，连续三天复测取均值。"
+     },
+     {
+      "indicator": "空腹血糖",
+      "meaning": "反映糖代谢基础水平。",
+      "advice": "减少精制糖摄入，三个月后复查糖化血红蛋白。"
+     }
+    ],
+    "summary": "以上提纲只帮助你读懂报告里的名词与大致方向，具体是否异常以及如何处理，请带报告原件到内科面诊。"
+   },
+   "sample_spec": {
+    "indicators": "血压,空腹血糖",
+    "age": 45
+   }
+  },
+  {
+   "id": "fitness-week",
+   "name": "健身周计划站",
+   "description": "按目标与基础排一周训练计划：7 天、每天一个训练重点与 ≥ 3 个动作（组数 × 次数）；预批准型，7 虚拟币，30 分钟内交付。",
+   "tags": [
+    "医疗健康",
+    "健身",
+    "训练计划"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "plan",
+    "title": "健身周计划",
+    "file": "plan.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"days\": [{\"day\": \"周一\", \"focus\": \"\", \"exercises\": [{\"name\": \"\", \"sets\": 3, \"reps\": \"12\"}]} × 7]}；恰好 7 天，每天 exercises ≥ 3，sets 1–10",
+    "specSchema": {
+     "goal": {
+      "type": "string",
+      "maxLength": 60
+     },
+     "level": {
+      "enum": [
+       "初级",
+       "中级",
+       "高级"
+      ]
+     },
+     "days": {
+      "const": 7
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "7"
+   },
+   "verifier": {
+    "id": "fitness_week@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "days",
+      "eq": "spec.plan.days"
+     },
+     {
+      "kind": "keys",
+      "path": "days[]",
+      "required": [
+       "day",
+       "focus",
+       "exercises"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "days[].exercises",
+      "min": 3
+     },
+     {
+      "kind": "keys",
+      "path": "days[].exercises[]",
+      "required": [
+       "name",
+       "sets",
+       "reps"
+      ]
+     },
+     {
+      "kind": "each_num",
+      "path": "days[].exercises[].sets",
+      "min": 1,
+      "max": 10
+     }
+    ]
+   },
+   "notCovered": [
+    "运动损伤风险评估"
+   ],
+   "generator": {
+    "system": "你是健身教练，按规格 goal（目标）与 level（初级/中级/高级）排 7 天训练计划（含休息日也要给 ≥ 3 个拉伸或恢复动作）。1）days 恰好 7 项；2）每项 focus 一句话；3）每项 exercises ≥ 3 个，每个有 name、sets（整数 1–10）、reps（字符串，如 \"12\" 或 \"30 秒\"）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"days\": [{\"day\": \"周一\", \"focus\": \"胸与三头\", \"exercises\": [{\"name\": \"俯卧撑\", \"sets\": 3, \"reps\": \"12\"}]}]}"
+   },
+   "sample": {
+    "days": [
+     {
+      "day": "周一",
+      "focus": "上肢",
+      "exercises": [
+       {
+        "name": "俯卧撑",
+        "sets": 3,
+        "reps": "12"
+       },
+       {
+        "name": "深蹲",
+        "sets": 4,
+        "reps": "15"
+       },
+       {
+        "name": "平板支撑",
+        "sets": 3,
+        "reps": "40 秒"
+       }
+      ]
+     },
+     {
+      "day": "周二",
+      "focus": "下肢",
+      "exercises": [
+       {
+        "name": "俯卧撑",
+        "sets": 3,
+        "reps": "12"
+       },
+       {
+        "name": "深蹲",
+        "sets": 4,
+        "reps": "15"
+       },
+       {
+        "name": "平板支撑",
+        "sets": 3,
+        "reps": "40 秒"
+       }
+      ]
+     },
+     {
+      "day": "周三",
+      "focus": "核心",
+      "exercises": [
+       {
+        "name": "俯卧撑",
+        "sets": 3,
+        "reps": "12"
+       },
+       {
+        "name": "深蹲",
+        "sets": 4,
+        "reps": "15"
+       },
+       {
+        "name": "平板支撑",
+        "sets": 3,
+        "reps": "40 秒"
+       }
+      ]
+     },
+     {
+      "day": "周四",
+      "focus": "有氧",
+      "exercises": [
+       {
+        "name": "俯卧撑",
+        "sets": 3,
+        "reps": "12"
+       },
+       {
+        "name": "深蹲",
+        "sets": 4,
+        "reps": "15"
+       },
+       {
+        "name": "平板支撑",
+        "sets": 3,
+        "reps": "40 秒"
+       }
+      ]
+     },
+     {
+      "day": "周五",
+      "focus": "上肢",
+      "exercises": [
+       {
+        "name": "俯卧撑",
+        "sets": 3,
+        "reps": "12"
+       },
+       {
+        "name": "深蹲",
+        "sets": 4,
+        "reps": "15"
+       },
+       {
+        "name": "平板支撑",
+        "sets": 3,
+        "reps": "40 秒"
+       }
+      ]
+     },
+     {
+      "day": "周六",
+      "focus": "全身",
+      "exercises": [
+       {
+        "name": "俯卧撑",
+        "sets": 3,
+        "reps": "12"
+       },
+       {
+        "name": "深蹲",
+        "sets": 4,
+        "reps": "15"
+       },
+       {
+        "name": "平板支撑",
+        "sets": 3,
+        "reps": "40 秒"
+       }
+      ]
+     },
+     {
+      "day": "周日",
+      "focus": "恢复拉伸",
+      "exercises": [
+       {
+        "name": "俯卧撑",
+        "sets": 3,
+        "reps": "12"
+       },
+       {
+        "name": "深蹲",
+        "sets": 4,
+        "reps": "15"
+       },
+       {
+        "name": "平板支撑",
+        "sets": 3,
+        "reps": "40 秒"
+       }
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "goal": "减脂并保持肌肉",
+    "level": "初级"
+   }
+  },
+  {
+   "id": "diet-week",
+   "name": "一周减脂食谱屋",
+   "description": "按每日热量目标与忌口排一周三餐：7 天 × 3 餐，每餐菜名与估算热量，忌口食材不出现；预批准型，9 虚拟币，30 分钟内交付。",
+   "tags": [
+    "医疗健康",
+    "饮食",
+    "减脂"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "diet",
+    "title": "一周减脂食谱",
+    "file": "diet.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"days\": [{\"day\": \"周一\", \"meals\": [{\"meal\": \"早餐\", \"dish\": \"\", \"kcal\": 350} × 3]} × 7]}；恰好 7 天、每天恰好 3 餐，每餐 kcal 100–1200，spec.avoid（逗号分隔）里的食材不得出现",
+    "specSchema": {
+     "calories": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 3000
+     },
+     "avoid": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "days": {
+      "const": 7
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "9"
+   },
+   "verifier": {
+    "id": "diet_week@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "days",
+      "eq": "spec.diet.days"
+     },
+     {
+      "kind": "list_len",
+      "path": "days[].meals",
+      "eq": 3
+     },
+     {
+      "kind": "keys",
+      "path": "days[].meals[]",
+      "required": [
+       "meal",
+       "dish",
+       "kcal"
+      ]
+     },
+     {
+      "kind": "each_num",
+      "path": "days[].meals[].kcal",
+      "min": 100,
+      "max": 1200
+     },
+     {
+      "kind": "forbid",
+      "path": "days",
+      "words": "spec.diet.avoid"
+     }
+    ]
+   },
+   "notCovered": [
+    "营养素精确配比"
+   ],
+   "generator": {
+    "system": "你是营养师，按规格 calories（每日热量目标，千卡）与 avoid（逗号分隔的忌口食材）排 7 天食谱。1）days 恰好 7 项，每项 meals 恰好 3 项（早餐、午餐、晚餐）；2）每餐有 dish（菜名，写清主要食材）与 kcal（整数，100–1200），三餐合计接近目标；3）忌口食材及其近义写法在全部文字里都不得出现。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"days\": [{\"day\": \"周一\", \"meals\": [{\"meal\": \"早餐\", \"dish\": \"燕麦牛奶配鸡蛋\", \"kcal\": 380}]}]}"
+   },
+   "sample": {
+    "days": [
+     {
+      "day": "周一",
+      "meals": [
+       {
+        "meal": "早餐",
+        "dish": "燕麦牛奶配水煮蛋",
+        "kcal": 380
+       },
+       {
+        "meal": "午餐",
+        "dish": "鸡胸肉糙米饭配西兰花",
+        "kcal": 620
+       },
+       {
+        "meal": "晚餐",
+        "dish": "清蒸鱼配凉拌菠菜",
+        "kcal": 480
+       }
+      ]
+     },
+     {
+      "day": "周二",
+      "meals": [
+       {
+        "meal": "早餐",
+        "dish": "燕麦牛奶配水煮蛋",
+        "kcal": 380
+       },
+       {
+        "meal": "午餐",
+        "dish": "鸡胸肉糙米饭配西兰花",
+        "kcal": 620
+       },
+       {
+        "meal": "晚餐",
+        "dish": "清蒸鱼配凉拌菠菜",
+        "kcal": 480
+       }
+      ]
+     },
+     {
+      "day": "周三",
+      "meals": [
+       {
+        "meal": "早餐",
+        "dish": "燕麦牛奶配水煮蛋",
+        "kcal": 380
+       },
+       {
+        "meal": "午餐",
+        "dish": "鸡胸肉糙米饭配西兰花",
+        "kcal": 620
+       },
+       {
+        "meal": "晚餐",
+        "dish": "清蒸鱼配凉拌菠菜",
+        "kcal": 480
+       }
+      ]
+     },
+     {
+      "day": "周四",
+      "meals": [
+       {
+        "meal": "早餐",
+        "dish": "燕麦牛奶配水煮蛋",
+        "kcal": 380
+       },
+       {
+        "meal": "午餐",
+        "dish": "鸡胸肉糙米饭配西兰花",
+        "kcal": 620
+       },
+       {
+        "meal": "晚餐",
+        "dish": "清蒸鱼配凉拌菠菜",
+        "kcal": 480
+       }
+      ]
+     },
+     {
+      "day": "周五",
+      "meals": [
+       {
+        "meal": "早餐",
+        "dish": "燕麦牛奶配水煮蛋",
+        "kcal": 380
+       },
+       {
+        "meal": "午餐",
+        "dish": "鸡胸肉糙米饭配西兰花",
+        "kcal": 620
+       },
+       {
+        "meal": "晚餐",
+        "dish": "清蒸鱼配凉拌菠菜",
+        "kcal": 480
+       }
+      ]
+     },
+     {
+      "day": "周六",
+      "meals": [
+       {
+        "meal": "早餐",
+        "dish": "燕麦牛奶配水煮蛋",
+        "kcal": 380
+       },
+       {
+        "meal": "午餐",
+        "dish": "鸡胸肉糙米饭配西兰花",
+        "kcal": 620
+       },
+       {
+        "meal": "晚餐",
+        "dish": "清蒸鱼配凉拌菠菜",
+        "kcal": 480
+       }
+      ]
+     },
+     {
+      "day": "周日",
+      "meals": [
+       {
+        "meal": "早餐",
+        "dish": "燕麦牛奶配水煮蛋",
+        "kcal": 380
+       },
+       {
+        "meal": "午餐",
+        "dish": "鸡胸肉糙米饭配西兰花",
+        "kcal": 620
+       },
+       {
+        "meal": "晚餐",
+        "dish": "清蒸鱼配凉拌菠菜",
+        "kcal": 480
+       }
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "calories": 1500,
+    "avoid": "花生,虾"
+   }
+  },
+  {
+   "id": "triage-advice",
+   "name": "就诊科室建议亭",
+   "description": "按症状描述与年龄建议 1–3 个就诊科室，给出理由与紧急程度，附免责说明；待批准型（服务方先看描述再接单），12 虚拟币，30 分钟内交付。",
+   "tags": [
+    "医疗健康",
+    "就诊",
+    "分诊"
+   ],
+   "runnable": true,
+   "formation": "countersign",
+   "deliverable": {
+    "name": "triage",
+    "title": "就诊科室建议",
+    "file": "triage.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"departments\": [{\"name\": \"科室\", \"reason\": \"\"}], \"urgency\": \"低|中|高\", \"disclaimer\": \"\"}；departments 1–3 项，urgency 取三档之一，disclaimer ≥ 10 字",
+    "specSchema": {
+     "symptoms": {
+      "type": "string",
+      "maxLength": 300
+     },
+     "age": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 120
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "12"
+   },
+   "verifier": {
+    "id": "triage_advice@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "departments",
+       "urgency",
+       "disclaimer"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "departments",
+      "min": 1,
+      "max": 3
+     },
+     {
+      "kind": "keys",
+      "path": "departments[]",
+      "required": [
+       "name",
+       "reason"
+      ]
+     },
+     {
+      "kind": "each_in",
+      "path": "urgency",
+      "in": [
+       "低",
+       "中",
+       "高"
+      ]
+     },
+     {
+      "kind": "str_len",
+      "path": "disclaimer",
+      "min": 10,
+      "max": 200
+     }
+    ]
+   },
+   "notCovered": [
+    "诊断",
+    "治疗方案"
+   ],
+   "generator": {
+    "system": "你是医院导诊台。按规格 symptoms（症状描述）与 age 给出 1–3 个建议就诊的科室。1）每个科室写 name 与 reason；2）urgency 只能是 低、中、高 三个字之一；3）disclaimer 写明这不是诊断，胸痛、呼吸困难、意识不清等要立即急诊。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"departments\": [{\"name\": \"消化内科\", \"reason\": \"餐后上腹痛与反酸提示胃食管问题\"}], \"urgency\": \"中\", \"disclaimer\": \"本建议不构成诊断……\"}"
+   },
+   "sample": {
+    "departments": [
+     {
+      "name": "消化内科",
+      "reason": "餐后上腹隐痛伴反酸两周，优先排查胃食管问题。"
+     }
+    ],
+    "urgency": "中",
+    "disclaimer": "本建议只用于选择科室，不构成诊断；若出现剧烈腹痛、呕血或黑便请立即急诊。"
+   },
+   "sample_spec": {
+    "symptoms": "餐后上腹隐痛伴反酸两周",
+    "age": 38
+   }
+  },
+  {
+   "id": "rehab-plan",
+   "name": "康复训练方案所",
+   "description": "按伤病情况与周数定制分周康复训练方案：每周目标与 ≥ 2 个训练动作；提案型（先付 1 虚拟币拟卡费，服务方按周数报价 12–40 虚拟币），30 分钟内交付。",
+   "tags": [
+    "医疗健康",
+    "康复",
+    "训练"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "rehab",
+    "title": "康复训练方案",
+    "file": "rehab.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"weeks\": [{\"week\": 1, \"goal\": \"\", \"exercises\": [{\"name\": \"\", \"detail\": \"\"}]}]}；恰好 spec.weeks 周，每周 exercises ≥ 2",
+    "specSchema": {
+     "condition": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "weeks": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 12
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     12,
+     40
+    ]
+   },
+   "verifier": {
+    "id": "rehab_plan@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "weeks",
+      "eq": "spec.rehab.weeks"
+     },
+     {
+      "kind": "keys",
+      "path": "weeks[]",
+      "required": [
+       "week",
+       "goal",
+       "exercises"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "weeks[].exercises",
+      "min": 2
+     },
+     {
+      "kind": "keys",
+      "path": "weeks[].exercises[]",
+      "required": [
+       "name",
+       "detail"
+      ]
+     }
+    ]
+   },
+   "notCovered": [
+    "手术方案",
+    "复诊时机"
+   ],
+   "generator": {
+    "system": "你是康复治疗师，为规格 condition 的情况排 weeks 周的循序渐进训练方案。1）weeks 数组恰好 weeks 项，week 从 1 递增；2）每周 goal 一句话；3）每周 exercises ≥ 2 个，每个有 name 与 detail（次数、时长、注意事项）。强调疼痛加重即停止并复诊。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"weeks\": [{\"week\": 1, \"goal\": \"消肿与恢复关节活动度\", \"exercises\": [{\"name\": \"踝泵\", \"detail\": \"每小时 20 次\"}, {\"name\": \"直腿抬高\", \"detail\": \"每天 3 组 × 10 次\"}]}]}",
+    "quote_system": "你是服务方，按规格给出整数报价（虚拟币），只在参考价区间内取值：工作量大、要求多则报价高。只输出 JSON：{\"price\": 整数, \"summary\": \"一句话\"}。"
+   },
+   "sample": {
+    "weeks": [
+     {
+      "week": 1,
+      "goal": "消肿与恢复关节活动度",
+      "exercises": [
+       {
+        "name": "踝泵",
+        "detail": "每小时 20 次"
+       },
+       {
+        "name": "直腿抬高",
+        "detail": "每天 3 组 × 10 次，疼痛加重即停止"
+       }
+      ]
+     },
+     {
+      "week": 2,
+      "goal": "恢复肌力",
+      "exercises": [
+       {
+        "name": "踝泵",
+        "detail": "每小时 20 次"
+       },
+       {
+        "name": "直腿抬高",
+        "detail": "每天 3 组 × 10 次，疼痛加重即停止"
+       }
+      ]
+     },
+     {
+      "week": 3,
+      "goal": "恢复步态",
+      "exercises": [
+       {
+        "name": "踝泵",
+        "detail": "每小时 20 次"
+       },
+       {
+        "name": "直腿抬高",
+        "detail": "每天 3 组 × 10 次，疼痛加重即停止"
+       }
+      ]
+     },
+     {
+      "week": 4,
+      "goal": "回归日常活动",
+      "exercises": [
+       {
+        "name": "踝泵",
+        "detail": "每小时 20 次"
+       },
+       {
+        "name": "直腿抬高",
+        "detail": "每天 3 组 × 10 次，疼痛加重即停止"
+       }
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "condition": "右膝半月板术后两周",
+    "weeks": 4
+   }
+  }
+ ]
+}

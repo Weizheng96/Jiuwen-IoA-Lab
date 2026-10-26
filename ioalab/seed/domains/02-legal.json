@@ -1,0 +1,653 @@
+{
+ "slug": "legal",
+ "label": "法律咨询",
+ "account": "ISP_002",
+ "category": {
+  "id": "cat_legal",
+  "name": "法律咨询",
+  "description": "合同风险清单、劳动纠纷问答、租房维权话术、起诉状提纲、合同条款改写、股权方案等法律文书与咨询类服务；给的是信息与文书，不是律师意见。",
+  "decision_rule": "需求涉及合同、劳动、租赁、诉讼、股权等法律事务时在此找"
+ },
+ "services": [
+  {
+   "id": "contract-risks",
+   "name": "合同风险清单所",
+   "description": "按合同类型与关注点列风险清单：≥ 5 条，每条写涉及条款、风险与修改建议；预批准型，10 虚拟币，30 分钟内交付。",
+   "tags": [
+    "法律咨询",
+    "合同",
+    "风险"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "risks",
+    "title": "合同风险清单",
+    "file": "risks.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"risks\": [{\"clause\": \"条款\", \"risk\": \"\", \"suggestion\": \"\"}]}；≥ 5 条",
+    "specSchema": {
+     "contractType": {
+      "type": "string",
+      "maxLength": 60
+     },
+     "concerns": {
+      "type": "string",
+      "maxLength": 300
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "10"
+   },
+   "verifier": {
+    "id": "contract_risks@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "risks",
+      "min": 5
+     },
+     {
+      "kind": "keys",
+      "path": "risks[]",
+      "required": [
+       "clause",
+       "risk",
+       "suggestion"
+      ]
+     },
+     {
+      "kind": "each_str_len",
+      "path": "risks[].suggestion",
+      "min": 8
+     }
+    ]
+   },
+   "notCovered": [
+    "个案法律意见"
+   ],
+   "generator": {
+    "system": "你是合同审查助理，为规格 contractType 类型的合同列风险清单，优先覆盖 concerns 里提到的关注点。1）risks ≥ 5 条；2）每条有 clause（条款名）、risk（风险是什么）、suggestion（≥ 8 字的修改建议）。不做个案法律意见。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"risks\": [{\"clause\": \"违约责任\", \"risk\": \"违约金比例过高\", \"suggestion\": \"约定违约金上限为合同总价的 20%\"}]}"
+   },
+   "sample": {
+    "risks": [
+     {
+      "clause": "付款条件",
+      "risk": "全款前置，交付前无约束",
+      "suggestion": "改为定金加验收后分期付款"
+     },
+     {
+      "clause": "验收标准",
+      "risk": "验收标准含糊",
+      "suggestion": "逐项列出可量化的验收指标与期限"
+     },
+     {
+      "clause": "违约责任",
+      "risk": "违约金比例过高",
+      "suggestion": "约定违约金上限为合同总价的 20%"
+     },
+     {
+      "clause": "知识产权",
+      "risk": "成果归属未写明",
+      "suggestion": "写明交付成果著作权归委托方"
+     },
+     {
+      "clause": "争议解决",
+      "risk": "未约定管辖",
+      "suggestion": "约定委托方所在地法院管辖"
+     },
+     {
+      "clause": "解除条件",
+      "risk": "单方解除权不对等",
+      "suggestion": "双方均可在对方根本违约时解除"
+     }
+    ]
+   },
+   "sample_spec": {
+    "contractType": "软件开发服务合同",
+    "concerns": "付款节点与成果归属"
+   }
+  },
+  {
+   "id": "labor-qa",
+   "name": "劳动纠纷问答亭",
+   "description": "劳动合同、加班、离职补偿类问题书面解答：答案 + 法条依据 + 建议步骤；预批准型，6 虚拟币，30 分钟内交付。",
+   "tags": [
+    "法律咨询",
+    "劳动法",
+    "问答"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "answer",
+    "title": "劳动问题解答",
+    "file": "answer.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"answer\": \"\", \"basis\": [{\"law\": \"法律名\", \"article\": \"第 x 条\"}], \"steps\": [\"\"]}；answer 50–600 字，basis ≥ 1，steps ≥ 2",
+    "specSchema": {
+     "question": {
+      "type": "string",
+      "maxLength": 400
+     },
+     "city": {
+      "type": "string",
+      "maxLength": 30
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "6"
+   },
+   "verifier": {
+    "id": "labor_qa@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "answer",
+       "basis",
+       "steps"
+      ]
+     },
+     {
+      "kind": "str_len",
+      "path": "answer",
+      "min": 50,
+      "max": 600
+     },
+     {
+      "kind": "list_len",
+      "path": "basis",
+      "min": 1
+     },
+     {
+      "kind": "keys",
+      "path": "basis[]",
+      "required": [
+       "law",
+       "article"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "steps",
+      "min": 2
+     }
+    ]
+   },
+   "notCovered": [
+    "个案结果预测"
+   ],
+   "generator": {
+    "system": "你是劳动法咨询助理。针对规格 question（城市 city）写书面解答。1）answer 50–600 字，直接回答；2）basis ≥ 1 条，写法律名与条号（如 劳动合同法 第四十七条）；3）steps ≥ 2 条，按先后给出沟通、取证、仲裁等步骤。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"answer\": \"……\", \"basis\": [{\"law\": \"劳动合同法\", \"article\": \"第四十七条\"}], \"steps\": [\"保留考勤与工资记录\", \"向劳动监察部门投诉\"]}"
+   },
+   "sample": {
+    "answer": "用人单位以经营困难为由解除劳动合同，属于无过失性辞退，应当提前三十日书面通知或额外支付一个月工资，并按工作年限支付经济补偿：每满一年支付一个月工资，六个月以上不满一年按一年计。",
+    "basis": [
+     {
+      "law": "劳动合同法",
+      "article": "第四十条、第四十七条"
+     }
+    ],
+    "steps": [
+     "保留劳动合同、工资流水与解除通知等证据",
+     "与单位书面协商经济补偿数额",
+     "协商不成在一年内向劳动争议仲裁委员会申请仲裁"
+    ]
+   },
+   "sample_spec": {
+    "question": "公司以经营困难为由辞退我，能拿多少补偿？",
+    "city": "深圳"
+   }
+  },
+  {
+   "id": "rent-dispute",
+   "name": "租房维权指南社",
+   "description": "押金、提前退租、房东违约类纠纷：出维权步骤、沟通话术与证据清单；预批准型，8 虚拟币，30 分钟内交付。",
+   "tags": [
+    "法律咨询",
+    "租赁",
+    "维权"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "guide",
+    "title": "租房维权指南",
+    "file": "guide.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"steps\": [\"\"], \"scripts\": [\"\"], \"evidence\": [\"\"]}；steps ≥ 3，scripts ≥ 2，evidence ≥ 3",
+    "specSchema": {
+     "situation": {
+      "type": "string",
+      "maxLength": 400
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "8"
+   },
+   "verifier": {
+    "id": "rent_dispute@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "steps",
+       "scripts",
+       "evidence"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "steps",
+      "min": 3
+     },
+     {
+      "kind": "list_len",
+      "path": "scripts",
+      "min": 2
+     },
+     {
+      "kind": "list_len",
+      "path": "evidence",
+      "min": 3
+     },
+     {
+      "kind": "each_str_len",
+      "path": "scripts[]",
+      "min": 15
+     }
+    ]
+   },
+   "notCovered": [
+    "诉讼代理"
+   ],
+   "generator": {
+    "system": "你是租房纠纷顾问，针对规格 situation 给出维权指南。1）steps ≥ 3 条按先后排列的行动步骤；2）scripts ≥ 2 段可直接发给房东或中介的沟通话术（每段 ≥ 15 字）；3）evidence ≥ 3 项要收集的证据。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"steps\": [\"书面催告退还押金\"], \"scripts\": [\"您好，合同第 x 条约定……\"], \"evidence\": [\"租赁合同\", \"押金收据\", \"交房时的照片\"]}"
+   },
+   "sample": {
+    "steps": [
+     "核对合同里的押金退还条款与期限",
+     "书面（微信或短信）催告房东在 3 日内退还",
+     "无果则向住建部门投诉或向法院起诉"
+    ],
+    "scripts": [
+     "房东您好，合同第五条约定退租后 7 日内退还押金，现已超期，请您今天安排退还，谢谢。",
+     "如您方认为房屋有损坏，请提供交房时的照片对比与维修报价，我们按实际损失协商。"
+    ],
+    "evidence": [
+     "租赁合同原件",
+     "押金转账记录",
+     "退租时的房屋照片与视频",
+     "与房东的聊天记录"
+    ]
+   },
+   "sample_spec": {
+    "situation": "退租一个月房东仍不退押金，称墙面有划痕"
+   }
+  },
+  {
+   "id": "complaint-outline",
+   "name": "起诉状提纲工坊",
+   "description": "按纠纷事实写民事起诉状提纲：原告、被告、诉讼请求、事实与理由、证据清单各一节；预批准型，12 虚拟币，30 分钟内交付。",
+   "tags": [
+    "法律咨询",
+    "诉讼",
+    "文书"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "outline",
+    "title": "起诉状提纲",
+    "file": "outline.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"sections\": [{\"title\": \"\", \"content\": \"\"}]}；sections ≥ 5，标题须含 原告、被告、诉讼请求、事实与理由、证据",
+    "specSchema": {
+     "facts": {
+      "type": "string",
+      "maxLength": 800
+     },
+     "claim": {
+      "type": "string",
+      "maxLength": 200
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "12"
+   },
+   "verifier": {
+    "id": "complaint_outline@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "sections",
+      "min": 5
+     },
+     {
+      "kind": "keys",
+      "path": "sections[]",
+      "required": [
+       "title",
+       "content"
+      ]
+     },
+     {
+      "kind": "contains_all",
+      "path": "sections[].title",
+      "words": [
+       "原告",
+       "被告",
+       "诉讼请求",
+       "事实与理由",
+       "证据"
+      ]
+     },
+     {
+      "kind": "each_str_len",
+      "path": "sections[].content",
+      "min": 10
+     }
+    ]
+   },
+   "notCovered": [
+    "法律意见",
+    "代书"
+   ],
+   "generator": {
+    "system": "你是诉讼文书助理，按规格 facts（事实）与 claim（诉求）写民事起诉状提纲。1）sections ≥ 5 节，标题依次包含「原告」「被告」「诉讼请求」「事实与理由」「证据」；2）每节 content ≥ 10 字，当事人信息用占位符（如【姓名】）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"sections\": [{\"title\": \"原告\", \"content\": \"【姓名】，【身份证号】，住【地址】\"}]}"
+   },
+   "sample": {
+    "sections": [
+     {
+      "title": "原告",
+      "content": "【姓名】，【性别】，【出生日期】，住【地址】，联系电话【电话】。"
+     },
+     {
+      "title": "被告",
+      "content": "【公司名称】，住所地【地址】，法定代表人【姓名】。"
+     },
+     {
+      "title": "诉讼请求",
+      "content": "一、判令被告支付拖欠服务费 20000 元；二、判令被告承担本案诉讼费。"
+     },
+     {
+      "title": "事实与理由",
+      "content": "2026 年 3 月双方签订服务合同，原告已按约完成交付并经被告验收，被告至今未付款。"
+     },
+     {
+      "title": "证据清单",
+      "content": "1. 服务合同；2. 验收确认记录；3. 催款函及回复。"
+     }
+    ]
+   },
+   "sample_spec": {
+    "facts": "我按合同完成了网站开发并经验收，对方拖欠 2 万元服务费三个月",
+    "claim": "支付服务费 2 万元及诉讼费"
+   }
+  },
+  {
+   "id": "clause-rewrite",
+   "name": "合同条款改写室",
+   "description": "把一段合同条款按目标改写（更公平、更明确或更有利于某方），列出每处改动与理由；待批准型（服务方先看条款再接单），18 虚拟币，30 分钟内交付。",
+   "tags": [
+    "法律咨询",
+    "合同",
+    "改写"
+   ],
+   "runnable": true,
+   "formation": "countersign",
+   "deliverable": {
+    "name": "rewrite",
+    "title": "条款改写",
+    "file": "rewrite.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"rewritten\": \"改写后的条款\", \"changes\": [{\"from\": \"\", \"to\": \"\", \"why\": \"\"}]}；rewritten ≥ 30 字，changes ≥ 1",
+    "specSchema": {
+     "clause": {
+      "type": "string",
+      "maxLength": 1200
+     },
+     "goal": {
+      "type": "string",
+      "maxLength": 200
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "18"
+   },
+   "verifier": {
+    "id": "clause_rewrite@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "rewritten",
+       "changes"
+      ]
+     },
+     {
+      "kind": "str_len",
+      "path": "rewritten",
+      "min": 30,
+      "max": 2000
+     },
+     {
+      "kind": "list_len",
+      "path": "changes",
+      "min": 1
+     },
+     {
+      "kind": "keys",
+      "path": "changes[]",
+      "required": [
+       "from",
+       "to",
+       "why"
+      ]
+     }
+    ]
+   },
+   "notCovered": [
+    "法律意见"
+   ],
+   "generator": {
+    "system": "你是合同起草顾问。把规格 clause 按 goal 改写。1）rewritten 是完整的改写后条款（≥ 30 字）；2）changes 列出每处改动：from（原文片段）、to（改后片段）、why（理由）。不改变条款的基本交易安排。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"rewritten\": \"……\", \"changes\": [{\"from\": \"甲方有权随时解除\", \"to\": \"任一方提前 30 日书面通知可解除\", \"why\": \"解除权对等\"}]}"
+   },
+   "sample": {
+    "rewritten": "任何一方均可在提前三十日书面通知对方后解除本合同；因一方根本违约导致合同目的不能实现的，守约方可立即解除并要求赔偿实际损失。",
+    "changes": [
+     {
+      "from": "甲方有权随时解除本合同",
+      "to": "任何一方均可在提前三十日书面通知对方后解除本合同",
+      "why": "解除权对等并给对方准备时间"
+     }
+    ]
+   },
+   "sample_spec": {
+    "clause": "甲方有权随时解除本合同，乙方不得提出异议。",
+    "goal": "双方权利对等"
+   }
+  },
+  {
+   "id": "equity-plan",
+   "name": "股权架构研究室",
+   "description": "初创公司股权分配方案：各方持股比例（合计 100）、成熟机制与说明；提案型（先付 1 虚拟币拟卡费，服务方报价 20–60 虚拟币），30 分钟内交付。",
+   "tags": [
+    "法律咨询",
+    "股权",
+    "公司法"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "equity",
+    "title": "股权方案",
+    "file": "equity.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"holders\": [{\"name\": \"\", \"share\": 60}], \"vesting\": \"\", \"notes\": [\"\"]}；holders ≥ 2，share 之和 ≤ 100 且每项 1–90，vesting ≥ 20 字",
+    "specSchema": {
+     "company": {
+      "type": "string",
+      "maxLength": 60
+     },
+     "founders": {
+      "type": "string",
+      "maxLength": 300
+     },
+     "optionPool": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 30
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     20,
+     60
+    ]
+   },
+   "verifier": {
+    "id": "equity_plan@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "holders",
+       "vesting",
+       "notes"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "holders",
+      "min": 2
+     },
+     {
+      "kind": "keys",
+      "path": "holders[]",
+      "required": [
+       "name",
+       "share"
+      ]
+     },
+     {
+      "kind": "each_num",
+      "path": "holders[].share",
+      "min": 1,
+      "max": 90
+     },
+     {
+      "kind": "sum_le",
+      "path": "holders[].share",
+      "max": 100
+     },
+     {
+      "kind": "str_len",
+      "path": "vesting",
+      "min": 20,
+      "max": 600
+     },
+     {
+      "kind": "list_len",
+      "path": "notes",
+      "min": 1
+     }
+    ]
+   },
+   "notCovered": [
+    "税务",
+    "工商登记"
+   ],
+   "generator": {
+    "system": "你是股权架构顾问，为规格 company 按 founders（创始人及其贡献描述）与 optionPool（期权池百分比）出方案。1）holders 列每位创始人与期权池的 share（整数百分比，1–90，合计恰好 100）；2）vesting 写成熟机制（≥ 20 字，如四年成熟一年等待期）；3）notes ≥ 1 条注意事项。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"holders\": [{\"name\": \"张三\", \"share\": 55}, {\"name\": \"期权池\", \"share\": 10}], \"vesting\": \"四年成熟，一年等待期……\", \"notes\": [\"……\"]}",
+    "quote_system": "你是服务方，按规格给出整数报价（虚拟币），只在参考价区间内取值：工作量大、要求多则报价高。只输出 JSON：{\"price\": 整数, \"summary\": \"一句话\"}。"
+   },
+   "sample": {
+    "holders": [
+     {
+      "name": "张三",
+      "share": 55
+     },
+     {
+      "name": "李四",
+      "share": 35
+     },
+     {
+      "name": "期权池",
+      "share": 10
+     }
+    ],
+    "vesting": "创始人股权四年分期成熟，一年等待期后成熟 25%，其后按月成熟；离职未成熟部分由公司按原价回购。",
+    "notes": [
+     "期权池由全体创始人按比例稀释",
+     "重大事项约定一致行动"
+    ]
+   },
+   "sample_spec": {
+    "company": "云帆科技",
+    "founders": "张三负责产品与融资，李四负责技术",
+    "optionPool": 10
+   }
+  }
+ ]
+}

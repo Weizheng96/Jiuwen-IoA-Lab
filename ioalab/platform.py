@@ -138,7 +138,7 @@ class Platform:
         self.keys.add_signer(self.market_signer)
         self.keys.add_signer(self.pay_signer)
 
-        self.discovery = Discovery(settings.data / "a2x", taxonomy_seed=PKG / "seed" / "taxonomy", a2x_home=settings.a2x_home,
+        self.discovery = Discovery(settings.data / "a2x", a2x_home=settings.a2x_home,
                                    llm_configured=settings.a2x_configured(), embed_fn=self.llm.embed if self.llm.enabled else None)
         self.market = MarketService(self.market_signer, keys=self.keys, fetch=self.packages.fetch,
                                     store=SqliteStore(self.db, "market"), db=self.db, discovery=self.discovery)
@@ -374,9 +374,9 @@ class Platform:
                                        "price": (t["pricing"].get("priceFormula") or {}).get(d["deliverable"]["name"]),
                                        "proposalFee": t["pricing"].get("proposalFee")}], "paymentProvider": self.pay_id},
                 "status": row["status"] if d.get("runnable") else "listed"}
-        self.discovery.register_one(row["id"], card)
+        self.discovery.register_one(row["id"], card, category=d.get("category"))
         self.bus.emit("platform", "service.register", sender=row["owner_id"], receiver=rt.id, outcome=card["status"],
-                      detail={"name": d["name"], "formation": t["formation"]})
+                      detail={"name": d["name"], "formation": t["formation"], "category": d.get("category")})
 
     def seed_services(self, items: list[tuple[str, Mapping[str, Any]]]) -> None:
         """种子：逐个注册 + 签模板，A2X 一次 register_batch。"""

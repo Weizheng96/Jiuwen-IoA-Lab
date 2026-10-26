@@ -1,0 +1,682 @@
+{
+ "slug": "education",
+ "label": "教育辅导",
+ "account": "ISP_003",
+ "category": {
+  "id": "cat_education",
+  "name": "教育辅导",
+  "description": "错题讲解、学习计划、作文批改、单词卡、课程大纲、升学规划等学习类服务，面向学生与自学者。",
+  "decision_rule": "需求与学习、考试、作业、课程、升学有关时在此找"
+ },
+ "services": [
+  {
+   "id": "mistake-explain",
+   "name": "错题讲解铺",
+   "description": "讲一道错题：分步解析 ≥ 3 步、最终答案、易错点；预批准型，5 虚拟币，30 分钟内交付。",
+   "tags": [
+    "教育辅导",
+    "错题",
+    "讲解"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "explain",
+    "title": "错题讲解",
+    "file": "explain.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"steps\": [\"\"], \"answer\": \"\", \"pitfalls\": [\"\"]}；steps ≥ 3，pitfalls ≥ 1",
+    "specSchema": {
+     "subject": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "problem": {
+      "type": "string",
+      "maxLength": 800
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "5"
+   },
+   "verifier": {
+    "id": "mistake_explain@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "steps",
+       "answer",
+       "pitfalls"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "steps",
+      "min": 3
+     },
+     {
+      "kind": "str_len",
+      "path": "answer",
+      "min": 1,
+      "max": 300
+     },
+     {
+      "kind": "list_len",
+      "path": "pitfalls",
+      "min": 1
+     }
+    ]
+   },
+   "notCovered": [
+    "超纲解法"
+   ],
+   "generator": {
+    "system": "你是 subject 科目的老师，讲解规格 problem 这道题。1）steps ≥ 3 步，每步一句话说明在做什么、为什么；2）answer 给出最终答案；3）pitfalls ≥ 1 条学生常犯的错误。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"steps\": [\"设未知数\", \"列方程\", \"解方程并检验\"], \"answer\": \"x = 3\", \"pitfalls\": [\"忘记检验\"]}"
+   },
+   "sample": {
+    "steps": [
+     "设每本练习册 x 元，列出总价等式 3x + 2 = 11",
+     "移项得 3x = 9",
+     "两边同除以 3 得 x = 3，代回检验 3×3 + 2 = 11 成立"
+    ],
+    "answer": "每本 3 元",
+    "pitfalls": [
+     "移项时忘记变号",
+     "解出 x 后不代回检验"
+    ]
+   },
+   "sample_spec": {
+    "subject": "数学",
+    "problem": "买 3 本练习册和一支 2 元的笔共 11 元，练习册每本多少钱？"
+   }
+  },
+  {
+   "id": "study-plan",
+   "name": "学习计划台",
+   "description": "按目标排四周学习计划：每周 ≥ 3 项任务；预批准型，6 虚拟币，30 分钟内交付。",
+   "tags": [
+    "教育辅导",
+    "学习计划"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "plan",
+    "title": "四周学习计划",
+    "file": "plan.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"weeks\": [{\"week\": 1, \"theme\": \"\", \"tasks\": [\"\"]} × 4]}；恰好 4 周，每周 tasks ≥ 3",
+    "specSchema": {
+     "goal": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "hoursPerWeek": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60
+     },
+     "weeks": {
+      "const": 4
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "6"
+   },
+   "verifier": {
+    "id": "study_plan@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "weeks",
+      "eq": "spec.plan.weeks"
+     },
+     {
+      "kind": "keys",
+      "path": "weeks[]",
+      "required": [
+       "week",
+       "theme",
+       "tasks"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "weeks[].tasks",
+      "min": 3
+     }
+    ]
+   },
+   "notCovered": [
+    "执行监督"
+   ],
+   "generator": {
+    "system": "你是学习规划师，为规格 goal 排 4 周计划，每周可投入 hoursPerWeek 小时。1）weeks 恰好 4 项，week 1–4；2）每周 theme 一句话；3）每周 tasks ≥ 3 项，写清做什么、做多少。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"weeks\": [{\"week\": 1, \"theme\": \"打基础\", \"tasks\": [\"每天背 30 个单词\", \"精读 2 篇文章\", \"周末模考一次\"]}]}"
+   },
+   "sample": {
+    "weeks": [
+     {
+      "week": 1,
+      "theme": "词汇打底",
+      "tasks": [
+       "每天背 30 个核心词",
+       "精读 2 篇真题文章并整理长难句",
+       "周末限时做一套阅读"
+      ]
+     },
+     {
+      "week": 2,
+      "theme": "阅读提速",
+      "tasks": [
+       "每天背 30 个核心词",
+       "精读 2 篇真题文章并整理长难句",
+       "周末限时做一套阅读"
+      ]
+     },
+     {
+      "week": 3,
+      "theme": "写作模板",
+      "tasks": [
+       "每天背 30 个核心词",
+       "精读 2 篇真题文章并整理长难句",
+       "周末限时做一套阅读"
+      ]
+     },
+     {
+      "week": 4,
+      "theme": "全真模考",
+      "tasks": [
+       "每天背 30 个核心词",
+       "精读 2 篇真题文章并整理长难句",
+       "周末限时做一套阅读"
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "goal": "两个月后通过大学英语六级",
+    "hoursPerWeek": 10
+   }
+  },
+  {
+   "id": "essay-review",
+   "name": "作文批改坊",
+   "description": "批改一篇中文作文：百分制评分、≥ 3 条评语、修改后的范文；预批准型，9 虚拟币，30 分钟内交付。",
+   "tags": [
+    "教育辅导",
+    "作文",
+    "批改"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "review",
+    "title": "作文批改",
+    "file": "review.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"score\": 85, \"comments\": [\"\"], \"revised\": \"\"}；score 0–100，comments ≥ 3，revised ≥ 100 字且以中文为主",
+    "specSchema": {
+     "essay": {
+      "type": "string",
+      "maxLength": 1500
+     },
+     "grade": {
+      "type": "string",
+      "maxLength": 20
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "9"
+   },
+   "verifier": {
+    "id": "essay_review@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "score",
+       "comments",
+       "revised"
+      ]
+     },
+     {
+      "kind": "each_num",
+      "path": "score",
+      "min": 0,
+      "max": 100
+     },
+     {
+      "kind": "list_len",
+      "path": "comments",
+      "min": 3
+     },
+     {
+      "kind": "str_len",
+      "path": "revised",
+      "min": 100,
+      "max": 3000
+     },
+     {
+      "kind": "cjk_ratio",
+      "path": "revised",
+      "min": 0.6
+     }
+    ]
+   },
+   "notCovered": [
+    "评分与考场评分一致"
+   ],
+   "generator": {
+    "system": "你是 grade 年级的语文老师，批改规格 essay。1）score 为 0–100 的整数；2）comments ≥ 3 条，分别谈立意、结构、语言；3）revised 是保留原意的修改后范文（≥ 100 字，中文）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"score\": 82, \"comments\": [\"立意明确\", \"结构可再紧凑\", \"用词重复\"], \"revised\": \"……\"}"
+   },
+   "sample": {
+    "score": 82,
+    "comments": [
+     "立意明确，围绕坚持展开",
+     "第二段事例过长，可压缩",
+     "多次使用「非常」，可换更具体的描写"
+    ],
+    "revised": "坚持是一盏不灭的灯。去年冬天，我每天清晨五点半起床练琴，手指冻得发僵也不肯停下。比赛那天，当熟悉的旋律从指尖流出，我忽然明白：所谓天赋，不过是把别人放弃的时间捡起来。坚持不会立刻给你答案，但它会在某个清晨，把答案悄悄放进你的手心。"
+   },
+   "sample_spec": {
+    "essay": "坚持很重要。我每天练琴，非常辛苦，非常累，但是我坚持下来了，最后比赛得了奖。",
+    "grade": "初二"
+   }
+  },
+  {
+   "id": "flashcards",
+   "name": "单词卡工坊",
+   "description": "按给定单词做记忆卡：每词释义与例句；预批准型，5 虚拟币，30 分钟内交付。",
+   "tags": [
+    "教育辅导",
+    "单词",
+    "英语"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "cards",
+    "title": "单词卡",
+    "file": "cards.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"cards\": [{\"word\": \"\", \"meaning\": \"\", \"example\": \"\"}]}；spec.words（逗号分隔）里每个词都要有一张卡，example ≥ 15 字符",
+    "specSchema": {
+     "words": {
+      "type": "string",
+      "maxLength": 400
+     },
+     "level": {
+      "type": "string",
+      "maxLength": 20
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "5"
+   },
+   "verifier": {
+    "id": "flashcards@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "cards[]",
+      "required": [
+       "word",
+       "meaning",
+       "example"
+      ]
+     },
+     {
+      "kind": "contains_all",
+      "path": "cards[].word",
+      "words": "spec.cards.words"
+     },
+     {
+      "kind": "each_str_len",
+      "path": "cards[].example",
+      "min": 15
+     },
+     {
+      "kind": "unique",
+      "path": "cards[].word"
+     }
+    ]
+   },
+   "notCovered": [
+    "发音"
+   ],
+   "generator": {
+    "system": "你是英语老师，为规格 words（逗号分隔）里的每个单词做一张记忆卡，难度贴合 level。1）每个词一张卡，word 原样照抄；2）meaning 用中文释义并标词性；3）example 一句完整英文例句（≥ 15 字符）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"cards\": [{\"word\": \"resilient\", \"meaning\": \"adj. 有韧性的\", \"example\": \"She stayed resilient after the setback.\"}]}"
+   },
+   "sample": {
+    "cards": [
+     {
+      "word": "resilient",
+      "meaning": "adj. 有韧性的，能迅速恢复的",
+      "example": "The team stayed resilient after losing the first match."
+     },
+     {
+      "word": "ambiguous",
+      "meaning": "adj. 含糊不清的",
+      "example": "The instructions were ambiguous, so we asked again."
+     },
+     {
+      "word": "thrive",
+      "meaning": "v. 茁壮成长；兴旺",
+      "example": "Small shops can thrive when they know their customers."
+     }
+    ]
+   },
+   "sample_spec": {
+    "words": "resilient,ambiguous,thrive",
+    "level": "大学"
+   }
+  },
+  {
+   "id": "course-outline",
+   "name": "课程大纲设计室",
+   "description": "按主题设计 8 课时课程大纲：每课标题与 ≥ 2 个学习目标；待批准型（服务方先看主题再接单），15 虚拟币，30 分钟内交付。",
+   "tags": [
+    "教育辅导",
+    "课程",
+    "大纲"
+   ],
+   "runnable": true,
+   "formation": "countersign",
+   "deliverable": {
+    "name": "course",
+    "title": "课程大纲",
+    "file": "course.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"lessons\": [{\"title\": \"\", \"objectives\": [\"\"]} × 8]}；恰好 spec.lessons 课，每课 objectives ≥ 2",
+    "specSchema": {
+     "topic": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "audience": {
+      "type": "string",
+      "maxLength": 60
+     },
+     "lessons": {
+      "const": 8
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "15"
+   },
+   "verifier": {
+    "id": "course_outline@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "lessons",
+      "eq": "spec.course.lessons"
+     },
+     {
+      "kind": "keys",
+      "path": "lessons[]",
+      "required": [
+       "title",
+       "objectives"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "lessons[].objectives",
+      "min": 2
+     }
+    ]
+   },
+   "notCovered": [
+    "课件制作"
+   ],
+   "generator": {
+    "system": "你是课程设计师，为 audience 设计主题 topic 的课程大纲。1）lessons 恰好 lessons 课；2）每课 title 非空；3）每课 objectives ≥ 2 条可观察的学习目标（能做什么）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"lessons\": [{\"title\": \"Python 环境与第一个程序\", \"objectives\": [\"能安装 Python\", \"能运行 print\"]}]}"
+   },
+   "sample": {
+    "lessons": [
+     {
+      "title": "环境与第一个程序",
+      "objectives": [
+       "能复述本课核心概念",
+       "能独立完成课后练习"
+      ]
+     },
+     {
+      "title": "变量与数据类型",
+      "objectives": [
+       "能复述本课核心概念",
+       "能独立完成课后练习"
+      ]
+     },
+     {
+      "title": "条件与循环",
+      "objectives": [
+       "能复述本课核心概念",
+       "能独立完成课后练习"
+      ]
+     },
+     {
+      "title": "函数",
+      "objectives": [
+       "能复述本课核心概念",
+       "能独立完成课后练习"
+      ]
+     },
+     {
+      "title": "列表与字典",
+      "objectives": [
+       "能复述本课核心概念",
+       "能独立完成课后练习"
+      ]
+     },
+     {
+      "title": "文件读写",
+      "objectives": [
+       "能复述本课核心概念",
+       "能独立完成课后练习"
+      ]
+     },
+     {
+      "title": "错误处理",
+      "objectives": [
+       "能复述本课核心概念",
+       "能独立完成课后练习"
+      ]
+     },
+     {
+      "title": "综合小项目",
+      "objectives": [
+       "能复述本课核心概念",
+       "能独立完成课后练习"
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "topic": "Python 入门",
+    "audience": "零基础成人"
+   }
+  },
+  {
+   "id": "admission-plan",
+   "name": "升学规划所",
+   "description": "按目标院校与当前年级出升学时间线：≥ 4 个阶段的行动项与风险提示；提案型（先付 1 虚拟币拟卡费，服务方报价 15–45 虚拟币），30 分钟内交付。",
+   "tags": [
+    "教育辅导",
+    "升学",
+    "规划"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "roadmap",
+    "title": "升学规划",
+    "file": "roadmap.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"timeline\": [{\"period\": \"\", \"actions\": [\"\"]}], \"risks\": [\"\"]}；timeline ≥ 4 段，每段 actions ≥ 2，risks ≥ 1",
+    "specSchema": {
+     "target": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "grade": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "strengths": {
+      "type": "string",
+      "maxLength": 300
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     15,
+     45
+    ]
+   },
+   "verifier": {
+    "id": "admission_plan@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "timeline",
+       "risks"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "timeline",
+      "min": 4
+     },
+     {
+      "kind": "keys",
+      "path": "timeline[]",
+      "required": [
+       "period",
+       "actions"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "timeline[].actions",
+      "min": 2
+     },
+     {
+      "kind": "list_len",
+      "path": "risks",
+      "min": 1
+     }
+    ]
+   },
+   "notCovered": [
+    "录取保证"
+   ],
+   "generator": {
+    "system": "你是升学规划师，为 grade 年级、目标 target 的学生按 strengths 出时间线。1）timeline ≥ 4 段（如 高一上、高一下…），每段 actions ≥ 2 条；2）risks ≥ 1 条风险提示。不承诺录取结果。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"timeline\": [{\"period\": \"高一\", \"actions\": [\"保持年级前 10%\", \"参加一项竞赛\"]}], \"risks\": [\"竞赛与课内时间冲突\"]}",
+    "quote_system": "你是服务方，按规格给出整数报价（虚拟币），只在参考价区间内取值：工作量大、要求多则报价高。只输出 JSON：{\"price\": 整数, \"summary\": \"一句话\"}。"
+   },
+   "sample": {
+    "timeline": [
+     {
+      "period": "高一上",
+      "actions": [
+       "稳定年级前 10%",
+       "试一项学科竞赛"
+      ]
+     },
+     {
+      "period": "高一下",
+      "actions": [
+       "确定竞赛方向",
+       "暑期参加夏令营"
+      ]
+     },
+     {
+      "period": "高二",
+      "actions": [
+       "竞赛冲省一",
+       "准备综合评价材料"
+      ]
+     },
+     {
+      "period": "高三",
+      "actions": [
+       "按目标院校往年分数线复盘",
+       "完成强基计划报名"
+      ]
+     }
+    ],
+    "risks": [
+     "竞赛投入过多挤占课内时间",
+     "目标院校招生政策逐年变化"
+    ]
+   },
+   "sample_spec": {
+    "target": "985 高校计算机专业",
+    "grade": "高一",
+    "strengths": "数学突出，编程有基础"
+   }
+  }
+ ]
+}

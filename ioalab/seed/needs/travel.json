@@ -1,0 +1,38 @@
+[
+ {
+  "service": "trip-plan",
+  "text": "帮我排一个杭州两日行程，预算 1500 元以内，每天至少三个景点。",
+  "scope": {
+   "budget": 30,
+   "category": "行程规划",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "food-map",
+  "text": "去杭州玩，列 8 家特色店，人均 100 以内为主。",
+  "scope": {
+   "budget": 10,
+   "category": "行程规划",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "family-trip",
+  "text": "带 4 岁孩子去上海玩三天，排一个宽松的亲子行程。",
+  "scope": {
+   "budget": 25,
+   "category": "行程规划",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ }
+]

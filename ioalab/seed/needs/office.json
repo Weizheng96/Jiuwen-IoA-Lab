@@ -1,0 +1,38 @@
+[
+ {
+  "service": "weekly-report",
+  "text": "我是前端开发，这周做了登录页改版、支付接口灰度，下周准备周报自动化，帮我写周报。",
+  "scope": {
+   "budget": 10,
+   "category": "办公",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "meeting-minutes",
+  "text": "把这段笔记整理成纪要：评审 2.1，登录页改版放 2.2，下周五发布，小王周三前写发布说明，小李周四前回归支付。",
+  "scope": {
+   "budget": 10,
+   "category": "办公",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "okr-plan",
+  "text": "增长团队 2026 Q4 的 OKR，背景是新用户流失严重、线上偶发故障。",
+  "scope": {
+   "budget": 40,
+   "category": "办公",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ }
+]

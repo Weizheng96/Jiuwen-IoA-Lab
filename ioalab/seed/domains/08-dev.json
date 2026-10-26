@@ -1,0 +1,610 @@
+{
+ "slug": "dev",
+ "label": "软件开发",
+ "account": "ISP_008",
+ "category": {
+  "id": "cat_dev",
+  "name": "软件开发",
+  "description": "正则片段、SQL 查询、单元测试用例、README、代码审查清单、架构方案等编程与软件工程类服务。",
+  "decision_rule": "需求涉及写代码、查询、测试、技术文档或系统设计时在此找"
+ },
+ "services": [
+  {
+   "id": "regex-snippet",
+   "name": "正则片段铺",
+   "description": "按需求写一条正则表达式，附解释，并保证通过你给的测试样例（fullmatch 逐条核）；待批准型（服务方先看样例再接单），20 虚拟币，30 分钟内交付。",
+   "tags": [
+    "编程",
+    "正则",
+    "Python"
+   ],
+   "runnable": true,
+   "formation": "countersign",
+   "deliverable": {
+    "name": "snippet",
+    "title": "正则片段",
+    "file": "snippet.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"pattern\": \"正则\", \"explanation\": \"解释\"}。spec.tests 是 JSON 字符串数组 [{\"input\": 串, \"match\": 布尔}]，每条样例 re.fullmatch(pattern, input) 是否匹配必须与 match 一致（Python re，无额外 flags）",
+    "specSchema": {
+     "requirement": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "tests": {
+      "type": "string",
+      "maxLength": 2000
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "20"
+   },
+   "verifier": {
+    "id": "regex_snippet@1.0",
+    "reads": [
+     "spec.snippet.tests"
+    ],
+    "script": "regex_snippet.py"
+   },
+   "notCovered": [
+    "样例之外的输入",
+    "性能"
+   ],
+   "generator": {
+    "system": "你是正则表达式专家，用 Python re 语法。按规格 requirement 写一条正则 pattern，附一句 explanation。硬性判据（验收器会机械检查）：规格 tests 是 JSON 字符串，内容为 [{\"input\": 串, \"match\": true|false}]，验收器对每条执行 re.fullmatch(pattern, input)（整串匹配、无 flags），结果为真假必须与 match 完全一致。写完后逐条自查；pattern 不要带首尾斜杠或 ^ $（fullmatch 已是整串匹配）；JSON 里反斜杠要转义成 \\\\。",
+    "output": "{\"pattern\": \"1[3-9]\\\\d{9}\", \"explanation\": \"以 1 开头，第二位 3–9，后接 9 位数字\"}"
+   },
+   "sample": {
+    "pattern": "1[3-9]\\d{9}",
+    "explanation": "以 1 开头，第二位 3–9，后接 9 位数字，共 11 位"
+   },
+   "sample_spec": {
+    "requirement": "匹配中国大陆 11 位手机号",
+    "tests": "[{\"input\": \"13812345678\", \"match\": true}, {\"input\": \"19900000000\", \"match\": true}, {\"input\": \"12345\", \"match\": false}, {\"input\": \"23812345678\", \"match\": false}, {\"input\": \"138123456789\", \"match\": false}]"
+   }
+  },
+  {
+   "id": "sql-query",
+   "name": "SQL 查询铺",
+   "description": "按表结构与问题写一条 SQL 查询并解释；预批准型，6 虚拟币，30 分钟内交付。",
+   "tags": [
+    "软件开发",
+    "SQL",
+    "数据库"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "sql",
+    "title": "SQL 查询",
+    "file": "sql.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"sql\": \"SELECT …\", \"explanation\": \"\"}；sql 含 SELECT 与 FROM，explanation ≥ 10 字",
+    "specSchema": {
+     "schema": {
+      "type": "string",
+      "maxLength": 1500
+     },
+     "question": {
+      "type": "string",
+      "maxLength": 300
+     },
+     "dialect": {
+      "enum": [
+       "MySQL",
+       "PostgreSQL",
+       "SQLite"
+      ]
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "6"
+   },
+   "verifier": {
+    "id": "sql_query@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "sql",
+       "explanation"
+      ]
+     },
+     {
+      "kind": "contains_all",
+      "path": "sql",
+      "words": [
+       "SELECT",
+       "FROM"
+      ]
+     },
+     {
+      "kind": "str_len",
+      "path": "sql",
+      "min": 12,
+      "max": 2000
+     },
+     {
+      "kind": "str_len",
+      "path": "explanation",
+      "min": 10,
+      "max": 600
+     }
+    ]
+   },
+   "notCovered": [
+    "性能调优"
+   ],
+   "generator": {
+    "system": "你是数据库工程师，按规格 schema（表结构）用 dialect 方言回答 question。1）sql 是一条可执行的查询（含 SELECT 与 FROM，关键字大写）；2）explanation ≥ 10 字说明思路与注意点。只用 schema 里存在的表与列。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"sql\": \"SELECT u.name, COUNT(*) AS n FROM orders o JOIN users u ON u.id = o.user_id GROUP BY u.name ORDER BY n DESC LIMIT 10\", \"explanation\": \"……\"}"
+   },
+   "sample": {
+    "sql": "SELECT u.name, COUNT(*) AS order_count FROM orders o JOIN users u ON u.id = o.user_id WHERE o.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY u.name ORDER BY order_count DESC LIMIT 10",
+    "explanation": "按用户聚合近 30 天订单数，连接 users 取名字，按数量降序取前 10。"
+   },
+   "sample_spec": {
+    "schema": "users(id, name); orders(id, user_id, amount, created_at)",
+    "question": "近 30 天下单最多的 10 个用户",
+    "dialect": "MySQL"
+   }
+  },
+  {
+   "id": "unit-tests",
+   "name": "单元测试用例坊",
+   "description": "按函数说明设计 ≥ 5 条测试用例：名称、输入、期望输出；预批准型，8 虚拟币，30 分钟内交付。",
+   "tags": [
+    "软件开发",
+    "测试",
+    "用例"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "tests",
+    "title": "测试用例",
+    "file": "tests.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"cases\": [{\"name\": \"\", \"input\": \"\", \"expected\": \"\"}]}；cases ≥ 5，name 互不重复",
+    "specSchema": {
+     "function": {
+      "type": "string",
+      "maxLength": 1500
+     },
+     "language": {
+      "enum": [
+       "Python",
+       "JavaScript",
+       "Java",
+       "Go"
+      ]
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "8"
+   },
+   "verifier": {
+    "id": "unit_tests@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "cases",
+      "min": 5
+     },
+     {
+      "kind": "keys",
+      "path": "cases[]",
+      "required": [
+       "name",
+       "input",
+       "expected"
+      ]
+     },
+     {
+      "kind": "unique",
+      "path": "cases[].name"
+     }
+    ]
+   },
+   "notCovered": [
+    "测试代码本身"
+   ],
+   "generator": {
+    "system": "你是测试工程师，为 language 语言的函数（规格 function 给出签名与说明）设计测试用例。1）cases ≥ 5 条，覆盖正常、边界、异常；2）每条 name（互不重复）、input（调用参数）、expected（期望返回或抛错）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"cases\": [{\"name\": \"空列表\", \"input\": \"[]\", \"expected\": \"0\"}]}"
+   },
+   "sample": {
+    "cases": [
+     {
+      "name": "空列表",
+      "input": "[]",
+      "expected": "0"
+     },
+     {
+      "name": "单个元素",
+      "input": "[5]",
+      "expected": "5"
+     },
+     {
+      "name": "正负混合",
+      "input": "[3, -1, 2]",
+      "expected": "4"
+     },
+     {
+      "name": "全为负数",
+      "input": "[-2, -3]",
+      "expected": "-5"
+     },
+     {
+      "name": "非数字元素",
+      "input": "[1, 'a']",
+      "expected": "TypeError"
+     }
+    ]
+   },
+   "sample_spec": {
+    "function": "def total(nums: list[int]) -> int：返回列表元素之和，非数字元素抛 TypeError",
+    "language": "Python"
+   }
+  },
+  {
+   "id": "readme-draft",
+   "name": "README 起草间",
+   "description": "按项目说明与特性写 README：≥ 4 节，含安装与使用，特性全部出现；预批准型，7 虚拟币，30 分钟内交付。",
+   "tags": [
+    "软件开发",
+    "文档",
+    "README"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "readme",
+    "title": "README 草稿",
+    "file": "readme.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"sections\": [{\"title\": \"\", \"body\": \"\"}]}；sections ≥ 4，标题含「安装」与「使用」，spec.features（逗号分隔）每个都出现",
+    "specSchema": {
+     "project": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "features": {
+      "type": "string",
+      "maxLength": 300
+     },
+     "language": {
+      "type": "string",
+      "maxLength": 30
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "7"
+   },
+   "verifier": {
+    "id": "readme_draft@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "sections",
+      "min": 4
+     },
+     {
+      "kind": "keys",
+      "path": "sections[]",
+      "required": [
+       "title",
+       "body"
+      ]
+     },
+     {
+      "kind": "contains_all",
+      "path": "sections[].title",
+      "words": [
+       "安装",
+       "使用"
+      ]
+     },
+     {
+      "kind": "contains_all",
+      "path": "",
+      "words": "spec.readme.features"
+     }
+    ]
+   },
+   "notCovered": [
+    "API 文档"
+   ],
+   "generator": {
+    "system": "你是技术写作者，为 language 项目 project 写 README。1）sections ≥ 4 节，标题里要有「安装」与「使用」两节；2）features（逗号分隔）里的每个特性原词都要出现；3）命令写在 body 里，简洁。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"sections\": [{\"title\": \"简介\", \"body\": \"……\"}, {\"title\": \"安装\", \"body\": \"pip install x\"}]}"
+   },
+   "sample": {
+    "sections": [
+     {
+      "title": "简介",
+      "body": "jsonlint 是一个命令行 JSON 校验与格式化工具，支持 JSON Schema 校验与彩色输出。"
+     },
+     {
+      "title": "安装",
+      "body": "pip install jsonlint"
+     },
+     {
+      "title": "使用",
+      "body": "jsonlint data.json --schema schema.json --color"
+     },
+     {
+      "title": "特性",
+      "body": "JSON Schema 校验 · 彩色输出 · 流式处理大文件"
+     }
+    ]
+   },
+   "sample_spec": {
+    "project": "jsonlint 命令行工具",
+    "features": "JSON Schema 校验,彩色输出,流式处理",
+    "language": "Python"
+   }
+  },
+  {
+   "id": "code-review",
+   "name": "代码审查清单室",
+   "description": "审查一段代码：≥ 1 条发现，每条行号、严重度、问题与修法；待批准型（服务方先看代码再接单），18 虚拟币，30 分钟内交付。",
+   "tags": [
+    "软件开发",
+    "审查",
+    "代码质量"
+   ],
+   "runnable": true,
+   "formation": "countersign",
+   "deliverable": {
+    "name": "findings",
+    "title": "审查发现",
+    "file": "findings.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"findings\": [{\"line\": 12, \"severity\": \"高|中|低\", \"issue\": \"\", \"fix\": \"\"}]}；findings ≥ 1，severity 取三档之一",
+    "specSchema": {
+     "language": {
+      "type": "string",
+      "maxLength": 30
+     },
+     "snippet": {
+      "type": "string",
+      "maxLength": 3000
+     },
+     "focus": {
+      "type": "string",
+      "maxLength": 200
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "18"
+   },
+   "verifier": {
+    "id": "code_review@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "findings",
+      "min": 1
+     },
+     {
+      "kind": "keys",
+      "path": "findings[]",
+      "required": [
+       "line",
+       "severity",
+       "issue",
+       "fix"
+      ]
+     },
+     {
+      "kind": "each_in",
+      "path": "findings[].severity",
+      "in": [
+       "高",
+       "中",
+       "低"
+      ]
+     },
+     {
+      "kind": "each_num",
+      "path": "findings[].line",
+      "min": 1
+     }
+    ]
+   },
+   "notCovered": [
+    "运行时行为"
+   ],
+   "generator": {
+    "system": "你是资深 language 工程师，审查规格 snippet，重点 focus。1）findings ≥ 1 条；2）每条 line（整数行号）、severity（高/中/低）、issue、fix（具体改法）；3）先安全与正确性，再可读性。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"findings\": [{\"line\": 3, \"severity\": \"高\", \"issue\": \"SQL 拼接导致注入\", \"fix\": \"改为参数化查询\"}]}"
+   },
+   "sample": {
+    "findings": [
+     {
+      "line": 2,
+      "severity": "高",
+      "issue": "用字符串拼接构造 SQL，存在注入风险",
+      "fix": "改为参数化查询 cursor.execute(sql, (name,))"
+     },
+     {
+      "line": 4,
+      "severity": "低",
+      "issue": "未关闭游标",
+      "fix": "用 with 语句管理连接与游标"
+     }
+    ]
+   },
+   "sample_spec": {
+    "language": "Python",
+    "snippet": "def find(name):\n    sql = \"SELECT * FROM users WHERE name = '\" + name + \"'\"\n    cur = conn.cursor()\n    return cur.execute(sql).fetchall()",
+    "focus": "安全"
+   }
+  },
+  {
+   "id": "arch-proposal",
+   "name": "架构方案研究所",
+   "description": "为系统出架构方案：≥ 3 个组件及职责、风险、文字版架构图；提案型（先付 1 虚拟币拟卡费，服务方按规模报价 20–60 虚拟币），30 分钟内交付。",
+   "tags": [
+    "软件开发",
+    "架构",
+    "设计"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "arch",
+    "title": "架构方案",
+    "file": "arch.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"components\": [{\"name\": \"\", \"responsibility\": \"\"}], \"risks\": [\"\"], \"diagram\": \"\"}；components ≥ 3，risks ≥ 1，diagram ≥ 20 字符",
+    "specSchema": {
+     "system": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "scale": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "constraints": {
+      "type": "string",
+      "maxLength": 300
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     20,
+     60
+    ]
+   },
+   "verifier": {
+    "id": "arch_proposal@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "components",
+       "risks",
+       "diagram"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "components",
+      "min": 3
+     },
+     {
+      "kind": "keys",
+      "path": "components[]",
+      "required": [
+       "name",
+       "responsibility"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "risks",
+      "min": 1
+     },
+     {
+      "kind": "str_len",
+      "path": "diagram",
+      "min": 20,
+      "max": 3000
+     }
+    ]
+   },
+   "notCovered": [
+    "实施"
+   ],
+   "generator": {
+    "system": "你是架构师，为 system 在 scale 规模、constraints 约束下出方案。1）components ≥ 3 个，每个 name 与 responsibility；2）risks ≥ 1 条；3）diagram 用文字（如 A -> B -> C）画出主要数据流。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"components\": [{\"name\": \"API 网关\", \"responsibility\": \"鉴权与限流\"}], \"risks\": [\"单点\"], \"diagram\": \"client -> gateway -> service -> db\"}",
+    "quote_system": "你是服务方，按规格给出整数报价（虚拟币），只在参考价区间内取值：工作量大、要求多则报价高。只输出 JSON：{\"price\": 整数, \"summary\": \"一句话\"}。"
+   },
+   "sample": {
+    "components": [
+     {
+      "name": "API 网关",
+      "responsibility": "鉴权、限流、路由"
+     },
+     {
+      "name": "订单服务",
+      "responsibility": "下单与状态机"
+     },
+     {
+      "name": "消息队列",
+      "responsibility": "解耦库存扣减与通知"
+     },
+     {
+      "name": "MySQL 主从",
+      "responsibility": "订单持久化与读写分离"
+     }
+    ],
+    "risks": [
+     "消息重复消费需幂等",
+     "主从延迟导致读到旧状态"
+    ],
+    "diagram": "client -> gateway -> order-service -> mq -> inventory-service; order-service -> mysql(master) -> mysql(replica)"
+   },
+   "sample_spec": {
+    "system": "电商订单系统",
+    "scale": "日订单 10 万",
+    "constraints": "团队 5 人，云上部署"
+   }
+  }
+ ]
+}

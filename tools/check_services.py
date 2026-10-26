@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""核对种子服务：每份定义能生成合法模板、验收器包能打包、sample 在沙箱里过验收器；牌子不要求 sample。
+"""核对种子服务：每份定义（8 个领域 × 6）能生成合法模板、验收器包能打包、sample 在沙箱里过验收器。
 
     python tools/check_services.py            # 全部
     python tools/check_services.py wechat-posts

@@ -1,0 +1,677 @@
+{
+ "slug": "office",
+ "label": "职场办公",
+ "account": "ISP_007",
+ "category": {
+  "id": "cat_office",
+  "name": "职场办公",
+  "description": "周报、PPT 大纲、会议纪要、商务邮件、简历润色、OKR 方案等职场文书与办公效率类服务。",
+  "decision_rule": "需求是写工作文书（周报、纪要、邮件、简历、汇报材料、目标方案）时在此找"
+ },
+ "services": [
+  {
+   "id": "weekly-report",
+   "name": "周报速成铺",
+   "description": "按你给的事项关键词生成一份工作周报：本周进展、下周计划、风险三节，每个事项都要写到；预批准型，5 虚拟币，30 分钟内交付。",
+   "tags": [
+    "周报",
+    "文案",
+    "办公"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "report",
+    "title": "周报",
+    "file": "report.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"thisWeek\": [..], \"nextWeek\": [..], \"risks\": [..]}，三节都非空；spec.keywords 用逗号分隔事项，每个事项可含多个关键词（用 | 分隔），每个关键词都要在周报全文中出现",
+    "specSchema": {
+     "keywords": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "role": {
+      "type": "string",
+      "maxLength": 40
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "5"
+   },
+   "verifier": {
+    "id": "weekly_report@1.0",
+    "reads": [
+     "spec.report.keywords"
+    ],
+    "script": "weekly_report.py"
+   },
+   "notCovered": [
+    "事实准确性"
+   ],
+   "generator": {
+    "system": "你替规格 role 这个岗位写本周工作周报。硬性判据（验收器会机械检查）：1）输出三节 thisWeek / nextWeek / risks，每节都是非空字符串数组；2）规格 keywords 是事项列表，逗号分隔，每个事项可能含多个关键词（用 | 分隔）——每一个关键词都必须原样出现在周报的某一条里（最稳妥的做法是 thisWeek 每个事项一条、句子里原样写出该事项的全部关键词）。语气平实、每条一句话、带进度或数字。",
+    "output": "{\"thisWeek\": [\"完成登录页改版的联调\"], \"nextWeek\": [\"推进支付接口灰度\"], \"risks\": [\"第三方接口文档延期\"]}"
+   },
+   "sample": {
+    "thisWeek": [
+     "完成登录页改版的前后端联调，核心流程已通过测试",
+     "支付接口联调完成 80%，剩余退款分支待对接",
+     "周报自动化脚本上线，每周一自动汇总数据"
+    ],
+    "nextWeek": [
+     "登录页改版灰度上线 10% 用户",
+     "完成支付接口退款分支联调并进入回归测试",
+     "周报自动化补充图表输出"
+    ],
+    "risks": [
+     "支付方沙箱环境不稳定，联调进度可能延后两天",
+     "灰度期间若登录异常需快速回滚"
+    ]
+   },
+   "sample_spec": {
+    "keywords": "登录页|改版,支付接口|联调,周报|自动化",
+    "role": "前端开发"
+   }
+  },
+  {
+   "id": "ppt-outline",
+   "name": "PPT 大纲工坊",
+   "description": "按主题写 PPT 大纲：至少 8 页，每页标题加 2 条以上要点，可授权以你的名义上传到团队网盘；预批准型，12 虚拟币，30 分钟内交付。",
+   "tags": [
+    "PPT",
+    "办公",
+    "大纲"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "outline",
+    "title": "PPT 大纲",
+    "file": "outline.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"pages\": [{\"title\": \"页标题\", \"bullets\": [\"要点\", \"要点\"]}]}。pages ≥ spec.minPages 页，每页有非空 title 且 bullets ≥ spec.minBullets 条",
+    "specSchema": {
+     "topic": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "audience": {
+      "type": "string",
+      "maxLength": 40
+     },
+     "minPages": {
+      "const": 8
+     },
+     "minBullets": {
+      "const": 2
+     }
+    }
+   },
+   "inputs": [],
+   "steps": [
+    {
+     "name": "publish",
+     "description": "以用户名义上传到团队网盘"
+    }
+   ],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M",
+    "authorizeWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "12"
+   },
+   "verifier": {
+    "id": "ppt_outline@1.0",
+    "reads": [
+     "spec.outline.minPages",
+     "spec.outline.minBullets"
+    ],
+    "script": "ppt_outline.py"
+   },
+   "notCovered": [
+    "版式",
+    "配图"
+   ],
+   "generator": {
+    "system": "你是演示文稿策划。围绕规格 topic、面向 audience 写一份 PPT 大纲。硬性判据（验收器会机械检查）：1）pages 至少 minPages 页（直接写 10 页最稳妥：封面、目录、背景、现状、问题、方案、数据、计划、风险、总结）；2）每页 title 非空；3）每页 bullets 至少 minBullets 条（写 3 条），每条一句话、不超过 30 字。",
+    "output": "{\"pages\": [{\"title\": \"季度运营复盘\", \"bullets\": [\"汇报人与日期\", \"复盘范围：Q3 全渠道运营\"]}]}"
+   },
+   "sample": {
+    "pages": [
+     {
+      "title": "季度运营复盘",
+      "bullets": [
+       "汇报人：运营部",
+       "复盘范围：Q3 全渠道运营",
+       "目标：找出下季度的三个抓手"
+      ]
+     },
+     {
+      "title": "目录",
+      "bullets": [
+       "季度目标回顾",
+       "关键结果",
+       "问题与原因",
+       "下季度计划"
+      ]
+     },
+     {
+      "title": "季度目标回顾",
+      "bullets": [
+       "GMV 目标 1200 万，完成 1080 万",
+       "新客目标 3 万，完成 3.4 万",
+       "复购率目标 28%，实际 25%"
+      ]
+     },
+     {
+      "title": "渠道表现",
+      "bullets": [
+       "直播渠道贡献 42%，同比增长 60%",
+       "搜索渠道持平",
+       "社群渠道下滑 15%"
+      ]
+     },
+     {
+      "title": "活动复盘",
+      "bullets": [
+       "818 大促 ROI 3.2，高于均值",
+       "周末秒杀参与率下降",
+       "会员日转化率提升 8%"
+      ]
+     },
+     {
+      "title": "问题与原因",
+      "bullets": [
+       "复购率未达标：会员权益感知弱",
+       "社群活跃下降：内容更新频率低",
+       "客服响应慢导致差评增加"
+      ]
+     },
+     {
+      "title": "用户反馈",
+      "bullets": [
+       "好评集中在物流与包装",
+       "差评集中在售后响应",
+       "NPS 从 41 升到 46"
+      ]
+     },
+     {
+      "title": "下季度计划",
+      "bullets": [
+       "会员权益改版，目标复购率 30%",
+       "社群内容日更，配专人运营",
+       "客服响应时限压到 2 分钟"
+      ]
+     },
+     {
+      "title": "资源需求",
+      "bullets": [
+       "新增 2 名社群运营",
+       "会员系统改造预算 15 万",
+       "客服外包补充 5 人"
+      ]
+     },
+     {
+      "title": "总结",
+      "bullets": [
+       "GMV 完成 90%，新客超额",
+       "复购与社群是下季度重点",
+       "请各部门确认资源排期"
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "topic": "季度运营复盘",
+    "audience": "公司管理层"
+   }
+  },
+  {
+   "id": "meeting-minutes",
+   "name": "会议纪要整理站",
+   "description": "把会议笔记整理成纪要：决议、行动项（负责人与期限）、摘要；预批准型，6 虚拟币，30 分钟内交付。",
+   "tags": [
+    "职场办公",
+    "纪要",
+    "会议"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "minutes",
+    "title": "会议纪要",
+    "file": "minutes.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"summary\": \"\", \"decisions\": [\"\"], \"actions\": [{\"owner\": \"\", \"task\": \"\", \"due\": \"\"}]}；decisions ≥ 1，actions ≥ 1，summary 20–300 字",
+    "specSchema": {
+     "notes": {
+      "type": "string",
+      "maxLength": 2000
+     },
+     "meeting": {
+      "type": "string",
+      "maxLength": 60
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "6"
+   },
+   "verifier": {
+    "id": "meeting_minutes@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "summary",
+       "decisions",
+       "actions"
+      ]
+     },
+     {
+      "kind": "str_len",
+      "path": "summary",
+      "min": 20,
+      "max": 300
+     },
+     {
+      "kind": "list_len",
+      "path": "decisions",
+      "min": 1
+     },
+     {
+      "kind": "list_len",
+      "path": "actions",
+      "min": 1
+     },
+     {
+      "kind": "keys",
+      "path": "actions[]",
+      "required": [
+       "owner",
+       "task",
+       "due"
+      ]
+     }
+    ]
+   },
+   "notCovered": [
+    "内容真实性"
+   ],
+   "generator": {
+    "system": "你是会议秘书，把规格 notes（会议 meeting 的原始笔记）整理成纪要。1）summary 20–300 字；2）decisions ≥ 1 条已定事项；3）actions ≥ 1 条，每条 owner、task、due（笔记里没写期限的写「待定」）。不添加笔记里没有的内容。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"summary\": \"……\", \"decisions\": [\"下周五发布 2.1 版\"], \"actions\": [{\"owner\": \"小王\", \"task\": \"补齐发布说明\", \"due\": \"周三\"}]}"
+   },
+   "sample": {
+    "summary": "本次评审确认 2.1 版于下周五发布，登录页改版延期到 2.2，发布说明由小王补齐。",
+    "decisions": [
+     "2.1 版下周五发布",
+     "登录页改版延期至 2.2"
+    ],
+    "actions": [
+     {
+      "owner": "小王",
+      "task": "补齐 2.1 发布说明",
+      "due": "周三"
+     },
+     {
+      "owner": "小李",
+      "task": "回归测试支付流程",
+      "due": "周四"
+     }
+    ]
+   },
+   "sample_spec": {
+    "notes": "评审 2.1：登录页改版来不及，放 2.2；下周五发布；小王周三前写发布说明；小李周四前回归支付",
+    "meeting": "2.1 版发布评审"
+   }
+  },
+  {
+   "id": "biz-email",
+   "name": "商务邮件代笔处",
+   "description": "按目的与收件人写一封商务邮件：主题 ≤ 40 字，正文 80–600 字；预批准型，4 虚拟币，30 分钟内交付。",
+   "tags": [
+    "职场办公",
+    "邮件",
+    "商务"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "email",
+    "title": "商务邮件",
+    "file": "email.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"subject\": \"\", \"body\": \"\"}；subject ≤ 40 字，body 80–600 字",
+    "specSchema": {
+     "purpose": {
+      "type": "string",
+      "maxLength": 300
+     },
+     "recipient": {
+      "type": "string",
+      "maxLength": 60
+     },
+     "tone": {
+      "enum": [
+       "正式",
+       "友好",
+       "紧急"
+      ]
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "4"
+   },
+   "verifier": {
+    "id": "biz_email@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "subject",
+       "body"
+      ]
+     },
+     {
+      "kind": "str_len",
+      "path": "subject",
+      "min": 2,
+      "max": 40
+     },
+     {
+      "kind": "str_len",
+      "path": "body",
+      "min": 80,
+      "max": 600
+     }
+    ]
+   },
+   "notCovered": [
+    "发送"
+   ],
+   "generator": {
+    "system": "你是商务写作助理，给 recipient 写一封 tone 语气的邮件，目的见 purpose。1）subject ≤ 40 字；2）body 80–600 字，有称呼、正文、落款占位（【姓名】）；3）一封邮件只说一件事。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"subject\": \"关于 2.1 版发布时间的确认\", \"body\": \"张总您好，……\"}"
+   },
+   "sample": {
+    "subject": "关于 2.1 版发布时间的确认",
+    "body": "张总您好：\n\n关于 2.1 版的发布时间，经与测试和运维确认，我们建议定在下周五（11 月 6 日）晚 22:00 发布，预计影响时间 30 分钟。发布说明与回滚方案将于周三前发您审阅。如您对时间有其他考虑，请随时告知。\n\n祝好\n【姓名】"
+   },
+   "sample_spec": {
+    "purpose": "向客户确认 2.1 版发布时间为下周五晚",
+    "recipient": "客户张总",
+    "tone": "正式"
+   }
+  },
+  {
+   "id": "resume-polish",
+   "name": "简历润色工作室",
+   "description": "润色 JSON 格式的中文简历：把经历改写成量化、动宾结构的表述，条目与结构不变、篇幅相近；待批准型（服务方看过材料再接单），15 虚拟币，30 分钟内交付。",
+   "tags": [
+    "简历",
+    "求职",
+    "润色"
+   ],
+   "runnable": true,
+   "formation": "countersign",
+   "deliverable": {
+    "name": "resume",
+    "title": "润色后的简历",
+    "file": "resume.json",
+    "mediaType": "application/json",
+    "description": "JSON，结构与材料一致：{name, title, summary, experience: [{company, role, period, highlights: [..]}], education: [..], skills: [..]}。experience 条数必须等于材料声明的 entries；全部字符串值的总字数在材料声明的 chars 的 ±30% 内",
+    "specSchema": {
+     "target": {
+      "type": "string",
+      "maxLength": 60
+     }
+    }
+   },
+   "inputs": [
+    {
+     "name": "resume",
+     "title": "原简历",
+     "description": "JSON 简历；entries 为 experience 条数，chars 为全部字符串值的总字数（递归累加）",
+     "required": true,
+     "specSchema": {
+      "entries": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 30
+      },
+      "chars": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 20000
+      }
+     },
+     "reviewBeforeSigning": true
+    }
+   ],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "15"
+   },
+   "verifier": {
+    "id": "resume_polish@1.0",
+    "reads": [
+     "inputs.resume.entries",
+     "inputs.resume.chars"
+    ],
+    "script": "resume_polish.py"
+   },
+   "notCovered": [
+    "真实性",
+    "岗位匹配度"
+   ],
+   "generator": {
+    "system": "你是资深简历顾问。把「材料」里的 resume（JSON）润色成面向规格 target 岗位的版本：每条 highlight 改成「动词 + 做了什么 + 结果（尽量量化）」，summary 突出与目标岗位相关的能力；不得编造公司、职位、时间。硬性判据（验收器会机械检查）：1）输出与材料同样的 JSON 结构；2）experience 条数必须与材料完全一致（输入声明里的 entries），不增删条目；3）输出里全部字符串值的总字数必须在材料总字数（输入声明里的 chars）的 70% 到 130% 之间——润色是改写不是扩写，每条 highlight 控制在 25 字左右。",
+    "output": "{\"name\": \"\", \"title\": \"\", \"summary\": \"\", \"experience\": [{\"company\": \"\", \"role\": \"\", \"period\": \"\", \"highlights\": [\"\"]}], \"education\": [{\"school\": \"\", \"degree\": \"\", \"period\": \"\"}], \"skills\": [\"\"]}"
+   },
+   "sample": {
+    "name": "李晓明",
+    "title": "后端开发工程师",
+    "summary": "五年后端经验，主攻 Python 与 Go；主导电商订单系统重构与对账自动化。",
+    "experience": [
+     {
+      "company": "云帆科技",
+      "role": "后端开发工程师",
+      "period": "2022.03 – 至今",
+      "highlights": [
+       "主导订单服务核心接口 Go 化重写，P99 延迟下降 40%",
+       "设计定时对账脚本，日均节省人工核对 2 小时",
+       "参与 3 次大促压测与扩容，峰值期间零故障"
+      ]
+     },
+     {
+      "company": "星河网络",
+      "role": "Python 开发工程师",
+      "period": "2020.07 – 2022.02",
+      "highlights": [
+       "基于 Django 独立开发内部审批系统，覆盖 200+ 员工",
+       "编写爬虫与数据清洗脚本，支撑周报数据自动汇总",
+       "搭建 ELK 日志收集链路，故障定位时间缩短一半"
+      ]
+     },
+     {
+      "company": "青禾软件（实习）",
+      "role": "开发实习生",
+      "period": "2019.07 – 2020.06",
+      "highlights": [
+       "编写接口文档与单元测试，覆盖率提升至 80%",
+       "修复 30+ 线上缺陷，熟悉完整发布流程"
+      ]
+     }
+    ],
+    "education": [
+     {
+      "school": "南方理工大学",
+      "degree": "计算机科学与技术 本科",
+      "period": "2016.09 – 2020.06"
+     }
+    ],
+    "skills": [
+     "Python",
+     "Go",
+     "Django",
+     "MySQL",
+     "Redis",
+     "Docker",
+     "Linux"
+    ]
+   },
+   "sample_spec": {
+    "target": "电商平台高级后端工程师"
+   },
+   "sample_inputs": {
+    "resume": {
+     "entries": 3,
+     "chars": 326
+    }
+   }
+  },
+  {
+   "id": "okr-plan",
+   "name": "OKR 方案工作室",
+   "description": "为团队拟一个季度的 OKR：2–5 个目标，每个 ≥ 2 条可量化的关键结果；提案型（先付 1 虚拟币拟卡费，服务方报价 12–40 虚拟币），30 分钟内交付。",
+   "tags": [
+    "职场办公",
+    "OKR",
+    "目标"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "okr",
+    "title": "OKR 方案",
+    "file": "okr.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"objectives\": [{\"objective\": \"\", \"krs\": [\"\"]}]}；objectives 2–5 个，每个 krs ≥ 2",
+    "specSchema": {
+     "team": {
+      "type": "string",
+      "maxLength": 60
+     },
+     "quarter": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "context": {
+      "type": "string",
+      "maxLength": 600
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     12,
+     40
+    ]
+   },
+   "verifier": {
+    "id": "okr_plan@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "objectives",
+      "min": 2,
+      "max": 5
+     },
+     {
+      "kind": "keys",
+      "path": "objectives[]",
+      "required": [
+       "objective",
+       "krs"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "objectives[].krs",
+      "min": 2
+     },
+     {
+      "kind": "each_str_len",
+      "path": "objectives[].krs[]",
+      "min": 6
+     }
+    ]
+   },
+   "notCovered": [
+    "执行"
+   ],
+   "generator": {
+    "system": "你是 OKR 教练，为 team 在 quarter 季度按 context 拟 OKR。1）objectives 2–5 个，定性、有感召力；2）每个 krs ≥ 2 条，可量化（带数字或可判定的完成态）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"objectives\": [{\"objective\": \"让新用户第一周就留下来\", \"krs\": [\"7 日留存从 25% 提到 35%\", \"新手引导完成率 ≥ 80%\"]}]}",
+    "quote_system": "你是服务方，按规格给出整数报价（虚拟币），只在参考价区间内取值：工作量大、要求多则报价高。只输出 JSON：{\"price\": 整数, \"summary\": \"一句话\"}。"
+   },
+   "sample": {
+    "objectives": [
+     {
+      "objective": "让新用户第一周就留下来",
+      "krs": [
+       "7 日留存从 25% 提升到 35%",
+       "新手引导完成率 ≥ 80%"
+      ]
+     },
+     {
+      "objective": "把线上故障降到用户感知不到",
+      "krs": [
+       "P1 故障 ≤ 1 次",
+       "平均恢复时间 ≤ 15 分钟"
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "team": "增长团队",
+    "quarter": "2026 Q4",
+    "context": "新用户流失严重，线上偶发故障"
+   }
+  }
+ ]
+}

@@ -32,7 +32,7 @@ def platform():
     port = _free_port()
     tmp = Path(tempfile.mkdtemp(prefix="ioalab-test-"))
     os.environ.update(IOALAB_STUB="1", IOALAB_PORT=str(port), IOALAB_ADMIN_PASSWORD="test", IOALAB_DATA=str(tmp),
-                      IOALAB_MODE="dev", IOALAB_BIND="127.0.0.1")
+                      IOALAB_MODE="dev", IOALAB_BIND="127.0.0.1", IOALAB_AUTOSEED="0")
     import uvicorn
     from ioalab.config import Settings
     from ioalab.platform import Platform

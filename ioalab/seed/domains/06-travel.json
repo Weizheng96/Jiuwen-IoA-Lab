@@ -1,0 +1,684 @@
+{
+ "slug": "travel",
+ "label": "旅行出行",
+ "account": "ISP_006",
+ "category": {
+  "id": "cat_travel",
+  "name": "旅行出行",
+  "description": "行程规划、城市漫游、打包清单、美食地图、旅行预算、亲子行程等出行类服务。",
+  "decision_rule": "需求与旅行、出差、行程、景点、路线、预算有关时在此找"
+ },
+ "services": [
+  {
+   "id": "trip-plan",
+   "name": "两日行程定制所",
+   "description": "定制两天城市行程：按城市与预算上限排每天 3 个以上景点并估算花费，合计不超预算；提案型（先付 1 虚拟币拟卡费，服务方按需求报价 10–30 虚拟币），30 分钟内交付。",
+   "tags": [
+    "行程规划",
+    "旅行",
+    "周末"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "trip",
+    "title": "两日行程",
+    "file": "trip.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"days\": [{\"day\": 1, \"spots\": [\"景点\"], \"cost\": 花费}, {\"day\": 2, ...}]}。恰好 spec.days 天，每天 spots ≥ 3 个，各天 cost 合计 ≤ spec.budget",
+    "specSchema": {
+     "city": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "budget": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5000
+     },
+     "days": {
+      "const": 2
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     10,
+     30
+    ]
+   },
+   "verifier": {
+    "id": "trip_plan@1.0",
+    "reads": [
+     "spec.trip.city",
+     "spec.trip.budget",
+     "spec.trip.days"
+    ],
+    "script": "trip_plan.py"
+   },
+   "notCovered": [
+    "景点开放时间",
+    "交通实时状况"
+   ],
+   "generator": {
+    "quote_system": "你是行程定制服务方，按规格里的城市与预算给出整数报价（虚拟币），只在参考价区间内取值：预算高、景点多则报价高。只输出 JSON：{\"price\": 整数, \"summary\": \"一句话\"}。",
+    "system": "你是旅行规划师，为规格 city 排 days 天的行程。硬性判据（验收器会机械检查）：1）days 数组恰好 days 项，每项有 day（1、2）、spots（景点名字符串数组）与 cost（整数，当天门票 + 餐饮 + 交通估算，单位元）；2）每天 spots 至少 3 个；3）所有天的 cost 合计必须 ≤ 规格 budget——预算按 budget 的 60%–90% 安排即可，留出余量。景点真实存在、同一天的景点地理上顺路。",
+    "output": "{\"days\": [{\"day\": 1, \"spots\": [\"西湖\", \"雷峰塔\", \"河坊街\"], \"cost\": 420}, {\"day\": 2, \"spots\": [\"灵隐寺\", \"龙井村\", \"西溪湿地\"], \"cost\": 380}]}"
+   },
+   "sample": {
+    "days": [
+     {
+      "day": 1,
+      "spots": [
+       "西湖（断桥、白堤）",
+       "雷峰塔",
+       "河坊街",
+       "南宋御街"
+      ],
+      "cost": 520
+     },
+     {
+      "day": 2,
+      "spots": [
+       "灵隐寺",
+       "龙井村",
+       "西溪湿地"
+      ],
+      "cost": 460
+     }
+    ]
+   },
+   "sample_spec": {
+    "city": "杭州",
+    "budget": 1500
+   }
+  },
+  {
+   "id": "day-tour",
+   "name": "一日漫游手册社",
+   "description": "按城市与主题排一日路线：4–8 个停留点，各带时间与提示；预批准型，6 虚拟币，30 分钟内交付。",
+   "tags": [
+    "旅行出行",
+    "一日游",
+    "路线"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "tour",
+    "title": "一日路线",
+    "file": "tour.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"stops\": [{\"time\": \"09:00\", \"place\": \"\", \"note\": \"\"}]}；4–8 个停留点，三字段非空",
+    "specSchema": {
+     "city": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "theme": {
+      "type": "string",
+      "maxLength": 60
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "6"
+   },
+   "verifier": {
+    "id": "day_tour@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "stops",
+      "min": 4,
+      "max": 8
+     },
+     {
+      "kind": "keys",
+      "path": "stops[]",
+      "required": [
+       "time",
+       "place",
+       "note"
+      ]
+     },
+     {
+      "kind": "each_str_len",
+      "path": "stops[].place",
+      "min": 2
+     }
+    ]
+   },
+   "notCovered": [
+    "门票预订"
+   ],
+   "generator": {
+    "system": "你是本地导游，为 city 排主题 theme 的一日路线。1）stops 4–8 个，time 用 HH:MM；2）地点真实存在且顺路；3）note 写预计停留时长或提示。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"stops\": [{\"time\": \"09:00\", \"place\": \"西湖断桥\", \"note\": \"步行 1 小时\"}]}"
+   },
+   "sample": {
+    "stops": [
+     {
+      "time": "09:00",
+      "place": "西湖断桥",
+      "note": "沿白堤步行约 1 小时"
+     },
+     {
+      "time": "11:00",
+      "place": "中国茶叶博物馆",
+      "note": "参观 1 小时"
+     },
+     {
+      "time": "12:30",
+      "place": "龙井村",
+      "note": "午餐与茶园散步"
+     },
+     {
+      "time": "15:30",
+      "place": "河坊街",
+      "note": "小吃与手作，停留 1.5 小时"
+     }
+    ]
+   },
+   "sample_spec": {
+    "city": "杭州",
+    "theme": "茶文化"
+   }
+  },
+  {
+   "id": "packing-list",
+   "name": "打包清单台",
+   "description": "按目的地、天数与季节列打包清单：≥ 4 类、每类 ≥ 3 件；预批准型，4 虚拟币，30 分钟内交付。",
+   "tags": [
+    "旅行出行",
+    "打包",
+    "清单"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "packing",
+    "title": "打包清单",
+    "file": "packing.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"categories\": [{\"name\": \"\", \"items\": [\"\"]}]}；categories ≥ 4，每类 items ≥ 3",
+    "specSchema": {
+     "destination": {
+      "type": "string",
+      "maxLength": 40
+     },
+     "days": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60
+     },
+     "season": {
+      "enum": [
+       "春",
+       "夏",
+       "秋",
+       "冬"
+      ]
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "4"
+   },
+   "verifier": {
+    "id": "packing_list@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "categories",
+      "min": 4
+     },
+     {
+      "kind": "keys",
+      "path": "categories[]",
+      "required": [
+       "name",
+       "items"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "categories[].items",
+      "min": 3
+     }
+    ]
+   },
+   "notCovered": [
+    "航空公司行李规定"
+   ],
+   "generator": {
+    "system": "你是旅行达人，为 destination、days 天、season 季的行程列打包清单。1）categories ≥ 4 类（证件、衣物、电子、洗护、药品等）；2）每类 items ≥ 3 件，数量贴合天数与季节。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"categories\": [{\"name\": \"证件\", \"items\": [\"身份证\", \"护照\", \"保险单\"]}]}"
+   },
+   "sample": {
+    "categories": [
+     {
+      "name": "证件",
+      "items": [
+       "身份证",
+       "护照与签证页复印件",
+       "旅行保险单"
+      ]
+     },
+     {
+      "name": "衣物",
+      "items": [
+       "速干 T 恤 4 件",
+       "防晒衬衫",
+       "泳衣"
+      ]
+     },
+     {
+      "name": "电子",
+      "items": [
+       "转换插头",
+       "充电宝",
+       "防水手机袋"
+      ]
+     },
+     {
+      "name": "药品洗护",
+      "items": [
+       "防晒霜",
+       "驱蚊液",
+       "肠胃药"
+      ]
+     }
+    ]
+   },
+   "sample_spec": {
+    "destination": "三亚",
+    "days": 5,
+    "season": "夏"
+   }
+  },
+  {
+   "id": "food-map",
+   "name": "美食地图工坊",
+   "description": "按城市列 8 家特色店：招牌菜、区域、人均价；预批准型，7 虚拟币，30 分钟内交付。",
+   "tags": [
+    "旅行出行",
+    "美食",
+    "地图"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "food",
+    "title": "美食地图",
+    "file": "food.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"spots\": [{\"name\": \"\", \"dish\": \"\", \"area\": \"\", \"price\": 60} × 8]}；恰好 spec.count 家，price 0–500，店名互不重复",
+    "specSchema": {
+     "city": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "count": {
+      "const": 8
+     },
+     "budget": {
+      "type": "string",
+      "maxLength": 20
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "7"
+   },
+   "verifier": {
+    "id": "food_map@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "spots",
+      "eq": "spec.food.count"
+     },
+     {
+      "kind": "keys",
+      "path": "spots[]",
+      "required": [
+       "name",
+       "dish",
+       "area",
+       "price"
+      ]
+     },
+     {
+      "kind": "each_num",
+      "path": "spots[].price",
+      "min": 0,
+      "max": 500
+     },
+     {
+      "kind": "unique",
+      "path": "spots[].name"
+     }
+    ]
+   },
+   "notCovered": [
+    "营业时间变动"
+   ],
+   "generator": {
+    "system": "你是美食博主，为 city 列 count 家特色店，预算偏好 budget。1）每家 name、dish（招牌菜）、area（所在区域）、price（人均，整数，0–500）；2）店名互不重复、真实存在；3）覆盖早茶、小吃、正餐等不同类型。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"spots\": [{\"name\": \"知味观\", \"dish\": \"小笼包\", \"area\": \"湖滨\", \"price\": 40}]}"
+   },
+   "sample": {
+    "spots": [
+     {
+      "name": "知味观",
+      "dish": "小笼包",
+      "area": "湖滨",
+      "price": 40
+     },
+     {
+      "name": "奎元馆",
+      "dish": "虾爆鳝面",
+      "area": "解放路",
+      "price": 45
+     },
+     {
+      "name": "楼外楼",
+      "dish": "西湖醋鱼",
+      "area": "孤山",
+      "price": 150
+     },
+     {
+      "name": "绿茶餐厅",
+      "dish": "面包诱惑",
+      "area": "龙井路",
+      "price": 70
+     },
+     {
+      "name": "新白鹿",
+      "dish": "蛋黄鸡翅",
+      "area": "黄龙",
+      "price": 60
+     },
+     {
+      "name": "葱包烩摊",
+      "dish": "葱包烩",
+      "area": "河坊街",
+      "price": 10
+     },
+     {
+      "name": "知竹酥鱼",
+      "dish": "酥鱼",
+      "area": "拱宸桥",
+      "price": 35
+     },
+     {
+      "name": "胡庆余堂药膳",
+      "dish": "养生汤",
+      "area": "大井巷",
+      "price": 90
+     }
+    ]
+   },
+   "sample_spec": {
+    "city": "杭州",
+    "budget": "人均 100 以内为主"
+   }
+  },
+  {
+   "id": "trip-budget",
+   "name": "旅行预算核算处",
+   "description": "按天数、人数与总预算做分项预算表，合计不超预算；预批准型，5 虚拟币，30 分钟内交付。",
+   "tags": [
+    "旅行出行",
+    "预算",
+    "核算"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "budget",
+    "title": "旅行预算表",
+    "file": "budget.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"items\": [{\"category\": \"\", \"amount\": 1200}]}；items ≥ 4，amount 之和 ≤ spec.total",
+    "specSchema": {
+     "destination": {
+      "type": "string",
+      "maxLength": 40
+     },
+     "days": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60
+     },
+     "people": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20
+     },
+     "total": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 200000
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "5"
+   },
+   "verifier": {
+    "id": "trip_budget@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "items",
+      "min": 4
+     },
+     {
+      "kind": "keys",
+      "path": "items[]",
+      "required": [
+       "category",
+       "amount"
+      ]
+     },
+     {
+      "kind": "each_num",
+      "path": "items[].amount",
+      "min": 0
+     },
+     {
+      "kind": "sum_le",
+      "path": "items[].amount",
+      "max": "spec.budget.total"
+     }
+    ]
+   },
+   "notCovered": [
+    "实时价格"
+   ],
+   "generator": {
+    "system": "你是旅行预算顾问，为 people 人去 destination days 天、总预算 total 元做分项预算。1）items ≥ 4 项（交通、住宿、餐饮、门票、备用金等）；2）amount 为整数元；3）合计 ≤ total，留 10% 左右备用金。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"items\": [{\"category\": \"交通\", \"amount\": 1600}, {\"category\": \"住宿\", \"amount\": 1800}]}"
+   },
+   "sample": {
+    "items": [
+     {
+      "category": "往返交通",
+      "amount": 1600
+     },
+     {
+      "category": "住宿 3 晚",
+      "amount": 1800
+     },
+     {
+      "category": "餐饮",
+      "amount": 1200
+     },
+     {
+      "category": "门票与市内交通",
+      "amount": 700
+     },
+     {
+      "category": "备用金",
+      "amount": 500
+     }
+    ]
+   },
+   "sample_spec": {
+    "destination": "成都",
+    "days": 4,
+    "people": 2,
+    "total": 6000
+   }
+  },
+  {
+   "id": "family-trip",
+   "name": "亲子行程定制所",
+   "description": "为带孩子的家庭排三天行程：每天 ≥ 2 个适合孩子的去处与提示；待批准型（服务方先看孩子年龄与偏好再接单），16 虚拟币，30 分钟内交付。",
+   "tags": [
+    "旅行出行",
+    "亲子",
+    "行程"
+   ],
+   "runnable": true,
+   "formation": "countersign",
+   "deliverable": {
+    "name": "family",
+    "title": "亲子行程",
+    "file": "family.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"days\": [{\"day\": 1, \"spots\": [\"\"], \"tips\": \"\"} × 3]}；恰好 spec.days 天，每天 spots ≥ 2，tips 非空",
+    "specSchema": {
+     "city": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "kidsAge": {
+      "type": "string",
+      "maxLength": 20
+     },
+     "days": {
+      "const": 3
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "16"
+   },
+   "verifier": {
+    "id": "family_trip@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "days",
+      "eq": "spec.family.days"
+     },
+     {
+      "kind": "keys",
+      "path": "days[]",
+      "required": [
+       "day",
+       "spots",
+       "tips"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "days[].spots",
+      "min": 2
+     },
+     {
+      "kind": "each_str_len",
+      "path": "days[].tips",
+      "min": 5
+     }
+    ]
+   },
+   "notCovered": [
+    "门票预订",
+    "住宿"
+   ],
+   "generator": {
+    "system": "你是亲子旅行规划师，为带 kidsAge 孩子的家庭排 city 的 days 天行程。1）days 恰好 days 项；2）每天 spots ≥ 2 个适合该年龄的去处，节奏宽松；3）tips 写当天的注意事项（午休、备餐、防晒等）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"days\": [{\"day\": 1, \"spots\": [\"海洋馆\", \"中央公园\"], \"tips\": \"午后安排午休\"}]}"
+   },
+   "sample": {
+    "days": [
+     {
+      "day": 1,
+      "spots": [
+       "上海海洋水族馆",
+       "滨江大道"
+      ],
+      "tips": "上午去海洋馆避开人流，午后回酒店午休。"
+     },
+     {
+      "day": 2,
+      "spots": [
+       "上海自然博物馆",
+       "静安雕塑公园"
+      ],
+      "tips": "博物馆提前预约，带水杯与零食。"
+     },
+     {
+      "day": 3,
+      "spots": [
+       "上海动物园",
+       "虹桥天地"
+      ],
+      "tips": "动物园面积大，备婴儿车或租借。"
+     }
+    ]
+   },
+   "sample_spec": {
+    "city": "上海",
+    "kidsAge": "4 岁"
+   }
+  }
+ ]
+}

@@ -1,8 +1,8 @@
 """服务发现：A2X registry 作库进程内调用（不挂任何 A2X 路由）。
 
-固定顺序：RegistryService(database_dir) → create_dataset → 种子 register_batch → 分类树（seed/ 里离线建好的拷到 data/）
-→ startup() → 之后再注册。检索默认 A2X 分类树（LLM），树不可用或未配 key 时走向量退路
-（DashScope 嵌入 + numpy 余弦；不装 torch、不经 chromadb）。A2X 副本的 Agent Card 只放索引字段。
+固定顺序：RegistryService(database_dir) → create_dataset → 种子 register_batch → 按领域确定性建分类树（market/taxonomy.py，零 LLM）
+→ startup() → 之后再注册（运行期注册按声明的领域 assign 进叶类）。检索默认 A2X 分类树导航（LLM），树不可用或未配 key 时走向量退路
+（远端嵌入 + numpy 余弦；不装 torch、不经 chromadb）。A2X 副本的 Agent Card 只放索引字段。
 """
 from __future__ import annotations
 
@@ -20,8 +20,7 @@ DATASET = "ioalab"
 
 
 class Discovery:
-    def __init__(self, database_dir: Path, *, taxonomy_seed: Path | None, a2x_home: Path, llm_configured: bool,
-                 embed_fn=None) -> None:
+    def __init__(self, database_dir: Path, *, a2x_home: Path, llm_configured: bool, embed_fn=None, taxonomy_seed: Path | None = None) -> None:
         os.environ["A2X_REGISTRY_HOME"] = str(a2x_home)          # 只影响 llm_apikey.json 的位置；路径一律显式
         from a2x_registry.register.service import RegistryService
         self.database_dir = database_dir.resolve()
@@ -56,14 +55,14 @@ class Discovery:
                    for sid, card in cards]
         self.svc.register_batch(entries, DATASET)
 
-    def register_one(self, service_id: str, card: Mapping[str, Any]) -> None:
-        """运行期注册：写入注册表，再把它增量加进分类树（有 key 时），否则只能靠向量退路检索到。"""
+    def register_one(self, service_id: str, card: Mapping[str, Any], *, category: str | None = None) -> None:
+        """运行期注册：写入注册表，再按声明的领域确定性加进分类树叶类（没有树时只靠向量退路检索到）。"""
         from a2x_registry.register.models import AgentCard, RegisterA2ARequest
         self.ensure_dataset()
         self.svc.register_a2a(RegisterA2ARequest(service_id=service_id, dataset=DATASET, agent_card=AgentCard(**dict(card))))
         self._vectors.pop(service_id, None)
         self._bigram_vectors.pop(service_id, None)
-        self._incremental(service_id, card, remove=False)
+        self.assign(service_id, category)
 
     def update_card(self, service_id: str, card: Mapping[str, Any]) -> None:
         """只改 a2c / status 等索引字段（不动 name / description，不触发树失效）。"""
@@ -78,11 +77,6 @@ class Discovery:
 
     def startup(self) -> None:
         self.ensure_dataset()
-        tdir = self.svc.taxonomy_dir(DATASET)
-        if self.taxonomy_seed and self.taxonomy_seed.exists() and not (tdir / "taxonomy.json").exists():
-            tdir.mkdir(parents=True, exist_ok=True)
-            for f in self.taxonomy_seed.glob("*.json"):
-                shutil.copyfile(f, tdir / f.name)
         self.svc.startup()
         self._started = True
         self._searcher = None
@@ -92,18 +86,35 @@ class Discovery:
         st = self.svc.check_taxonomy_state(DATASET) if self._started else None
         return st.value if st is not None else "unknown"
 
-    def build_taxonomy(self, workers: int = 5) -> Path:
-        """离线建树（需要 LLM key；100 个服务约 150–400 次调用）。产物随 seed/ 入库。"""
-        from a2x_registry.a2x.build.config import AutoHierarchicalConfig
-        from a2x_registry.a2x.build.taxonomy_builder import TaxonomyBuilder
-        service_path = self.svc.dataset_dir(DATASET) / "service.json"
-        out = self.svc.taxonomy_dir(DATASET)
-        out.mkdir(parents=True, exist_ok=True)
-        cfg = AutoHierarchicalConfig(service_path=str(service_path), output_dir=str(out), workers=workers)
-        TaxonomyBuilder(cfg).build()
+    def build_domains(self, categories: list[Mapping[str, Any]], members: Mapping[str, list[str]]) -> str:
+        """按领域规格确定性建树（零 LLM）：写树文件 → 回写 service_hash → 重新载入；返回树状态。"""
+        from . import taxonomy
+        self.ensure_dataset()
+        self.svc.startup()                      # 注册表载入后 list_services 才非空，哈希才算得出
+        taxonomy.build(categories, members, self.svc.taxonomy_dir(DATASET))
         self._write_hash()
+        self.svc.startup()
+        self._started = True
         self._searcher = None
-        return out
+        return self.taxonomy_state()
+
+    def assign(self, service_id: str, category: str | None) -> str | None:
+        """运行期把服务确定性归入叶类（不存在的叶类退到 cat_misc）；没有树时返回 None。"""
+        from . import taxonomy
+        tdir = self.svc.taxonomy_dir(DATASET)
+        if not (tdir / "taxonomy.json").exists():
+            return None
+        cid = taxonomy.assign(tdir, service_id, category or taxonomy.MISC["id"])
+        self.svc.startup()
+        self._write_hash()
+        self.svc.startup()
+        self._searcher = None
+        return cid
+
+    def categories(self) -> list[dict]:
+        from . import taxonomy
+        tdir = self.svc.taxonomy_dir(DATASET)
+        return taxonomy.categories(tdir) if (tdir / "taxonomy.json").exists() else []
 
     def _write_hash(self) -> None:
         from a2x_registry.register.service import _compute_build_hash
@@ -114,31 +125,6 @@ class Discovery:
             return
         cfg["service_hash"] = _compute_build_hash(services)
         p.write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
-
-    def _incremental(self, service_id: str, card: Mapping[str, Any], *, remove: bool) -> None:
-        """运行期增量维护分类树：IncrementalBuilder 只改内存里的 taxonomy / class，由平台读写文件并回写 service_hash。"""
-        tdir = self.svc.taxonomy_dir(DATASET)
-        if not self.llm_configured or not (tdir / "taxonomy.json").exists():
-            return
-        try:
-            from a2x_registry.a2x.incremental.incremental_builder import IncrementalBuilder
-            from a2x_registry.common.llm_client import LLMClient
-            taxonomy = json.loads((tdir / "taxonomy.json").read_text(encoding="utf-8"))
-            class_data = json.loads((tdir / "class.json").read_text(encoding="utf-8"))
-            services = self.svc.list_services(DATASET)
-            index = {s["id"]: s for s in services}
-            ib = IncrementalBuilder(taxonomy, class_data, index, LLMClient(), workers=2)
-            if remove:
-                ib.remove_service(service_id)
-            elif service_id in index:
-                ib.add_service(index[service_id])
-            (tdir / "taxonomy.json").write_text(json.dumps(ib.taxonomy, ensure_ascii=False, indent=1), encoding="utf-8")
-            (tdir / "class.json").write_text(json.dumps(ib.class_data, ensure_ascii=False, indent=1), encoding="utf-8")
-            self._write_hash()
-            self.svc.startup()
-            self._searcher = None
-        except Exception as e:  # noqa: BLE001 — 增量失败只影响分类树检索，向量退路仍可用
-            log.warning("A2X incremental update failed: %s", e)
 
     # ── 检索 ──────────────────────────────────────────────────────────
     def search(self, query: str, top_k: int = 8, *, prefer_tree: bool = True) -> list[dict]:

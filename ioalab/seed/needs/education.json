@@ -1,0 +1,38 @@
+[
+ {
+  "service": "flashcards",
+  "text": "帮我做 resilient、ambiguous、thrive 这三个大学英语单词的记忆卡。",
+  "scope": {
+   "budget": 8,
+   "category": "教育辅导",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "study-plan",
+  "text": "两个月后考六级，每周能学 10 小时，给我一个四周计划。",
+  "scope": {
+   "budget": 10,
+   "category": "教育辅导",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "course-outline",
+  "text": "给零基础成人设计 8 课时的 Python 入门课程大纲。",
+  "scope": {
+   "budget": 20,
+   "category": "教育辅导",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ }
+]

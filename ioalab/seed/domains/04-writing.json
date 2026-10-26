@@ -1,0 +1,562 @@
+{
+ "slug": "writing",
+ "label": "文案创作",
+ "account": "ISP_004",
+ "category": {
+  "id": "cat_writing",
+  "name": "文案创作",
+  "description": "朋友圈文案、产品详情页、公众号标题、短视频脚本、品牌故事、演讲稿等营销与写作类文案。",
+  "decision_rule": "需求是写宣传文字、标题、脚本、故事、讲稿等文案时在此找"
+ },
+ "services": [
+  {
+   "id": "wechat-posts",
+   "name": "朋友圈文案工坊",
+   "description": "为小店写朋友圈文案：三条短文案，每条不超过 60 字，必须出现店名；预批准型，6 虚拟币，当天交付。",
+   "tags": [
+    "文案",
+    "朋友圈",
+    "营销"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "posts",
+    "title": "朋友圈文案",
+    "file": "posts.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"posts\": [三条文案]}，每条 ≤ 60 字且含店名",
+    "specSchema": {
+     "shop": {
+      "type": "string",
+      "maxLength": 40
+     },
+     "theme": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "count": {
+      "const": 3
+     },
+     "maxChars": {
+      "const": 60
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "6"
+   },
+   "verifier": {
+    "id": "wechat_posts@1.0",
+    "reads": [
+     "spec.posts.shop",
+     "spec.posts.count",
+     "spec.posts.maxChars"
+    ],
+    "script": "wechat_posts.py"
+   },
+   "notCovered": [
+    "文采"
+   ],
+   "generator": {
+    "system": "你是一位擅长小店营销的文案写手。按规格里的店名与主题，写出规定条数的朋友圈文案；每条不超过规定字数，每条都要自然地带上店名；口语、有画面感、不夸大。",
+    "output": "{\"posts\": [\"文案1\", \"文案2\", \"文案3\"]}"
+   },
+   "sample": {
+    "posts": [
+     "小满美甲今天上新了春日奶油色，做完指尖像抹了一层云。",
+     "周末约闺蜜来小满美甲，两人同行第二位八折。",
+     "小满美甲的卸甲护理只要三十分钟，午休就能顺路来。"
+    ]
+   },
+   "sample_spec": {
+    "shop": "小满美甲",
+    "theme": "春日上新"
+   }
+  },
+  {
+   "id": "product-page",
+   "name": "产品详情页文案厂",
+   "description": "按产品与卖点写详情页：标题 ≤ 30 字 + ≥ 3 个小节，卖点全部出现；预批准型，9 虚拟币，30 分钟内交付。",
+   "tags": [
+    "文案创作",
+    "电商",
+    "详情页"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "page",
+    "title": "详情页文案",
+    "file": "page.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"headline\": \"\", \"sections\": [{\"title\": \"\", \"body\": \"\"}]}；headline ≤ 30 字，sections ≥ 3，spec.sellingPoints（逗号分隔）每个都要出现",
+    "specSchema": {
+     "product": {
+      "type": "string",
+      "maxLength": 60
+     },
+     "sellingPoints": {
+      "type": "string",
+      "maxLength": 300
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "9"
+   },
+   "verifier": {
+    "id": "product_page@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "headline",
+       "sections"
+      ]
+     },
+     {
+      "kind": "str_len",
+      "path": "headline",
+      "min": 4,
+      "max": 30
+     },
+     {
+      "kind": "list_len",
+      "path": "sections",
+      "min": 3
+     },
+     {
+      "kind": "keys",
+      "path": "sections[]",
+      "required": [
+       "title",
+       "body"
+      ]
+     },
+     {
+      "kind": "contains_all",
+      "path": "",
+      "words": "spec.page.sellingPoints"
+     }
+    ]
+   },
+   "notCovered": [
+    "合规审核"
+   ],
+   "generator": {
+    "system": "你是电商文案。为规格 product 写详情页文案，sellingPoints（逗号分隔）是卖点。1）headline ≤ 30 字；2）sections ≥ 3 节，每节 title 与 body；3）每个卖点的原词都要在文案里出现。不写绝对化用语。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"headline\": \"一壶冷泡，三小时清甜\", \"sections\": [{\"title\": \"慢萃\", \"body\": \"……\"}]}"
+   },
+   "sample": {
+    "headline": "一壶冷泡，三小时清甜",
+    "sections": [
+     {
+      "title": "低温慢萃",
+      "body": "低温慢萃 8 小时，茶多酚析出更温和，入口不涩。"
+     },
+     {
+      "title": "0 糖配方",
+      "body": "0 糖配方，甜感来自茶叶本身的氨基酸。"
+     },
+     {
+      "title": "便携瓶身",
+      "body": "便携瓶身 350 毫升，放进通勤包刚好。"
+     }
+    ]
+   },
+   "sample_spec": {
+    "product": "冷泡乌龙茶",
+    "sellingPoints": "低温慢萃,0 糖配方,便携瓶身"
+   }
+  },
+  {
+   "id": "headlines",
+   "name": "公众号标题车间",
+   "description": "给一篇文章出 10 个备选标题，每个 ≤ 30 字且互不重复；预批准型，4 虚拟币，30 分钟内交付。",
+   "tags": [
+    "文案创作",
+    "标题",
+    "公众号"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "titles",
+    "title": "备选标题",
+    "file": "titles.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"titles\": [\"\" × 10]}；恰好 spec.count 个，每个 4–30 字，互不重复",
+    "specSchema": {
+     "topic": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "tone": {
+      "type": "string",
+      "maxLength": 30
+     },
+     "count": {
+      "const": 10
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "4"
+   },
+   "verifier": {
+    "id": "headlines@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "titles",
+      "eq": "spec.titles.count"
+     },
+     {
+      "kind": "each_str_len",
+      "path": "titles[]",
+      "min": 4,
+      "max": 30
+     },
+     {
+      "kind": "unique",
+      "path": "titles[]"
+     }
+    ]
+   },
+   "notCovered": [
+    "点击率"
+   ],
+   "generator": {
+    "system": "你是公众号编辑，为主题 topic、语气 tone 的文章出标题。1）titles 恰好 count 个；2）每个 4–30 字；3）互不重复，角度各异（疑问、数字、对比、场景…）。不用夸大词。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"titles\": [\"为什么你的周报没人看\", \"周报的 3 个坏习惯\"]}"
+   },
+   "sample": {
+    "titles": [
+     "为什么你的周报没人看",
+     "写周报的三个坏习惯",
+     "一页周报，让领导三十秒读懂",
+     "周报不是流水账",
+     "从周报开始练结构化表达",
+     "周报里最该删掉的一句话",
+     "好周报长什么样",
+     "周报的读者只有一个人",
+     "别让周报变成加班证明",
+     "周报怎么写才有用"
+    ]
+   },
+   "sample_spec": {
+    "topic": "如何写好工作周报",
+    "tone": "务实"
+   }
+  },
+  {
+   "id": "video-script",
+   "name": "短视频脚本坊",
+   "description": "按主题写 60 秒口播短视频脚本：≥ 5 个镜头，每镜头时间、画面、口播；预批准型，10 虚拟币，30 分钟内交付。",
+   "tags": [
+    "文案创作",
+    "短视频",
+    "脚本"
+   ],
+   "runnable": true,
+   "formation": "preapproval",
+   "deliverable": {
+    "name": "script",
+    "title": "短视频脚本",
+    "file": "script.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"shots\": [{\"time\": \"0-5s\", \"visual\": \"\", \"voice\": \"\"}]}；shots ≥ 5，每镜头三字段非空",
+    "specSchema": {
+     "topic": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "seconds": {
+      "const": 60
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "10"
+   },
+   "verifier": {
+    "id": "video_script@1.0",
+    "checks": [
+     {
+      "kind": "list_len",
+      "path": "shots",
+      "min": 5
+     },
+     {
+      "kind": "keys",
+      "path": "shots[]",
+      "required": [
+       "time",
+       "visual",
+       "voice"
+      ]
+     },
+     {
+      "kind": "each_str_len",
+      "path": "shots[].voice",
+      "min": 5
+     }
+    ]
+   },
+   "notCovered": [
+    "拍摄"
+   ],
+   "generator": {
+    "system": "你是短视频编导，为主题 topic 写 seconds 秒的口播脚本。1）shots ≥ 5 个镜头，time 写时间区间（如 0-5s）；2）visual 写画面内容，voice 写口播词（≥ 5 字）；3）前 5 秒必须有钩子。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"shots\": [{\"time\": \"0-5s\", \"visual\": \"特写冲泡\", \"voice\": \"三秒钟，教你泡出不苦的茶\"}]}"
+   },
+   "sample": {
+    "shots": [
+     {
+      "time": "0-5s",
+      "visual": "手冲特写",
+      "voice": "三秒钟，教你泡出不苦的茶"
+     },
+     {
+      "time": "5-15s",
+      "visual": "水温计",
+      "voice": "水温控制在 85 度，苦味物质析出最少"
+     },
+     {
+      "time": "15-30s",
+      "visual": "称茶",
+      "voice": "茶水比一比五十，宁少勿多"
+     },
+     {
+      "time": "30-45s",
+      "visual": "计时器",
+      "voice": "第一泡 30 秒就出汤，别闷"
+     },
+     {
+      "time": "45-60s",
+      "visual": "举杯",
+      "voice": "试一次，你会回来点赞的"
+     }
+    ]
+   },
+   "sample_spec": {
+    "topic": "家庭泡茶的三个技巧"
+   }
+  },
+  {
+   "id": "brand-story",
+   "name": "品牌故事书房",
+   "description": "写一段 300–800 字的品牌故事，品牌名与关键词全部出现；待批准型（服务方先看品牌资料再接单），20 虚拟币，30 分钟内交付。",
+   "tags": [
+    "文案创作",
+    "品牌",
+    "故事"
+   ],
+   "runnable": true,
+   "formation": "countersign",
+   "deliverable": {
+    "name": "story",
+    "title": "品牌故事",
+    "file": "story.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"story\": \"\"}；300–800 字，含品牌名 spec.brand 与 spec.keywords（逗号分隔）里的每个词",
+    "specSchema": {
+     "brand": {
+      "type": "string",
+      "maxLength": 40
+     },
+     "keywords": {
+      "type": "string",
+      "maxLength": 200
+     },
+     "background": {
+      "type": "string",
+      "maxLength": 600
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "price": "20"
+   },
+   "verifier": {
+    "id": "brand_story@1.0",
+    "checks": [
+     {
+      "kind": "str_len",
+      "path": "story",
+      "min": 300,
+      "max": 800
+     },
+     {
+      "kind": "each_contains",
+      "path": "story",
+      "value": "spec.story.brand"
+     },
+     {
+      "kind": "contains_all",
+      "path": "story",
+      "words": "spec.story.keywords"
+     },
+     {
+      "kind": "cjk_ratio",
+      "path": "story",
+      "min": 0.6
+     }
+    ]
+   },
+   "notCovered": [
+    "商标合规"
+   ],
+   "generator": {
+    "system": "你是品牌文案，按规格 brand、keywords（逗号分隔）与 background 写品牌故事。1）story 300–800 字中文；2）品牌名原样出现；3）每个关键词原样出现至少一次。真诚，不堆砌形容词。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"story\": \"……\"}"
+   },
+   "sample": {
+    "story": "山岚咖啡的第一家店开在老城区一条只有六米宽的巷子里。创始人阿岚原本是一名测绘员，常年在山里跑，背包里永远装着一只手冲壶。他说，山里的清晨有一种味道，是雾气、松针和刚煮好的咖啡混在一起的味道，他想把这种味道带回城市。于是有了山岚。我们坚持手冲，不是因为慢有多了不起，而是手冲让人不得不停下来等三分钟，这三分钟里你会看见水汽升起、咖啡粉慢慢鼓成一座小山、香气一层一层打开。我们只用当季的豆子，烘焙师每周试烘三次，烘焙曲线写在黑板上，谁都可以看。山岚不想成为连锁，我们想成为你楼下那家记得你口味的小店。十年过去，巷子拓宽了，老店还在，门口那块写着「今日豆子」的黑板也还在。如果你路过，进来坐一会儿，等三分钟，喝一杯山里的清晨。"
+   },
+   "sample_spec": {
+    "brand": "山岚咖啡",
+    "keywords": "手冲,当季,小店",
+    "background": "创始人曾是测绘员，第一家店开在老城区巷子里"
+   }
+  },
+  {
+   "id": "speech-draft",
+   "name": "演讲稿工作室",
+   "description": "按场合与时长写演讲稿：标题 + ≥ 4 段，总字数 600–2000；提案型（先付 1 虚拟币拟卡费，服务方按时长报价 15–50 虚拟币），30 分钟内交付。",
+   "tags": [
+    "文案创作",
+    "演讲",
+    "讲稿"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "speech",
+    "title": "演讲稿",
+    "file": "speech.json",
+    "mediaType": "application/json",
+    "description": "JSON：{\"title\": \"\", \"paragraphs\": [\"\"]}；paragraphs ≥ 4，全文 600–2000 字",
+    "specSchema": {
+     "occasion": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "minutes": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 30
+     },
+     "points": {
+      "type": "string",
+      "maxLength": 300
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     15,
+     50
+    ]
+   },
+   "verifier": {
+    "id": "speech_draft@1.0",
+    "checks": [
+     {
+      "kind": "keys",
+      "path": "",
+      "required": [
+       "title",
+       "paragraphs"
+      ]
+     },
+     {
+      "kind": "list_len",
+      "path": "paragraphs",
+      "min": 4
+     },
+     {
+      "kind": "total_chars",
+      "path": "paragraphs",
+      "min": 600,
+      "max": 2000
+     },
+     {
+      "kind": "cjk_ratio",
+      "path": "paragraphs[]",
+      "min": 0.6
+     }
+    ]
+   },
+   "notCovered": [
+    "现场发挥"
+   ],
+   "generator": {
+    "system": "你是演讲撰稿人，为场合 occasion、时长 minutes 分钟的演讲写稿，要点见 points。1）title 一句；2）paragraphs ≥ 4 段，开场有钩子、结尾有号召；3）全文 600–2000 字中文（按每分钟 220 字估算）。\n硬性判据（验收器会机械检查，必须全部满足）：输出必须是合法 JSON，结构与「输出要求」完全一致。",
+    "output": "{\"title\": \"把问题留给下一个人\", \"paragraphs\": [\"各位同事……\", \"……\"]}",
+    "quote_system": "你是服务方，按规格给出整数报价（虚拟币），只在参考价区间内取值：工作量大、要求多则报价高。只输出 JSON：{\"price\": 整数, \"summary\": \"一句话\"}。"
+   },
+   "sample": {
+    "title": "把三年当作一天来过",
+    "paragraphs": [
+     "各位同事，三年前我第一次站在这个礼堂里的时候，台下坐着的是比今天少一半的人，我们的产品还只有一个登录页。今天我想讲的不是我们做成了什么，而是我们怎么熬过了那些做不成的日子。那些日子没有掌声，只有一次次把方案推倒重来的深夜，和第二天照常亮起的办公室灯光。",
+     "第一年，我们最大的成就是活下来。那一年我们换了三次方向，每一次都像在黑屋子里摸墙。后来我明白，摸墙不丢人，丢人的是站着不动。真正让我们走出来的，不是哪一次灵光一现，而是每天早上十点雷打不动的站会，哪怕只有三个人，哪怕前一天刚刚丢掉一个客户，哪怕账上的钱只够再发两个月工资。",
+     "第二年，我们学会了说不。我们拒绝了一个看起来很大的客户，因为它要的东西会把我们拖离主线。那一次会议开了四个小时，结束时没有人高兴，但半年后所有人都松了一口气。专注不是一种天赋，而是一种每天都要重新做一次的选择，是把诱惑写在白板上，然后一条一条划掉，再把剩下的那一条做到极致。",
+     "第三年，我们开始谈责任。产品被更多人使用，意味着我们的每一个疏忽都会被放大一万倍。我们建立了值班制度、复盘制度，也第一次认真写下了「我们不做什么」。一家公司的边界，往往比它的野心更能说明它是谁；一支团队怎样面对自己的错误，比它怎样庆祝胜利更值得被记住。",
+     "我还想感谢几个人：感谢第一位付费用户，他在我们最不像一家公司的时候相信了我们；感谢那位在凌晨三点回滚版本的运维同事；感谢所有在群里说「我来」的人。公司是由这些瞬间组成的，而不是由里程碑组成的。",
+     "下一个三年，我希望我们仍然是那个愿意在黑屋子里摸墙的团队，仍然敢对大客户说不，仍然把责任看得比增长重。把三年当作一天来过，不是让大家着急，而是让每一天都值得被记住。谢谢大家，也谢谢每一位陪我们走到今天的用户。"
+    ]
+   },
+   "sample_spec": {
+    "occasion": "公司三周年年会",
+    "minutes": 5,
+    "points": "活下来,学会说不,责任"
+   }
+  }
+ ]
+}

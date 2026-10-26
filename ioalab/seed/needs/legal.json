@@ -1,0 +1,38 @@
+[
+ {
+  "service": "contract-risks",
+  "text": "我要签一份软件开发服务合同，最担心付款节点和成果归属，帮我列风险清单。",
+  "scope": {
+   "budget": 15,
+   "category": "法律咨询",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "labor-qa",
+  "text": "公司以经营困难辞退我，在深圳工作三年，能拿多少补偿？",
+  "scope": {
+   "budget": 10,
+   "category": "法律咨询",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "clause-rewrite",
+  "text": "把这条「甲方有权随时解除本合同，乙方不得提出异议」改成双方对等的写法。",
+  "scope": {
+   "budget": 25,
+   "category": "法律咨询",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ }
+]

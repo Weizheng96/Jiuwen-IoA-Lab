@@ -1,0 +1,46 @@
+[
+ {
+  "service": "translate-zh-en",
+  "text": "把我的品牌介绍（材料 source，407 字）译成英文，术语固定：冷泡乌龙=cold brew oolong,鲜果茶=fresh fruit tea,会员卡=membership card,限定款=limited edition drink。",
+  "scope": {
+   "budget": 15,
+   "category": "翻译",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": [
+   {
+    "name": "source",
+    "file": "01_source.txt",
+    "declared": {
+     "chars": 407
+    }
+   }
+  ]
+ },
+ {
+  "service": "glossary",
+  "text": "给智能体合同协议这个领域编一份 20 条中英术语表。",
+  "scope": {
+   "budget": 12,
+   "category": "翻译",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "contract-translate-review",
+  "text": "「任何一方均可提前三十日书面通知对方解除本协议」译成英文并给译审意见，适用香港法。",
+  "scope": {
+   "budget": 30,
+   "category": "翻译",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ }
+]

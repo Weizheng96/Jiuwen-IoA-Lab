@@ -1,0 +1,38 @@
+[
+ {
+  "service": "med-reminder",
+  "text": "帮我家老人排一周用药提醒表：二甲双胍每天早餐随服一次，阿托伐他汀每晚睡前一次。",
+  "scope": {
+   "budget": 12,
+   "category": "医疗健康",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "fitness-week",
+  "text": "我想减脂同时保住肌肉，初级水平，给我排一周训练计划。",
+  "scope": {
+   "budget": 12,
+   "category": "医疗健康",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "rehab-plan",
+  "text": "右膝半月板术后两周，想要一个四周的康复训练方案。",
+  "scope": {
+   "budget": 40,
+   "category": "医疗健康",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ }
+]

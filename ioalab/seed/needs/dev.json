@@ -1,0 +1,38 @@
+[
+ {
+  "service": "sql-query",
+  "text": "表 users(id, name)、orders(id, user_id, amount, created_at)，MySQL，查近 30 天下单最多的 10 个用户。",
+  "scope": {
+   "budget": 10,
+   "category": "编程",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "unit-tests",
+  "text": "给 Python 函数 total(nums) 设计单元测试用例：返回列表元素之和，非数字元素抛 TypeError。",
+  "scope": {
+   "budget": 12,
+   "category": "编程",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "code-review",
+  "text": "审查这段 Python 代码的安全问题：def find(name): sql = \"SELECT * FROM users WHERE name = '\" + name + \"'\"; cur = conn.cursor(); return cur.execute(sql).fetchall()",
+  "scope": {
+   "budget": 25,
+   "category": "编程",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ }
+]

@@ -138,7 +138,8 @@ def create_app(platform: Platform) -> FastAPI:
     async def definitions():
         from ..seed import load_definitions
         return [{"id": d["id"], "name": d["name"], "description": d["description"], "formation": d.get("formation", "preapproval"),
-                 "runnable": bool(d.get("runnable")), "price": d.get("pricing", {}).get("price")} for d in load_definitions() if d.get("runnable")]
+                 "runnable": bool(d.get("runnable")), "price": d.get("pricing", {}).get("price"), "category": d.get("category")}
+                for d in load_definitions() if d.get("runnable")]
 
     @app.post("/api/service")
     async def register_service(request: Request, uid: str = Depends(current_user)):
@@ -286,9 +287,10 @@ def create_app(platform: Platform) -> FastAPI:
         for r in rows:
             d = jload(r.pop("definition"))
             r.update(formation=d.get("formation", "preapproval"), runnable=bool(d.get("runnable")), tags=d.get("tags", []),
-                     price=d.get("pricing", {}).get("price"), reputation=platform.market.reputation(platform.provider_url(r["id"])))
+                     price=d.get("pricing", {}).get("price"), category=d.get("category"), capacity=d.get("capacity", 1),
+                     reputation=platform.market.reputation(platform.provider_url(r["id"])))
             r["reputation"].pop("signature", None)
-        return {"taxonomy": platform.discovery.taxonomy_state(), "services": rows}
+        return {"taxonomy": platform.discovery.taxonomy_state(), "categories": platform.discovery.categories(), "services": rows}
 
     @app.post("/api/admin/search")
     async def admin_search(request: Request, _: str = Depends(require_admin)):

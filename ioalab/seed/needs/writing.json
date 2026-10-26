@@ -1,0 +1,38 @@
+[
+ {
+  "service": "wechat-posts",
+  "text": "帮我的奶茶店「茶小满」写三条朋友圈文案，主题是春日上新。",
+  "scope": {
+   "budget": 30,
+   "category": "文案",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "headlines",
+  "text": "一篇讲如何写好工作周报的文章，给我出 10 个务实风格的标题。",
+  "scope": {
+   "budget": 8,
+   "category": "文案",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ },
+ {
+  "service": "brand-story",
+  "text": "给「山岚咖啡」写品牌故事，关键词手冲、当季、小店；创始人曾是测绘员，第一家店开在老城区巷子里。",
+  "scope": {
+   "budget": 30,
+   "category": "文案",
+   "sign1": "client",
+   "sign7": "client"
+  },
+  "autoSign": true,
+  "materials": []
+ }
+]

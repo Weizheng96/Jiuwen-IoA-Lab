@@ -21,6 +21,7 @@ def run_smoke(port: int = 8761, keep: bool = False) -> int:
     tmp = Path(tempfile.mkdtemp(prefix="ioalab-smoke-"))
     os.environ["IOALAB_DATA"] = str(tmp)
     os.environ["IOALAB_ADMIN_PASSWORD"] = "smoke"
+    os.environ["IOALAB_AUTOSEED"] = "0"
     import uvicorn
     from .config import Settings
     from .platform import Platform
