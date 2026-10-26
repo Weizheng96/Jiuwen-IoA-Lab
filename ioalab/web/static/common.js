@@ -60,7 +60,7 @@ function labelOf(ev) {
 }
 const OUTCOME = { ok: '成功', completed: '完成', error: '失败', failed: '失败', working: '处理中', submitted: '已提交', rejected: '拒绝',
   granted: '允许', refused: '拒绝', timeout: '超时', pass: '通过', fail: '不通过', provider: '责任在服务方', client: '责任在委托方',
-  online: '在线', listed: '挂牌', virtual: '虚拟', welcome: '注册赠送', grant: '发放 / 扣减', deposit: '定金', installment: '期款',
+  online: '在线', listed: '挂牌', virtual: '临时账号', isp: '内部服务方', isc: '内部用户', external: '外部用户', welcome: '注册赠送', login: '登录赠送', seed: '初始额度', grant: '发放 / 扣减', deposit: '定金', installment: '期款',
   proposalFee: '拟卡费', sign: '定约亲签', accept: '验收亲签', step: '环节授权', arbitrate: '是否仲裁', 'a2x-tree': 'A2X 分类树', vector: '向量退路',
   'input-review': '输入审查', recompute: '复算', deadline: '时限' };
 function outcomeOf(ev) {
@@ -73,7 +73,7 @@ function outcomeClass(o) { return /^(ok|completed|granted|pass|online)$/.test(o)
 const STATE = { queued: '排队', running: '助手处理中', started: '已开工', forming: '定约中', completed: '已完成', failed: '未成',
   arbitrated: '已裁定', lapsed: '已失效', aborted: '已中止', declined: '被拒绝', pending: '待答复', granted: '已允许', refused: '已拒绝', timeout: '已超时' };
 const FORMATION = { preapproval: '预批准', countersign: '待批准', proposal: '提案型' };
-const KIND_LOG = { welcome: '注册赠送', grant: '发放 / 扣减', deposit: '定金', installment: '期款', proposalFee: '拟卡费', ruling: '裁定后付款', refund: '退差额', fee: '市场服务费' };
+const KIND_LOG = { welcome: '注册赠送', login: '登录赠送', seed: '初始额度', grant: '发放 / 扣减', deposit: '定金', installment: '期款', proposalFee: '拟卡费', ruling: '裁定后付款', refund: '退差额', fee: '市场服务费' };
 
 /* ── 参与方名字 ─────────────────────────────────────────────── */
 const Names = {
@@ -83,12 +83,12 @@ const Names = {
   seedUsers(users) {
     const seen = {};
     users.forEach(u => {
-      const nm = u.note || u.phone || u.id;
+      const nm = u.display_name || u.username || u.note || u.id;
       this.map[u.id] = nm; this.kind[u.id] = 'user';
       (u.agents || []).forEach(a => {
         if (a.role === 'assistant') {
           let n = a.name || a.id;
-          if (seen[n]) { n = `${a.name}（${(u.note || u.phone || '').replace(/^虚拟用户 · /, '')}）`; }
+          if (seen[n]) { n = `${a.name}（${u.display_name || u.username || ''}）`; }
           seen[a.name] = true;
           this.map[a.id] = n; this.kind[a.id] = 'agent'; this.ownerAsst[u.id] = a.id;
         } else { this.map[a.id] = a.name || a.id; this.kind[a.id] = 'provider'; }

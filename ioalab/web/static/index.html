@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>智能体互联网仿真 · 用户端</title>
+<title>九问IoA仿真平台 · 用户端</title>
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
 <div class="topbar">
-  <div class="brand">智能体互联网仿真<small>用户端 · A2C 合同层</small></div>
+  <div class="brand">九问IoA仿真平台<small>Jiuwen IoA Lab · 用户端</small></div>
   <div class="spacer"></div>
   <span id="modeTag" class="badge info"></span>
-  <span class="who" id="whoBox"><span class="dot"></span><b id="whoPhone"></b></span>
+  <span class="who" id="whoBox"><span class="dot"></span><b id="whoName"></b></span>
   <span class="who" id="walletBox">余量 <b id="walletTop" class="mono" style="color:var(--c-pay)">0.00</b>&nbsp;虚拟币</span>
   <button class="btn sm hide" id="btnLogout">退出</button>
 </div>
@@ -25,13 +25,12 @@
       <button data-auth="login">登录</button>
     </div>
     <div class="form">
-      <label>手机号</label><input id="phone" placeholder="dev 模式只是登录名，勿填真实号码" autocomplete="off">
-      <label id="lbCode">验证码</label>
-      <div class="row" id="rowCode"><input id="code" placeholder="6 位" style="max-width:180px"><button class="btn" id="btnCode">获取验证码</button><span class="code" id="codeShow"></span></div>
-      <label id="lbPw" class="hide">密码</label><input id="password" type="password" class="hide" placeholder="8 位以上">
+      <label>用户名</label><input id="username" placeholder="3–32 位字母、数字、_ . -" autocomplete="username">
+      <label>密码</label><input id="password" type="password" placeholder="至少 6 位（服务器模式 8 位）" autocomplete="current-password">
+      <label id="lbName">显示名</label><input id="displayName" placeholder="可留空，默认同用户名">
       <label id="lbInvite" class="hide">邀请码</label><input id="invite" class="hide" placeholder="由管理员生成">
       <div class="full"><button class="btn primary" id="btnAuth" style="width:100%">注册并登录</button></div>
-      <div class="full hint" id="authHint">dev 模式：验证码固定为 123456，点「获取验证码」后直接显示在页面上。</div>
+      <div class="full hint" id="authHint">每自然日首次登录赠送虚拟币。内部账号 ISP_001… / ISC_001… 的密码是序号（001…）。</div>
     </div>
   </div>
 </div>

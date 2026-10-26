@@ -306,10 +306,12 @@ function loop() {
 /* ── 用户与钱包 ───────────────────────────────────────────────── */
 async function loadUsers() {
   if (!SRC) { try { USERS = await api('/api/admin/users'); Names.seedUsers(USERS); } catch (e) { return toast(e.message, 'bad'); } }
-  $('usersTable').innerHTML = USERS.length ? `<table class="tbl"><tr><th>账号</th><th>手机号</th><th>备注</th><th class="num">余量</th><th>智能体</th><th>创建</th><th></th></tr>` +
-    USERS.map(u => `<tr><td><code class="mute">${esc(u.id)}</code></td><td>${esc(u.phone)}${u.is_virtual ? ' <span class="badge">虚拟</span>' : ''}</td><td>${esc(u.note || '')}</td>
+  const KIND_ORDER = { isp: 0, isc: 1, external: 2, virtual: 3 };
+  const rows = [...USERS].sort((a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) || String(a.username).localeCompare(String(b.username)));
+  $('usersTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>用户名</th><th>种类</th><th>显示名</th><th class="num">余量</th><th>智能体</th><th>最近登录</th><th></th></tr>` +
+    rows.map(u => `<tr data-acct="${esc(u.id)}"><td><b>${esc(u.username)}</b><br><code class="mute">${esc(u.id)}</code></td><td><span class="badge kind-${esc(u.kind)}">${esc(OUTCOME[u.kind] || u.kind)}</span></td><td>${esc(u.display_name || '')}${u.note ? ` <span class="mute">${esc(u.note)}</span>` : ''}</td>
       <td class="num" style="color:var(--c-pay)">${money(u.balance)}</td><td>${(u.agents || []).map(a => `<span class="who ${a.role === 'assistant' ? 'agent' : 'provider'}"><i></i>${esc(a.name)}</span>`).join(' ')}</td>
-      <td class="nowrap mute">${ymdhm(u.created)}</td><td class="nowrap"><button class="btn sm" data-w="${esc(u.id)}" data-d="1">发放</button> <button class="btn sm" data-w="${esc(u.id)}" data-d="-1">扣减</button></td></tr>`).join('') + '</table>'
+      <td class="nowrap mute">${u.last_login ? ymdhm(u.last_login) : '—'}</td><td class="nowrap"><button class="btn sm" data-w="${esc(u.id)}" data-d="1">发放</button> <button class="btn sm" data-w="${esc(u.id)}" data-d="-1">扣减</button></td></tr>`).join('') + '</table>'
     : '<div class="empty">还没有账号</div>';
   $('usersTable').querySelectorAll('[data-w]').forEach(b => b.onclick = async () => {
     const v = prompt(`${b.dataset.d === '1' ? '发放' : '扣减'}多少虚拟币？`, '10'); if (!v) return;
@@ -321,7 +323,11 @@ async function loadUsers() {
 $('btnUsersRefresh').onclick = loadUsers;
 $('btnVu').onclick = async () => {
   const body = { count: Number($('vuCount').value) || 1, assistant: !!$('vuAsst').value.trim(), assistantName: $('vuAsst').value.trim(), credit: Number($('vuCredit').value) || 0 };
-  try { const out = await api('/api/admin/users', body); toast(`已创建 ${out.length} 个虚拟用户`, 'ok'); await loadNames(); loadUsers(); }
+  try {
+    const out = await api('/api/admin/users', body);
+    toast(`已创建 ${out.length} 个临时账号：${out.map(u => `${u.username} / ${u.password}`).join('，')}（密码只显示这一次）`, 'ok');
+    await loadNames(); loadUsers();
+  }
   catch (e) { toast(e.message, 'bad'); }
 };
 

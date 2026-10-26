@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from _support import as_admin, new_service, phone
+from _support import as_admin, new_service, username
 
 
 STATS_KEYS = {"assistants", "services", "runnable", "users", "needs", "orders_today", "transfers_today", "volume_today",
@@ -15,20 +15,21 @@ STATS_KEYS = {"assistants", "services", "runnable", "users", "needs", "orders_to
 def test_admin_api(platform, client):
     pf = platform
     as_admin(client, pf)
-    p = phone()
-    r = client.post("/api/admin/users", json={"count": 1, "phone": p, "assistant": True, "assistantName": "小艺", "note": "投放"})
+    p = username()
+    r = client.post("/api/admin/users", json={"count": 1, "username": p, "assistant": True, "assistantName": "九问 Swarm", "note": "投放", "credit": "100"})
     assert r.status_code == 200
     [u] = r.json()
-    assert u["phone"] == p
+    assert u["username"] == p and u["kind"] == "virtual" and u["password"]
+    assert pf.auth.login(p, u["password"])["id"] == u["id"], "随机密码只在创建响应里给一次，且能登录"
     assert pf.wallets.balance(u["id"]) == Decimal("100.00")
     users = {x["id"]: x for x in client.get("/api/admin/users").json()}
-    assert users[u["id"]]["is_virtual"] == 1 and users[u["id"]]["balance"] == "100.00" and "pw_hash" not in users[u["id"]]
+    assert users[u["id"]]["kind"] == "virtual" and users[u["id"]]["balance"] == "100.00" and "pw_hash" not in users[u["id"]] and "password" not in users[u["id"]]
     assert [ag["role"] for ag in users[u["id"]]["agents"]] == ["assistant"]
-    # 带 credit 的批量创建：送 100 + 发放 20
+    # 批量创建：用户名自动编号，发放 20
     r = client.post("/api/admin/users", json={"count": 2, "assistant": True, "credit": "20"})
     assert r.status_code == 200 and len(r.json()) == 2
     for x in r.json():
-        assert pf.wallets.balance(x["id"]) == Decimal("120.00")
+        assert x["username"].startswith("virtual_") and pf.wallets.balance(x["id"]) == Decimal("20.00")
 
     # 调整钱包：发放 / 扣减记录
     r = client.post("/api/admin/wallet", json={"user_id": u["id"], "delta": "-40", "note": "测试扣减"})

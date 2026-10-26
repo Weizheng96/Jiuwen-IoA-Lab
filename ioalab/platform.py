@@ -247,11 +247,26 @@ class Platform:
         self.db.close()
 
     # ── 账号与钱包 ───────────────────────────────────────────────────
-    def register_user(self, phone: str, **kw) -> dict:
-        u = self.auth.register(phone, **kw)
+    def register_user(self, username: str, password: str = "", *, kind: str = "external", display_name: str = "", note: str = "",
+                      invite: str = "", ip: str = "") -> dict:
+        u = self.auth.register(username, password, kind=kind, display_name=display_name, note=note, invite=invite, ip=ip)
         self.wallets.ensure(u["id"])
-        self.bus.emit("platform", "user.register", sender=u["id"], outcome="virtual" if kw.get("is_virtual") else "")
+        self.bus.emit("platform", "user.register", sender=u["id"], outcome=kind, detail={"username": username, "displayName": u["display_name"]})
         return u
+
+    def login(self, username: str, password: str, *, ip: str = "") -> dict:
+        """登录：核密码 → token；每自然日首次登录赠 IOALAB_LOGIN_CREDIT。"""
+        u = self.auth.login(username, password, ip=ip)
+        u["credited"] = self.daily_credit(u["id"])
+        return u
+
+    def daily_credit(self, user_id: str) -> bool:
+        """同账号每自然日最多赠一次（wallet_log.kind='login'）。返回本次是否赠了。"""
+        day0 = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
+        if self.db.one("SELECT 1 FROM wallet_log WHERE user_id=? AND kind='login' AND at>=?", user_id, day0):
+            return False
+        self.grant(user_id, self.s.login_credit, by="platform", note="登录赠送", kind="login")
+        return True
 
     def grant(self, user_id: str, delta: Any, *, by: str, note: str, kind: str = "grant") -> str:
         bal = self.wallets.adjust(user_id, money(delta), by=by, note=note, kind=kind)
@@ -259,7 +274,7 @@ class Platform:
         return str(bal)
 
     # ── 助手 ──────────────────────────────────────────────────────────
-    def register_assistant(self, owner_id: str, name: str = "小艺") -> dict:
+    def register_assistant(self, owner_id: str, name: str = "九问 Swarm") -> dict:
         if self.db.one("SELECT 1 FROM agents WHERE owner_id=? AND role='assistant'", owner_id):
             fail(CARD_INVALID, "该账号已注册个人助手")
         aid = f"asst-{owner_id[2:]}"
@@ -267,7 +282,6 @@ class Platform:
                     aid, owner_id, "assistant", name, "{}", "online", now(), "{}")
         row = self.db.one("SELECT * FROM agents WHERE id=?", aid)
         self._load_assistant(row)
-        self.grant(owner_id, self.s.welcome_credit, by="platform", note="注册个人助手赠送", kind="welcome")
         self.bus.emit("platform", "assistant.register", sender=owner_id, receiver=aid, outcome=name)
         return row
 
@@ -312,8 +326,8 @@ class Platform:
                 if bad in d["verifier"]:
                     fail(CARD_INVALID, "服务定义不得自带验收器 uri / digest")
         n = self.db.one("SELECT COUNT(*) AS n FROM agents WHERE owner_id=? AND role='service'", owner_id)["n"]
-        if n >= 3 and not self.db.one("SELECT 1 FROM users WHERE id=? AND is_virtual=1", owner_id):
-            fail(CARD_INVALID, "每账号最多注册 3 个专业服务")
+        if n >= 3 and self.db.one("SELECT 1 FROM users WHERE id=? AND kind='external'", owner_id):
+            fail(CARD_INVALID, "外部账号最多注册 3 个专业服务")
         aid = "svc-" + _SLUG.sub("-", d["id"].lower())
         if self.db.one("SELECT 1 FROM agents WHERE id=?", aid):
             fail(CARD_INVALID, f"服务 id 已存在：{d['id']}")

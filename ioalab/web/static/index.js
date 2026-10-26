@@ -3,7 +3,7 @@
  * 每 3 秒轮询 /api/me 与 /api/needs（订单列表顺带刷新）。
  */
 'use strict';
-let CONFIG = { mode: 'dev', fixedCode: true };
+let CONFIG = { mode: 'dev', registration: 'open', loginCredit: '100' };
 let ME = null, DEFS = null, authMode = 'register';
 let pollTimer = 0;
 
@@ -11,23 +11,23 @@ let pollTimer = 0;
 function setAuthMode(m) {
   authMode = m;
   document.querySelectorAll('[data-auth]').forEach(b => b.classList.toggle('on', b.dataset.auth === m));
-  const open = !CONFIG.fixedCode;
-  $('rowCode').classList.toggle('hide', open); $('lbCode').classList.toggle('hide', open);
-  $('password').classList.toggle('hide', !open); $('lbPw').classList.toggle('hide', !open);
-  const inv = open && m === 'register';
+  const reg = m === 'register';
+  const inv = reg && CONFIG.registration === 'invite';
   $('invite').classList.toggle('hide', !inv); $('lbInvite').classList.toggle('hide', !inv);
-  $('btnAuth').textContent = m === 'register' ? '注册并登录' : '登录';
-  $('authHint').textContent = open ? 'open 模式：密码登录，注册需要管理员生成的邀请码。' : 'dev 模式：验证码固定为 123456，点「获取验证码」后直接显示在页面上。';
+  $('displayName').classList.toggle('hide', !reg); $('lbName').classList.toggle('hide', !reg);
+  $('btnAuth').textContent = reg ? '注册并登录' : '登录';
+  $('btnAuth').disabled = reg && CONFIG.registration === 'closed';
+  $('authHint').textContent = reg && CONFIG.registration === 'closed' ? '当前不开放注册，请用已有账号登录。'
+    : `每自然日首次登录赠送 ${CONFIG.loginCredit} 虚拟币。内部账号 ISP_001… / ISC_001… 的密码是序号（001…）。${inv ? '注册需要管理员生成的邀请码。' : ''}`;
 }
 document.querySelectorAll('[data-auth]').forEach(b => b.onclick = () => setAuthMode(b.dataset.auth));
-$('btnCode').onclick = async () => {
-  try { const r = await api('/api/auth/code', { phone: $('phone').value.trim() }); $('codeShow').textContent = r.code || ''; $('code').value = r.code || ''; }
-  catch (e) { toast(e.message, 'bad'); }
-};
 $('btnAuth').onclick = async () => {
-  const body = { phone: $('phone').value.trim(), code: $('code').value.trim(), password: $('password').value, invite: $('invite').value.trim() };
-  try { await api(authMode === 'register' ? '/api/auth/register' : '/api/auth/login', body); await enter(); }
-  catch (e) { toast(e.message, 'bad'); }
+  const body = { username: $('username').value.trim(), password: $('password').value, display_name: $('displayName').value.trim(), invite: $('invite').value.trim() };
+  try {
+    const r = await api(authMode === 'register' ? '/api/auth/register' : '/api/auth/login', body);
+    if (r.credited) toast(`今日首次登录，赠送 ${CONFIG.loginCredit} 虚拟币`, 'ok');
+    await enter();
+  } catch (e) { toast(e.message, 'bad'); }
 };
 $('btnLogout').onclick = async () => { await api('/api/auth/logout', {}); location.reload(); };
 
@@ -41,7 +41,7 @@ async function refresh() {
   try {
     const [me, needs, orders] = await Promise.all([api('/api/me'), api('/api/needs'), api('/api/orders')]);
     ME = me; Names.seedMine(me);
-    $('whoPhone').textContent = me.phone; $('walletTop').textContent = money(me.wallet); $('walletBal').textContent = money(me.wallet);
+    $('whoName').textContent = `${me.display_name || me.username}${me.kind && me.kind !== 'external' ? ' · ' + (OUTCOME[me.kind] || me.kind) : ''}`; $('walletTop').textContent = money(me.wallet); $('walletBal').textContent = money(me.wallet);
     renderIdentity(me); renderPending(me.pending || []); renderNeeds(needs); renderOrders(orders);
   } catch (e) {
     if (e.status === 401) { clearInterval(pollTimer); location.reload(); } else toast(e.message, 'bad');
@@ -53,13 +53,13 @@ function renderIdentity(me) {
   const svcs = (me.agents || []).filter(a => a.role === 'service');
   let h = '<div class="kv">';
   h += `<dt>个人助手</dt><dd>${asst ? `<span class="who agent"><i></i>${esc(asst.name)}</span> <span class="badge ok">${esc(OUTCOME[asst.status] || asst.status)}</span> <code class="mute">${esc(asst.id)}</code>`
-    : `<div class="row" style="display:flex;gap:10px;align-items:center"><input id="asstName" value="小艺" style="max-width:160px"><button class="btn sm primary" id="btnAsst">注册个人助手（送 100 虚拟币）</button></div>`}</dd>`;
+    : `<div class="row" style="display:flex;gap:10px;align-items:center"><input id="asstName" value="九问 Swarm" style="max-width:160px"><button class="btn sm primary" id="btnAsst">注册个人助手</button></div>`}</dd>`;
   h += `<dt>专业服务</dt><dd>${svcs.length ? svcs.map(s => `<div><span class="who provider"><i></i>${esc(s.name)}</span> <span class="badge ${s.status === 'online' ? 'ok' : ''}">${esc(OUTCOME[s.status] || s.status)}</span> <code class="mute">${esc(s.id)}</code></div>`).join('') : '<span class="mute">尚未注册</span>'}`;
   if (svcs.length < 3) h += `<div class="row" style="display:flex;gap:10px;align-items:center;margin-top:8px"><select id="svcDef" style="max-width:320px"><option value="">加载服务定义…</option></select><input id="svcName" placeholder="服务名（可留空）" style="max-width:200px"><button class="btn sm" id="btnSvc">注册专业服务</button></div>`;
-  h += '</dd></div><p>助手是委托方（花虚拟币），专业服务是服务方（挣虚拟币）；每账号最多 3 个服务。</p>';
+  h += '</dd></div><p>助手是委托方（花虚拟币），专业服务是服务方（挣虚拟币）；外部账号最多 3 个服务。用自己的九问 swarm 当助手：安装技能包并填本账号，见 README。</p>';
   $('identity').innerHTML = h;
   if ($('btnAsst')) $('btnAsst').onclick = async () => {
-    try { await api('/api/assistant', { name: $('asstName').value.trim() || '小艺' }); toast('已注册个人助手，赠送 100 虚拟币', 'ok'); await refresh(); await loadWallet(); }
+    try { await api('/api/assistant', { name: $('asstName').value.trim() || '九问 Swarm' }); toast('已注册个人助手', 'ok'); await refresh(); await loadWallet(); }
     catch (e) { toast(e.message, 'bad'); }
   };
   if ($('svcDef')) fillDefs();

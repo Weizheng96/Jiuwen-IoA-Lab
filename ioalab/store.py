@@ -15,7 +15,7 @@ from typing import Any, Iterator
 from a2c.common import Store
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, phone TEXT UNIQUE, pw_hash TEXT, created REAL, is_virtual INTEGER DEFAULT 0, note TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE, pw_hash TEXT, kind TEXT DEFAULT 'external', display_name TEXT DEFAULT '', created REAL, last_login REAL, note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS wallets (user_id TEXT PRIMARY KEY, balance TEXT NOT NULL DEFAULT '0', payer_thumbprint TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS wallet_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL, user_id TEXT, delta TEXT, balance TEXT, kind TEXT, ref TEXT, by TEXT, note TEXT);
 CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, owner_id TEXT, role TEXT, name TEXT, definition TEXT, status TEXT DEFAULT 'online', created REAL, meta TEXT DEFAULT '{}');
@@ -24,7 +24,6 @@ CREATE TABLE IF NOT EXISTS orders (card_digest TEXT PRIMARY KEY, need_id TEXT, o
 CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, at REAL, run_id TEXT, kind TEXT, op TEXT, sender TEXT, receiver TEXT, card_digest TEXT, period INTEGER, amount TEXT, outcome TEXT, detail TEXT);
 CREATE TABLE IF NOT EXISTS paid (ref TEXT, purpose TEXT, period INTEGER, at REAL, PRIMARY KEY (ref, purpose, period));
 CREATE TABLE IF NOT EXISTS transfers (id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL, payer_id TEXT, payee_id TEXT, amount TEXT, purpose TEXT, ref TEXT, payment_id TEXT);
-CREATE TABLE IF NOT EXISTS codes (phone TEXT PRIMARY KEY, code TEXT, at REAL);
 CREATE TABLE IF NOT EXISTS invites (code TEXT PRIMARY KEY, created REAL, used_by TEXT);
 CREATE TABLE IF NOT EXISTS confirmations (id TEXT PRIMARY KEY, owner_id TEXT, need_id TEXT, card_digest TEXT, kind TEXT, text TEXT, state TEXT DEFAULT 'pending', created REAL, answered REAL);
 CREATE TABLE IF NOT EXISTS kv (party TEXT, tbl TEXT, k TEXT, v TEXT, PRIMARY KEY (party, tbl, k));

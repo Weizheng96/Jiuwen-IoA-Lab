@@ -53,7 +53,9 @@ def create_app(platform: Platform) -> FastAPI:
 
     # ── 会话 ──────────────────────────────────────────────────────────
     def subject(request: Request) -> str | None:
-        return platform.auth.verify(request.cookies.get(COOKIE) or request.headers.get("x-ioalab-token"))
+        auth = request.headers.get("authorization", "")
+        bearer = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+        return platform.auth.verify(request.cookies.get(COOKIE) or bearer or request.headers.get("x-ioalab-token"))
 
     def current_user(request: Request) -> str:
         sub = subject(request)
@@ -81,7 +83,7 @@ def create_app(platform: Platform) -> FastAPI:
     # ── 用户端 API ────────────────────────────────────────────────────
     @app.get("/api/config")
     async def config():
-        return {"mode": s.mode, "fixedCode": not s.open, "currency": "虚拟币", "llm": platform.llm.enabled,
+        return {"mode": s.mode, "registration": s.registration, "loginCredit": s.login_credit, "currency": "虚拟币", "llm": platform.llm.enabled,
                 "discovery": platform.discovery.last_mode or ("a2x-tree" if platform.discovery.llm_configured else "vector")}
 
     @app.get("/api/session")
@@ -90,18 +92,14 @@ def create_app(platform: Platform) -> FastAPI:
         sub = subject(request)
         return {"role": None if not sub else ("admin" if sub == "admin" else "user"), "id": None if sub in (None, "admin") else sub}
 
-    @app.post("/api/auth/code")
-    async def send_code(request: Request):
-        if s.open:
-            raise HTTPException(404)
-        b = await body(request)
-        return {"code": platform.auth.send_code(b.get("phone", ""), ip(request))}
-
     @app.post("/api/auth/register")
     async def register(request: Request):
+        """用户名密码注册（external）；注册即首次登录：发 cookie、JSON 里也回 token、赠当日登录币。"""
         b = await body(request)
-        u = await asyncio.to_thread(platform.register_user, b.get("phone", ""), code=b.get("code", ""), password=b.get("password", ""),
-                                    invite=b.get("invite", ""), ip=ip(request))
+        u = await asyncio.to_thread(platform.register_user, b.get("username", ""), b.get("password", ""),
+                                    display_name=b.get("display_name", ""), invite=b.get("invite", ""), ip=ip(request))
+        u["credited"] = await asyncio.to_thread(platform.daily_credit, u["id"])
+        u["token"] = platform.auth.bearer(u["id"])
         resp = JSONResponse(u)
         set_cookie(resp, platform.auth.token(u["id"]))
         return resp
@@ -109,8 +107,8 @@ def create_app(platform: Platform) -> FastAPI:
     @app.post("/api/auth/login")
     async def login(request: Request):
         b = await body(request)
-        u = platform.auth.login(b.get("phone", ""), code=b.get("code", ""), password=b.get("password", ""), ip=ip(request))
-        resp = JSONResponse({"id": u["id"], "phone": u["phone"]})
+        u = await asyncio.to_thread(platform.login, b.get("username", ""), b.get("password", ""), ip=ip(request))
+        resp = JSONResponse({**u, "token": platform.auth.bearer(u["id"])})
         set_cookie(resp, u["token"])
         return resp
 
@@ -122,7 +120,7 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/me")
     async def me(uid: str = Depends(current_user)):
-        u = platform.db.one("SELECT id, phone, created, is_virtual FROM users WHERE id=?", uid)
+        u = platform.db.one("SELECT id, username, kind, display_name, created, last_login FROM users WHERE id=?", uid)
         agents = platform.db.rows("SELECT id, role, name, status, created FROM agents WHERE owner_id=?", uid)
         return {**u, "wallet": str(platform.wallets.balance(uid)), "agents": agents,
                 "pending": platform.db.rows("SELECT * FROM confirmations WHERE owner_id=? AND state='pending' ORDER BY created", uid)}
@@ -134,7 +132,7 @@ def create_app(platform: Platform) -> FastAPI:
     @app.post("/api/assistant")
     async def register_assistant(request: Request, uid: str = Depends(current_user)):
         b = await body(request)
-        return await asyncio.to_thread(platform.register_assistant, uid, b.get("name") or "小艺")
+        return await asyncio.to_thread(platform.register_assistant, uid, b.get("name") or "九问 Swarm")
 
     @app.get("/api/services/definitions")
     async def definitions():
@@ -257,16 +255,20 @@ def create_app(platform: Platform) -> FastAPI:
     @app.post("/api/admin/users")
     async def create_virtual_user(request: Request, _: str = Depends(require_admin)):
         b = await body(request)
+        """管理员创建临时账号（kind virtual）：用户名默认 virtual_<序号>，密码随机并只在本次响应里返回。"""
+        import secrets as _secrets
         n = int(b.get("count", 1))
         out = []
         for i in range(n):
-            phone = b.get("phone") or f"1390000{platform.db.one('SELECT COUNT(*) AS n FROM users')['n'] + 1:04d}"
-            u = await asyncio.to_thread(platform.register_user, phone, is_virtual=True, note=b.get("note", "虚拟用户"))
+            name = b.get("username") if n == 1 and b.get("username") else f"virtual_{platform.db.one('SELECT COUNT(*) AS n FROM users')['n'] + 1:03d}"
+            pw = b.get("password") or _secrets.token_urlsafe(8)
+            u = await asyncio.to_thread(platform.register_user, name, pw, kind="virtual", display_name=b.get("display_name", ""),
+                                        note=b.get("note", "管理员创建"))
             if b.get("assistant"):
-                await asyncio.to_thread(platform.register_assistant, u["id"], b.get("assistantName") or "小艺")
+                await asyncio.to_thread(platform.register_assistant, u["id"], b.get("assistantName") or "九问 Swarm")
             if b.get("credit"):
                 platform.grant(u["id"], b["credit"], by="admin", note="创建时发放")
-            out.append(u)
+            out.append({**u, "password": pw})
         return out
 
     @app.post("/api/admin/wallet")

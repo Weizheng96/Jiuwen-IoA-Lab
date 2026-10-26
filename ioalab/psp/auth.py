@@ -1,7 +1,8 @@
-"""账号：手机号注册（验证码）、密码、邀请码、会话 cookie（HMAC 签名）、管理员口令。
+"""账号：用户名密码注册登录、邀请码、会话 token（HMAC）、管理员口令。
 
-dev：验证码固定 123456 且页面显示，只绑 127.0.0.1，手机号只是登录名。
-trial：禁固定码，注册必须设密码，按 IP 限速；IOALAB_REGISTRATION=invite 时还需管理员生成的一次性邀请码，closed 时不开放注册。
+账号种类 kind：isp（内部服务提供者）· isc（内部服务使用者）· external（外部用户）· virtual（管理员临时创建）。
+种类只是用途标签，任何账号名下既可有个人助手也可有专业服务。
+dev：无限速、密码 ≥ 6；trial：按 IP 限速、密码 ≥ 8。IOALAB_REGISTRATION=open｜invite｜closed 只约束 external 注册。
 """
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ import base64
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import threading
 import time
@@ -20,7 +22,9 @@ from a2c.errors import CARD_INVALID, fail
 from ..config import Settings
 from ..store import DB, now
 
-FIXED_CODE = "123456"
+USERNAME = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
+KINDS = ("isp", "isc", "external", "virtual")
+INTERNAL = ("isp", "isc", "virtual")
 
 
 def _pbkdf2(password: str, salt: bytes | None = None) -> str:
@@ -30,7 +34,7 @@ def _pbkdf2(password: str, salt: bytes | None = None) -> str:
 
 
 def _check_pw(password: str, stored: str | None) -> bool:
-    if not stored or "$" not in stored:
+    if not stored or "$" not in stored or not password:
         return False
     salt, _ = stored.split("$", 1)
     return hmac.compare_digest(_pbkdf2(password, base64.b64decode(salt)), stored)
@@ -63,11 +67,12 @@ class Auth:
 
     # ── 管理员 ───────────────────────────────────────────────────────
     def _admin_hash(self) -> str:
-        pw = os.environ.get("IOALAB_ADMIN_PASSWORD")
+        pw = self.s.admin_password
         p = self.s.data / "admin.secret"
         if not pw:
             if not p.exists():
                 pw = secrets.token_urlsafe(12)
+                p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text(pw, encoding="utf-8")
                 try:
                     os.chmod(p, 0o600)
@@ -82,54 +87,48 @@ class Auth:
             fail(CARD_INVALID, "口令错误")
         return self.token("admin")
 
-    # ── 验证码与注册 ──────────────────────────────────────────────────
-    def send_code(self, phone: str, ip: str) -> str | None:
-        """dev 返回固定码（页面显示）；open 不提供验证码登录。"""
-        if self.s.open:
-            fail(CARD_INVALID, "开放模式不提供验证码")
-        self.db.run("INSERT OR REPLACE INTO codes (phone, code, at) VALUES (?,?,?)", phone, FIXED_CODE, now())
-        return FIXED_CODE
-
-    def register(self, phone: str, *, code: str = "", password: str = "", invite: str = "", ip: str = "",
-                 is_virtual: bool = False, note: str = "") -> dict:
-        if not phone or len(phone) < 6:
-            fail(CARD_INVALID, "手机号格式不对")
-        if self.db.one("SELECT 1 FROM users WHERE phone=?", phone):
-            fail(CARD_INVALID, "该手机号已注册")
-        if not is_virtual and self.s.registration == "closed":
-            fail(CARD_INVALID, "当前不开放注册")
-        if self.s.open and not is_virtual:
-            self.rate.check(ip)
-            if len(password) < 8:
-                fail(CARD_INVALID, "必须设置 8 位以上密码")
-        elif not is_virtual:
-            row = self.db.one("SELECT code FROM codes WHERE phone=?", phone)
-            if not row or row["code"] != code:
-                fail(CARD_INVALID, "验证码错误")
-        need_invite = not is_virtual and self.s.registration == "invite"
+    # ── 注册与登录 ────────────────────────────────────────────────────
+    def register(self, username: str, password: str = "", *, kind: str = "external", display_name: str = "", note: str = "",
+                 invite: str = "", ip: str = "") -> dict:
+        username = (username or "").strip()
+        if not USERNAME.match(username):
+            fail(CARD_INVALID, "用户名须为 3–32 位字母、数字、_ . -")
+        if kind not in KINDS:
+            fail(CARD_INVALID, f"账号种类不合法：{kind}")
+        if self.db.one("SELECT 1 FROM users WHERE username=?", username):
+            fail(CARD_INVALID, "用户名已被占用")
+        external = kind == "external"
+        if external:
+            if self.s.registration == "closed":
+                fail(CARD_INVALID, "当前不开放注册")
+            if self.s.open:
+                self.rate.check(ip)
+            min_len = 8 if self.s.open else 6
+            if len(password) < min_len:
+                fail(CARD_INVALID, f"密码至少 {min_len} 位")
+        need_invite = external and self.s.registration == "invite"
         if need_invite and not self.db.one("SELECT 1 FROM invites WHERE code=? AND used_by IS NULL", invite):
             fail(CARD_INVALID, "邀请码无效")
         uid = "u-" + uuid.uuid4().hex[:10]
+        display = (display_name or "").strip() or username
         with self.db.tx() as c:
-            c.execute("INSERT INTO users (id, phone, pw_hash, created, is_virtual, note) VALUES (?,?,?,?,?,?)",
-                      (uid, phone, _pbkdf2(password) if password else None, now(), int(is_virtual), note))
+            c.execute("INSERT INTO users (id, username, pw_hash, kind, display_name, created, note) VALUES (?,?,?,?,?,?,?)",
+                      (uid, username, _pbkdf2(password) if password else None, kind, display, now(), note))
             if need_invite:
                 c.execute("UPDATE invites SET used_by=? WHERE code=?", (uid, invite))
-        return {"id": uid, "phone": phone}
+        return {"id": uid, "username": username, "kind": kind, "display_name": display}
 
-    def login(self, phone: str, *, code: str = "", password: str = "", ip: str = "") -> dict:
-        row = self.db.one("SELECT * FROM users WHERE phone=?", phone)
+    def login(self, username: str, password: str, *, ip: str = "") -> dict:
+        row = self.db.one("SELECT * FROM users WHERE username=?", (username or "").strip())
         if not row:
             fail(CARD_INVALID, "账号不存在")
         if self.s.open:
             self.rate.check(ip)
-            if not _check_pw(password, row["pw_hash"]):
-                fail(CARD_INVALID, "密码错误")
-        else:
-            ok = (password and _check_pw(password, row["pw_hash"])) or code == FIXED_CODE
-            if not ok:
-                fail(CARD_INVALID, "验证码或密码错误")
-        return {"id": row["id"], "phone": row["phone"], "token": self.token(row["id"])}
+        if not _check_pw(password, row["pw_hash"]):
+            fail(CARD_INVALID, "密码错误")
+        self.db.run("UPDATE users SET last_login=? WHERE id=?", now(), row["id"])
+        return {"id": row["id"], "username": row["username"], "kind": row["kind"], "display_name": row["display_name"],
+                "token": self.token(row["id"])}
 
     def new_invite(self) -> str:
         code = secrets.token_urlsafe(8)
@@ -142,6 +141,10 @@ class Auth:
         msg = f"{subject}|{exp}"
         sig = hmac.new(self.secret, msg.encode(), hashlib.sha256).hexdigest()
         return base64.urlsafe_b64encode(f"{msg}|{sig}".encode()).decode()
+
+    def bearer(self, subject: str) -> str:
+        """脚本用的长效 token（30 天），与 cookie 同一算法。"""
+        return self.token(subject, ttl=30 * 86400)
 
     def verify(self, token: str | None) -> str | None:
         """返回 subject（用户 id 或 "admin"），无效返回 None。"""
@@ -157,4 +160,4 @@ class Auth:
         return subject
 
 
-__all__ = ["Auth", "FIXED_CODE"]
+__all__ = ["Auth", "KINDS", "INTERNAL", "USERNAME"]

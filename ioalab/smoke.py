@@ -47,12 +47,13 @@ def run_smoke(port: int = 8761, keep: bool = False) -> int:
 
     try:
         d = next(x for x in load_definitions() if x["id"] == "wechat-posts")
-        owner_s = pf.register_user("13800000001", is_virtual=True, note="smoke 服务方")
-        owner_c = pf.register_user("13700000001", is_virtual=True, note="smoke 用户")
+        owner_s = pf.register_user("smoke_provider", "smoke-pass", kind="virtual", display_name="smoke 服务方")
+        owner_c = pf.register_user("smoke_user", "smoke-pass", kind="virtual", display_name="smoke 用户")
         pf.seed_services([(owner_s["id"], d)])
-        a = pf.register_assistant(owner_c["id"], "小艺")
+        a = pf.register_assistant(owner_c["id"], "九问 Swarm")
         rt = pf.assistants[a["id"]]
-        check("注册送 100", pf.wallets.balance(owner_c["id"]) == Decimal("100.00"))
+        check("首次登录赠 100、同日不再赠", pf.login("smoke_user", "smoke-pass")["credited"] and not pf.daily_credit(owner_c["id"])
+              and pf.wallets.balance(owner_c["id"]) == Decimal("100.00"))
         hits = pf._search("帮奶茶店写三条朋友圈文案", 5)
         check(f"发现（{pf.discovery.last_mode}）命中朋友圈文案工坊", any(h["name"] == d["name"] for h in hits))
         provider = next(h["card"]["url"] for h in hits if h["name"] == d["name"])

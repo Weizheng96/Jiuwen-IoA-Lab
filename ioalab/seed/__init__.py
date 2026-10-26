@@ -51,21 +51,21 @@ def load_needs() -> list[dict]:
 
 
 def seed_all(platform, only: str | None = None) -> dict:
-    """创建虚拟账号、注册 100 个服务（签模板 + A2X）、10 个助手（各带需求的材料）。幂等。"""
+    """建齐内部账号（ISP_/ISC_），服务归 ISP 账号（签模板 + A2X），每个 ISC 账号一个平台驾驭的助手；需求池里的材料就位。幂等。"""
+    from .accounts import ensure_accounts
+    acc = ensure_accounts(platform)
     defs = load_definitions()
-    items = []
-    for d in defs:
-        phone = f"1380000{abs(hash(d['id'])) % 10000:04d}"
-        u = platform.db.one("SELECT id FROM users WHERE phone=?", phone) or platform.register_user(phone, is_virtual=True, note=f"服务方 · {d['name']}")
-        items.append((u["id"], d))
+    items = [(acc["isp"][i % len(acc["isp"])], d) for i, d in enumerate(defs)]      # 领域文件就位后按领域归属（P2a）
     platform.seed_services(items)
     needs = load_needs()
     assistants = []
     mat_dir = platform.s.data / "needs"
+    for uid in acc["isc"]:
+        if not platform.db.one("SELECT 1 FROM agents WHERE owner_id=? AND role='assistant'", uid):
+            platform.register_assistant(uid, "九问 Swarm")
     for i, n in enumerate(needs):
-        phone = f"1370000{i + 1:04d}"
-        u = platform.db.one("SELECT id FROM users WHERE phone=?", phone) or platform.register_user(phone, is_virtual=True, note=f"虚拟用户 · {n['owner']}")
-        a = platform.db.one("SELECT id FROM agents WHERE owner_id=? AND role='assistant'", u["id"]) or platform.register_assistant(u["id"], n.get("assistant", "小艺"))
+        u = {"id": acc["isc"][i % len(acc["isc"])]}
+        a = platform.db.one("SELECT id FROM agents WHERE owner_id=? AND role='assistant'", u["id"])
         mats = []
         for m in n.get("materials", []):
             src = HERE / "materials" / m["file"]
@@ -77,4 +77,5 @@ def seed_all(platform, only: str | None = None) -> dict:
         assistants.append({"assistant_id": a["id"], "owner_id": u["id"], "text": n["text"], "scope": n.get("scope", {}),
                            "autoSign": n.get("autoSign", True), "materials": mats, "service": n.get("service")})
     (platform.s.data / "dispatch.json").write_text(json.dumps(assistants, ensure_ascii=False, indent=1), encoding="utf-8")
-    return {"services": len(items), "assistants": len(assistants), "taxonomy": platform.discovery.taxonomy_state()}
+    return {"isp": len(acc["isp"]), "isc": len(acc["isc"]), "services": len(items), "needs": len(assistants),
+            "taxonomy": platform.discovery.taxonomy_state()}

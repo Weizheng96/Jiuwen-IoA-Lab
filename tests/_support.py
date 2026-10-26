@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""用例共用的驱动：建虚拟账号 / 助手 / 服务（每个用例各用自己的 id，互不影响），用委托方 SDK 跑一张卡。"""
+"""用例共用的驱动：建账号 / 助手 / 服务（每个用例各用自己的 id，互不影响），用委托方 SDK 跑一张卡。"""
 from __future__ import annotations
 
 import time
@@ -14,28 +14,30 @@ from ioalab.store import jdump, now
 SCOPE_DIGEST = "sha256:" + "a" * 64
 SIGNERS = {"slot1": "client", "slot7": "client"}
 COOKIE = "ioalab_session"
+PASSWORD = "test-pass-1"
 
 
 def tag() -> str:
     return uuid.uuid4().hex[:6]
 
 
-def phone() -> str:
-    return "13" + str(uuid.uuid4().int)[:9]
+def username() -> str:
+    return "t_" + uuid.uuid4().hex[:10]
 
 
 def definition(base: str = "wechat-posts") -> dict:
     return next(x for x in load_definitions() if x["id"] == base)
 
 
-def new_user(pf, note: str = "测试用户") -> dict:
-    return pf.register_user(phone(), is_virtual=True, note=note)
+def new_user(pf, note: str = "测试用户", kind: str = "virtual") -> dict:
+    return pf.register_user(username(), PASSWORD, kind=kind, display_name=note, note=note)
 
 
-def new_assistant(pf, name: str = "小艺"):
-    """返回 (用户, 助手行, AssistantRuntime)；注册即送 100。"""
+def new_assistant(pf, name: str = "九问 Swarm"):
+    """返回 (用户, 助手行, AssistantRuntime)；按首次登录赠 100。"""
     u = new_user(pf, "测试委托方")
     a = pf.register_assistant(u["id"], name)
+    pf.daily_credit(u["id"])
     return u, a, pf.assistants[a["id"]]
 
 
