@@ -216,8 +216,9 @@ class Cases {
   _platform() { if (!this.platform) { this.platform = this._new(''); this.platform.key = 'platform'; this.platform.isPlatform = true; this.platform.state = ''; } return this.platform; }
   assistantOf(ev) {
     const s = Names.key(ev.sender), r = Names.key(ev.receiver);
-    if (s.startsWith('asst-')) return s;
-    if (r.startsWith('asst-')) return r;
+    if (ev.detail.assistant) return ev.detail.assistant;
+    if (Names.kindOf(s)==='agent') return s;
+    if (Names.kindOf(r)==='agent') return r;
     if (ev.op === 'confirm.request' && Names.ownerAsst[r]) return Names.ownerAsst[r];
     if (ev.op === 'confirm.answer' && Names.ownerAsst[s]) return Names.ownerAsst[s];
     return '';
@@ -274,6 +275,11 @@ class Cases {
     if (op === 'order.arbitrated' || op === 'arbitration.ruling') { c.state = '已裁定 · ' + (OUTCOME[ev.outcome] || ev.outcome || ''); c.stateClass = 'warn'; }
     if (op === 'need.failed') { c.state = '未成'; c.stateClass = 'bad'; }
     if (op === 'order.error') { c.state = '出错'; c.stateClass = 'bad'; }
+    if (ev.detail.evidenceTrust === 'verified' && ev.detail.signatures) {
+      c.sigs=ev.detail.signatures;c.total=ev.detail.total;c.periods=ev.detail.periods;
+      c.state=({completed:'已结清',arbitrated:'已裁定', 'client-terminated':'已解除',started:'进行中',forming:'签约中'})[ev.detail.state] || '状态未知';
+      c.stateClass=ev.detail.state==='completed'?'ok':ev.detail.state==='arbitrated'?'warn':'info';
+    }
   }
 }
 

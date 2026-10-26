@@ -1,13 +1,13 @@
 """内部账号：ISP_001…ISP_{N}（内部服务提供者，各负责一个领域）与 ISC_001…ISC_{M}（内部服务使用者）。
 
 密码 = 序号三位（001…）。N = seed/domains/ 的领域文件数（没有领域文件时取 DEFAULT_ISP）；M = IOALAB_ISC_COUNT。
-幂等：按用户名判已存在。ISC 账号建时赠一次初始额度（wallet_log.kind='seed'），之后由流量生成器按阈值补。
+幂等：按用户名判已存在。ISC 账号保持空闲，登录后按普通账号规则获得当日额度。
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-HERE = Path(__file__).parent
+HERE = Path(__file__).resolve().parents[2] / "official-services"
 DEFAULT_ISP = 8
 
 
@@ -28,8 +28,6 @@ def ensure_accounts(platform) -> dict:
     for i in range(1, max(0, platform.s.isc_count) + 1):
         uid = _ensure(platform, f"ISC_{i:03d}", f"{i:03d}", "isc", f"内部用户 {i:03d}")
         out["isc"].append(uid)
-        if not platform.db.one("SELECT 1 FROM wallet_log WHERE user_id=? AND kind='seed'", uid):
-            platform.grant(uid, platform.s.login_credit, by="platform", note="内部账号初始额度", kind="seed")
     return out
 
 

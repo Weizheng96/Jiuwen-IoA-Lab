@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS confirmations (id TEXT PRIMARY KEY, owner_id TEXT, ne
 CREATE TABLE IF NOT EXISTS kv (party TEXT, tbl TEXT, k TEXT, v TEXT, PRIMARY KEY (party, tbl, k));
 CREATE TABLE IF NOT EXISTS rulings (card_digest TEXT, period INTEGER, at REAL, ruling TEXT, PRIMARY KEY (card_digest, period));
 CREATE TABLE IF NOT EXISTS certifications (agent_id TEXT PRIMARY KEY, at REAL, record TEXT);
+CREATE TABLE IF NOT EXISTS enrollment (owner_id TEXT PRIMARY KEY, nonce TEXT, expires REAL);
+CREATE TABLE IF NOT EXISTS observations (id TEXT PRIMARY KEY, owner_id TEXT, at REAL);
 CREATE INDEX IF NOT EXISTS ix_events_card ON events (card_digest);
 CREATE INDEX IF NOT EXISTS ix_events_run ON events (run_id);
 """

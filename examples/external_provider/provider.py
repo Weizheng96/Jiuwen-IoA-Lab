@@ -5,7 +5,7 @@
     python provider.py --platform http://10.0.0.2:8750 --username alice --password '***' --public-url http://10.0.0.9:9000 --port 9000 [--category cat_writing] [--stub]
 
 流程：登录 → 上传验收器源码（ioalab://pkg/…）→ 组模板 → 起 A2A 应用 → 向平台市场 template.endorse → 登记（地址 · 名称 · 领域 · AP2 收款公钥）
-→ 接单：work.start 入队 → 生成交付件（有 IOALAB_LLM_API_KEY 则调模型，否则用 sample）→ deliver → 收到末期付款凭证后向市场 close。
+→ 接单：work.start 入队 → 生成交付件（有 IOALAB_LLM_API_KEY 则调模型，显式 --stub 才用 sample）→ deliver → 收到末期付款凭证后向市场 close。
 只依赖 a2c SDK（平台仓 vendor/wheels）、httpx、uvicorn。密钥生成在 --data-dir/keys.json（别入库）。
 """
 from __future__ import annotations
@@ -100,7 +100,9 @@ class ExternalProvider:
         self.data_dir = Path(data_dir)
         self.d = dict(definition or DEFINITION)
         self.llm_key, self.llm_base = os.environ.get("IOALAB_LLM_API_KEY", ""), os.environ.get("IOALAB_LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/")
-        self.stub = stub if stub is not None else not self.llm_key
+        self.stub = bool(stub)
+        if not self.stub and not self.llm_key:
+            raise ValueError('Configure IOALAB_LLM_API_KEY or explicitly select --stub')
         cfg = httpx.get(self.platform + "/api/config", timeout=15, trust_env=False).json()
         self.market_id, self.pay_id = cfg["market"], cfg["pay"]
         self.keys = _Keys(self.data_dir / "keys.json", self.public_url)
@@ -203,6 +205,7 @@ class ExternalProvider:
             self._server.should_exit = True
         for t in self._threads:
             t.join(timeout=10)
+        self.provider.transport.close()
 
     def _on_start(self, template, card, materials) -> None:
         self.jobs.put((dict(card), dict(materials)))           # 服务方锁内：只入队
@@ -266,7 +269,7 @@ def main() -> int:
     ap.add_argument("--port", type=int, default=9000)
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--category", default=None, help="分类树叶类，如 cat_writing；不填进「其他」")
-    ap.add_argument("--definition", help="服务定义 JSON（schema 同 ioalab/seed/README.md，验收器写在 verifier.source）")
+    ap.add_argument("--definition", help="服务定义 JSON（schema 同 official-services/README.md，验收器写在 verifier.source）")
     ap.add_argument("--data-dir", default="./ext-data")
     ap.add_argument("--stub", action="store_true", help="不调模型，交付定义里的 sample")
     a = ap.parse_args()

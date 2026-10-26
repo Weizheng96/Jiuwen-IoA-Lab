@@ -14,12 +14,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+sys.path.insert(0, str(ROOT / "sdk"))
+sys.path.insert(0, str(ROOT / "official-services"))
 from a2c.card import build_card, build_proposal_card, build_request, validate_card  # noqa: E402
 from a2c.template import validate  # noqa: E402
 from a2c.verifier.acceptance import run_target  # noqa: E402
 from ioalab.runtime.packages import PackageStore  # noqa: E402
-from ioalab.runtime.service import template_from_definition  # noqa: E402
-from ioalab.seed import load_definitions  # noqa: E402
+from ioalab_sdk.templates import template_from_definition  # noqa: E402
+from catalog import definitions as load_definitions  # noqa: E402
 
 PAY = {"id": "http://127.0.0.1:8750/a2a/pay", "jwksUri": "http://127.0.0.1:8750/a2a/pay/.well-known/jwks.json"}
 

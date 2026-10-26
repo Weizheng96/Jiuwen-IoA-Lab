@@ -4,7 +4,7 @@
 #
 #   sudo git clone --recursive https://github.com/Weizheng96/Jiuwen-IoA-Lab.git /opt/ioalab
 #   sudo /opt/ioalab/deploy/install.sh            # 幂等；装完先编辑 /etc/ioalab/ioalab.env（key · PUBLIC_URL）
-#   sudo systemctl enable --now ioalab            # 首次启动自动注入内部账号 · 服务 · 分类树
+#   sudo systemctl enable --now ioalab            # 首次启动创建内部账号与分类元数据；服务由独立进程登记
 #
 # 可选环境变量：PYTHON=python3.11（解释器）· IOALAB_APP_DIR=/opt/ioalab · IOALAB_STATE_DIR=/var/lib/ioalab · IOALAB_USER=ioalab
 set -euo pipefail
@@ -36,17 +36,18 @@ git submodule update --init --recursive
 
 # ── 账号与目录 ───────────────────────────────────────────────────────
 id -u "$SVC_USER" >/dev/null 2>&1 || useradd --system --home-dir "$STATE_DIR" --shell /usr/sbin/nologin "$SVC_USER"
-mkdir -p "$STATE_DIR/data" "$STATE_DIR/a2c-cache" /etc/ioalab
+mkdir -p "$STATE_DIR/data" "$STATE_DIR/providers" "$STATE_DIR/a2c-cache" "$STATE_DIR/provider-a2c-cache" /etc/ioalab
 chown -R "$SVC_USER:$SVC_USER" "$STATE_DIR"
 chmod 750 "$STATE_DIR"
 
-# ── 虚拟环境与依赖（离线可行：a2c 是入库的 wheel，A2X 是子模块；其余走 PyPI）────
+# ── 虚拟环境与依赖（a2c wheel 与A2X随仓；其余依赖首次安装需要网络）────
 if [ ! -x .venv/bin/python ]; then
   "$PY" -m venv .venv
 fi
 .venv/bin/python -m pip install -q --upgrade pip
 .venv/bin/python -m pip install -q -r requirements.txt
-.venv/bin/python -m pip install -q -e .
+.venv/bin/python -m pip install -q -e . -e ./sdk
+.venv/bin/python tools/build_connector.py
 .venv/bin/ioalab --help >/dev/null
 
 # ── 配置文件（已存在则不动）────────────────────────────────────────────
@@ -76,9 +77,18 @@ PY
 # ── systemd ─────────────────────────────────────────────────────────
 sed -e "s#/opt/ioalab#$APP_DIR#g" -e "s#/var/lib/ioalab#$STATE_DIR#g" -e "s#^User=.*#User=$SVC_USER#" -e "s#^Group=.*#Group=$SVC_USER#" \
   deploy/ioalab.service > /etc/systemd/system/ioalab.service
+if [ ! -f /etc/ioalab/providers.env ]; then
+  cp deploy/providers.env.example /etc/ioalab/providers.env
+  chmod 640 /etc/ioalab/providers.env
+  chown root:"$SVC_USER" /etc/ioalab/providers.env
+fi
+sed -e "s#/opt/ioalab#$APP_DIR#g" -e "s#/var/lib/ioalab#$STATE_DIR#g" -e "s#^User=.*#User=$SVC_USER#" -e "s#^Group=.*#Group=$SVC_USER#" \
+  deploy/ioalab-providers.service > /etc/systemd/system/ioalab-providers.service
 systemctl daemon-reload
 say "安装完成。下一步："
-say "  1) 编辑 $ENV_FILE：IOALAB_LLM_API_KEY · IOALAB_PUBLIC_URL（首次启动后不可改）"
-say "  2) sudo -u $SVC_USER env \$(grep -v '^#' $ENV_FILE | xargs) $APP_DIR/.venv/bin/ioalab check-config"
+say "  1) 编辑 $ENV_FILE：IOALAB_PUBLIC_URL（首次启动后不可改）；发现模型key可选；另配providers.env与服务九问"
+say "  2) 加载 $ENV_FILE 后执行 $APP_DIR/.venv/bin/ioalab check-config"
 say "  3) sudo systemctl enable --now ioalab && journalctl -u ioalab -f"
 say "  4) 可选：deploy/nginx.conf 反代与 HTTPS"
+
+say "官方服务：配置 /etc/ioalab/providers.env 中地址与九问入口后，systemctl enable --now ioalab-providers"

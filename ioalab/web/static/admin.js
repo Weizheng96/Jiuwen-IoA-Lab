@@ -80,13 +80,13 @@ document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab
 /* ── 仪表盘 ────────────────────────────────────────────────── */
 function tile(k, v, cls, sub) { return `<div class="tile ${cls || ''}"><div class="k">${k}</div><div class="v">${v}${sub ? `<small>${sub}</small>` : ''}</div></div>`; }
 function renderStats(s) {
-  $('tiles').innerHTML = tile('在线助手 / 服务数', `${s.assistants ?? 0} <small>/ ${s.services ?? 0}</small>`, 'agent', s.runnable !== undefined ? `可运行 ${s.runnable}` : '') +
+  $('tiles').innerHTML = tile('已登记助手 / 服务数', `${s.assistants ?? 0} <small>/ ${s.services ?? 0}</small>`, 'agent', s.runnable !== undefined ? `可运行 ${s.runnable}` : '') +
     tile('今日笔数', s.transfers_today ?? 0, '', s.volume_today !== undefined ? `${money(s.volume_today)} 虚拟币` : '') +
     tile('虚拟币流通量', money(s.circulating), 'pay') +
     tile('成交率', s.success_rate === null || s.success_rate === undefined ? '—' : `${Math.round(s.success_rate * 100)}%`, 'ok', `成 ${s.completed ?? 0}${s.declined ? ' · 拒 ' + s.declined : ''}`) +
     tile('平均成交时长', dur(s.avg_duration_s)) +
     tile('仲裁数', s.arbitrated ?? 0, 'market') +
-    tile('模型调用 / token', `${s.llm_calls ?? 0}<small>${s.tokens ?? 0}</small>`) +
+    tile('模型调用 / token', `${s.llm_calls ?? '—'}<small>${s.tokens ?? '—'}</small>`) +
     tile('发现方式', OUTCOME[s.discovery] || s.discovery || '—', 'market', s.taxonomy ? `分类树 ${s.taxonomy}` : '');
   $('runTag').textContent = '运行 ' + (s.run || REPLAY || '—');
   $('modeTag').textContent = (s.mode || '') + ' 模式';
@@ -212,6 +212,12 @@ function updateLane(c) {
 /* ── 归并一条事件 ───────────────────────────────────────────── */
 function ingest(ev) {
   normEvent(ev);
+  if (ev.detail && ev.detail.trust) ev.label = (ev.label || labelOf(ev)) + (ev.detail.trust === 'verified' ? ' · 证据已核验' : ' · 当事方上报');
+  if (ev.detail && ev.detail.source === 'experiment') ev.label = (ev.label || labelOf(ev)) + ' · 实验';
+  if (ev.detail && ev.detail.evidenceTrust === 'verified') ev.label = (ev.label || labelOf(ev)) + ' · 签名已核验';
+  if (!REPLAY && /^(assistant|service)\.register$/.test(ev.op)) loadNames().then(() => {
+    Panorama.init(USERS, REGISTRY, CATEGORIES, {replay:false,baseSeq:ev.seq || 0}); Panorama.restore(cases.list);
+  });
   if (ev.seq !== undefined) { if (seenSeq.has(ev.seq)) return; seenSeq.add(ev.seq); }
   allEvents.push(ev);
   const { c, isNew } = cases.ingest(ev);
@@ -238,7 +244,20 @@ async function startLive() {
 function connectWs() {
   const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/admin';
   ws = new WebSocket(url);
-  ws.onopen = () => { $('wsDot').className = 'dot'; $('wsText').textContent = '实时'; };
+  ws.onopen = async () => {
+    $('wsDot').className = 'dot'; $('wsText').textContent = '实时';
+    await loadNames();
+    let after=seenSeq.size?Math.max(...seenSeq):0;
+    try {
+      while (true) {
+        const page=await api('/api/admin/events?after='+after+'&limit=1000');
+        if (!page.length) break;
+        page.forEach(ingest);after=Math.max(...page.map(e=>e.seq));
+        if(page.length<1000)break;
+      }
+    } catch(e) { $('wsText').textContent='观察同步失败，状态未知'; }
+    Panorama.init(USERS,REGISTRY,CATEGORIES,{replay:false,baseSeq:after});Panorama.restore(cases.list);
+  };
   ws.onmessage = m => { try { ingest(JSON.parse(m.data)); } catch (e) { console.error(e); } };
   ws.onclose = () => { $('wsDot').className = 'dot off'; $('wsText').textContent = '已断开，3 秒后重连'; clearTimeout(wsTimer); wsTimer = setTimeout(connectWs, 3000); };
   ws.onerror = () => { try { ws.close(); } catch (e) { /* 已关 */ } };
@@ -348,7 +367,7 @@ async function loadUsers() {
 }
 $('btnUsersRefresh').onclick = loadUsers;
 $('btnVu').onclick = async () => {
-  const body = { count: Number($('vuCount').value) || 1, assistant: !!$('vuAsst').value.trim(), assistantName: $('vuAsst').value.trim(), credit: Number($('vuCredit').value) || 0 };
+  const body = { count: Number($('vuCount').value) || 1,  credit: Number($('vuCredit').value) || 0 };
   try {
     const out = await api('/api/admin/users', body);
     toast(`已创建 ${out.length} 个临时账号：${out.map(u => `${u.username} / ${u.password}`).join('，')}（密码只显示这一次）`, 'ok');
@@ -378,57 +397,10 @@ function renderRegistry() {
 }
 $('regFilter').oninput = renderRegistry; $('btnRegRefresh').onclick = loadRegistry;
 
-/* ── 投放 ────────────────────────────────────────────────────── */
+/* ── 独立实验客户端 ────────────────────────────────────── */
 async function loadDispatch() {
-  try { SEED_NEEDS = await api('/api/admin/seed-needs'); } catch (e) { SEED_NEEDS = []; }
-  const domains = [...new Set(SEED_NEEDS.map(n => n.domain).filter(Boolean))];
-  const cur = $('dpDomain').value;
-  $('dpDomain').innerHTML = '<option value="">全部领域</option>' + domains.map(d => `<option value="${esc(d)}"${d === cur ? ' selected' : ''}>${esc((CATEGORIES.find(c => c.id === 'cat_' + d) || {}).name || d)}</option>`).join('');
-  $('seedNeeds').innerHTML = SEED_NEEDS.length ? SEED_NEEDS.map((n, i) => `<label><input type="checkbox" data-i="${i}"><span class="ellipsis" title="${esc(n.text)}">${esc(n.text)}</span>
-    <span>${Names.html(n.assistant_id)}</span><span class="mute">${esc(n.service || '')} · 预算 ${esc((n.scope || {}).budget ?? '')}${n.autoSign === false ? ' · 手动亲签' : ''}</span></label>`).join('')
-    : '<div class="empty">需求池为空（种子注入后 data/dispatch.json 才有）</div>';
-  try { renderTraffic(await api('/api/admin/traffic')); } catch (e) { /* 忽略 */ }
-  const assts = [];
-  USERS.forEach(u => (u.agents || []).forEach(a => { if (a.role === 'assistant') assts.push(a); }));
-  $('dpAsst').innerHTML = assts.length ? assts.map(a => `<option value="${esc(a.id)}">${esc(Names.of(a.id))} · ${esc(a.id)}</option>`).join('') : '<option value="">没有助手</option>';
+  $('view-dispatch').innerHTML = '<div class="panel"><h2>独立实验客户端</h2><p>平台不运行个人助手或产生背景委托。请在独立终端启动实验客户端，交易将标注 experiment 来源。</p><code>python experiments/traffic.py --base '+esc(location.origin)+' --count 3</code></div>';
 }
-$('btnSeedNeedsRefresh').onclick = loadDispatch;
-function renderTraffic(t) {
-  document.querySelectorAll('[data-traffic]').forEach(b => b.classList.toggle('active', b.dataset.traffic === t.level));
-  $('trafficStat').textContent = `已投 ${t.dispatched} · 未成 ${t.failed} · 降档 ${t.downshifts} · 空闲助手 ${t.idle_assistants} · 池 ${t.pool}`;
-}
-document.querySelectorAll('[data-traffic]').forEach(b => b.onclick = async () => {
-  try { renderTraffic(await api('/api/admin/traffic', { level: b.dataset.traffic })); toast('背景流量：' + b.dataset.traffic, 'ok'); } catch (e) { toast(e.message, 'bad'); }
-});
-$('btnDispatchPool').onclick = async () => {
-  $('btnDispatchPool').disabled = true;
-  try { const r = await api('/api/admin/dispatch-pool', { domain: $('dpDomain').value, count: Number($('dpCount').value) || 1, gap: 1 }); toast(`已投放 ${r.needs.length} 条${r.skipped ? `（${r.skipped} 条没有空闲助手）` : ''}`, 'ok'); }
-  catch (e) { toast(e.message, 'bad'); } finally { $('btnDispatchPool').disabled = false; }
-};
-$('btnSeed').onclick = async () => {
-  $('btnSeed').disabled = true; toast('正在注入种子，可能需要一会儿…');
-  try { const r = await api('/api/admin/seed', {}); toast(`种子完成：领域 ${r.domains} · 服务 ${r.services} · ISP ${r.isp} · ISC ${r.isc} · 分类树 ${r.taxonomy}`, 'ok'); await loadNames(); loadDispatch(); }
-  catch (e) { toast(e.message, 'bad'); } finally { $('btnSeed').disabled = false; }
-};
-$('btnDispatch').onclick = async () => {
-  const picked = [...$('seedNeeds').querySelectorAll('input:checked')].map(i => SEED_NEEDS[+i.dataset.i]);
-  if (!picked.length) return toast('先选几条', 'bad');
-  $('btnDispatch').disabled = true;
-  try {
-    const r = await api('/api/admin/dispatch', { gap: 2, needs: picked.map(n => ({ assistant_id: n.assistant_id, text: n.text, scope: n.scope, autoSign: n.autoSign, materials: n.materials })) });
-    toast(`已投放 ${r.needs.length} 条`, 'ok');
-  } catch (e) { toast(e.message, 'bad'); } finally { $('btnDispatch').disabled = false; }
-};
-$('dpAuto').onclick = () => { const s = $('dpAuto'); s.classList.toggle('on'); s.lastChild.textContent = s.classList.contains('on') ? '开' : '关'; };
-$('btnDispatchOne').onclick = async () => {
-  const aid = $('dpAsst').value, text = $('dpText').value.trim();
-  if (!aid || !text) return toast('选助手、写需求', 'bad');
-  try {
-    const r = await api('/api/admin/dispatch', { gap: 0, needs: [{ assistant_id: aid, text, scope: { budget: Number($('dpBudget').value) || 30, category: $('dpCat').value.trim() || '不限' }, autoSign: $('dpAuto').classList.contains('on') }] });
-    toast(`已投放：${r.needs[0]}`, 'ok'); $('dpText').value = '';
-  } catch (e) { toast(e.message, 'bad'); }
-};
-
 /* ── 需求列表 ─────────────────────────────────────────────────── */
 const stateClass = s => /completed|started/.test(s) ? 'ok' : /failed|aborted|lapsed|declined/.test(s) ? 'bad' : /arbitrated/.test(s) ? 'warn' : 'info';
 async function loadNeeds() {
@@ -509,9 +481,9 @@ async function loadComponents() {
     comp('合同模板公示', 'market', [['已签认模板', c.templates.endorsed], ['签3 快照', c.templates.snapshots], ['认证记录', c.templates.certifications]]) +
     comp('信誉与仲裁', 'market', [['结清', c.ledger.completed], ['裁定', c.ledger.rulings], ['被拒 / 退回', c.ledger.declined]]) +
     comp('支付中心', 'pay', [['钱包', c.payment.wallets], ['流通量', `${money(c.payment.circulating)} 虚拟币`], ['今日过账', `${c.payment.transfers_today} 笔 · ${money(c.payment.volume_today)}`], ['累计过账', c.payment.transfers_total]]) +
-    comp('服务运行时', 'provider', [['在线服务', c.services.online], ['工作中', c.services.working], ['排队任务', c.services.queued], ['接满', c.services.busy.length ? c.services.busy.map(esc).join('、') : '—']]) +
-    comp('助手运行时', 'agent', [['助手', `${c.assistants.total}（swarm 驾驭过 ${c.assistants.external_driven}）`], ['进行中需求', c.assistants.active_needs], ['待确认', c.assistants.pending_confirmations], ['背景流量', `${c.traffic.level} · 已投 ${c.traffic.dispatched}`]]) +
-    comp('模型', 'agent', [['key', yn(c.llm.key_configured)], ['端点', `${esc((c.llm.endpoint || '').replace(/^https?:\/\//, '').split('/')[0])}${c.llm.fallback ? ` · 备用 ✓ 切换 ${c.llm.failovers}` : ''}`], ['助手 / 服务方', esc(c.llm.model)], ['A2X / 嵌入', `${esc(c.llm.a2x_model)} / ${esc(c.llm.embed_model)}`], ['调用 / token', `${c.llm.calls} / ${c.llm.tokens}`], ['并发闸 · 沙箱', `${c.llm.concurrency} · ${c.sandbox.available}/${c.sandbox.concurrency}`]]) +
+    comp('独立服务观察 · 当事方上报', 'provider', [['已公示服务', c.services.online], ['可观察 / 状态未知', `${c.services.observed} / ${c.services.unknown}`], ['工作中 / 排队', `${c.services.working ?? '未知'} / ${c.services.queued ?? '未知'}`], ['Swarm会话', c.services.sessions ?? '未知']]) +
+    comp('用户侧助手登记', 'agent', [['本地身份', c.assistants.total], ['执行位置', '用户自己的九问'], ['背景委托', '独立实验客户端']]) +
+    comp('发现模型', 'agent', [['key', yn(c.llm.key_configured)], ['A2X / 嵌入', `${esc(c.llm.a2x_model)} / ${esc(c.llm.embed_model)}`], ['调用 / token', `${c.llm.calls ?? '未采集'} / ${c.llm.tokens ?? '未采集'}`], ['服务生产模型', '部署者的独立九问配置']]) +
     comp('事件总线 · 配置', 'ext', [['运行', esc(c.bus.run)], ['本轮事件', c.bus.events], ['WS 连接', c.bus.subscribers], ['对外地址', esc(c.config.public_url)], ['模式 · 注册', `${esc(c.config.mode)} · ${esc(c.config.registration)}`], ['版本', esc(c.config.version)]]);
 }
 $('btnCompsRefresh').onclick = loadComponents;

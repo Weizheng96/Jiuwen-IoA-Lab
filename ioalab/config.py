@@ -134,13 +134,11 @@ class Settings:
             problems.append(f"IOALAB_MODE 只能是 dev 或 trial：{self.mode!r}")
         if self.registration not in ("open", "invite", "closed"):
             problems.append(f"IOALAB_REGISTRATION 只能是 open / invite / closed：{self.registration!r}")
-        if self.traffic not in ("off", "low", "normal"):
-            problems.append(f"IOALAB_TRAFFIC 只能是 off / low / normal：{self.traffic!r}")
+        if self.traffic != "off":
+            problems.append(f"背景流量须通过 experiments/traffic.py 独立运行；IOALAB_TRAFFIC 只能是 off：{self.traffic!r}")
         if self.open and not self.stub:
             if len(self.admin_password) < 12:
                 problems.append("trial 模式必须设置 IOALAB_ADMIN_PASSWORD（≥ 12 位）")
-            if not self.llm:
-                problems.append("trial 模式必须设置 IOALAB_LLM_API_KEY（助手 · 服务方 · A2X 共用）")
             if not self.public_url_env:
                 problems.append("trial 模式必须设置 IOALAB_PUBLIC_URL（参与方 id 内嵌它，首次 init 后不可改）")
         return problems

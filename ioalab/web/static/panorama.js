@@ -62,7 +62,7 @@ const Panorama = (() => {
     const el = document.createElement('div'); el.className = 'pn-svc'; el.dataset.id = s.id; el.dataset.acct = s.owner_id || ''; el.dataset.accts = s.owner_id || '';
     const form = FORMATION[s.formation] || s.formation || '';
     el.innerHTML = `<div class="name">${s.external ? '<span class="ext" title="外部服务方">⇄</span> ' : ''}${esc(s.name)}</div><div class="meta">${esc(form)} · <b>${s.price === null || s.price === undefined ? '报价' : esc(s.price)}</b><span class="rep">${s.reputation && s.reputation.completed ? ` · ${s.reputation.completed} 单` : ''}</span></div>
-      <div class="st ${s.status === 'online' ? 'ok' : ''}">${esc(OUTCOME[s.status] || s.status || '')}</div><div class="earn" title="本服务收入">${s.earned ? '+' + money(s.earned) : ''}</div>`;
+      <div class="st ${s.observation === 'connected' ? 'ok' : ''}">${s.observation === 'unknown' ? '观察中断 / 状态未知' : esc(OUTCOME[s.status] || s.status || '')}</div><div class="earn" title="本服务收入">${s.earned ? '+' + money(s.earned) : ''}</div>`;
     b.querySelector('.bl').appendChild(el);
     const n = { el, id: s.id, owner: s.owner_id, earned: 0, done: s.reputation ? s.reputation.completed || 0 : 0, okc: 0, st: el.querySelector('.st'), rep: el.querySelector('.rep'), earnEl: el.querySelector('.earn') };
     N.svc[s.id] = n; Stat.svc++;
@@ -250,7 +250,14 @@ const Panorama = (() => {
     CATS = {}; (categories || []).forEach(c => { CATS[c.id] = c; });
     const KIND_ORDER = { external: 0, virtual: 1, isc: 2, isp: 3 };
     [...users].sort((a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) || String(a.username).localeCompare(String(b.username)))
-      .forEach(u => (u.agents || []).filter(a => a.role === 'assistant').forEach(a => mkAssistant(a, replay ? { ...u, balance: 0 } : u)));
+      .forEach(u => {
+        const assistants = (u.agents || []).filter(a => a.role === 'assistant');
+        if (!assistants.length && u.kind === 'isc') {
+          const node = mkAssistant({id:'account:'+u.id,name:'未接入助手'}, u);
+          setState(node,'账号空闲');
+        }
+        assistants.forEach(a => mkAssistant(a, replay ? {...u,balance:0} : u));
+      });
     const svcs = [...registry].sort((a, b) => String(a.category || '').localeCompare(String(b.category || '')) || String(a.name).localeCompare(String(b.name)));
     svcs.forEach(s => mkService(s, CATS));
     Stat.endorsed = svcs.length;

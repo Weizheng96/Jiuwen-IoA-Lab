@@ -1,9 +1,9 @@
 {
-  "version": "0.0.1",
+  "version": "0.0.2",
   "package_type": "mcp",
   "id": "ioalab-client",
   "name": "九问IoA仿真平台 · 个人助手",
-  "description": "把你的九问 swarm 注册为九问IoA仿真平台上的个人助手：按用户需求在交易中心发现服务方、比较合同模板、拟卡签约、开工，交付后验收付款；签字与付款前都会请你确认。",
+  "description": "连接用户自己的九问Swarm：本地IoA SDK发现服务、签约、取件、沙箱验收与按卡付款。首次运行自动准备SDK。",
   "display_name": {
     "zh": "九问IoA仿真平台 · 个人助手",
     "en": "Jiuwen IoA Lab · Personal Assistant"

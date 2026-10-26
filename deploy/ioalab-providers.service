@@ -1,0 +1,22 @@
+[Unit]
+Description=Jiuwen IoA Lab independent official services
+After=network-online.target ioalab.service
+Wants=network-online.target ioalab.service
+
+[Service]
+Type=simple
+User=ioalab
+Group=ioalab
+WorkingDirectory=/var/lib/ioalab
+EnvironmentFile=/etc/ioalab/providers.env
+ExecStart=/opt/ioalab/.venv/bin/python /opt/ioalab/official-services/serve.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/ioalab
+
+[Install]
+WantedBy=multi-user.target

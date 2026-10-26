@@ -135,4 +135,4 @@ def test_internal_accounts_seeded_idempotent(platform):
     row = pf.db.one("SELECT username, kind, display_name FROM users WHERE id=?", acc["isp"][0])
     assert row["username"] == "ISP_001" and row["kind"] == "isp" and row["display_name"].startswith("内部服务方")
     assert pf.auth.login("ISC_001", "001")["kind"] == "isc"
-    assert str(pf.wallets.balance(acc["isc"][0])) == "100.00" and pf.wallets.balance(acc["isc"][0]) == pf.wallets.balance(acc["isc"][-1])
+    assert not pf.db.one("SELECT id FROM agents WHERE owner_id=?", acc["isc"][0])

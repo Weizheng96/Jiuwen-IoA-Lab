@@ -48,7 +48,7 @@
     <button data-tab="components">组件</button>
     <button data-tab="users">用户与钱包</button>
     <button data-tab="registry">服务注册表</button>
-    <button data-tab="dispatch">投放</button>
+    <button data-tab="dispatch">实验</button>
     <button data-tab="needs">需求列表</button>
     <button data-tab="orders">订单</button>
     <button data-tab="search">合同卡检索</button>
@@ -103,7 +103,7 @@
       <h2>创建临时账号 <span class="tag">kind virtual · 密码随机只显示一次</span></h2>
       <div class="form" style="grid-template-columns:90px 160px 90px 160px 90px 160px 1fr">
         <label>数量</label><input id="vuCount" type="number" value="1" min="1" max="50">
-        <label>助手名</label><input id="vuAsst" value="九问 Swarm" placeholder="留空则不建助手">
+        <div class="hint">账号保持空闲，由用户在自己的九问中关联身份。</div>
         <label>发放</label><input id="vuCredit" type="number" value="0" min="0" placeholder="虚拟币">
         <div><button class="btn primary" id="btnVu">创建</button></div>
       </div>
@@ -118,31 +118,7 @@
     </div>
   </div>
 
-  <div class="view" id="view-dispatch">
-    <div class="grid2" style="grid-template-columns:1fr 520px">
-      <div class="panel market">
-        <h2>需求池 <span class="tag">每领域 3 条 · 投给内部用户的助手</span><span class="tools"><select id="dpDomain" style="width:140px"><option value="">全部领域</option></select><input id="dpCount" type="number" value="4" min="1" max="24" style="width:70px" title="条数"><button class="btn primary sm" id="btnDispatchPool">随机投放</button><button class="btn sm" id="btnSeedNeedsRefresh">刷新</button><button class="btn primary sm" id="btnDispatch">投放选中（间隔 2 秒）</button></span></h2>
-        <div class="toolbar" style="margin:0 0 10px">
-          <span class="mute">背景流量</span>
-          <button class="btn sm" data-traffic="off">关</button><button class="btn sm" data-traffic="low">低（3 分钟一条）</button><button class="btn sm" data-traffic="normal">正常（1 分钟一条）</button>
-          <span class="mute" id="trafficStat"></span>
-          <button class="btn sm" id="btnSeed" title="首次启动已自动注入；这里只在需要时重跑（幂等）">重跑种子注入</button>
-        </div>
-        <div class="list-check" id="seedNeeds"></div>
-      </div>
-      <div class="panel">
-        <h2>手填一条</h2>
-        <div class="form">
-          <label>助手</label><select id="dpAsst"></select>
-          <label>需求</label><textarea id="dpText" placeholder="一句话"></textarea>
-          <label>预算上限</label><input id="dpBudget" type="number" value="30">
-          <label>类别</label><input id="dpCat" value="不限">
-          <label>仿真代签</label><span class="sw on" id="dpAuto"><span class="tg"></span>开</span>
-          <div class="full"><button class="btn primary" id="btnDispatchOne">投放</button></div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="view" id="view-dispatch"></div>
 
   <div class="view" id="view-needs">
     <div class="panel market"><h2>需求列表 <span class="tools"><button class="btn sm" id="btnNeedsRefresh">刷新</button></span></h2><div id="needsTable"></div></div>

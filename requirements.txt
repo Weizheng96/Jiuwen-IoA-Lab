@@ -1,13 +1,11 @@
 # 九问IoA仿真平台（Jiuwen IoA Lab）依赖。Python 3.11。
 #   python -m venv .venv && .venv/bin/pip install -r requirements.txt
 # a2c SDK 以 wheel 入库（vendor/wheels/，来源见 SOURCE.json，用 tools/sync_a2c.py 同步）；
-# 其 [a2a,mcp] 两个 extra 的依赖在下面显式列出。A2X 注册中心是 git 子模块（vendor/A2X-registry）。
+# A2A HTTP绑定需要grpcio兼容模块；A2X是git子模块。核心不安装智能体运行时。
 ./vendor/wheels/a2c-0.0.19-py3-none-any.whl
 a2a-sdk[http-server]==1.0.0
-mcp>=1.28.1,<2.0.0
+grpcio>=1.60
 -e ./vendor/A2X-registry
-openjiuwen==0.1.19.post2
-opentelemetry-api==1.39.1
 fastapi>=0.110
 uvicorn>=0.29
 httpx>=0.27

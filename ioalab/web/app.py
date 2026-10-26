@@ -41,7 +41,7 @@ def create_app(platform: Platform) -> FastAPI:
             if request.method in ("POST", "PUT", "DELETE") and request.url.path.startswith("/api/"):
                 origin = request.headers.get("origin") or request.headers.get("referer") or ""
                 host = request.headers.get("host", "")
-                if origin and host and host not in origin:
+                if origin and host and __import__("urllib.parse",fromlist=["urlsplit"]).urlsplit(origin).netloc != host:
                     return JSONResponse({"error": "跨站请求被拒绝"}, status_code=403)
             return await call_next(request)
 
@@ -51,6 +51,12 @@ def create_app(platform: Platform) -> FastAPI:
     @app.exception_handler(A2CError)
     async def _a2c_error(request: Request, exc: A2CError):
         return JSONResponse({"error": str(exc), "code": getattr(exc, "code", "")}, status_code=400)
+
+    @app.exception_handler(ValueError)
+    @app.exception_handler(KeyError)
+    @app.exception_handler(TypeError)
+    async def invalid_request(request, exc):
+        return JSONResponse({"error":"Invalid request fields"},status_code=400)
 
     # ── 会话 ──────────────────────────────────────────────────────────
     def subject(request: Request) -> str | None:
@@ -131,10 +137,6 @@ def create_app(platform: Platform) -> FastAPI:
     async def wallet(uid: str = Depends(current_user)):
         return {"balance": str(platform.wallets.balance(uid)), "log": platform.wallets.log(uid)}
 
-    @app.post("/api/assistant")
-    async def register_assistant(request: Request, uid: str = Depends(current_user)):
-        b = await body(request)
-        return await asyncio.to_thread(platform.register_assistant, uid, b.get("name") or "九问 Swarm")
 
     @app.get("/api/services/definitions")
     async def definitions():
@@ -143,43 +145,13 @@ def create_app(platform: Platform) -> FastAPI:
                  "runnable": bool(d.get("runnable")), "price": d.get("pricing", {}).get("price"), "category": d.get("category")}
                 for d in load_definitions() if d.get("runnable")]
 
-    @app.post("/api/service")
-    async def register_service(request: Request, uid: str = Depends(current_user)):
-        from ..seed import load_definitions
-        b = await body(request)
-        if b.get("definition"):
-            d = b["definition"]
-        else:
-            d = next((x for x in load_definitions() if x["id"] == b.get("definition_id")), None)
-            if d is None:
-                raise HTTPException(400, "没有这个服务定义")
-            d = {**d, "id": f"{d['id']}-{uid[2:]}", "name": b.get("name") or d["name"]}
-        return await asyncio.to_thread(platform.register_service, uid, d)
 
-    @app.post("/api/needs")
-    async def create_need(request: Request, uid: str = Depends(current_user)):
-        b = await body(request)
-        asst = platform.db.one("SELECT id FROM agents WHERE owner_id=? AND role='assistant'", uid)
-        if not asst:
-            raise HTTPException(400, "先注册个人助手")
-        scope = b.get("scope") or {}
-        scope.setdefault("sign1", "user" if b.get("sign1") else "client")
-        scope.setdefault("sign7", "user" if b.get("sign7") else "client")
-        if any("path" in (m or {}) for m in (b.get("materials") or [])):
-            raise HTTPException(400, "材料不接受服务器路径；请用 /api/v1 的上传接口")
-        return platform.create_need(uid, asst["id"], b.get("text", ""), scope, auto_sign=bool(b.get("autoSign", False)), materials=[])
 
     @app.get("/api/needs")
     async def my_needs(uid: str = Depends(current_user)):
         rows = platform.db.rows("SELECT id, text, state, card_digest, created, updated, llm_calls, tokens FROM needs WHERE owner_id=? ORDER BY created DESC", uid)
         return rows
 
-    @app.get("/api/needs/{nid}")
-    async def need_detail(nid: str, uid: str = Depends(current_user)):
-        n = platform.need(nid)
-        if n["owner_id"] != uid:
-            raise HTTPException(403)
-        return n
 
     @app.get("/api/orders")
     async def my_orders(uid: str = Depends(current_user)):
@@ -198,11 +170,6 @@ def create_app(platform: Platform) -> FastAPI:
         d["provider_name"] = (platform.db.one("SELECT name FROM agents WHERE id=?", (d.get("provider_id") or "").rsplit("/", 1)[-1]) or {}).get("name")
         return d
 
-    @app.post("/api/confirmations/{cid}")
-    async def answer(cid: str, request: Request, uid: str = Depends(current_user)):
-        b = await body(request)
-        platform.answer_confirmation(uid, cid, bool(b.get("granted")))
-        return {"ok": True}
 
     app.include_router(build_router(platform, current_user))
 
@@ -238,17 +205,12 @@ def create_app(platform: Platform) -> FastAPI:
                                 "LEFT JOIN agents a ON a.id=o.assistant_id ORDER BY o.created DESC LIMIT 200")
         for r in rows:
             r["detail"] = jload(r["detail"])
-            r["provider_name"] = (platform.db.one("SELECT name FROM agents WHERE id=?", r["provider_id"].rsplit("/", 1)[-1]) or {}).get("name")
+            r["provider_name"] = (platform._agent_of_provider(r["provider_id"]) or {}).get("name")
         return rows
 
     @app.get("/api/admin/needs")
     async def admin_needs(_: str = Depends(require_admin)):
-        rows = platform.db.rows("SELECT n.*, a.name AS assistant_name FROM needs n LEFT JOIN agents a ON a.id=n.assistant_id ORDER BY n.created DESC LIMIT 200")
-        for r in rows:
-            r["result"] = jload(r["result"]) if r["result"] else None
-            r["trace"] = jload(r["trace"], [])
-            r["scope"] = {k: v for k, v in jload(r["scope"]).items() if k != "materials"}
-        return rows
+        return []
 
     @app.get("/api/admin/users")
     async def users(_: str = Depends(require_admin)):
@@ -270,8 +232,6 @@ def create_app(platform: Platform) -> FastAPI:
             pw = b.get("password") or _secrets.token_urlsafe(8)
             u = await asyncio.to_thread(platform.register_user, name, pw, kind="virtual", display_name=b.get("display_name", ""),
                                         note=b.get("note", "管理员创建"))
-            if b.get("assistant"):
-                await asyncio.to_thread(platform.register_assistant, u["id"], b.get("assistantName") or "九问 Swarm")
             if b.get("credit"):
                 platform.grant(u["id"], b["credit"], by="admin", note="创建时发放")
             out.append({**u, "password": pw})
@@ -295,7 +255,8 @@ def create_app(platform: Platform) -> FastAPI:
             pid = meta.get("url") or platform.provider_url(r["id"])
             r.update(formation=d.get("formation", "preapproval"), runnable=bool(d.get("runnable")), tags=d.get("tags", []),
                      price=d.get("pricing", {}).get("price"), category=d.get("category"), capacity=d.get("capacity", 1),
-                     external=bool(meta.get("external")), url=pid, reputation=platform.market.reputation(pid))
+                     external=bool(meta.get("external")), url=pid, reputation=platform.market.reputation(pid),
+                     observation='connected' if __import__('time').time()-meta.get('lastSeen',0)<45 else 'unknown')
             r["reputation"].pop("signature", None)
         return {"taxonomy": platform.discovery.taxonomy_state(), "categories": platform.discovery.categories(), "services": rows}
 
@@ -305,22 +266,6 @@ def create_app(platform: Platform) -> FastAPI:
         hits = await asyncio.to_thread(platform._search, b.get("query", ""), int(b.get("top_k", 8)))
         return {"mode": platform.discovery.last_mode, "hits": [{"id": h["id"], "name": h["name"], "status": h["card"].get("status")} for h in hits]}
 
-    @app.post("/api/admin/dispatch")
-    async def dispatch(request: Request, _: str = Depends(require_admin)):
-        """投放：给指定助手（或所有空闲助手）各下一条需求。body: {needs: [{assistant_id?, owner_id?, text, scope, autoSign, materials}], gap: 秒}"""
-        b = await body(request)
-        gap = float(b.get("gap", 2.0))
-        out = []
-        for i, n in enumerate(b.get("needs", [])):
-            aid = n.get("assistant_id")
-            row = platform.db.one("SELECT id, owner_id FROM agents WHERE id=? AND role='assistant'", aid) if aid else None
-            if row is None:
-                raise HTTPException(400, f"助手不存在：{aid}")
-            out.append(platform.create_need(row["owner_id"], row["id"], n["text"], n.get("scope") or {}, auto_sign=bool(n.get("autoSign", True)),
-                                            materials=n.get("materials") or [], by="admin")["id"])
-            if gap and i < len(b.get("needs", [])) - 1:
-                await asyncio.sleep(gap)
-        return {"needs": out}
 
     @app.get("/api/admin/components")
     async def components(_: str = Depends(require_admin)):
@@ -328,42 +273,10 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/admin/traffic")
     async def traffic_get(_: str = Depends(require_admin)):
-        return platform.traffic.status()
+        return {"level":"external","enabled":False,"command":"python experiments/traffic.py"}
 
-    @app.post("/api/admin/traffic")
-    async def traffic_set(request: Request, _: str = Depends(require_admin)):
-        b = await body(request)
-        return platform.traffic.set_level(str(b.get("level", "off")))
 
-    @app.post("/api/admin/dispatch-pool")
-    async def dispatch_pool(request: Request, _: str = Depends(require_admin)):
-        """从需求池随机投放：body {domain?, count, gap}；只投给空闲的内部用户助手。"""
-        b = await body(request)
-        count, gap, domain = int(b.get("count", 1)), float(b.get("gap", 1.0)), (b.get("domain") or "")
-        pool = [n for n in platform.traffic.pool() if not domain or n.get("domain") == domain]
-        if not pool:
-            raise HTTPException(400, "需求池为空或该领域没有需求")
-        out, skipped = [], 0
-        for i in range(count):
-            idle = platform.traffic.idle_assistants()
-            if not idle:
-                skipped += 1
-                continue
-            a = platform.traffic.rng.choice(idle)
-            n = platform.traffic.rng.choice(pool)
-            if float(platform.wallets.balance(a["owner_id"])) < 40:
-                platform.grant(a["owner_id"], s.login_credit, by="admin", note="投放前补币")
-            out.append(platform.create_need(a["owner_id"], a["id"], n["text"], n.get("scope") or {}, auto_sign=bool(n.get("autoSign", True)),
-                                            materials=n.get("materials") or [], by="admin")["id"])
-            if gap and i < count - 1:
-                await asyncio.sleep(gap)
-        return {"needs": out, "skipped": skipped}
 
-    @app.get("/api/admin/seed-needs")
-    async def seed_needs(_: str = Depends(require_admin)):
-        """seed 时写下的 10 条可投放需求（含助手 id 与材料路径），供「一键投放」用。"""
-        p = s.data / "dispatch.json"
-        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
 
     @app.post("/api/admin/seed")
     async def seed(request: Request, _: str = Depends(require_admin)):
@@ -377,6 +290,8 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/admin/replay/{run}")
     async def replay(run: str, _: str = Depends(require_admin)):
+        if Path(run).name != run or run in (".", ".."):
+            raise HTTPException(400)
         p = s.data / "runs" / run / "events.jsonl"
         if not p.exists():
             raise HTTPException(404)
@@ -388,7 +303,7 @@ def create_app(platform: Platform) -> FastAPI:
             await ws.close(code=4401)
             return
         origin, host = ws.headers.get("origin", ""), ws.headers.get("host", "")
-        if origin and host not in origin:
+        if origin and __import__("urllib.parse",fromlist=["urlsplit"]).urlsplit(origin).netloc != host:
             await ws.close(code=4403)
             return
         await ws.accept()
@@ -412,6 +327,13 @@ def create_app(platform: Platform) -> FastAPI:
     @app.get("/admin")
     async def admin_page():
         return FileResponse(STATIC / "admin.html")
+
+    @app.get("/downloads/ioalab-client.zip")
+    async def connector_bundle():
+        path = Path(__file__).resolve().parents[2] / "dist/ioalab-client.zip"
+        if not path.is_file():
+            raise HTTPException(503, "连接器尚未生成，请运行 tools/build_connector.py")
+        return FileResponse(path, filename="ioalab-client.zip", media_type="application/zip")
 
     app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
     return app

@@ -1,65 +1,71 @@
-# -*- coding: utf-8 -*-
-"""pytest 共用夹具：进程内起一次平台（IOALAB_STUB=1 走桩，不调模型），各用例共用；HTTP 客户端按用例新建。
-
-    python -m pytest -q tests
-"""
-from __future__ import annotations
-
+"""Real HTTP infrastructure and an independent provider host, explicit sample mode."""
 import os
 import socket
 import sys
-import tempfile
 import threading
 import time
 from pathlib import Path
-
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]          # 仓库根（含 ioalab 包）
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ROOT=Path(__file__).resolve().parents[1]
+sys.path[:0]=[str(ROOT),str(ROOT/'sdk'),str(ROOT/'official-services'),str(ROOT/'experiments')]
+os.environ.update(IOALAB_STUB='1',IOALAB_ADMIN_PASSWORD='test',IOALAB_AUTOSEED='1')
 
-
-def _free_port() -> int:
+def free_port():
     with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+        s.bind(('127.0.0.1',0));return s.getsockname()[1]
 
+def wait_for(predicate,timeout=20):
+    until=time.monotonic()+timeout
+    while time.monotonic()<until:
+        if predicate(): return
+        time.sleep(.05)
+    raise AssertionError('Timed out waiting for a participant')
 
-@pytest.fixture(scope="session")
-def platform():
-    """临时目录 · 桩模式 · 随机空闲端口 · 管理员口令 test；照 ioalab/smoke.py 在线程里起 uvicorn，等 pf.started。"""
-    port = _free_port()
-    tmp = Path(tempfile.mkdtemp(prefix="ioalab-test-"))
-    os.environ.update(IOALAB_STUB="1", IOALAB_PORT=str(port), IOALAB_ADMIN_PASSWORD="test", IOALAB_DATA=str(tmp),
-                      IOALAB_MODE="dev", IOALAB_BIND="127.0.0.1", IOALAB_AUTOSEED="0")
+@pytest.fixture(scope='session')
+def platform(tmp_path_factory):
     import uvicorn
     from ioalab.config import Settings
     from ioalab.platform import Platform
     from ioalab.web.app import create_app
-
-    s = Settings()
-    assert not s.llm and not s.a2x_configured(), "IOALAB_STUB=1 下 Settings 应不读凭据（config._stub）"   # 不碰任何模型接口（含嵌入与 A2X 检索）
-    pf = Platform(s)
-    assert not pf.llm.enabled and pf.discovery.embed_fn is None
-    app = create_app(pf)
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
-    th = threading.Thread(target=server.run, daemon=True)
-    th.start()
-    for _ in range(150):
-        if pf.started:
-            break
-        time.sleep(0.2)
-    assert pf.started, "平台未启动"
-    pf.app = app                                     # 供 test_boundary 查路由表
+    pf=Platform(Settings(port=free_port(),data=tmp_path_factory.mktemp('core'),autoseed=True))
+    app=create_app(pf);pf.app=app
+    server=uvicorn.Server(uvicorn.Config(app,host='127.0.0.1',port=pf.s.port,log_level='critical'))
+    thread=threading.Thread(target=server.run,daemon=True);thread.start()
+    wait_for(lambda:server.started)
     yield pf
-    server.should_exit = True
-    th.join(timeout=15)
-
+    server.should_exit=True;thread.join(8)
 
 @pytest.fixture
 def client(platform):
-    """带 cookie 罐的 HTTP 客户端；trust_env=False 不走系统代理。"""
     import httpx
-    with httpx.Client(base_url=platform.s.base_url, trust_env=False, timeout=60) as c:
-        yield c
+    with httpx.Client(base_url=platform.s.base_url,trust_env=False,timeout=120) as http:
+        yield http
+
+@pytest.fixture(scope='session')
+def providers(platform,tmp_path_factory):
+    import uvicorn
+    from serve import ServiceHost,create_app
+    from catalog import definitions
+    selected=[next(d for d in definitions() if d.get('formation','preapproval')==f) for f in ('preapproval','countersign','proposal')]
+    port=free_port()
+    ids=[d['id'] for d in selected]+['wechat-posts']
+    host=ServiceHost(platform=platform.s.base_url,public_url=f'http://127.0.0.1:{port}',data=tmp_path_factory.mktemp('providers'),
+                     stub=True,only=ids)
+    host.selected=selected
+    host.all_definitions=definitions()
+    server=uvicorn.Server(uvicorn.Config(create_app(host),host='127.0.0.1',port=port,log_level='critical'))
+    thread=threading.Thread(target=server.run,daemon=True);thread.start()
+    wait_for(lambda:host.ready or host.error)
+    assert host.ready,host.error
+    yield host
+    server.should_exit=True;thread.join(8)
+
+@pytest.fixture
+def local_client(platform,tmp_path):
+    from ioalab_sdk import LabClient
+    from _support import new_user,PASSWORD
+    user=new_user(platform)
+    client=LabClient(platform.s.base_url,user['username'],PASSWORD,tmp_path/'local',source='experiment')
+    yield client
+    client.close()

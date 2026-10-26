@@ -1,48 +1,43 @@
 # 九问IoA仿真平台 · Jiuwen IoA Lab
 
-智能体互联网（IoA / Agentic Web）的仿真交易平台：用户把自己的九问 swarm 注册为个人助手，开发者把专业智能体注册为服务方；
-助手经 **Agent 交易市场**（A2X 发现 + A2C 合同）发现、比较、定约，服务方交付，**模拟支付方**读卡过账，市场记信誉、出裁定文书；
-管理员在控制台实时看到全部交易与内部组件。
+用于九问演示、IoA 技术实验和用户 playground。用户用自己的九问 Swarm 发现专业服务，按 A2C 合同委托、在本地验收并付款；管理员在另一屏观察交易。
 
-| | |
+| 执行方 | 职责 |
 |---|---|
-| 设计现状 | [设计/](设计/README.md)（本仓版本见 [设计/VERSION](设计/VERSION)；依据的 A2C 设计版本记在 设计/README.md） |
-| 协议与 SDK | A2C 主仓 [AgentContractProtocol](https://github.com/Weizheng96/AgentContractProtocol)；本仓用其 `src/` 构建的 wheel（[vendor/wheels](vendor/wheels/SOURCE.json)）与 A2X 注册中心子模块 [vendor/A2X-registry](vendor/A2X-registry) |
-| 部署 | [设计/部署.md](设计/部署.md) · [deploy/](deploy/)：Linux + Python 3.11，`deploy/install.sh` 一次装好（venv · systemd · Nginx 可选） |
-| 试用 | [docs/领导试用手册.md](docs/领导试用手册.md)：一屏九问 swarm，一屏管理员全景 |
+| 平台核心 | 账号、A2X发现、A2C市场、模拟支付、事件与管理员界面；没有个人助手运行时 |
+| 用户自己的九问 | 个人助手技能调用本地 IoA SDK，保管密钥、签合同、取件、沙箱验收 |
+| 独立官方服务 | 8个领域48个服务；常驻协议端点，收到业务任务才启动九问Swarm；与第三方走相同公开接入 |
+| 独立实验客户端 | 经同一SDK生成带experiment标记的背景交易，不在核心内运行 |
 
-## 目录
+设计现状见 [设计/](设计/README.md)，版本见 [设计/VERSION](设计/VERSION)，实现差异与未验收项见 [变更记录](设计/变更记录.md)。开发约定见 [AGENTS.md](AGENTS.md)。A2C协议来自主仓SDK wheel，来源见 [SOURCE.json](vendor/wheels/SOURCE.json)，不在平台重复实现合同规则。
 
-```
-ioalab/        平台（Python 包）：cli · config · platform · psp/ · market/ · runtime/ · seed/ · web/
-connector/     九问 swarm 技能包（skill-only）：SKILL.md + scripts/ioalab.py
-examples/      外部服务方样例（examples/external_provider：登记 · 公示模板 · 接单交付 · 结清）
-deploy/        install.sh · upgrade.sh · ioalab.service · ioalab.env.example · nginx.conf
-设计/          设计现状 · VERSION · 变更记录 · check.py
-tools/         selfcheck.py · check_services.py · sync_a2c.py · rehearsal.py
-tests/         pytest（桩模式，不调模型）
-vendor/        wheels/（a2c）· A2X-registry（子模块）
-```
+## 本地启动
 
-## 本机运行
+Python 3.11，首次克隆包含 A2X 子模块：
 
 ```bash
-git clone --recursive https://github.com/Weizheng96/Jiuwen-IoA-Lab.git && cd Jiuwen-IoA-Lab
-python -m venv .venv && .venv/bin/pip install -r requirements.txt -e .     # Windows：.venv\Scripts\pip
-export IOALAB_LLM_API_KEY=sk-…            # OpenAI 兼容端点，默认 DashScope；不设则只能跑桩
-ioalab check-config && ioalab serve       # http://127.0.0.1:8750  管理员 /admin（口令 IOALAB_ADMIN_PASSWORD；dev 模式未设则首次生成并打印）
+git clone --recursive https://github.com/Weizheng96/Jiuwen-IoA-Lab.git
+cd Jiuwen-IoA-Lab
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt -e . -e ./sdk
+.venv/bin/python tools/build_connector.py
+.venv/bin/ioalab serve
 ```
 
-自检（不调模型）：`python tools/selfcheck.py` · `python -m pytest -q tests` · `python 设计/check.py`。
+另开终端执行 `.venv/bin/python official-services/serve.py`；真实模式需先安装并配置兼容的九问进程入口，配置见 [部署](设计/部署.md)。Windows 将 `.venv/bin/` 换为 `.venv/Scripts/`。
 
-## 用自己的九问 swarm 当个人助手
+用户访问核心首页注册，下载连接器、导入自己的九问，填平台地址和账号。核心默认8750，官方服务默认8751；两个对外地址都须能被用户访问。内部账号已预注册，但保持空闲；SDK关联本地身份后才显示助手。
 
-技能包在 [connector/ioalab-client](connector/ioalab-client/)（jiuwenswarm 连接器，`skill-only`）：在连接器里填**平台地址 · 用户名 · 密码**即可；
-没有连接器市场的 swarm 把 `skills/ioalab-delegate/` 复制进技能目录、在 `scripts/config.json` 填账号。swarm 按 `SKILL.md` 用 bash 调
-`scripts/ioalab.py`（只用标准库）走 `/api/v1`：下需求 → 检索 → 比较模板 → 拟卡 → 签字 → 开工，交付后验收付款由平台按合同自动进行，
-需要用户决定的事（验收亲签 · 环节授权 · 是否仲裁）经 `confirmations` 由 swarm 问过用户再答复。接口清单见 [设计/接入.md](设计/接入.md)。
+## 验证与试用
 
-## 约束
+```bash
+python 设计/check.py
+python tools/selfcheck.py
+python -m pytest -q tests
+```
 
-A2C 是 custody-agnostic 的合同层：平台的模拟支付方只**读卡按卡载金额过账**，不持有资金、不执行裁定；虚拟币只是记账单位。
-文案与代码里不得出现 [AGENTS.md](AGENTS.md) §一 列出的资金类禁用词（`tools/selfcheck.py` 拦）。
+技能独立安装验收：构建安装包后执行 `python tools/check_bootstrap.py`，会在临时干净环境安装依赖并清理，首次需要网络。
+
+以上协议检查为显式桩测试，不调模型；`ioalab smoke` 启动独立核心/服务进程并在第三方本地Client完成合同。`python experiments/traffic.py --base http://127.0.0.1:8750 --count 3` 产生可识别实验流量。真实Swarm和Linux部署需要另行按 [试用手册](docs/领导试用手册.md) 验收，不用桩通过代替。
+
+虚拟币只是记账单位。模拟支付方只读卡按卡载金额过账，市场出争议裁定文书，不执行付款。

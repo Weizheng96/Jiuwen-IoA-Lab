@@ -1,10 +1,10 @@
 """命令行：ioalab check-config · init · serve · reset · smoke · backup。
 
     ioalab check-config            # 核对环境变量（trial 模式的必填项），打印生效配置
-    ioalab init [--no-seed]        # 幂等：建目录 · 建表 · 会话密钥 · A2X 凭据文件 · 记下 PUBLIC_URL · 注入内部账号与服务（起一次进程内服务）
+    ioalab init [--no-seed]        # 幂等：建目录 · 建表 · 会话密钥 · A2X 凭据文件 · 记下 PUBLIC_URL · 创建空闲内部账号与分类
     ioalab serve                   # 起平台（单进程单 worker；禁 --reload）；首次启动若未注入种子且 IOALAB_AUTOSEED=1，自动注入
     ioalab reset [--keep-keys] [--keep-accounts]   # 停服后清 data/
-    ioalab smoke                   # 进程内跑一单（固定交付件桩，不调模型）
+    ioalab smoke                   # 核心、官方服务、本地SDK三进程闭环（显式桩，不调模型）
     ioalab backup [--out 目录]     # 停服后把 data/ 打成 tar.gz
 """
 from __future__ import annotations
@@ -41,7 +41,7 @@ def _print_config(s) -> None:
     key = s.llm.get("api_key", "")
     print(f"[ioalab] 模式 {s.mode} · 绑定 {s.bind}:{s.port} · 对外 {s.public_url} · 数据 {s.data}")
     print(f"[ioalab] 模型 {s.agent_model} / A2X {s.a2x_model} / 嵌入 {s.embedding_model} · 端点 {s.llm.get('api_base') or '（未配置）'}"
-          f" · key {(key[:6] + '…') if key else '（未配置）'}")
+          f" · key {'已配置' if key else '未配置'}")
     print(f"[ioalab] 注册 {s.registration} · 登录赠 {s.login_credit} · ISC {s.isc_count} · 流量 {s.traffic} · 自动注入 {s.autoseed}")
 
 

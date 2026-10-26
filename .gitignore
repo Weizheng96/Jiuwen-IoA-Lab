@@ -1,6 +1,7 @@
 # 运行期数据：SQLite · 私钥 · 交付件 · A2X 数据集 · 回放事件 · 日志
 data/
 logs/
+ext-data/
 
 # 凭据与本机配置
 .env
