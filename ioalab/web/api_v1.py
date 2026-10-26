@@ -252,6 +252,54 @@ def build_router(platform, current_user: Callable[..., str]) -> APIRouter:
         o = order_of(uid, cd)
         return await run(platform.terminate_order, o, bool(b.get("agree", True)))
 
+    # ── 外部服务方接入 ───────────────────────────────────────────────
+    @r.post("/provider/packages")
+    async def provider_package(request: Request, uid: str = Depends(current_user)):
+        """上传 L1 脚本验收器源码 → ioalab://pkg/<digest>（写进模板 acceptance）。body {verifierId, source, reads[]}"""
+        b = await body(request)
+        src = str(b.get("source") or "")
+        if not src or len(src.encode()) > 200_000:
+            raise HTTPException(400, "source 须是 ≤ 200 KB 的 Python 源码（def verify(ctx)）")
+        return await run(lambda: platform.packages.put(verifier_id=str(b.get("verifierId") or ""), source=src, reads=list(b.get("reads") or [])))
+
+    @r.get("/packages/{digest}")
+    async def package_blob(digest: str):
+        """按摘要取验收器包（内容寻址，外部服务方自测与三方验收都从这里取）。"""
+        from fastapi.responses import Response
+        try:
+            data = platform.packages.fetch("ioalab://pkg/" + digest)
+        except Exception:  # noqa: BLE001
+            raise HTTPException(404, "没有这个验收器包")
+        return Response(content=data, media_type="application/zip")
+
+    @r.post("/provider/register")
+    async def provider_register(request: Request, uid: str = Depends(current_user)):
+        """登记外部服务方：{url, name, description, tags[], category, ap2Jwk}；须已向本平台市场 template.endorse。"""
+        b = await body(request)
+        row = await run(lambda: platform.register_external_provider(uid, url=b.get("url", ""), name=b.get("name", ""), description=b.get("description", ""),
+                                                                    tags=b.get("tags") or [], category=b.get("category"), ap2_jwk=b.get("ap2Jwk") or b.get("ap2_jwk")))
+        return {"id": row["id"], "name": row["name"], "status": row["status"], "url": jload(row["meta"])["url"]}
+
+    @r.post("/provider/refresh")
+    async def provider_refresh(request: Request, uid: str = Depends(current_user)):
+        """公示模板之后调一次：平台拉模板进索引并把服务方置为在线（平台也会每 30 s 自动拉一次）。body {id}"""
+        b = await body(request)
+        row = db.one("SELECT owner_id FROM agents WHERE id=?", str(b.get("id") or ""))
+        if not row or row["owner_id"] != uid:
+            raise HTTPException(403, "不是你的服务方")
+        return {"id": b["id"], "status": await run(lambda: platform.refresh_external_provider(str(b["id"])))}
+
+    @r.get("/provider/mine")
+    async def provider_mine(uid: str = Depends(current_user)):
+        rows = db.rows("SELECT id, name, status, created, meta, definition FROM agents WHERE owner_id=? AND role='service' ORDER BY created", uid)
+        out = []
+        for x in rows:
+            m, d = jload(x["meta"]), jload(x["definition"])
+            out.append({"id": x["id"], "name": x["name"], "status": x["status"], "external": bool(m.get("external")), "url": m.get("url") or platform.provider_url(x["id"]),
+                        "category": d.get("category"), "reputation": platform.market.reputation(m.get("url") or platform.provider_url(x["id"]))})
+            out[-1]["reputation"].pop("signature", None)
+        return out
+
     return r
 
 

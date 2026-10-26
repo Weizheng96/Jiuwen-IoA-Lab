@@ -49,7 +49,7 @@ const OP_LABELS = {
   'discovery.search': '市场检索（A2X）', 'confirm.request': '上升用户确认', 'confirm.answer': '用户答复',
   'order.signed': '签1 采纳合同卡', 'order.declined': '服务方拒绝复签', 'request.returned': '提案卡被退回', 'order.started': '已开工', 'order.fetched': '取件签收',
   'order.verified': '验收器判定（签6）', 'order.accepted': '验收付款（签7）', 'order.arbitrated': '裁定', 'order.completed': '结清',
-  'order.paid-late': '补付本期款', 'order.error': '处理出错', 'order.step-answered': '环节授权答复', 'arbitration.ruling': '裁定文书', 'order.terminated': '合同解除', 'traffic.level': '背景流量档位', 'llm.failover': '模型端点切换',
+  'order.paid-late': '补付本期款', 'order.error': '处理出错', 'order.step-answered': '环节授权答复', 'arbitration.ruling': '裁定文书', 'order.terminated': '合同解除', 'traffic.level': '背景流量档位', 'llm.failover': '模型端点切换', 'service.online': '外部服务方上线',
 };
 function labelOf(ev) {
   const op = ev.op || '';
@@ -97,7 +97,8 @@ const Names = {
       });
     });
   },
-  seedServices(services) { services.forEach(s => { this.map[s.id] = s.name; this.kind[s.id] = 'provider'; if (s.owner_id) this.owner[s.id] = s.owner_id; }); },
+  urlToId: {},        // 外部服务方 URL → 智能体 id
+  seedServices(services) { services.forEach(s => { this.map[s.id] = s.name; this.kind[s.id] = 'provider'; if (s.owner_id) this.owner[s.id] = s.owner_id; if (s.external && s.url) this.urlToId[s.url] = s.id; }); },
   accountOf(id) { const k = this.key(id); if (!k) return ''; if (k.startsWith('u-')) return k; return this.owner[k] || ''; },
   seedMine(me) {
     this.map[me.id] = '我'; this.kind[me.id] = 'user';
@@ -105,6 +106,7 @@ const Names = {
   },
   key(id) {
     if (!id) return '';
+    if (this.urlToId[id]) return this.urlToId[id];
     let m;
     if ((m = /\/a2a\/providers\/([^/?#]+)/.exec(id))) return m[1];
     if (/\/a2a\/market/.test(id)) return 'market';

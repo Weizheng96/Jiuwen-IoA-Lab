@@ -369,7 +369,7 @@ function renderRegistry() {
   const f = $('regFilter').value.trim().toLowerCase();
   const rows = REGISTRY.filter(s => !f || (s.name + ' ' + (s.tags || []).join(' ') + ' ' + s.id + ' ' + (s.category || '') + ' ' + Names.of(s.owner_id || '')).toLowerCase().includes(f));
   $('registryTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>#</th><th>名称</th><th>领域 · 标签</th><th>成约 · 上限</th><th class="num">价</th><th>状态</th><th>信誉</th><th>账号 · id</th></tr>` +
-    rows.map((s, i) => `<tr data-accts="${esc(s.owner_id || '')}" class="${Focus.acct && Focus.acct === s.owner_id ? 'hit' : ''}"><td class="mute">${i + 1}</td><td>${Names.html(s.id)}${s.runnable ? ' <span class="badge ok">可运行</span>' : ''}</td>
+    rows.map((s, i) => `<tr data-accts="${esc(s.owner_id || '')}" class="${Focus.acct && Focus.acct === s.owner_id ? 'hit' : ''}"><td class="mute">${i + 1}</td><td>${Names.html(s.id)}${s.external ? ' <span class="badge info" title="' + esc(s.url || '') + '">外部</span>' : ''}${s.runnable ? ' <span class="badge ok">可运行</span>' : ''}</td>
       <td>${s.category ? `<span class="badge market">${esc((CATEGORIES.find(c => c.id === s.category) || {}).name || s.category)}</span> ` : ''}${(s.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join(' ')}</td><td>${esc(FORMATION[s.formation] || s.formation)}${s.capacity ? ` <span class="mute">× ${esc(s.capacity)}</span>` : ''}</td>
       <td class="num">${s.price !== null && s.price !== undefined ? esc(s.price) : '<span class="mute">报价</span>'}</td>
       <td><span class="badge ${s.status === 'online' ? 'ok' : s.status === 'busy' ? 'warn' : ''}">${esc(OUTCOME[s.status] || s.status)}</span></td>

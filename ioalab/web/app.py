@@ -85,6 +85,7 @@ def create_app(platform: Platform) -> FastAPI:
     @app.get("/api/config")
     async def config():
         return {"mode": s.mode, "registration": s.registration, "loginCredit": s.login_credit, "currency": "虚拟币", "llm": platform.llm.enabled,
+                "publicUrl": s.public_url, "market": platform.market_id, "pay": platform.pay_id,
                 "discovery": platform.discovery.last_mode or ("a2x-tree" if platform.discovery.llm_configured else "vector")}
 
     @app.get("/api/session")
@@ -287,12 +288,14 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/admin/registry")
     async def registry(_: str = Depends(require_admin)):
-        rows = platform.db.rows("SELECT id, owner_id, name, status, created, definition FROM agents WHERE role='service' ORDER BY created")
+        rows = platform.db.rows("SELECT id, owner_id, name, status, created, definition, meta FROM agents WHERE role='service' ORDER BY created")
         for r in rows:
             d = jload(r.pop("definition"))
+            meta = jload(r.pop("meta", None) or "{}")
+            pid = meta.get("url") or platform.provider_url(r["id"])
             r.update(formation=d.get("formation", "preapproval"), runnable=bool(d.get("runnable")), tags=d.get("tags", []),
                      price=d.get("pricing", {}).get("price"), category=d.get("category"), capacity=d.get("capacity", 1),
-                     reputation=platform.market.reputation(platform.provider_url(r["id"])))
+                     external=bool(meta.get("external")), url=pid, reputation=platform.market.reputation(pid))
             r["reputation"].pop("signature", None)
         return {"taxonomy": platform.discovery.taxonomy_state(), "categories": platform.discovery.categories(), "services": rows}
 

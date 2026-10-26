@@ -61,7 +61,7 @@ const Panorama = (() => {
     const b = mkBlock({ ...cat, owner: s.owner_id ? Names.of(s.owner_id) : '' });
     const el = document.createElement('div'); el.className = 'pn-svc'; el.dataset.id = s.id; el.dataset.acct = s.owner_id || ''; el.dataset.accts = s.owner_id || '';
     const form = FORMATION[s.formation] || s.formation || '';
-    el.innerHTML = `<div class="name">${esc(s.name)}</div><div class="meta">${esc(form)} · <b>${s.price === null || s.price === undefined ? '报价' : esc(s.price)}</b><span class="rep">${s.reputation && s.reputation.completed ? ` · ${s.reputation.completed} 单` : ''}</span></div>
+    el.innerHTML = `<div class="name">${s.external ? '<span class="ext" title="外部服务方">⇄</span> ' : ''}${esc(s.name)}</div><div class="meta">${esc(form)} · <b>${s.price === null || s.price === undefined ? '报价' : esc(s.price)}</b><span class="rep">${s.reputation && s.reputation.completed ? ` · ${s.reputation.completed} 单` : ''}</span></div>
       <div class="st ${s.status === 'online' ? 'ok' : ''}">${esc(OUTCOME[s.status] || s.status || '')}</div><div class="earn" title="本服务收入">${s.earned ? '+' + money(s.earned) : ''}</div>`;
     b.querySelector('.bl').appendChild(el);
     const n = { el, id: s.id, owner: s.owner_id, earned: 0, done: s.reputation ? s.reputation.completed || 0 : 0, okc: 0, st: el.querySelector('.st'), rep: el.querySelector('.rep'), earnEl: el.querySelector('.earn') };

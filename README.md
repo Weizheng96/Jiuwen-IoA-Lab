@@ -16,10 +16,10 @@
 ```
 ioalab/        平台（Python 包）：cli · config · platform · psp/ · market/ · runtime/ · seed/ · web/
 connector/     九问 swarm 技能包（skill-only）：SKILL.md + scripts/ioalab.py
-examples/      外部服务方样例
+examples/      外部服务方样例（examples/external_provider：登记 · 公示模板 · 接单交付 · 结清）
 deploy/        install.sh · upgrade.sh · ioalab.service · ioalab.env.example · nginx.conf
 设计/          设计现状 · VERSION · 变更记录 · check.py
-tools/         selfcheck.py · check_services.py · sync_a2c.py · dispatch.py · export_run.py
+tools/         selfcheck.py · check_services.py · sync_a2c.py · rehearsal.py
 tests/         pytest（桩模式，不调模型）
 vendor/        wheels/（a2c）· A2X-registry（子模块）
 ```

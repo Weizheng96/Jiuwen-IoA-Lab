@@ -163,11 +163,21 @@ class Platform:
 
     def _agent_of_provider(self, provider_id: str) -> dict | None:
         aid = provider_id.rsplit("/", 1)[-1]
-        return self.db.one("SELECT * FROM agents WHERE id=? AND role='service'", aid)
+        row = self.db.one("SELECT * FROM agents WHERE id=? AND role='service'", aid)
+        if row is None and provider_id.startswith("http"):     # 外部服务方：按登记的 URL 找
+            row = self.db.one("SELECT * FROM agents WHERE role='service' AND meta LIKE ?", f'%"url": "{provider_id}"%')
+        return row
 
     def _payee_key(self, provider_id: str) -> Mapping[str, Any]:
         row = self._agent_of_provider(provider_id) or fail(CARD_INVALID, "unknown payee")
+        meta = jload(row.get("meta") or "{}")
+        if meta.get("external"):
+            return meta["ap2_jwk"]
         return self.keystore.ec(row["id"]).jwk
+
+    def is_external(self, provider_id: str) -> bool:
+        row = self._agent_of_provider(provider_id)
+        return bool(row and jload(row.get("meta") or "{}").get("external"))
 
     def _payee_of(self, provider_id: str) -> str | None:
         row = self._agent_of_provider(provider_id)
@@ -214,6 +224,7 @@ class Platform:
         self.started = True
         self.loop.create_task(self._poll_loop())
         self.loop.create_task(self._purge_loop())
+        self.loop.create_task(self._external_close_loop())
         if self.s.autoseed:
             self.loop.create_task(self._bootstrap())
         self.traffic.ensure_running()
@@ -382,6 +393,105 @@ class Platform:
         self.discovery.register_one(row["id"], card, category=d.get("category"))
         self.bus.emit("platform", "service.register", sender=row["owner_id"], receiver=rt.id, outcome=card["status"],
                       detail={"name": d["name"], "formation": t["formation"], "category": d.get("category")})
+
+    # ── 外部服务方（运行在别处，平台出站访问）─────────────────────────
+    def register_external_provider(self, owner_id: str, *, url: str, name: str, description: str, tags: list[str] | None = None,
+                                   category: str | None = None, ap2_jwk: Mapping[str, Any] | None = None) -> dict:
+        """登记一个外部 A2A 服务方：取 Agent Card 与 JWKS → 市场认证其公钥 → 登记 AP2 收款公钥 → 取其公示的模板 → 写入 A2X 并归叶类。"""
+        from a2c.binding import A2C_EXTENSION, CARD_PATH, JWKS_PATH
+        from a2c.slots import verify_template
+        url = (url or "").strip().rstrip("/")
+        if not url.startswith("http"):
+            fail(CARD_INVALID, "url 须是服务方 A2A 应用的地址（http(s)://…）")
+        if url.startswith(self.s.public_url) or url.startswith(self.s.local_url):
+            fail(CARD_INVALID, "不能把平台自己的地址登记为外部服务方")
+        if not name:
+            fail(CARD_INVALID, "缺 name")
+        if not (isinstance(ap2_jwk, Mapping) and ap2_jwk.get("kty") == "EC"):
+            fail(CARD_INVALID, "ap2_jwk 须是 ES256 公钥（kty EC）——收款用")
+        if self.db.one("SELECT 1 FROM agents WHERE role='service' AND meta LIKE ?", f'%"url": "{url}"%'):
+            fail(CARD_INVALID, "这个地址已登记")
+        try:
+            with httpx.Client(timeout=15, trust_env=False) as http:
+                card_json = http.get(url + CARD_PATH).json()
+                jwks = http.get(url + JWKS_PATH).json()
+        except Exception as e:  # noqa: BLE001
+            fail(CARD_INVALID, f"取不到服务方的 Agent Card / JWKS：{str(e)[:160]}")
+        if A2C_EXTENSION not in json.dumps(card_json):
+            fail(CARD_INVALID, "服务方的 Agent Card 没有声明 A2C 扩展")
+        okp = [k for k in jwks.get("keys", []) if k.get("kty") == "OKP"]
+        if not okp:
+            fail(CARD_INVALID, "服务方 JWKS 里没有 Ed25519 公钥")
+        self.market.certify(url, okp[0], name)                     # 公钥入 Directory（市场签认它的模板要用），认证记录
+        import hashlib
+        aid = "ext-" + hashlib.sha1(url.encode()).hexdigest()[:10]
+        d = {"id": aid, "name": name, "description": description or name, "tags": list(tags or []), "runnable": True,
+             "formation": "preapproval", "category": category, "external": True, "url": url, "deliverable": {"name": "deliverable"}}
+        self.db.run("INSERT INTO agents (id, owner_id, role, name, definition, status, created, meta) VALUES (?,?,?,?,?,?,?,?)",
+                    aid, owner_id, "service", name, jdump(d), "listed", now(), jdump({"url": url, "ap2_jwk": dict(ap2_jwk), "external": True}))
+        card = {"name": name, "description": d["description"], "url": url, "version": "1",
+                "skills": [{"id": f"ext-{i}", "name": tag, "description": tag, "tags": [tag]} for i, tag in enumerate(d["tags"])],
+                "a2c": {"templates": [], "paymentProvider": self.pay_id}, "status": "listed"}
+        self.discovery.register_one(aid, card, category=category)
+        status = self.refresh_external_provider(aid, quiet=True)
+        self.bus.emit("platform", "service.register", sender=owner_id, receiver=url, outcome=status,
+                      detail={"name": name, "category": category, "external": True})
+        return self.db.one("SELECT * FROM agents WHERE id=?", aid)
+
+    def refresh_external_provider(self, aid: str, *, quiet: bool = False) -> str:
+        """拉外部服务方公示的模板（须经本平台市场签认）进 A2X 索引；有模板即 online，没有保持 listed。返回状态。"""
+        from a2c.slots import verify_template
+        row = self.db.one("SELECT * FROM agents WHERE id=? AND role='service'", aid) or fail(CARD_INVALID, "没有这个服务方")
+        meta, d = jload(row["meta"] or "{}"), jload(row["definition"])
+        if not meta.get("external"):
+            fail(CARD_INVALID, "不是外部服务方")
+        url = meta["url"]
+        try:
+            reply = self._transport("platform").send(url, "template.get", {})
+            templates = [t for t in reply.body.get("templates", []) if t.get("provider") == url]
+            for t in templates:
+                verify_template(t, self.keys)
+            templates = [t for t in templates if not t.get("pricing", {}).get("paymentProviders")
+                         or any(p.get("id") == self.pay_id for p in t["pricing"]["paymentProviders"])]
+        except Exception as e:  # noqa: BLE001
+            if quiet:
+                return row["status"]
+            fail(CARD_INVALID, f"取不到服务方公示的模板（须先向本平台市场 template.endorse）：{str(e)[:160]}")
+        status = "online" if templates else "listed"
+        if templates:
+            d["formation"] = templates[0].get("formation", "preapproval")
+            d["deliverable"] = {"name": next(iter(templates[0].get("deliverables") or [{"name": "deliverable"}]))["name"]}
+            d["pricing"] = {"price": (templates[0].get("pricing", {}).get("priceFormula") or {}).get(d["deliverable"]["name"])}
+        self.db.run("UPDATE agents SET status=?, definition=? WHERE id=?", status, jdump(d), aid)
+        self.discovery.update_card(aid, {"status": status, "a2c": {"templates": [
+            {"digest": t["templateDigest"], "formation": t.get("formation"), "price": (t.get("pricing", {}).get("priceFormula") or {}).get(d["deliverable"]["name"]),
+             "proposalFee": t.get("pricing", {}).get("proposalFee")} for t in templates], "paymentProvider": self.pay_id}})
+        if status == "online" and row["status"] != "online":
+            self.bus.emit("platform", "service.online", sender=row["owner_id"], receiver=url, outcome=status,
+                          detail={"name": row["name"], "templates": len(templates), "external": True})
+        return status
+
+    async def _external_close_loop(self) -> None:
+        """外部服务方自己向市场结清（card.close）：按市场 ledger 把订单与需求标完成。"""
+        tick = 0
+        while True:
+            await asyncio.sleep(5)
+            tick += 1
+            try:
+                if tick % 6 == 0:                                    # 每 30 s：还没公示模板的外部服务方再拉一次
+                    for r in self.db.rows("SELECT id FROM agents WHERE role='service' AND status='listed' AND meta LIKE '%\"external\": true%'"):
+                        await asyncio.to_thread(self.refresh_external_provider, r["id"], quiet=True)
+                for o in self.db.rows("SELECT card_digest, need_id, provider_id FROM orders WHERE state='started'"):
+                    if not o["provider_id"].startswith("http") or o["provider_id"].startswith(self.s.public_url) or not self.is_external(o["provider_id"]):
+                        continue
+                    entry = self.market.market.store.get("ledger", o["card_digest"])
+                    if entry and entry.get("outcome") == "completed":
+                        cd = o["card_digest"]
+                        self.db.run("UPDATE orders SET state='completed', phase='已结清', updated=? WHERE card_digest=?", now(), cd)
+                        self.db.run("UPDATE needs SET state='completed', card_digest=?, updated=? WHERE id=? AND state!='failed'", cd, now(), o["need_id"])
+                        self.bus.emit("platform", "order.completed", sender=o["provider_id"], card_digest=cd, outcome="completed")
+            except Exception as e:  # noqa: BLE001
+                log.warning("external close loop: %s", e)
 
     def seed_services(self, items: list[tuple[str, Mapping[str, Any]]]) -> None:
         """种子：逐个注册 + 签模板，A2X 一次 register_batch。"""
