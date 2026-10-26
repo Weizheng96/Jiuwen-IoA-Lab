@@ -43,11 +43,12 @@ PERSONA = """你是「{name}」，一位个人助手，替用户在智能体交�
 1. 用 search_services 按语义找候选服务（只信市场返回的被认证服务方）。
 2. 从候选里挑 2–3 家最贴合的（status 为 online 的在接单，优先），用 get_reputation 看信誉；用 list_templates 取各家公示的合同模板，
    按「交付件 → 输入要求 → 价 → 验收标准」逐节比较：不满足用户要求的立刻剔除；价不得超过预算上限；验收标准越严越好。
-3. 选定后：预批准型 / 待批准型用 draft_card 拟卡（spec 按模板的 specSchema 填，枚举值必须在域内；材料用 list_materials 给的名字），
-   再 sign_card；提案型用 submit_request，拿到服务方拟的卡后 adopt。待批准型服务方可能拒绝复签、提案型服务方可能退回提案卡
+3. 选定后：预批准型 / 待批准型用 draft_card 拟卡（template_digest 直接传服务方 URL；spec 按模板的 specSchema 填，枚举值必须在域内、
+   const 的键不填；材料用 list_materials 给的名字），再 sign_card；提案型用 submit_request（同样传服务方 URL），拿到服务方拟的卡后 adopt。
+   同一个工具连续两次返回同样的 error 就换做法（换服务方、改 spec），不要原样重复。待批准型服务方可能拒绝复签、提案型服务方可能退回提案卡
    （reason 里会说原因，如「已接满」）：被拒的那家**不要再找**，直接换候选列表里的另一家（同类里描述相近即可，如另一家简历、行程服务），
    最多换 3 家：换家时直接取那家的模板拟卡 / 提交提案卡，不必再查信誉、不必重新检索。
-4. 卡生效后调 start 开工。开工成功即任务完成。
+4. 卡生效后调 start 开工。start 返回 started: true 才算完成——没有开工成功之前不要作答。
 规则：报价必须是定数；不要编造工具结果；不要替用户决定超预算的事；每一步只调必要的工具，不要反复检索。
 最后用一段 JSON 作答：{{"cardDigest": "...", "provider": "...", "price": 数字, "summary": "一句话"}}；失败则 {{"failed": "原因"}}。"""
 
@@ -121,7 +122,7 @@ class AssistantRuntime:
             """按模板拟合同卡（预批准型、待批准型）。
 
             Args:
-                template_digest: list_templates 返回的 templateDigest
+                template_digest: 服务方 URL（推荐，取其公示的模板）或 list_templates 返回的 templateDigest（须原样复制）
                 card_id: 你起的卡号，如 C-001
                 spec: {交付件名: {键: 值}}，键与取值须符合模板 specSchema（枚举必须在域内；const 的键不填）
                 material_names: 要交给服务方的材料名（list_materials 里的 name），按模板 inputs 的 name 一一对应
@@ -142,9 +143,9 @@ class AssistantRuntime:
             """提案型：填提案卡（付拟卡费如收）发给服务方，返回服务方拟的合同卡摘要与报价，或退回理由。
 
             Args:
-                template_digest: 提案型模板的 templateDigest
+                template_digest: 服务方 URL（推荐）或提案型模板的 templateDigest（须原样复制）
                 request_id: 你起的提案卡号，如 R-001
-                spec: {交付件名: {键: 值}}
+                spec: {交付件名: {键: 值}}，const 的键不填
                 material_names: 要交的材料名
             """
             return await call(ops.submit_request, template_digest, request_id, spec, material_names or [])
@@ -199,6 +200,8 @@ class AssistantRuntime:
         query = (f"用户需求：{need['text']}\n预算上限：{scope.get('budget')} 虚拟币；可委托类别：{scope.get('category', '不限')}；"
                  f"定约亲签：{'是' if scope.get('sign1') == 'user' else '否'}；验收亲签：{'是' if scope.get('sign7') == 'user' else '否'}。\n"
                  f"可用材料：{[m['name'] for m in need.get('materials', [])]}。请完成到开工。")
+        if need.get("retry_hint"):
+            query += "\n注意：" + need["retry_hint"]
         if need.get("resume"):                            # 上一轮在签卡之后断了：卡已生效，直接开工，不要再检索、拟卡
             query += (f"\n注意：此前已拟好并签了合同卡 {need['resume']['cardDigest']}（服务方 {need['resume']['provider']}），"
                       "合同已生效；不要重新检索或拟卡，直接用这个 card_digest 调用 start 开工。")

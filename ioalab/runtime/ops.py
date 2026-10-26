@@ -57,6 +57,64 @@ class DelegationOps:
     def tried(self) -> list[str]:
         return list(self.hooks.tried(self.need["id"])) if getattr(self.hooks, "tried", None) else []
 
+    # ── 模板解析与规格清洗（模型会抄错摘要、填 const 键）────────────────
+    def template(self, ref: str) -> dict:
+        """ref 可以是模板摘要（允许前缀 ≥ 16 位十六进制）或服务方 URL（取其公示的模板；多份时取第一份）。"""
+        ref = (ref or "").strip()
+        if ref.startswith("http"):
+            ts = self.client.get_templates(ref)
+            if not ts:
+                fail(CARD_INVALID, f"服务方 {ref} 没有公示的模板")
+            return ts[0]
+        hexpart = ref.split(":", 1)[-1].lower()
+        try:
+            return self.client.template(ref if ref.startswith("sha256:") else "sha256:" + hexpart)
+        except Exception as e:  # noqa: BLE001
+            if len(hexpart) < 16:
+                raise
+            cands = [(k, v) for k, v in self.client.store.all("templates").items()
+                     if k.split(":", 1)[-1].startswith(hexpart[:16]) or hexpart.startswith(k.split(":", 1)[-1][:16])]
+            if len(cands) != 1:
+                fail(CARD_INVALID, f"模板摘要不存在或抄错（{ref[:30]}…）：请用 list_templates 返回的 templateDigest 原样复制，或直接传服务方 URL")
+            t = cands[0][1]
+            return t.get("template", t) if isinstance(t, dict) and "template" in t else t
+
+    @staticmethod
+    def clean_spec(template: Mapping[str, Any], spec: Mapping[str, Any]) -> tuple[dict, list[str]]:
+        """按模板 specSchema 清洗规格：去掉 const 键与模板没有的键（委托方不填），数值型字符串转数；返回 (spec, 提示)。"""
+        notes: list[str] = []
+        schemas = {d["name"]: d.get("specSchema") or {} for d in template.get("deliverables", [])}
+        out: dict = {}
+        for dname, vals in (spec or {}).items():
+            if dname not in schemas:
+                if len(schemas) == 1 and isinstance(vals, dict):          # 交付件名写错：只有一个交付件时直接归到它
+                    notes.append(f"规格里的「{dname}」按唯一交付件「{next(iter(schemas))}」处理")
+                    dname = next(iter(schemas))
+                else:
+                    notes.append(f"模板没有交付件「{dname}」，已忽略")
+                    continue
+            sch = schemas[dname]
+            cleaned = {}
+            for k, v in (vals or {}).items():
+                if k not in sch:
+                    notes.append(f"{dname}.{k} 不在模板 specSchema 里，已忽略")
+                    continue
+                if "const" in sch[k]:
+                    notes.append(f"{dname}.{k} 是模板固定值（const），委托方不填，已去掉")
+                    continue
+                if sch[k].get("type") == "integer" and isinstance(v, str) and v.strip().lstrip("-").isdigit():
+                    v = int(v)
+                elif sch[k].get("type") == "number" and isinstance(v, str):
+                    try:
+                        v = float(v)
+                    except ValueError:
+                        pass
+                cleaned[k] = v
+            out[dname] = cleaned
+        for dname in schemas:
+            out.setdefault(dname, {})
+        return out, notes
+
     # ── 发现与比较 ───────────────────────────────────────────────────
     def search(self, query: str, top_k: int = 8) -> list[dict]:
         hits = self.hooks.search(query, int(top_k))
@@ -84,7 +142,8 @@ class DelegationOps:
 
     # ── 拟卡 · 签字 ──────────────────────────────────────────────────
     def draft(self, template_digest: str, card_id: str, spec: Mapping[str, Any], material_names: list[str] | None = None) -> dict:
-        t = self.client.template(template_digest)
+        t = self.template(template_digest)
+        spec, notes = self.clean_spec(t, spec)
         mats = self._mats(material_names)
         d = self.client.draft_card(t, card_id=card_id, spec=spec, materials=mats, signers=self._signers(),
                                    delegation_scope_digest=self.scope_digest)
@@ -94,7 +153,7 @@ class DelegationOps:
             return {"cardDigest": cd, "error": f"合计 {total} 超过预算上限 {self.budget}，不能签"}
         pre = {n: r.status for n, r in self.client.precheck(t, d.card, {n: b for n, (b, _x) in mats.items()}).items()}
         return {"cardDigest": cd, "cardId": card_id, "provider": t["provider"], "formation": t["formation"], "derived": d.card["derived"],
-                "notices": d.notices, "inputPrecheck": pre}
+                "notices": list(d.notices) + notes, "inputPrecheck": pre}
 
     def sign(self, card_digest: str) -> dict:
         card = self.client.card(card_digest)
@@ -115,9 +174,10 @@ class DelegationOps:
         return {"signed": True, "effective": True}
 
     def submit_request(self, template_digest: str, request_id: str, spec: Mapping[str, Any], material_names: list[str] | None = None) -> dict:
-        t = self.client.template(template_digest)
+        t = self.template(template_digest)
         if t["formation"] != "proposal":
-            fail(CARD_INVALID, "只有提案型模板才发提案卡")
+            fail(CARD_INVALID, "只有提案型模板才发提案卡；预批准 / 待批准型用 draft_card")
+        spec, _notes = self.clean_spec(t, spec)
         why = self._confirm_or_reason("sign", f"向 {t['provider']} 发提案卡（拟卡费 {t['pricing'].get('proposalFee', 0)} 虚拟币）")
         if why:
             return {"submitted": False, "error": why}

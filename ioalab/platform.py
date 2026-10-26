@@ -520,6 +520,20 @@ class Platform:
             usage = self.llm.usage.get(nid)
             res = out["result"]
             cd = res.get("cardDigest") if isinstance(res, dict) else None
+            # 模型有时只检索就作答「已委托」：没有卡也没说失败 → 带提示重跑一次
+            if (isinstance(res, dict) and "failed" not in res and not cd and not need.get("retry_hint")
+                    and self.db.one("SELECT 1 FROM orders WHERE need_id=? AND state NOT IN ('declined')", nid) is None):
+                log.warning("round 1 answered without a card, re-running once: %s", nid)
+                self.bus.emit("platform", "need.retry", sender=need["assistant_id"], outcome=nid, detail={"attempt": 1, "reason": "没有完成到开工就作答"})
+                need = {**need, "retry_hint": "上一轮你在没有拟卡、签字、开工之前就作答了。这一轮必须实际调用工具：取模板 → draft_card / submit_request → sign_card / adopt → start，start 返回 started: true 后再作答。"}
+                try:
+                    out = await asyncio.to_thread(lambda: asyncio.run(rt.run_round1(need)))
+                    usage = self.llm.usage.get(nid)
+                    res = out["result"]
+                    cd = res.get("cardDigest") if isinstance(res, dict) else None
+                except Exception as e:  # noqa: BLE001
+                    out = {"result": {"failed": str(e)[:300]}, "trace": list(getattr(e, "trace", []) or [])}
+                    res, cd = out["result"], None
             # 服务方可能在助手收尾前就交付、结清（几秒内）：按订单当前状态定需求状态，不只认 started
             order = self.db.one("SELECT * FROM orders WHERE need_id=? AND state IN ('started','completed','arbitrated','lapsed') "
                                 "ORDER BY created DESC LIMIT 1", nid)

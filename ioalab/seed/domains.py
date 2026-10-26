@@ -60,6 +60,9 @@ def materialize(s: dict, origin: str) -> dict:
         raise ValueError(f"{origin}/{s.get('id')}：verifier 须有 checks 或 script")
     if v:
         s["verifier"] = v
+    top = [c for c in (s.get("verifier", {}).get("checks") if "checks" in (s.get("verifier") or {}) else []) or [] if c.get("kind") == "keys" and not c.get("path")]
+    if top and s.get("generator", {}).get("system") and "顶层键必须恰好" not in s["generator"]["system"]:
+        s["generator"]["system"] += f"\n输出 JSON 的顶层键必须恰好是：{'、'.join(top[0]['required'])}（不得改名、不得缩写）。"
     s.setdefault("runnable", True)
     s.setdefault("capacity", 1 if s.get("formation") in ("countersign", "proposal") else 3)
     s["origin"] = origin
