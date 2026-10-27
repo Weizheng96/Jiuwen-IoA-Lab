@@ -16,7 +16,7 @@ from traffic import run_order
 
 
 class NetworkTraffic:
-    def __init__(self,config,folder,count=4):
+    def __init__(self,config,folder,count=4,services=None):
         self.config,self.folder=config,Path(folder)
         self.folder.mkdir(parents=True,exist_ok=True)
         self.stop=threading.Event()
@@ -26,6 +26,7 @@ class NetworkTraffic:
         self.accounts=[]
         self.boxes=[]
         self.errors=[]
+        self.services=services
         run=secrets.token_hex(3)
         for i in range(count):
             account={'username':f'lab_{run}_{i+1:02}','password':secrets.token_urlsafe(24)}
@@ -48,7 +49,8 @@ class NetworkTraffic:
 
     def run(self,i,client,box):
         self.ready.wait()
-        selected=('med-reminder','triage-advice','rehab-plan','med-reminder')[i%4]
+        choices=self.services or ('med-reminder','triage-advice','rehab-plan','med-reminder')
+        selected=choices[i%len(choices)]
         definition=next(d for d in definitions() if d['id']==selected)
         url=self.config['provider']+'/a2a/providers/svc-'+definition['id']
         try:
@@ -61,7 +63,7 @@ class NetworkTraffic:
                 box.sync()
                 box.process(lambda m:{'status':'received'})
                 # Keep messages active through narration while staying within the initial credit.
-                if iteration%6==0 and orders<7:
+                if iteration%6==0 and orders<(3 if self.services else 7):
                     client.search(definition['name'],8)
                     result=run_order(client,definition,url)
                     if result['status']!='accepted':raise RuntimeError('Experiment contract did not pass acceptance')

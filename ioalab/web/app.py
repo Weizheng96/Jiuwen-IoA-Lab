@@ -102,11 +102,11 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.post("/api/auth/register")
     async def register(request: Request):
-        """用户名密码注册（external）；注册即首次登录：发 cookie、JSON 里也回 token、赠当日登录币。"""
+        """用户名密码注册（external）；自动建立首次登录并赠送登录虚拟币。"""
         b = await body(request)
         u = await asyncio.to_thread(platform.register_user, b.get("username", ""), b.get("password", ""),
                                     display_name=b.get("display_name", ""), invite=b.get("invite", ""), ip=ip(request))
-        u["credited"] = await asyncio.to_thread(platform.daily_credit, u["id"])
+        u["credited"] = await asyncio.to_thread(platform.grant_login_credit, u["id"])
         u["token"] = platform.auth.bearer(u["id"])
         resp = JSONResponse(u)
         set_cookie(resp, platform.auth.token(u["id"]))

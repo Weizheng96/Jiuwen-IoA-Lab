@@ -2,61 +2,76 @@
   "case": "global",
   "displayName": "九问IoA实验平台（Jiuwen IoA Lab）",
   "description": "面向智能体互联网的仿真验证与开放体验平台。",
-  "source": "real browser recording",
-  "narrationReference": "AgentContractProtocol/demo/智能体互联网/剧本.md",
-  "participants": "independent experimental SDK clients",
-  "providerMode": "explicit samples",
+  "source": "chapter-isolated conceptual map with actual run data and real admin capture",
+  "narrationReference": "AgentContractProtocol/demo/智能体互联网/scenario/{story,script}.py + web/map.js + tools/record.py",
   "experiment": {
-    "participants": 4,
-    "completedOrders": 28,
-    "messages": 161,
-    "formations": [
-      "countersign",
-      "preapproval",
-      "proposal"
-    ],
-    "errors": []
+    "participants": 6,
+    "a2xTreeSearches": 18,
+    "orders": 18,
+    "messages": 108,
+    "errors": [],
+    "browserErrors": [],
+    "serviceExecution": "labelled sample outputs",
+    "monitorSeconds": 100
   },
   "qa": {
     "result": "passed",
     "dimensions": "1920x1080",
-    "meanVolumeDb": -19.4,
-    "narrationClips": 13,
-    "duration": 170.84,
-    "frames": [
-      "review-1.png",
-      "review-2.png",
-      "review-3.png"
-    ],
-    "fixtures": [
-      "provider-sample"
-    ]
-  },
-  "editorialOverlay": {
-    "labelled": true,
-    "businessStateModified": false,
+    "duration": 145.98,
+    "meanVolumeDb": -19.8,
+    "narrationClips": 20,
+    "phaseIsolation": true,
     "reviewFrames": [
-      "guide-intro.png",
-      "guide-discovery.png",
-      "guide-delivery.png",
-      "guide-messaging.png",
-      "guide-internal.png",
-      "guide-external.png"
+      "shot-intro.png",
+      "shot-join.png",
+      "shot-credit.png",
+      "shot-provider.png",
+      "shot-needs.png",
+      "shot-authorization.png",
+      "shot-discovery.png",
+      "shot-methods.png",
+      "shot-compare.png",
+      "shot-contract.png",
+      "shot-delivery.png",
+      "shot-acceptance.png",
+      "shot-arbitration.png",
+      "shot-payment.png",
+      "shot-reputation.png",
+      "shot-messages.png",
+      "shot-meeting.png",
+      "shot-value.png",
+      "shot-internal.png",
+      "shot-external.png"
     ]
-  },
-  "layoutWidths": {
-    "platform": 994,
-    "services": 316
   },
   "subtitles": {
-    "pixels": 48,
-    "shortCaptions": true
+    "pixels": 52,
+    "highContrastBand": true
   },
   "narration": {
-    "speechRate": 1.12,
-    "timedFromMeasuredAudio": true,
-    "clips": 13
+    "speechRate": 1.6,
+    "tempo": 1.12,
+    "a2cPronunciation": "A to C",
+    "measuredAudioTimeline": true
+  },
+  "mechanismOnly": [
+    "payment authorization illustration",
+    "ANN alternative",
+    "conditional arbitration",
+    "online/offline illustration",
+    "illustrative baby naming endpoint, not executed in this run",
+    "illustrative baby naming endpoint, not executed in this run"
+  ],
+  "monitor": {
+    "actualCapture": true,
+    "playbackRate": 4
   },
   "video": "demo/out/01-global.mp4",
-  "sha256": "1766d6915ad53e68a90f347df1f33fcfa986acac53a5683b93160c6af82a64ba"
+  "sha256": "b4bef687a98d37c83f996cc81c88c2a3b8deb947a163bad277e63c5a6ba0983f",
+  "persistentLabels": [
+    "概念动画",
+    "样例服务",
+    "虚拟币"
+  ],
+  "rebuildFromCommittedAssets": "passed"
 }

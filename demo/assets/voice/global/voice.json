@@ -1,106 +1,290 @@
 [
   {
     "id": "intro",
-    "at": 0.0,
-    "text": "九问IoA实验平台",
-    "voice": "我们构建了九问IoA实验平台，面向智能体互联网的仿真验证与开放体验平台。",
-    "file": "41ffb2cb36e1d636.mp3",
-    "duration": 8.16
+    "stage": 0,
+    "text": "我们构建了九问IoA实验平台",
+    "voice": "我们构建了九问IoA实验平台。面向智能体互联网的仿真验证与开放体验平台。",
+    "focus": [],
+    "mode": "cover",
+    "at": 0,
+    "file": "70a8470f49a83ebd.mp3",
+    "duration": 6.24,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
-    "id": "assistant",
-    "at": 8.53,
-    "text": "自己的九问，接入IoA",
-    "voice": "实验人员和用户可以使用自己的九问Swarm，通过IoA技能接入平台，作为自己的个人助手。新注册账号可获得体验用虚拟币。",
-    "file": "cca34b57b1813ecb.mp3",
-    "duration": 12.31
+    "id": "join",
+    "stage": 1,
+    "text": "把自己的九问，接入智能体互联网",
+    "voice": "实验人员或者用户，可以把自己的九问Swarm注册为个人助手。",
+    "focus": [
+      "identity"
+    ],
+    "mode": "join",
+    "at": 6.64,
+    "file": "8b0027fbf5221a9b.mp3",
+    "duration": 3.89,
+    "speechRate": 1.6,
+    "tempo": 1.12
+  },
+  {
+    "id": "credit",
+    "stage": 2,
+    "text": "每次成功登录，赠送100虚拟币",
+    "voice": "个人助手每次登录，支付中心会赠送一百元虚拟货币，用于平台体验。",
+    "focus": [
+      "payment"
+    ],
+    "mode": "credit",
+    "at": 10.93,
+    "file": "c1441d9c9929856a.mp3",
+    "duration": 5.62,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
     "id": "provider",
-    "at": 21.19,
-    "text": "专业智能体，公开接单",
-    "voice": "也可以把自己开发的专业智能体注册为公开接取委托的服务方，并提交合同模板，公示交付内容、报价和验收标准。",
-    "file": "9375725a454b13f4.mp3",
-    "duration": 12.53
+    "stage": 3,
+    "text": "注册专业智能体，公开接取委托",
+    "voice": "也可以把自己开发的专业智能体，向交易中心注册为公开接取委托的服务方，获得虚拟货币委托金。",
+    "focus": [
+      "registry",
+      "templates"
+    ],
+    "mode": "provider",
+    "at": 16.95,
+    "file": "ecdcaa9cf1038e18.mp3",
+    "duration": 7.22,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
-    "id": "parallel",
-    "at": 34.08,
-    "text": "多方并行，发起委托",
-    "voice": "本轮演示由四个独立实验客户端模拟个人助手，同时发起委托和消息。每条委托带着需求与预算，交给对应的服务方。",
-    "file": "b9297706057cbf93.mp3",
-    "duration": 11.95
+    "id": "needs",
+    "stage": 4,
+    "text": "多位用户，同时提出不同需求",
+    "voice": "智能体互联网中存在多种交互，比如委托交易。用户向个人助手提出需求：翻译品牌介绍、写朋友圈文案、给宝宝起名、润色简历、写正则、排杭州两日行程。",
+    "focus": [],
+    "mode": "needs",
+    "at": 24.57,
+    "file": "2b95a96d5a54b1d0.mp3",
+    "duration": 11.88,
+    "speechRate": 1.6,
+    "tempo": 1.12
+  },
+  {
+    "id": "authorization",
+    "stage": 4,
+    "text": "带着预算和类别，先取得用户授权",
+    "voice": "每条需求带着预算上限和可委托类别。个人助手调用智能体支付授权协议，获取用户发起委托的授权。",
+    "focus": [],
+    "mode": "authorization",
+    "at": 36.85,
+    "file": "b12cc4a5880b8728.mp3",
+    "duration": 6.29,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
     "id": "discovery",
-    "at": 46.41,
-    "text": "A2X寻找合适服务",
-    "voice": "服务发现回答找谁。个人助手通过A2X注册中心获得候选服务，公示的合同模板则说明交付件、输入要求、报价和验收标准，为筛选提供依据。",
-    "file": "1668588a96934883.mp3",
-    "duration": 18.6
+    "stage": 5,
+    "text": "服务发现，先回答“找谁”",
+    "voice": "个人助手首先调用智能体服务发现协议，找到潜在服务方列表。",
+    "focus": [
+      "registry"
+    ],
+    "mode": "discovery",
+    "at": 43.54,
+    "file": "35b62631f4c3e476.mp3",
+    "duration": 4.87,
+    "speechRate": 1.6,
+    "tempo": 1.12
+  },
+  {
+    "id": "methods",
+    "stage": 5,
+    "text": "分类树与向量检索，两种发现思路",
+    "voice": "这里展示两种发现思路：A to X分类树搜索，和文本向量相似度检索。本轮实际采用A to X搜索，向量索引方案仅作说明。",
+    "focus": [
+      "registry"
+    ],
+    "mode": "methods",
+    "at": 48.81,
+    "file": "3b91dddbe7c557ca.mp3",
+    "duration": 7.75,
+    "speechRate": 1.6,
+    "tempo": 1.12
+  },
+  {
+    "id": "compare",
+    "stage": 6,
+    "text": "比较交付件、要价与验收标准",
+    "voice": "个人助手随后调用A to C，也就是委托合同协议。用户横向比较不同服务方的交付件、要价等信息，筛选符合需求的服务方。",
+    "focus": [
+      "templates"
+    ],
+    "mode": "compare",
+    "at": 56.96,
+    "file": "d9e728f353ed2b02.mp3",
+    "duration": 8.38,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
     "id": "contract",
-    "at": 65.38,
-    "text": "把约定写进合同",
-    "voice": "按照A2C，双方围绕明确的交付成果、定数报价和验收标准达成合同。预批准、待批准和提案三种方式，进入同一套履约流程。",
-    "file": "fa132bf5d9a550bc.mp3",
-    "duration": 16.03
+    "stage": 6,
+    "text": "先约定怎么验，再签订合同",
+    "voice": "双方协商拟定委托合同，在委托发生前，确立明确的交付成果和验收标准。",
+    "focus": [
+      "contracts",
+      "templates"
+    ],
+    "mode": "contract",
+    "at": 65.74,
+    "file": "b98b0e305b11c46a.mp3",
+    "duration": 5.9,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
     "id": "delivery",
-    "at": 81.78,
-    "text": "先存证，再交付",
-    "voice": "合同生效后，服务方开工。交付件先在交易中心存证，再由个人助手取件签收，调用本地SDK，在沙箱中运行约定的验收器。",
-    "file": "3a5a2d556a4d94c7.mp3",
-    "duration": 12.31
+    "stage": 6,
+    "text": "服务方交付，平台留存签名证据",
+    "voice": "服务方依照合同交付委托成果，交易中心保存交付摘要和签名证据。",
+    "focus": [
+      "notary"
+    ],
+    "mode": "delivery",
+    "at": 72.04,
+    "file": "9dd6004696b3d7ce.mp3",
+    "duration": 4.82,
+    "speechRate": 1.6,
+    "tempo": 1.12
+  },
+  {
+    "id": "acceptance",
+    "stage": 6,
+    "text": "个人助手在本地，运行约定的验收器",
+    "voice": "个人助手取件签收，调用本地SDK，在沙箱内运行合同约定的验收器。验收发生在个人助手本地。",
+    "focus": [],
+    "mode": "acceptance",
+    "at": 77.26,
+    "file": "2185a8bb2f376f14.mp3",
+    "duration": 6.55,
+    "speechRate": 1.6,
+    "tempo": 1.12
+  },
+  {
+    "id": "arbitration",
+    "stage": 6,
+    "text": "发生分歧，按合同判据复算并出具文书",
+    "voice": "如果双方对交付标准发生分歧，可以申请仲裁。仲裁中心依据合同判据复算，出具仲裁文书。这里展示机制，不代表本轮发生了裁定。",
+    "focus": [
+      "arbitration"
+    ],
+    "mode": "arbitration",
+    "at": 84.21,
+    "file": "0adb23dfc9b416d1.mp3",
+    "duration": 8.62,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
     "id": "payment",
-    "at": 94.45,
-    "text": "本地验收，按约付款",
-    "voice": "验收通过并完成接受签字后，模拟支付按合同金额过账。服务方提交结清，交易中心留下信誉记录，形成可追踪的委托闭环。",
-    "file": "337c457ae23c677c.mp3",
-    "duration": 14.09
+    "stage": 7,
+    "text": "验收通过，按用户授权与合同付款",
+    "voice": "验收通过后，个人助手调用AI支付协议，基于验收结果和用户授权，向服务方支付相关费用。支付中心读卡按合同金额过账。",
+    "focus": [
+      "payment"
+    ],
+    "mode": "payment",
+    "at": 93.23,
+    "file": "41bf8f3f9311cae4.mp3",
+    "duration": 9.55,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
-    "id": "messaging",
-    "at": 108.91,
-    "text": "助手之间，也能直接交流",
-    "voice": "除了合同委托，个人助手之间还可以按账号发送免费结构化消息。接口规定输入格式和使用范围，接收方上线后再处理并回复。",
-    "file": "aeba25ff5d354936.mp3",
-    "duration": 14.74
+    "id": "reputation",
+    "stage": 7,
+    "text": "委托结清，更新服务方信誉日志",
+    "voice": "委托结清后，交易中心记录服务方信誉日志，为后续发现与选择提供依据。",
+    "focus": [
+      "reputation"
+    ],
+    "mode": "reputation",
+    "at": 103.18,
+    "file": "657f15c4137b1977.mp3",
+    "duration": 4.37,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
-    "id": "focus",
-    "at": 124.14,
-    "text": "聚焦一人，看清关联活动",
-    "voice": "管理员可以聚焦一个账号，看清它关联的助手、服务和活动；再回到全景，观察多方同时参与的网络。",
-    "file": "61f1cf0713fe843e.mp3",
-    "duration": 11.02
+    "id": "messages",
+    "stage": 8,
+    "text": "个人助手之间，也有大量P2P交互",
+    "voice": "除了个人助手和服务方之间的委托交易，智能体互联网还存在大量个人助手之间的P2P交互。",
+    "focus": [
+      "messages"
+    ],
+    "mode": "messages",
+    "at": 107.95,
+    "file": "ff473564a9cf931b.mp3",
+    "duration": 5.4,
+    "speechRate": 1.6,
+    "tempo": 1.12
+  },
+  {
+    "id": "meeting",
+    "stage": 8,
+    "text": "按账号传消息，离线也可收取",
+    "voice": "比如同事之间预约会议时间。这些消息可以通过消息中心传递。接口明确输入格式和使用范围，接收方上线后再读取和处理。",
+    "focus": [
+      "messages"
+    ],
+    "mode": "meeting",
+    "at": 113.75,
+    "file": "5bef20a1323f3816.mp3",
+    "duration": 6.74,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
     "id": "value",
-    "at": 135.56,
-    "text": "探索智能体经济",
-    "voice": "运营这样一个平台，可以帮助我们探索开放网络环境下，智能体经济的运转模式。",
-    "file": "78b1dbd4744ea904.mp3",
-    "duration": 8.52
+    "stage": 9,
+    "text": "探索开放网络中的智能体经济",
+    "voice": "运营一个九问IoA实验平台，可以帮助我们探索开放网络环境下，智能体经济的运转模式。",
+    "focus": [],
+    "mode": "wide",
+    "at": 120.89,
+    "file": "2cf4e1e583ea0c6e.mp3",
+    "duration": 5.95,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
     "id": "internal",
-    "at": 144.44,
-    "text": "对内：验证协议与技术",
-    "voice": "对内，用它验证IoA协议在未来智能体互联网中的可用性、效率和可靠性，并发现潜在技术需求。",
-    "file": "616e6003b34e38ca.mp3",
-    "duration": 9.46
+    "stage": 10,
+    "text": "对内：验证协议，发现技术需求",
+    "voice": "对内，我们可以用它验证IoA协议在未来Agentic web中的可用性、效率、可靠性，并发现潜在技术需求。",
+    "focus": [],
+    "mode": "internal",
+    "at": 127.24,
+    "file": "2e07a4ea91bd522f.mp3",
+    "duration": 6.38,
+    "speechRate": 1.6,
+    "tempo": 1.12
   },
   {
     "id": "external",
-    "at": 154.27,
-    "text": "对外：体验协作与共建",
-    "voice": "对外，吸引开发者体验九问协议技术，让用户低门槛体验有趣的智能体协作，收集使用反馈，扩大九问在智能体互联网领域的影响力。",
-    "file": "5b0a87a469861f9f.mp3",
-    "duration": 16.22
+    "stage": 10,
+    "text": "对外：开放体验，汇聚开发者与用户",
+    "voice": "对外，我们可以吸引开发者体验九问协议技术，让用户低门槛体验有趣的智能体协作，收集真实行为数据，扩大九问在智能体互联网领域的影响力。",
+    "focus": [],
+    "mode": "external",
+    "at": 134.02,
+    "file": "d935bfffa71d09ff.mp3",
+    "duration": 11.16,
+    "speechRate": 1.6,
+    "tempo": 1.12
   }
 ]

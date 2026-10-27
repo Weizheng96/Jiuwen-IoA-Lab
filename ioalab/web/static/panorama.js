@@ -243,7 +243,11 @@ const Panorama = (() => {
     $('pnRegStat').textContent = `A2X 注册表 · 服务 ${Stat.svc} · 分类树导航`;
     $('pnTplStat').textContent = `已签认 ${Stat.endorsed} 份`;
     $('pnNotaryStat').textContent = `已观察交付存证 ${anchoredCards.size} 单 · 签名链可核验`;
-    $('pnLedgerStat').textContent = serverStats&&!replay ? `结清 ${serverStats.completed} · 裁定 ${serverStats.arbitrated}` : `已观察结清 ${Stat.completed} · 裁定 ${Stat.arbitrated}`;
+    $('pnLedgerStat').textContent = `已结清 ${serverStats&&!replay?serverStats.completed:Stat.completed} · 信誉依据可追溯`;
+    $('pnArbitrationStat').textContent = `裁定 ${serverStats&&!replay?serverStats.arbitrated:Stat.arbitrated} · 按约复算出文书`;
+    $('pnContractStat').textContent = serverStats&&!replay?`今日委托 ${serverStats.orders_today} · 三种成约方式`:`已观察定约 ${Stat.signed} · 三种成约方式`;
+    $('pnIdentityStat').textContent = `助手登记 ${Object.keys(N.asst).filter(id=>!id.startsWith('account:')).length} · 服务登记 ${Stat.svc} · 私钥留在参与方`;
+    $('pnEventStat').textContent = `协议活动持续观察 · 已观察消息 ${observedMessages.size} 条`;
     $('pnPayStat').textContent = serverStats&&!replay ? `今日过账 ${serverStats.transfers_today} 笔 · 合计 ${money(serverStats.volume_today)}` : `已观察过账 ${Stat.transfers} 笔 · 合计 ${money(Stat.volume)}`;
     $('pnMessageStat').textContent=`已观察 ${observedMessages.size} 条消息 · 正文不进入全局广播`;
   }

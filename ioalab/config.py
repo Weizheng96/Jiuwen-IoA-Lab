@@ -51,7 +51,7 @@ class Settings:
     llm_concurrency: int = field(default_factory=lambda: int(_env("IOALAB_LLM_CONCURRENCY", "4")))
     round1_attempts: int = field(default_factory=lambda: int(_env("IOALAB_ROUND1_ATTEMPTS", "5")))     # 第一轮遇模型连接类错误最多试几次
     registration: str = field(default_factory=lambda: _env("IOALAB_REGISTRATION", "open"))              # open · invite · closed
-    login_credit: str = field(default_factory=lambda: _env("IOALAB_LOGIN_CREDIT", "100"))              # 每日首次登录赠送的虚拟币
+    login_credit: str = field(default_factory=lambda: _env("IOALAB_LOGIN_CREDIT", "100"))              # 每次成功登录赠送的虚拟币
     isc_count: int = field(default_factory=lambda: int(_env("IOALAB_ISC_COUNT", "10")))                # 内部服务使用者账号数 M
     traffic: str = field(default_factory=lambda: _env("IOALAB_TRAFFIC", "off"))                        # off · low · normal
     autoseed: bool = field(default_factory=lambda: _env("IOALAB_AUTOSEED", "1") == "1")                # 首次启动自动注入内部账号与服务

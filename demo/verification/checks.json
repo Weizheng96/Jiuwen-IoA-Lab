@@ -1,11 +1,11 @@
 {
   "date": "2026-10-27",
   "pytest": {
-    "passed": 90,
+    "passed": 93,
     "failed": 0
   },
-  "selfcheck": "passed: versions, 48 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
-  "bootstrap": "passed after SDK update: fresh environment, standalone SDK, cached reuse; constraints use current source version",
+  "selfcheck": "passed: versions, 50 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
+  "bootstrap": "passed: SDK comparison update, fresh standalone environment and cached reuse",
   "syntax": {
     "javascript": "passed",
     "deployInstallBash": "passed"
@@ -59,38 +59,53 @@
       "path": "demo/out/01-global.mp4",
       "result": "passed",
       "dimensions": "1920x1080",
-      "meanVolumeDb": -19.4,
-      "narrationClips": 13,
-      "duration": 170.84,
-      "frames": [
-        "review-1.png",
-        "review-2.png",
-        "review-3.png"
+      "duration": 145.98,
+      "meanVolumeDb": -19.8,
+      "narrationClips": 20,
+      "phaseIsolation": true,
+      "reviewFrames": [
+        "shot-intro.png",
+        "shot-join.png",
+        "shot-credit.png",
+        "shot-provider.png",
+        "shot-needs.png",
+        "shot-authorization.png",
+        "shot-discovery.png",
+        "shot-methods.png",
+        "shot-compare.png",
+        "shot-contract.png",
+        "shot-delivery.png",
+        "shot-acceptance.png",
+        "shot-arbitration.png",
+        "shot-payment.png",
+        "shot-reputation.png",
+        "shot-messages.png",
+        "shot-meeting.png",
+        "shot-value.png",
+        "shot-internal.png",
+        "shot-external.png"
       ],
-      "fixtures": [
-        "provider-sample"
-      ],
+      "sha256": "b4bef687a98d37c83f996cc81c88c2a3b8deb947a163bad277e63c5a6ba0983f",
       "experiment": {
-        "participants": 4,
-        "completedOrders": 28,
-        "messages": 161,
-        "formations": [
-          "countersign",
-          "preapproval",
-          "proposal"
-        ],
-        "errors": []
-      },
-      "sha256": "1766d6915ad53e68a90f347df1f33fcfa986acac53a5683b93160c6af82a64ba"
+        "participants": 6,
+        "a2xTreeSearches": 18,
+        "orders": 18,
+        "messages": 108,
+        "errors": [],
+        "browserErrors": [],
+        "serviceExecution": "labelled sample outputs",
+        "monitorSeconds": 100
+      }
     }
   ],
   "limits": [
     "Linux deployment has syntax/config checks, no real server acceptance",
-    "Recordings use sample provider and test calendar; real Swarm production verified separately",
-    "Native AgentMail invitation received and accepted with calendar visibility confirmed by user; automatic Outlook calendar conflict reads remain unauthorized; earlier SMTP-only invite failed client recognition"
+    "Native AgentMail invitation received and accepted with calendar visibility confirmed by user; automatic Outlook calendar conflict reads remain unauthorized; earlier SMTP-only invite failed client recognition",
+    "Global film explicitly combines conceptual animation and real protocol observations; sample service outputs. Two formal scenario movies remain in production; prior local-test movies do not replace them."
   ],
   "administratorSkillInstall": "passed: complete skill installed and account configured; real CLI reuses receiver identity; isolated SDK bootstrap; local settings excluded from bundle",
   "agentmailEvidence": "agentmail.json",
   "localScheduleEvidence": "local-schedule.json",
-  "globalUiReview": "passed: final display name and introduction; platform width 994 vs service width 316; editorial overlay leaves counters unchanged"
+  "globalUiReview": "passed: full cover, compact six market components, identity/event observation, chapter-isolated paths, local acceptance, 52px high-contrast captions, A to C, faster narration and 4x actual admin replay",
+  "globalRebuildFromCommittedAssets": "passed"
 }

@@ -207,18 +207,14 @@ class Platform:
 
 
     def login(self, username: str, password: str, *, ip: str = "") -> dict:
-        """登录：核密码 → token；每自然日首次登录赠 IOALAB_LOGIN_CREDIT。"""
+        """登录：核密码 → token；每次成功认证赠 IOALAB_LOGIN_CREDIT。"""
         u = self.auth.login(username, password, ip=ip)
-        u["credited"] = self.daily_credit(u["id"])
+        u["credited"] = self.grant_login_credit(u['id'])
         return u
 
-
-    def daily_credit(self, user_id: str) -> bool:
-        """同账号每自然日最多赠一次（wallet_log.kind='login'）。返回本次是否赠了。"""
-        day0 = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
-        if self.db.one("SELECT 1 FROM wallet_log WHERE user_id=? AND kind='login' AND at>=?", user_id, day0):
-            return False
-        self.grant(user_id, self.s.login_credit, by="platform", note="登录赠送", kind="login")
+    def grant_login_credit(self,user_id: str) -> bool:
+        """Only successful authentication or registration creates a login credit."""
+        self.grant(user_id,self.s.login_credit,by='platform',note='登录赠送',kind='login')
         return True
 
 

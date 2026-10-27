@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""账号与会话：用户名密码注册登录拿 cookie 与 token、每日首次登录赠币、Bearer 访问、/api/me 需登录、管理员口令与限速、
+"""账号与会话：用户名密码注册登录拿 cookie 与 token、每次成功登录赠币、Bearer 访问、/api/me 需登录、管理员口令与限速、
 trial + 邀请注册的约束、内部账号种子幂等。"""
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from a2c.errors import A2CError
 from _support import COOKIE, PASSWORD, username
 
 
-def test_register_login_me_and_daily_credit(platform, client):
+def test_register_login_me_and_each_login_credit(platform, client):
     name = username()
     r = client.post("/api/auth/register", json={"username": name, "password": PASSWORD, "display_name": "测试 A"})
     assert r.status_code == 200
@@ -28,19 +28,22 @@ def test_register_login_me_and_daily_credit(platform, client):
     assert client.post("/api/auth/register", json={"username": "a", "password": PASSWORD}).status_code == 400
     assert client.post("/api/auth/register", json={"username": name, "password": PASSWORD}).status_code == 400
     assert client.post("/api/auth/register", json={"username": username(), "password": "123"}).status_code == 400
-    # 重新登录：拿到新 cookie 与 token；同日第二次登录不再赠
+    # 失败认证不发放；同日第二次成功认证再赠100。
     with httpx.Client(base_url=platform.s.base_url, trust_env=False) as c2:
         assert c2.post("/api/auth/login", json={"username": name, "password": "wrong"}).status_code == 400
         r = c2.post("/api/auth/login", json={"username": name, "password": PASSWORD})
         assert r.status_code == 200 and COOKIE in c2.cookies and r.json()["token"]
         assert c2.get("/api/me").json()["id"] == me.json()["id"]
-        assert c2.get("/api/me").json()["wallet"] == "100.00"
+        assert c2.get("/api/me").json()["wallet"] == "200.00"
         token = r.json()["token"]
     # Bearer 头等价于 cookie（脚本用）
     with httpx.Client(base_url=platform.s.base_url, trust_env=False) as c3:
         r = c3.get("/api/me", headers={"Authorization": "Bearer " + token})
         assert r.status_code == 200 and r.json()["username"] == name
         assert c3.get("/api/me", headers={"Authorization": "Bearer bad"}).status_code == 401
+        assert c3.get('/api/me',headers={'Authorization':'Bearer '+token}).json()['wallet']=='200.00'
+    logs=platform.db.rows("SELECT delta FROM wallet_log WHERE user_id=? AND kind='login'",me.json()['id'])
+    assert len(logs)==2 and all(str(x['delta'])=='100.00' for x in logs)
     assert client.post("/api/auth/code", json={}).status_code in (404, 405), "不再有验证码接口"
 
 

@@ -1,25 +1,34 @@
 # 三段演示的本地验收与录屏
 
-镜头安排见[三段演示](三段演示.md)，界面与证据边界以设计为准。已完成的全局概念片：[全局视角](out/01-global.mp4)；并发与成片检查摘要见[global.json](verification/global.json)。委托与交互正式片仍须分别完成美甲服务场景与真实预约依据验收，旧本地测试片不替代它们。
+全局片：[九问IoA实验平台](out/01-global.mp4)。唯一剧本源为`global_story.py`，生成[全局剧本](全局剧本.md)；实际运行与成片摘要见[global.json](verification/global.json)。委托与交互正式片仍在制作，旧本地测试片不替代它们。
 
-全局片旁白参考A2C主仓`demo/智能体互联网/剧本.md`，按平台定位、参与方接入、多方委托、履约与对内外价值展开，补充当前消息中心。唯一台词源是`global_story.py`，生成[全局剧本](全局剧本.md)；旧片的参与人数、拒单和裁定数字不沿用。
+| 部分 | 构建方式 |
+|---|---|
+| 0—8 | 固定剧本、逐段隔离路径的只读概念地图；完整片头、登录赠币、登记、需求授权、发现、合同履约、支付信誉、P2P消息 |
+| 9—10 | 加速全景与上下线示意，穿插4倍真实管理员监控 |
+| 数据 | 6个独立SDK客户端，本轮18笔委托、108条消息、18次真实A2X分类树搜索；样例服务和虚拟币明确标识 |
+| 声画 | 52px高对比短字幕，20段较快旁白；A2C念A to C；镜头按实测音频时长安排 |
+| 边界 | 上下线、支付授权与条件仲裁为机制示意；ANN只说明方案。本轮未执行ANN或发生裁定；不把概念动画当业务证据 |
 
-真实管理员页面放大中央平台组件，服务方收为右侧领域窄栏；独立讲解层叠加路径箭头、流动光点、组件高亮与价值面板，不改变业务状态。独立实验客户端持续发消息，并在初始体验额度内执行三种成约方式的真实SDK委托；样例服务和虚拟币持续标识。字幕为1080p下48px，语速略快，镜头按实测旁白时长安排。
+已调研A2C主仓智能体互联网的story/script、导出素材、map、配音及逐帧录制：采用固定剧本控制镜头，真实运行提供统计，音频时长驱动时间轴。直接复用其`demo/_lib/video/record.py`逐帧录制器，不修改共享实现。原始监控和业务元数据经过筛选，仅包含本轮生成的实验账号；不含密码、密钥或消息正文。
 
-```bash
-python demo/global_story.py --prepare data/global-voice
-python demo/build_voice.py --recording data/global-voice --helper <部署者提供的Aliyun资产生成helper.py>
-python demo/local_stack.py --folder data/global-scene --port 8753 --services all --without-receiver
-# 另一个终端录制；先准备音频，再录画面。
-python demo/record_global.py --config data/global-scene/run.json --voice-timing data/global-voice/voice.json
-python demo/global_story.py --timing recordings/<本次目录>/voice.json
-python demo/assemble.py --recording recordings/<本次目录>
-python demo/check_recording.py --recording recordings/<本次目录>
+复用入库素材重制，不需要模型或邮箱凭据：
+
+```powershell
+python demo/record_global.py --source demo/assets/run/global --voice-timing demo/assets/voice/global/voice.json --render-helper ../AgentContractProtocol/demo/_lib/video/record.py --out recordings/global-rebuild
 ```
 
-复用已入库的旁白时，可直接把`demo/assets/voice/global/voice.json`传给`--voice-timing`，省去配音准备与合成；录制会按实际进展建立新的时间轴。
+重新采集一轮或改旁白时，显式传入部署者本地模型配置与资产helper：
 
-录制真实九问网页与真实平台页面，协议调用来自运行中的参与方；不使用管理员回放或预编排事件代替执行。原始录像、账号配置和运行日志位于忽略的`data/`、`recordings/`，不提交凭据或个人消息。
+```powershell
+python demo/capture_global.py --model-env <本地模型环境文件> --out data/global-new-run --seconds 100
+python demo/global_story.py --prepare data/global-new-voice
+python demo/build_voice.py --recording data/global-new-voice --helper <A2C主仓>/demo/_lib/aliyun.py --speech-rate 1.6 --tempo 1.12
+python demo/record_global.py --source data/global-new-run --voice-timing data/global-new-voice/voice.json --render-helper <A2C主仓>/demo/_lib/video/record.py --out recordings/global-new-film
+python demo/global_story.py --timing recordings/global-new-film/voice.json
+```
+
+渲染先核对所有镜头的动效类别与52px字幕，保存20张抽帧；最终检查音轨、旁白衔接、分辨率与哈希。`--preview`只生成镜头检查，不输出正式视频。图形与文案源在`global_web/`；完成后将成片、配音、脱敏运行素材与验证摘要入库，原始日志和运行配置保留在忽略目录。
 
 ## 本地联调
 
