@@ -1,6 +1,18 @@
 html {
   background: #0a0e15;
 }
+.ioa-network{background:radial-gradient(ellipse at 48% 42%,#173446 0,#101e2e 45%,#0b1422 100%);border:1px solid #274456;border-radius:18px;overflow:hidden;margin-bottom:18px}
+.network-heading{display:flex;justify-content:space-between;align-items:center;padding:18px 22px 0;gap:14px}
+.network-heading h2{margin:5px 0;font-size:23px}.network-heading small{color:#9db1c2;font-size:12px}.ambient-legend{display:block;margin-top:6px;color:#84919e}.legend-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#5ee4df;margin-right:6px}
+#network-map{height:300px;position:relative;isolation:isolate}.network-links{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}.network-links path{stroke:#3c6b80;stroke-width:1;fill:none;stroke-dasharray:3 5}.network-packet{fill:#69d8db;opacity:.65}
+.network-node{position:absolute;transform:translate(-50%,-50%);display:grid;justify-items:center;gap:5px;border:1px solid #3b6071;border-radius:13px;color:#cadce7;background:#122a3c;padding:11px 10px;min-width:126px;box-shadow:0 8px 24px #0005;z-index:1;transition:border-color .18s,box-shadow .18s}.network-node i{font-style:normal;display:grid;place-items:center;width:30px;height:30px;border:1px solid #4a7985;border-radius:10px;color:#72e2de;font-size:17px}.network-node b{font-size:14px}.network-node small{font-size:11px;color:#8fa6b9}.network-node.selected,.network-node:hover,.network-node:focus-visible{outline:none;border-color:#62e5dd;box-shadow:0 0 0 2px #62e5dd25,0 0 28px #62e5dd20}.node-assistant{background:#123e49;border-color:#418d99}.node-payment i{color:#f7d58b;border-color:#9c8658}.node-message i{color:#bba4ff;border-color:#75668e}
+.ambient-field{position:absolute;inset:0;overflow:hidden;opacity:.45;pointer-events:none}.ambient-field:before,.ambient-field:after{content:'';position:absolute;inset:12% -8%;border:1px dashed #60738438;border-radius:50%;transform:rotate(-16deg)}.ambient-field:after{inset:22% -10%;transform:rotate(22deg)}.ambient-field i{position:absolute;width:11px;height:11px;background:#718093;border:3px solid #414e60;border-radius:50%;animation:ambient-breathe 3s ease-in-out infinite}.ambient-field i:nth-child(2n){width:6px;height:6px;animation:ambient-travel 9s linear infinite}
+@keyframes ambient-breathe{50%{opacity:.3;box-shadow:0 0 0 6px #8090a020}}@keyframes ambient-travel{to{transform:translate(75px,-30px);opacity:.15}}
+.component-detail{display:grid;grid-template-columns:auto 1fr;gap:7px 15px;padding:15px 22px;background:#0a1422b8;border-top:1px solid #254154;min-height:83px;align-items:start}.component-detail b{font-size:14px;color:#74deda}.component-detail span{font-size:13px;color:#c1cfdb;line-height:1.7}.component-detail small{grid-column:2;color:#8fa6b9;font-size:12px}.section-title{display:flex;justify-content:space-between;align-items:center;gap:14px}.section-title h2{margin:0 0 16px}.section-title .hint{font-size:12px}#journey{display:grid;grid-template-columns:repeat(8,1fr);gap:5px}.journey-step{background:#0d1825;border:1px solid #2b3c4f;border-radius:10px;padding:10px 3px;color:#8595a8;display:grid;justify-items:center;gap:7px}.journey-step i{font-style:normal;font-size:13px}.journey-step b{font-size:12px;white-space:nowrap}.journey-step small{font-size:10px}.journey-step.observed{background:#123831;border-color:#2a6a58;color:#80dec0}.journey-step:hover{border-color:#6adde0}#journey-evidence{display:flex;align-items:center;gap:24px;padding-top:16px;color:#b6c7d8;font-size:13px}#journey-evidence small{color:#8599ad}#journey-evidence b{font-size:19px;color:#e5eff5}
+.provider-layout{display:grid;grid-template-columns:230px 1fr;gap:20px;align-items:start}.provider-layout aside{position:sticky;top:20px}.tree-root{font-weight:700;border-bottom:1px solid #365069;padding:12px 0}.tree-branch{margin:12px 0 12px 9px;border-left:1px solid #394a5b;padding:5px 12px;display:grid;gap:8px;color:#8293a5;font-size:13px}.tree-branch small{font-size:11px}.tree-branch.tree-own{border-left:2px solid #56d9d1;color:#83e6d7;background:#123f393b}.tree-branch a{font-size:12px;color:#cbe8ed}.earned{color:#84e4ba;font-size:21px;white-space:nowrap}#services h3{font-size:14px;color:#96adbf;margin-top:22px}
+@media(min-width:801px) and (max-width:1100px){.page{padding:20px!important}.heading{margin:15px 0}.heading h1{font-size:25px}.metrics{gap:10px}.metric{padding:14px}.metric b{font-size:25px}.panel{padding:20px}.provider-layout{grid-template-columns:180px 1fr}.network-node{min-width:112px;padding:9px 5px}#journey-evidence{gap:15px}}
+@media(max-width:800px){.provider-layout{grid-template-columns:1fr}.provider-layout aside{position:static}#journey{grid-template-columns:repeat(4,1fr)}.network-heading{display:block}#network-map{height:330px}.network-node{min-width:76px;padding:7px 3px}.network-node b{font-size:11px}.network-node small{font-size:9px}.component-detail{grid-template-columns:1fr}.component-detail small{grid-column:1}#journey-evidence{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.ambient-field i{animation:none}.network-packet{display:none}}
 body {
   background-attachment: scroll;
 }
@@ -198,3 +210,12 @@ select {
     display: block;
   }
 }
+/* Keep network and current progress visible together in a 1080p half-screen. */
+#notice:empty{display:none}
+#notice{margin:5px 0;min-height:0}
+.heading{margin:15px 0}.heading h1{font-size:25px;margin:4px 0}.heading .eyebrow{font-size:10px}.heading p{font-size:12px}
+.network-heading{padding:13px 20px 0}.network-heading h2{font-size:20px;margin:3px 0}#network-map{height:250px}
+.component-detail{min-height:65px;padding:10px 20px}.metrics{gap:12px;margin-bottom:16px}.metric{padding:12px 18px}.metric b{font-size:24px}.metric span{font-size:12px}
+.journey-panel{margin-bottom:16px}.viewtabs{padding:5px 0 12px;gap:10px}
+@media (min-width:801px) and (max-width:1100px){.page{padding:12px 20px!important}.panel{padding:18px}.heading h1{font-size:24px}.network-node{min-width:108px;padding:8px 5px}.network-node b{font-size:13px}.network-node small{font-size:10px}}
+@media(max-width:800px){#network-map{height:300px}.component-detail{min-height:85px}}

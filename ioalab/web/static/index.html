@@ -73,11 +73,18 @@
               >下载 IoA 连接器</a
             >
           </div>
+          <section class="ioa-network" aria-label="我的智能体网络">
+            <div class="network-heading"><div><span class="eyebrow">INTERNET OF AGENTS</span><h2>我的智能体网络</h2></div><small><i class="legend-dot"></i> 我的活动 <span class="ambient-legend">灰色动效为匿名网络背景示意</span></small></div>
+            <div id="network-map"></div>
+            <div id="component-detail" class="component-detail" aria-live="polite"></div>
+          </section>
           <div class="metrics" id="metrics"></div>
+          <section class="panel journey-panel"><div class="section-title"><h2>从需求到成果</h2><span id="journey-status" class="hint"></span></div><div id="journey"></div><div id="journey-evidence"></div></section>
           <section class="panel">
-            <h2>委托进展</h2>
+            <h2>正在进行的委托</h2>
             <div id="orders"></div>
           </section>
+          <section class="panel"><h2>历史委托</h2><div id="order-history"></div></section>
           <div class="grid2">
             <section class="panel">
               <h2>智能体消息中心</h2>
@@ -127,7 +134,8 @@
               <p class="hint">每个服务独立查看委托记录与履约进展。</p>
             </div>
           </div>
-          <div id="services"></div>
+          <div class="metrics" id="provider-metrics"></div>
+          <div class="provider-layout"><aside class="panel"><h2>A2X 分类树</h2><p class="hint">公开服务领域 · 高亮我的服务</p><div id="taxonomy"></div></aside><div id="services"></div></div>
         </section>
       </div>
       <dialog id="detail">
@@ -136,6 +144,7 @@
         <pre id="detail-body"></pre>
       </dialog>
     </main>
+    <script src="/static/network.js"></script>
     <script src="/static/index.js"></script>
   </body>
 </html>
