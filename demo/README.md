@@ -36,7 +36,7 @@ python demo/check_recording.py --recording recordings/<本次目录>
 |---|---|
 | 委托 | 独立官方服务关闭STUB，真实Swarm生产；用户九问SDK完成验收；查询服务方记录 |
 | 消息 | A配置允许账号，B读取格式；真实九问通知会话可见；非允许账号被拒绝 |
-| 会议 | Microsoft委托读取授权、通知SMTP真实可用，Outlook收到标准邀请；用户接受后查看日历 |
+| 会议 | 显式选择的本地日程有效、通知邮箱真实可用，Outlook收到标准邀请；用户接受后查看日历。Graph读取为另一个可选后端 |
 | 录制保护 | `--formal`拒绝fixtures；正式会议录制需`--headed`及本机已授权的`outlookStorageState`，用户在真实Outlook接受，脚本记录人工核对，不伪造接受回执 |
 
 正式Outlook窗口由用户授权的浏览器状态打开，需另行对该窗口录屏（如OBS窗口/屏幕采集）；自动双屏成片只包含九问与IoA页。未完成Microsoft登录或通知配置时保持未验收。不要将浏览器状态、SMTP密码、模型密钥或原始个人消息推送远端。

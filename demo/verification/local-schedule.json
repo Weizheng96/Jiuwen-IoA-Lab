@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-27",
+  "source": "local-editable-schedule",
+  "checks": {
+    "schemaTimezoneIntervals": "passed",
+    "revisionConflictAndBackup": "passed",
+    "offlineSdkWithoutPlatformCredentials": "passed",
+    "editableRulesReload": "passed",
+    "busyRejectsWithoutSending": "passed",
+    "clearSlotReachesLocalSmtp": "passed",
+    "pendingInvitationStillBlocksAfterManualEdits": "passed",
+    "missingOrInvalidFailsClosed": "passed",
+    "privateEventTextNotReturnedToSender": "passed"
+  },
+  "machineConfiguration": {
+    "backend": "local",
+    "file": "data/personal-assistant/schedule.json",
+    "status": "ready",
+    "initialScope": "Own schedule, weekdays 09:00-18:00, no manually entered busy events"
+  },
+  "limits": [
+    "No private Outlook calendar read or automatic synchronization",
+    "No new external email was sent by this verification; prior native invitation acceptance evidence remains separate",
+    "Two remaining formal scenario videos are still pending"
+  ]
+}

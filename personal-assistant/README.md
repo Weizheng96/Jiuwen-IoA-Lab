@@ -1,5 +1,13 @@
 # 部署方个人助手
 
+## 本地可编辑时间安排
+
+当前演示选择本地安排作为预约依据。配置`IOALAB_CALENDAR_BACKEND=local`，可选`IOALAB_SCHEDULE_FILE`（默认`IOALAB_HOME/schedule.json`），执行`python personal-assistant/assistant.py schedule-init --env data/personal-assistant.env`显式创建。`schedule-show`查看规则、已有安排和本地邀请状态。该文件可直接在IDE编辑；手工修改时暂停收件器，保存后恢复。
+
+九问在线修改使用IoA技能的`schedule show`与`schedule replace`：先读取revision，再提交完整修改后document及该revision；冲突需重读，原内容自动备份到schedule.json.bak。timeZone为IANA时区，rules维护工作日/时段/时长/提前量，events包含id、title、带时区start/end和busy/cancelled状态。文件缺失或非法会阻止预约，不自动当成空闲。
+
+日程与备份属于本机私有运行数据，不推送仓库。待接受与结果不明的邀请仍由客户端SQLite防止重叠；修改手工日程不会清除这些预约。本地安排不自动同步私人Outlook；通知邮箱发邀请，收件人接受后才入历。下文的Microsoft读取授权仅用于显式选择graph后端。
+
 这是独立客户端；平台核心不启动模型或个人助手。管理员账号默认ISC_001，浏览器具管理权限，SDK令牌仅有普通账号权限。
 
 1. 复制`deploy/personal-assistant.env.example`到忽略的`data/personal-assistant.env`，配置平台账号、九问WebChannel和部署方通知邮箱。

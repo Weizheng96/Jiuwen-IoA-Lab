@@ -1,5 +1,6 @@
 """Explicitly configured local handlers; message data never grants new capabilities."""
 from datetime import datetime,timezone,timedelta
+from contextlib import nullcontext
 import time
 from zoneinfo import ZoneInfo
 from .lease import Lease
@@ -35,7 +36,15 @@ class AssistantHandlers:
 
     def meeting(self,message):
         if not self.calendar or not self.notification: return {'status':'failed','error':'Calendar authorization or notification mailbox is not configured'}
-        payload=message['payload'];r=self.rules
+        session=self.calendar.session() if hasattr(self.calendar,'session') else nullcontext(self.calendar)
+        try:
+            with session as calendar:
+                return self._meeting(message,calendar)
+        except (OSError,ValueError):
+            return {'status':'failed','error':'Availability source is missing, invalid or changed during processing'}
+
+    def _meeting(self,message,calendar):
+        payload=message['payload'];r={**self.rules,**getattr(calendar,'rules',{})}
         start=datetime.fromisoformat(payload['start'].replace('Z','+00:00'));end=datetime.fromisoformat(payload['end'].replace('Z','+00:00'))
         if start.tzinfo is None or end.tzinfo is None: return {'status':'no_time','reason':'timezone_required'}
         try: zone=ZoneInfo(r['timeZone']);ZoneInfo(payload['timeZone'])
@@ -51,9 +60,10 @@ class AssistantHandlers:
             for mid,record in self.store.all('appointments').items():
                 if mid!=message['id'] and record['state'] in ('sending','submitted','unknown') and record['start']<end.timestamp() and start.timestamp()<record['end']:
                     return {'status':'no_time','reason':'local_pending_invitation'}
-            # Errors reading real calendar fail closed and never imply free time.
-            if self.calendar.busy(start,end): return {'status':'no_time','reason':'calendar_conflict'}
+            # Errors reading the selected availability source never imply free time.
+            if calendar.busy(start,end): return {'status':'no_time','reason':'calendar_conflict'}
             if self.mailbox.get(message['id'])['expires']<=time.time(): return {'status':'failed','error':'Request expired before invitation'}
+            if hasattr(calendar,'assert_current'):calendar.assert_current()
             uid='ioa-'+message['id']+'@jiuwen-ioa-lab'
             record={'uid':uid,'start':start.timestamp(),'end':end.timestamp(),'state':'sending'}
             self.store.put('appointments',message['id'],record)

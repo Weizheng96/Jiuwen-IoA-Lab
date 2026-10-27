@@ -29,7 +29,9 @@ def install_skill(root,swarm,values):
     config=library/'ioalab-delegate/settings.local.json'
     # Preserve a deliberately configured existing skill account during upgrades.
     if not config.exists():
-        config.write_text(json.dumps({k:values[k] for k in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_HOME')},indent=2)+'\n',encoding='utf-8')
+        settings={k:values[k] for k in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_HOME')}
+        if values.get('IOALAB_SCHEDULE_FILE'):settings['IOALAB_SCHEDULE_FILE']=values['IOALAB_SCHEDULE_FILE']
+        config.write_text(json.dumps(settings,indent=2)+'\n',encoding='utf-8')
         try:os.chmod(config,0o600)
         except OSError:pass
 

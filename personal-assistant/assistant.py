@@ -13,6 +13,14 @@ from ioalab_sdk.calendar import GraphCalendar,SMTPNotification,OutlookSMTPAuth
 def graph(home):
     return GraphCalendar(os.getenv('IOALAB_GRAPH_CLIENT_ID',''),home/'calendar-token.json',os.getenv('IOALAB_RECIPIENT_EMAIL','zhengw.cc@outlook.com'))
 
+def calendar_source(home):
+    backend=os.getenv('IOALAB_CALENDAR_BACKEND','graph')
+    if backend=='local':
+        from ioalab_sdk.schedule import configured
+        return configured(home)
+    if backend=='graph':return graph(home) if os.getenv('IOALAB_GRAPH_CLIENT_ID') else None
+    raise ValueError('IOALAB_CALENDAR_BACKEND must be local or graph')
+
 def notification(home,*,transport=None):
     transport=transport or os.getenv('IOALAB_NOTIFICATION_TRANSPORT','smtp')
     if transport=='agentmail':
@@ -31,13 +39,17 @@ def notification(home,*,transport=None):
     return SMTPNotification(host,port,sender,username=os.getenv('IOALAB_SMTP_USERNAME',''),password=os.getenv('IOALAB_SMTP_PASSWORD',''))
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('command',choices=['run','once','calendar-login','smtp-login','smtp-check','notification-check','check']);parser.add_argument('--env',type=Path);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('command',choices=['run','once','calendar-login','schedule-init','schedule-show','smtp-login','smtp-check','notification-check','check']);parser.add_argument('--env',type=Path);args=parser.parse_args()
     if args.env:
         sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'deploy'))
         from configure_assistant import read_env
         for key,value in read_env(args.env).items():
             if key.startswith('IOALAB_'):os.environ[key]=value
     home=Path(os.environ.get('IOALAB_HOME','data/personal-assistant')).resolve()
+    if args.command in ('schedule-init','schedule-show'):
+        from ioalab_sdk.schedule_cli import main as schedule_main
+        os.environ['IOALAB_HOME']=str(home)
+        schedule_main([args.command.removeprefix('schedule-')]);return
     if args.command=='calendar-login':
         print('请使用被预约邮箱登录：'+os.getenv('IOALAB_RECIPIENT_EMAIL','zhengw.cc@outlook.com'),flush=True)
         graph(home).login();return
@@ -50,13 +62,20 @@ def main():
         else: print(json.dumps(sender.check(),ensure_ascii=False))
         return
     if args.command=='check':
-        print(json.dumps({'username':os.getenv('IOALAB_USERNAME','ISC_001'),'modelRuntime':'external Jiuwen','swarmConfigured':bool(os.getenv('IOALAB_SWARM_WS')),'calendarAppConfigured':bool(os.getenv('IOALAB_GRAPH_CLIENT_ID')),'calendarAuthorized':(home/'calendar-token.json').exists(),'notificationConfigured':bool(os.getenv('IOALAB_SMTP_HOST')),'notificationTransport':os.getenv('IOALAB_NOTIFICATION_TRANSPORT','smtp'),'smtpAuth':os.getenv('IOALAB_SMTP_AUTH','password'),'smtpAppConfigured':bool(os.getenv('IOALAB_SMTP_CLIENT_ID') or os.getenv('IOALAB_GRAPH_CLIENT_ID')),'smtpAuthorized':(home/'smtp-token.json').exists()},ensure_ascii=False));return
+        backend=os.getenv('IOALAB_CALENDAR_BACKEND','graph')
+        local={}
+        if backend=='local':
+            calendar=calendar_source(home)
+            try:calendar.read();status='ready'
+            except Exception:status='missing-or-invalid'
+            local={'scheduleFile':str(calendar.path),'scheduleStatus':status}
+        print(json.dumps({'username':os.getenv('IOALAB_USERNAME','ISC_001'),'modelRuntime':'external Jiuwen','swarmConfigured':bool(os.getenv('IOALAB_SWARM_WS')),'calendarBackend':backend,**local,'calendarAppConfigured':bool(os.getenv('IOALAB_GRAPH_CLIENT_ID')),'calendarAuthorized':(home/'calendar-token.json').exists(),'notificationConfigured':bool(os.getenv('IOALAB_SMTP_HOST') or (os.getenv('IOALAB_NOTIFICATION_TRANSPORT')=='agentmail' and os.getenv('IOALAB_SMTP_FROM') and os.getenv('IOALAB_SMTP_PASSWORD'))),'notificationTransport':os.getenv('IOALAB_NOTIFICATION_TRANSPORT','smtp'),'smtpAuth':os.getenv('IOALAB_SMTP_AUTH','password'),'smtpAppConfigured':bool(os.getenv('IOALAB_SMTP_CLIENT_ID') or os.getenv('IOALAB_GRAPH_CLIENT_ID')),'smtpAuthorized':(home/'smtp-token.json').exists()},ensure_ascii=False));return
     from ioalab_sdk.swarm_web import SwarmWebBridge
     mailbox=MailboxClient(os.environ['IOALAB_BASE_URL'],os.getenv('IOALAB_USERNAME','ISC_001'),os.environ['IOALAB_PASSWORD'],home,connect_identity=True)
     try:
         bridge=SwarmWebBridge(os.environ['IOALAB_SWARM_WS'],mailbox.store) if os.getenv('IOALAB_SWARM_WS') else None
-        calendar=graph(home) if os.getenv('IOALAB_GRAPH_CLIENT_ID') else None
-        sender=notification(home) if os.getenv('IOALAB_SMTP_HOST') else None
+        calendar=calendar_source(home)
+        sender=notification(home) if os.getenv('IOALAB_SMTP_HOST') or os.getenv('IOALAB_NOTIFICATION_TRANSPORT')=='agentmail' else None
         handlers=AssistantHandlers(mailbox,bridge=bridge,calendar=calendar,notification=sender,recipient=os.getenv('IOALAB_RECIPIENT_EMAIL','zhengw.cc@outlook.com'),rules=json.loads(os.getenv('IOALAB_APPOINTMENT_RULES','{}')))
         handlers.publish(json.loads(os.environ['IOALAB_ALLOWED_SENDERS']) if os.getenv('IOALAB_ALLOWED_SENDERS') else None,replace=bool(os.getenv('IOALAB_ALLOWED_SENDERS')))
         while True:

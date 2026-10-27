@@ -1,7 +1,7 @@
 {
   "date": "2026-10-27",
   "pytest": {
-    "passed": 81,
+    "passed": 90,
     "failed": 0
   },
   "selfcheck": "passed: versions, 48 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
@@ -85,5 +85,6 @@
     "Native AgentMail invitation received and accepted with calendar visibility confirmed by user; automatic Outlook calendar conflict reads remain unauthorized; earlier SMTP-only invite failed client recognition"
   ],
   "administratorSkillInstall": "passed: complete skill installed and account configured; real CLI reuses receiver identity; isolated SDK bootstrap; local settings excluded from bundle",
-  "agentmailEvidence": "agentmail.json"
+  "agentmailEvidence": "agentmail.json",
+  "localScheduleEvidence": "local-schedule.json"
 }

@@ -66,7 +66,7 @@ def main():
         settings=Path(__file__).resolve().parents[1]/'settings.local.json'
         if settings.exists():
             values=json.loads(settings.read_text(encoding='utf-8'))
-            for key in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_HOME'):
+            for key in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_HOME','IOALAB_SCHEDULE_FILE'):
                 if values.get(key): os.environ.setdefault(key,str(values[key]))
         cache=os.environ.get('IOALAB_RUNTIME_CACHE') or (str(Path(os.environ['IOALAB_HOME']).parent/'runtimes') if os.environ.get('IOALAB_HOME') else None)
         python=ensure_runtime(cache=cache)
