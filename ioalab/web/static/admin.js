@@ -478,6 +478,7 @@ async function loadComponents() {
   const yn = b => b ? '<span class="ok">✓ 已配置</span>' : '<span class="bad">✗ 未配置</span>';
   $('comps').innerHTML =
     comp('注册中心（A2X）', 'market', [['服务', `${c.registry.services}（在线 ${c.registry.online}）`], ['类目', c.registry.categories], ['分类树', c.registry.taxonomy], ['最近检索', OUTCOME[c.registry.last_mode] || c.registry.last_mode || '—']]) +
+    comp('智能体消息中心', 'agent', [['免费接口', c.messaging?.interfaces ?? 0], ['待处理', c.messaging?.pending ?? 0], ['已处理', c.messaging?.states?.completed ?? 0]]) +
     comp('合同模板公示', 'market', [['已签认模板', c.templates.endorsed], ['签3 快照', c.templates.snapshots], ['认证记录', c.templates.certifications]]) +
     comp('信誉与仲裁', 'market', [['结清', c.ledger.completed], ['裁定', c.ledger.rulings], ['被拒 / 退回', c.ledger.declined]]) +
     comp('支付中心', 'pay', [['钱包', c.payment.wallets], ['流通量', `${money(c.payment.circulating)} 虚拟币`], ['今日过账', `${c.payment.transfers_today} 笔 · ${money(c.payment.volume_today)}`], ['累计过账', c.payment.transfers_total]]) +

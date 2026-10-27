@@ -1,0 +1,20 @@
+{
+  "cardDigest": "sha256:a4cf4729fd32d0231926278c2c8247b0b936db594a40ed91809e67fa612626c3",
+  "status": "accepted",
+  "realSwarm": true,
+  "stub": false,
+  "usage": [
+    {
+      "session": "process_cli_1a17b066543_a5173f739944",
+      "usage": {
+        "input_tokens": 46526,
+        "output_tokens": 1901,
+        "total_tokens": 48427,
+        "cache_tokens": 30208,
+        "cache_hit_rate": "64.9%",
+        "model_calls": 4
+      },
+      "elapsed": 60.77569341659546
+    }
+  ]
+}

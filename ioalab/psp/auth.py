@@ -22,7 +22,7 @@ from a2c.errors import CARD_INVALID, fail
 from ..config import Settings
 from ..store import DB, now
 
-USERNAME = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
+USERNAME = re.compile(r"^[A-Za-z0-9_.@+-]{3,128}$")
 KINDS = ("isp", "isc", "external", "virtual")
 INTERNAL = ("isp", "isc", "virtual")
 
@@ -78,9 +78,16 @@ class Auth:
                     os.chmod(p, 0o600)
                 except OSError:
                     pass
-                print(f"[ioalab] 管理员口令已生成：{pw}（存于 {p}）")
+                print(f"[ioalab] 管理员口令已生成并保存于 {p}")
             pw = p.read_text(encoding="utf-8").strip()
         return _pbkdf2(pw)
+
+    def is_admin(self,subject):
+        return subject=='admin' or bool(subject and not subject.startswith('assistant:') and
+                self.db.one("SELECT 1 FROM user_roles WHERE user_id=? AND role='admin'",subject))
+
+    def roles(self,uid):
+        return [r['role'] for r in self.db.rows('SELECT role FROM user_roles WHERE user_id=?',uid)]
 
     def admin_login(self, password: str) -> str:
         if not _check_pw(password, self.admin_hash):
@@ -92,7 +99,7 @@ class Auth:
                  invite: str = "", ip: str = "") -> dict:
         username = (username or "").strip()
         if not USERNAME.match(username):
-            fail(CARD_INVALID, "用户名须为 3–32 位字母、数字、_ . -")
+            fail(CARD_INVALID, "用户名须为 3–128 位字母、数字或 _ . @ + -")
         if kind not in KINDS:
             fail(CARD_INVALID, f"账号种类不合法：{kind}")
         if self.db.one("SELECT 1 FROM users WHERE username=?", username):
@@ -142,9 +149,9 @@ class Auth:
         sig = hmac.new(self.secret, msg.encode(), hashlib.sha256).hexdigest()
         return base64.urlsafe_b64encode(f"{msg}|{sig}".encode()).decode()
 
-    def bearer(self, subject: str) -> str:
+    def bearer(self, subject: str, *, restricted=False) -> str:
         """脚本用的长效 token（30 天），与 cookie 同一算法。"""
-        return self.token(subject, ttl=30 * 86400)
+        return self.token(("assistant:" if restricted else "")+subject, ttl=30 * 86400)
 
     def verify(self, token: str | None) -> str | None:
         """返回 subject（用户 id 或 "admin"），无效返回 None。"""

@@ -35,6 +35,7 @@ function dur(s) { if (s === null || s === undefined) return '—'; return s < 60
 /* ── 中文标签 ───────────────────────────────────────────────── */
 // A2C / AP2 报文（与 events.py 的 LABELS 一致；/api/admin/events 的行没有 label 字段，这里兜底）
 const OP_LABELS = {
+  'interface.updated':'消息接口更新','message.queued':'消息已投递','message.processing':'消息处理中','message.completed':'消息已处理','message.rejected':'消息被拒绝','message.audit':'管理员消息审计',
   'template.get': '取合同模板', 'template.endorse': '市场签模板', 'request.submit': '提交提案卡',
   'card.endorse': '市场签3', 'card.countersign': '请求复签（签2）', 'work.start': '开工请求',
   'step.authorize': '环节授权', 'delivery.anchor': '交付留痕（签5）', 'anchor.watch': '订阅存证',

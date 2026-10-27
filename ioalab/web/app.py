@@ -68,10 +68,10 @@ def create_app(platform: Platform) -> FastAPI:
         sub = subject(request)
         if not sub or sub == "admin":
             raise HTTPException(401, "请先登录")
-        return sub
+        return sub.removeprefix("assistant:")
 
     def require_admin(request: Request) -> str:
-        if subject(request) != "admin":
+        if not platform.auth.is_admin(subject(request)):
             raise HTTPException(401, "需要管理员登录")
         return "admin"
 
@@ -98,7 +98,7 @@ def create_app(platform: Platform) -> FastAPI:
     async def session(request: Request):
         """页面载入时探测会话（只加：避免未登录时 /api/me、/api/admin/stats 的 401 进浏览器控制台）。"""
         sub = subject(request)
-        return {"role": None if not sub else ("admin" if sub == "admin" else "user"), "id": None if sub in (None, "admin") else sub}
+        return {"role":None if not sub else ("admin" if platform.auth.is_admin(sub) else "user"),"id":None if sub in (None,"admin") else sub.removeprefix("assistant:")}
 
     @app.post("/api/auth/register")
     async def register(request: Request):
@@ -130,7 +130,7 @@ def create_app(platform: Platform) -> FastAPI:
     async def me(uid: str = Depends(current_user)):
         u = platform.db.one("SELECT id, username, kind, display_name, created, last_login FROM users WHERE id=?", uid)
         agents = platform.db.rows("SELECT id, role, name, status, created FROM agents WHERE owner_id=?", uid)
-        return {**u, "wallet": str(platform.wallets.balance(uid)), "agents": agents,
+        return {**u, "roles":platform.auth.roles(uid), "wallet": str(platform.wallets.balance(uid)), "agents": agents,
                 "pending": platform.db.rows("SELECT * FROM confirmations WHERE owner_id=? AND state='pending' ORDER BY created", uid)}
 
     @app.get("/api/wallet")
@@ -163,7 +163,7 @@ def create_app(platform: Platform) -> FastAPI:
         o = platform.db.one("SELECT owner_id FROM orders WHERE card_digest=?", cd)
         if not o:
             raise HTTPException(404)
-        if sub != "admin" and sub != o["owner_id"]:
+        if not platform.auth.is_admin(sub) and (sub or "").removeprefix("assistant:") != o["owner_id"]:
             raise HTTPException(403)
         d = platform.order_detail(cd)
         # 只加字段：服务方名字（用户端没有注册表可查）
@@ -172,6 +172,10 @@ def create_app(platform: Platform) -> FastAPI:
 
 
     app.include_router(build_router(platform, current_user))
+    from .workbench import build_router as workbench_router
+    from ..messaging import build_router as messaging_router
+    app.include_router(messaging_router(platform.messaging,current_user))
+    app.include_router(workbench_router(platform,current_user,require_admin))
 
     # ── 管理员 API ────────────────────────────────────────────────────
     @app.post("/api/admin/login")
@@ -299,7 +303,7 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.websocket("/ws/admin")
     async def ws_admin(ws: WebSocket):
-        if platform.auth.verify(ws.cookies.get(COOKIE)) != "admin":
+        if not platform.auth.is_admin(platform.auth.verify(ws.cookies.get(COOKIE))):
             await ws.close(code=4401)
             return
         origin, host = ws.headers.get("origin", ""), ws.headers.get("host", "")
@@ -327,6 +331,12 @@ def create_app(platform: Platform) -> FastAPI:
     @app.get("/admin")
     async def admin_page():
         return FileResponse(STATIC / "admin.html")
+
+    @app.get('/downloads/ioalab-skill.zip')
+    def skill_download():
+        path=Path(__file__).resolve().parents[2]/'dist/ioalab-skill.zip'
+        if not path.exists(): raise HTTPException(503,'Run tools/build_connector.py first')
+        return FileResponse(path,filename='ioalab-skill.zip',media_type='application/zip')
 
     @app.get("/downloads/ioalab-client.zip")
     async def connector_bundle():

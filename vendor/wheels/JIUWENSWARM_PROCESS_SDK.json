@@ -1,0 +1,12 @@
+{
+  "name": "jiuwenswarm-process-sdk",
+  "version": "0.1.0",
+  "wheel": "jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl",
+  "sha256": "f9aa6e09e21112a82e56320569c4ffea592415551d75489cfc1c51a3da5f0778",
+  "source": {
+    "repository": "https://github.com/openJiuwen-ai/jiuwenswarm.git",
+    "commit": "b465f45c8cb059117ffd64c92178493239b613d1",
+    "directory": "sdks/python"
+  },
+  "license": "Apache-2.0"
+}

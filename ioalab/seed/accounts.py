@@ -26,7 +26,21 @@ def ensure_accounts(platform) -> dict:
     for i, label in enumerate(isp_labels(), 1):
         out["isp"].append(_ensure(platform, f"ISP_{i:03d}", f"{i:03d}", "isp", f"内部服务方 · {label}"))
     for i in range(1, max(0, platform.s.isc_count) + 1):
-        uid = _ensure(platform, f"ISC_{i:03d}", f"{i:03d}", "isc", f"内部用户 {i:03d}")
+        password=platform.s.assistant_password if i==1 and platform.s.assistant_password else f"{i:03d}"
+        if i==1 and platform.s.open:
+            from ..psp.auth import _check_pw,_pbkdf2
+            import secrets
+            if password=='001':
+                path=platform.s.data/'assistant.secret'
+                if not path.exists(): path.write_text(secrets.token_urlsafe(18),encoding='utf-8')
+                password=path.read_text(encoding='utf-8').strip()
+            if len(password)<12: raise ValueError('ISC_001 requires a password of at least 12 characters in trial mode')
+            existing=platform.db.one("SELECT id,pw_hash FROM users WHERE username='ISC_001'")
+            if existing and _check_pw('001',existing['pw_hash']):
+                platform.db.run('UPDATE users SET pw_hash=? WHERE id=?',_pbkdf2(password),existing['id'])
+        uid = _ensure(platform, f"ISC_{i:03d}", password, "isc", f"内部用户 {i:03d}")
+        if i==1:
+            platform.db.run("INSERT OR IGNORE INTO user_roles VALUES (?, 'admin')",uid)
         out["isc"].append(uid)
     return out
 

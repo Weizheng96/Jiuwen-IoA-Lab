@@ -63,7 +63,13 @@ def ensure_runtime(assets=None, cache=None):
 
 def main():
     try:
-        python=ensure_runtime()
+        settings=Path(__file__).resolve().parents[1]/'settings.local.json'
+        if settings.exists():
+            values=json.loads(settings.read_text(encoding='utf-8'))
+            for key in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_HOME'):
+                if values.get(key): os.environ.setdefault(key,str(values[key]))
+        cache=os.environ.get('IOALAB_RUNTIME_CACHE') or (str(Path(os.environ['IOALAB_HOME']).parent/'runtimes') if os.environ.get('IOALAB_HOME') else None)
+        python=ensure_runtime(cache=cache)
         raise SystemExit(subprocess.call([str(python),'-m','ioalab_sdk.cli',*sys.argv[1:]]))
     except Exception as exc:
         print(json.dumps({'error':str(exc)},ensure_ascii=False));raise SystemExit(1)

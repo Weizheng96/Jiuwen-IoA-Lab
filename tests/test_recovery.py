@@ -24,6 +24,10 @@ def test_local_restart_and_lost_market_watch(platform,providers,tmp_path):
     from a2c.binding import build_app
     platform.market.market.tasks.clear()
     platform.market.market.watchers.clear()
+    # The pinned A2A transport owns detached producers/consumers. Keep the retired
+    # app alive until this server loop shuts down, as a real process restart does.
+    # Dropping it here lets Python collect live coroutine cycles mid-request.
+    platform._retired_test_apps=getattr(platform,'_retired_test_apps',[])+[platform.router.apps['market']]
     platform.router.apps['market']=build_app(platform.market.market,name='Restarted market',base_url=platform.market_id,
                                             role='market',jwks={'keys':[platform.market_signer.jwk]})
     second=LabClient(platform.s.base_url,user['username'],PASSWORD,home,source='experiment')
@@ -64,6 +68,7 @@ def test_service_restart_restores_keys_tasks_and_does_not_redeliver(providers,lo
         assert local_client.poll(cd)['card']['signatures']['6']
         assert local_client.accept(cd,1,confirmed=True)['status']=='pass'
     finally:
+        providers._retired_test_apps=getattr(providers,'_retired_test_apps',[])+[route.app]
         route.app=oldapp
         restored.close()
 
@@ -90,7 +95,7 @@ def test_model_completion_without_sdk_submission_is_failure(providers,local_clie
 def test_swarm_machine_mode_and_result_validation(tmp_path):
     from swarm import SwarmEngine
     fake=tmp_path/'fake_swarm.py'
-    fake.write_text('import sys,json\nif "--help" in sys.argv: print("--run-json")\nelse: print(json.dumps({"type":"result","status":"failed"}))\n')
+    fake.write_text('import sys,json\nif "--help" in sys.argv: print("--run-json --run-jsonl")\nelse: print(json.dumps({"type":"result","status":"failed"}))\n')
     engine=SwarmEngine([sys.executable,str(fake)]);engine.check()
     with pytest.raises(RuntimeError,match='failed'):
         engine.run({'id':'job'}, {},tmp_path,'http://localhost/task','test-token')

@@ -1,0 +1,21 @@
+[Unit]
+Description=Jiuwen IoA Lab independent administrator assistant
+After=network-online.target ioalab.service ioalab-swarm.service
+Wants=network-online.target ioalab.service ioalab-swarm.service
+
+[Service]
+Type=simple
+User=ioalab
+Group=ioalab
+WorkingDirectory=/var/lib/ioalab
+EnvironmentFile=/etc/ioalab/personal-assistant.env
+ExecStart=/opt/ioalab/.venv/bin/python /opt/ioalab/personal-assistant/assistant.py run
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/ioalab
+
+[Install]
+WantedBy=multi-user.target

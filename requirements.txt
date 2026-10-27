@@ -3,6 +3,7 @@
 # a2c SDK 以 wheel 入库（vendor/wheels/，来源见 SOURCE.json，用 tools/sync_a2c.py 同步）；
 # A2A HTTP绑定需要grpcio兼容模块；A2X是git子模块。核心不安装智能体运行时。
 ./vendor/wheels/a2c-0.0.19-py3-none-any.whl
+./vendor/wheels/jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl
 a2a-sdk[http-server]==1.0.0
 grpcio>=1.60
 -e ./vendor/A2X-registry
@@ -10,4 +11,5 @@ fastapi>=0.110
 uvicorn>=0.29
 httpx>=0.27
 numpy
+jsonschema>=4.20
 python-multipart>=0.0.9

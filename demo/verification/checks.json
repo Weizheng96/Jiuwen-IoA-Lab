@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-27",
+  "pytest": {
+    "passed": 64,
+    "failed": 0
+  },
+  "selfcheck": "passed: versions, 48 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
+  "bootstrap": "passed: fresh environment, standalone SDK, cached reuse",
+  "syntax": {
+    "javascript": "passed",
+    "deployInstallBash": "passed"
+  },
+  "processSdkWheelDigest": "passed",
+  "originalTenTestFiles": "preserved",
+  "realSwarmEvidence": "real-swarm.json",
+  "recordings": [
+    {
+      "case": "delegation",
+      "path": "recordings/delegation-20261027-094536/local-test.mp4",
+      "result": "passed",
+      "dimensions": "1920x1080",
+      "meanVolumeDb": -28.2,
+      "narrationClips": 3,
+      "duration": 128.34,
+      "frames": [
+        "review-1.png",
+        "review-2.png",
+        "review-3.png"
+      ],
+      "fixtures": [
+        "calendar",
+        "smtp-capture",
+        "provider-sample"
+      ],
+      "sha256": "0c142fe3d57da310b60696d11fe9308cd385c1f2b404a0e085a7d2f72343a38b"
+    },
+    {
+      "case": "messaging",
+      "path": "recordings/messaging-20261026-213056/local-test.mp4",
+      "result": "passed",
+      "dimensions": "1920x1080",
+      "meanVolumeDb": -21.6,
+      "narrationClips": 5,
+      "duration": 33.86,
+      "frames": [
+        "review-1.png",
+        "review-2.png",
+        "review-3.png"
+      ],
+      "fixtures": [
+        "calendar",
+        "smtp-capture",
+        "provider-sample"
+      ],
+      "sha256": "12d868939fc7235b605c248404e7a177de9245208ef4e2ae65f3a9d32f326259"
+    }
+  ],
+  "limits": [
+    "Outlook OAuth, external SMTP delivery and user acceptance deferred by user; local SMTP capture verified only",
+    "Linux deployment has syntax/config checks, no real server acceptance",
+    "Recordings use sample provider and test calendar; real Swarm production verified separately"
+  ]
+}

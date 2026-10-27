@@ -16,13 +16,13 @@ def build_router(platform, current_user):
     @router.post("/token")
     def token(body: dict, request: Request):
         user = platform.login(body.get("username", ""), body.get("password", ""), ip=request.client.host)
-        return {**user, "token": platform.auth.bearer(user["id"])}
+        return {**user, "token": platform.auth.bearer(user["id"],restricted=True)}
 
     @router.get("/me")
     def me(uid=Depends(current_user)):
         user = platform.db.one("SELECT id,username,display_name,kind FROM users WHERE id=?", uid)
         return {**user, "wallet": str(platform.wallets.balance(uid)),
-                "identities": platform.db.rows("SELECT id,role,name,status FROM agents WHERE owner_id=?", uid)}
+                "roles":platform.auth.roles(uid), "identities": platform.db.rows("SELECT id,role,name,status FROM agents WHERE owner_id=?", uid)}
 
     @router.get("/identity/challenge")
     def challenge(uid=Depends(current_user)):

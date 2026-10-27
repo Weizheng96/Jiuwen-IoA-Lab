@@ -4,6 +4,7 @@ logs/
 ext-data/
 
 # 凭据与本机配置
+settings.local.json
 .env
 *.env
 !deploy/ioalab.env.example
@@ -12,6 +13,11 @@ ext-data/
 __pycache__/
 *.py[cod]
 .venv/
+.swarm-venv/
+.swarm-runtime/
+.uv-cache/
+recordings/
+
 venv/
 .pytest_cache/
 *.egg-info/

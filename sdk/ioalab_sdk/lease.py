@@ -28,6 +28,10 @@ class Lease:
                     raise RuntimeError('Identity directory is already in use: '+str(path.parent))
                 time.sleep(.1)
 
+    def __enter__(self): return self
+
+    def __exit__(self,*args): self.close()
+
     def close(self):
         if self.file.closed: return
         self.file.seek(0)

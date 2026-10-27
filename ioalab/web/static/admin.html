@@ -13,7 +13,7 @@
   <span class="badge info" id="runTag"></span>
   <span class="badge" id="modeTag"></span>
   <span class="badge market" id="discTag"></span>
-  <div class="spacer"></div>
+  <div class="spacer"></div><a class="btn sm" href="/">账号工作台</a>
   <span id="focusTag"><span>聚焦</span><b id="focusName"></b><span class="x" id="focusClear" title="还原（Esc）">×</span></span>
   <span class="replay-badge hide" id="replayBadge"><i></i><span id="replayText">回放</span></span>
   <span class="who" id="wsBox"><span class="dot off" id="wsDot"></span><span id="wsText">未连接</span></span>
@@ -46,6 +46,7 @@
     <button data-tab="stream">实时交易流<span class="n" id="nStream">0</span></button>
     <button data-tab="lanes">泳道视图<span class="n" id="nLanes">0</span></button>
     <button data-tab="components">组件</button>
+    <button data-tab="messages">消息中心</button>
     <button data-tab="users">用户与钱包</button>
     <button data-tab="registry">服务注册表</button>
     <button data-tab="dispatch">实验</button>
@@ -69,6 +70,7 @@
             <div class="sub" id="pnLedger"><b>信誉日志 · 仲裁</b><span id="pnLedgerStat">结清 0 · 裁定 0</span></div>
           </div>
         </div>
+        <div class="pn-infra market" id="pnMessages"><div class="title">智能体消息中心<small>按账号定向 · 免费接口 · 离线收取</small></div></div>
         <div class="pn-infra pay" id="pnPay"><div class="title">支付中心<small>虚拟币账本 · 读卡按卡载金额过账 · 不持有资金</small></div><div class="stat" id="pnPayStat">过账 0 笔 · 合计 0.00</div></div>
       </div>
       <div class="pn-col pn-right"><div class="pn-h">服务方 · 按领域（ISP 账号）</div><div class="pn-blocks" id="pnBlocks"></div></div>
@@ -76,6 +78,8 @@
     </div>
   </div>
 
+  <div class="view" id="view-messages"><div class="toolbar"><span class="mute">全局活动仅显示元数据；查看正文会记录管理员审计事件。</span></div><div id="adminMessages"></div></div>
+  <dialog id="messageAudit" style="max-width:850px;background:#132033;color:#e9eef5;border:1px solid #426079;border-radius:12px"><form method="dialog"><button class="btn">关闭</button></form><h2>消息审计</h2><pre id="messageAuditBody" style="white-space:pre-wrap;word-break:break-word"></pre></dialog>
   <div class="view" id="view-components">
     <div class="toolbar"><span class="mute">内部组件的实时状态，每 5 秒刷新</span><button class="btn sm" id="btnCompsRefresh">刷新</button></div>
     <div class="comps" id="comps"></div>
@@ -153,6 +157,6 @@
 
 <script src="/static/common.js"></script>
 <script src="/static/panorama.js"></script>
-<script src="/static/admin.js"></script>
+<script src="/static/admin.js"></script><script src="/static/admin_messages.js"></script>
 </body>
 </html>

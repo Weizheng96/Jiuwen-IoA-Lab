@@ -1,8 +1,8 @@
 {
   "title": "九问IoA仿真平台账号",
   "title_en": "Jiuwen IoA Lab account",
-  "description": "填平台地址与你在平台上的用户名密码。swarm 用它登录后替你委托；合同与密钥由平台替你的账号保管，不会存到本机。",
-  "description_en": "Platform URL plus your username and password. The swarm logs in on your behalf; contracts and keys stay on the platform under your account.",
+  "description": "填写平台地址与账号密码。助手通过本地SDK委托和收发消息；用户签名密钥与合同原件保存在自己的设备上，平台只做基础设施和观察。",
+  "description_en": "Platform URL and account credentials. Signing keys and original contracts stay on your device; the platform provides infrastructure and observations.",
   "fields": [
     {
       "key": "IOALAB_BASE_URL",

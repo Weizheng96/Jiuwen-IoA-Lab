@@ -151,6 +151,7 @@ const Panorama = (() => {
     const A = N.asst[s] || N.asst[r] || (N.byUser[s] && N.asst[N.byUser[s]]) || (N.byUser[r] && N.asst[N.byUser[r]]) || null;
     const accts = Focus.accountsOf(ev);
     switch (op) {
+      case 'message.queued': { const from = nodeEl(s), to = nodeEl(r); if (from && to) { pulse(from, $('pnMessages'), '结构化消息', COLORS.agent, 700, accts); later(700, () => pulse($('pnMessages'), to, d.interface || '收取', COLORS.agent, 700, accts)); } break; }
       case 'user.register': break;
       case 'assistant.register': if (!N.asst[r]) { const u = (USERS || []).find(x => x.id === s); if (u) mkAssistant({ id: r, name: ev.outcome }, u); } break;
       case 'service.register': {

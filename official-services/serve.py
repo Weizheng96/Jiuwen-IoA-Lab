@@ -202,7 +202,7 @@ def create_app(host):
 
     @app.get("/health")
     def health():
-        return {"ready":host.ready,"error":host.error,"services":len(host.agents),"queued":host.queue.qsize(),**host.health}
+        return {"ready":host.ready,"error":host.error,"execution":"sample" if host.stub else "swarm","services":len(host.agents),"queued":host.queue.qsize(),**host.health}
 
     def authorize(sid,jid,request):
         agent=host.agents.get("svc-"+sid)
@@ -215,7 +215,9 @@ def create_app(host):
     @app.get("/internal/tasks/{sid}/{jid}")
     def inspect(sid:str,jid:str,request:Request):
         agent,job=authorize(sid,jid,request)
-        return {k:job[k] for k in ("kind","object","materials")}|{"definition":agent.definition}
+        # Production receives requirements and generator guidance, never the fixture output.
+        definition={k:v for k,v in agent.definition.items() if k not in ('sample','sample_spec','sample_inputs')}
+        return {k:job[k] for k in ("kind","object","materials")}|{"definition":definition}
 
     @app.post("/internal/tasks/{sid}/{jid}/{operation}")
     def submit(sid:str,jid:str,operation:str,body:dict,request:Request):

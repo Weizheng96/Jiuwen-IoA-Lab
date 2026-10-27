@@ -57,6 +57,12 @@ class Settings:
     autoseed: bool = field(default_factory=lambda: _env("IOALAB_AUTOSEED", "1") == "1")                # 首次启动自动注入内部账号与服务
     quota_needs_per_day: int = field(default_factory=lambda: int(_env("IOALAB_NEEDS_PER_DAY", "0")))   # 0 → 默认 20
     admin_password: str = field(default_factory=lambda: _env("IOALAB_ADMIN_PASSWORD"))
+    message_retention_days: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_RETENTION_DAYS','30')))
+    message_metadata_days: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_METADATA_DAYS','90')))
+    message_pending_limit: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_PENDING_LIMIT','1000')))
+    message_rate: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_RATE','60')))
+    message_ttl_days: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_TTL_DAYS','7')))
+    assistant_password: str = field(default_factory=lambda:_env('IOALAB_ASSISTANT_PASSWORD'))
     sandbox_concurrency: int = 2
     sandbox_fuel: int = 5_000_000_000
     currency: str = "CNY"                  # 协议内币种（SDK 白名单）；页面显示为「虚拟币」
@@ -141,6 +147,10 @@ class Settings:
                 problems.append("trial 模式必须设置 IOALAB_ADMIN_PASSWORD（≥ 12 位）")
             if not self.public_url_env:
                 problems.append("trial 模式必须设置 IOALAB_PUBLIC_URL（参与方 id 内嵌它，首次 init 后不可改）")
+        if not 1<=self.message_ttl_days<=self.message_retention_days<=self.message_metadata_days:
+            problems.append('消息有效期、正文保留期、元数据保留期必须正数且依次不减')
+        if min(self.message_rate,self.message_pending_limit)<1:
+            problems.append('消息速率与容量必须大于0')
         return problems
 
 

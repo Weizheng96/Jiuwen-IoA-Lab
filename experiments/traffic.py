@@ -14,7 +14,7 @@ from catalog import definitions
 from ioalab_sdk import LabClient
 
 
-def run_order(client, definition, url):
+def run_order(client, definition, url, *, wait_seconds=90):
     template=client.templates(url)[0]
     name=definition['deliverable']['name']
     values=definition.get('sample_spec',{})
@@ -35,7 +35,7 @@ def run_order(client, definition, url):
         cd=out['cardDigest']; result=client.sign(cd,confirmed=True)
         if result.get('declined'): raise RuntimeError(str(result))
     client.start(cd,confirmed=True)
-    until=time.monotonic()+90
+    until=time.monotonic()+max(1,float(wait_seconds))
     fetched=False
     while time.monotonic()<until:
         state=client.poll(cd)

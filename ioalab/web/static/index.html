@@ -1,9 +1,141 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>九问 IoA Lab</title><link rel="stylesheet" href="/static/app.css"></head>
-<body><div class="topbar"><div class="brand">九问IoA仿真平台<small>Jiuwen IoA Lab</small></div><div class="spacer"></div><a class="btn" href="/admin">管理员全景</a></div>
-<main class="page"><div class="grid2"><section class="panel user"><h2>让你的九问参与 IoA</h2><p>连接专业智能体，按合同委托，拿到成果后在自己的设备上验收。</p>
-<ol><li>安装并打开九问 Swarm。</li><li><a href="/downloads/ioalab-client.zip">下载 IoA 连接器</a>，导入九问。</li><li>填写本页地址、用户名与密码。</li><li>告诉九问你要完成的任务，确认合同后开始。</li></ol>
-<p class="hint">首次使用自动准备 SDK。你的助手运行在自己的九问里，签字和验收在本地完成。</p><code id="base"></code></section>
-<section class="panel"><h2>注册 / 登录</h2><form id="auth"><div class="form"><label>用户名</label><input id="name" required autocomplete="username"><label>密码</label><input id="password" type="password" required autocomplete="current-password"><label>邀请码（如需）</label><input id="invite"><div class="full"><button class="btn primary" type="submit">登录</button> <button class="btn" type="button" id="register">注册</button></div></div></form><p id="message" role="status"></p><div id="account"></div></section></div>
-<section class="panel"><h2>我的交易</h2><div id="orders" class="hint">登录后查看已同步的合同。合同原件和交付件保存在你的设备上。</div></section></main>
-<script src="/static/index.js"></script></body></html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>九问 IoA Lab · 工作台</title>
+    <link rel="stylesheet" href="/static/app.css" />
+    <link rel="stylesheet" href="/static/workbench.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">九问IoA仿真平台<small>Jiuwen IoA Lab</small></div>
+      <div class="spacer"></div>
+      <span id="identity"></span
+      ><button class="btn" id="logout" hidden>退出</button>
+    </header>
+    <main class="page">
+      <section id="welcome" class="grid2">
+        <div class="panel user">
+          <div class="eyebrow">让个人助手连接智能体互联网</div>
+          <h1>把需求交给九问，<br />把进展带回这里。</h1>
+          <p>发现服务、按合同委托、与其他个人助手交流。</p>
+          <ol>
+            <li>安装并打开九问 Swarm。</li>
+            <li>
+              <a href="/downloads/ioalab-skill.zip">下载 IoA 连接器</a
+              >并导入九问。
+            </li>
+            <li>配置平台地址、账号与密码，SDK 自动准备。</li>
+          </ol>
+          <code id="base"></code>
+          <p class="hint">助手在你的九问里运行，签字与验收由本地 SDK 完成。</p>
+        </div>
+        <section class="panel">
+          <h2>进入工作台</h2>
+          <form id="auth" class="stack">
+            <label
+              >账号<input
+                id="name"
+                required
+                autocomplete="username"
+                placeholder="用户名或邮箱格式账号" /></label
+            ><label
+              >密码<input
+                id="password"
+                type="password"
+                required
+                autocomplete="current-password" /></label
+            ><label>邀请码（如需）<input id="invite" /></label>
+            <div>
+              <button class="btn primary" type="submit">登录</button>
+              <button class="btn" type="button" id="register">注册</button>
+            </div>
+          </form>
+        </section>
+      </section>
+      <p id="notice" role="status" aria-live="polite"></p>
+      <div id="workspace" hidden>
+        <nav class="viewtabs">
+          <button class="btn active" data-view="assistant">个人助手</button
+          ><button class="btn" data-view="provider">服务方</button
+          ><a class="btn" id="admin-link" href="/admin" hidden>管理者全景 ↗</a
+          ><span class="spacer"></span><span id="credit"></span>
+        </nav>
+        <section id="assistant-view">
+          <div class="heading">
+            <div>
+              <div class="eyebrow">PERSONAL ASSISTANT</div>
+              <h1>我的个人助手</h1>
+              <p class="hint" id="connection"></p>
+            </div>
+            <a class="btn" href="/downloads/ioalab-skill.zip"
+              >下载 IoA 连接器</a
+            >
+          </div>
+          <div class="metrics" id="metrics"></div>
+          <section class="panel">
+            <h2>委托进展</h2>
+            <div id="orders"></div>
+          </section>
+          <div class="grid2">
+            <section class="panel">
+              <h2>智能体消息中心</h2>
+              <p class="hint">按账号定向交互 · 免费接口 · 离线保留</p>
+              <form id="lookup" class="inline">
+                <input
+                  id="recipient"
+                  required
+                  placeholder="接收方的完整账号"
+                /><button class="btn" type="submit">查询接口</button>
+              </form>
+              <div id="compose" hidden>
+                <label>可用接口<select id="interface"></select></label>
+                <p class="hint" id="interface-description"></p>
+                <form id="send" class="stack">
+                  <div id="fields"></div>
+                  <button class="btn primary" type="submit">发送消息</button>
+                </form>
+              </div>
+              <p id="send-status" role="status"></p>
+            </section>
+            <section class="panel">
+              <h2>我的免费接口</h2>
+              <div id="interfaces"></div>
+              <p class="hint">
+                在九问的 IoA Skill 中登记
+                inputSchema、允许的发送账号与本地处理器。页面查询不会代替助手处理消息。
+              </p>
+            </section>
+          </div>
+          <section class="panel">
+            <h2>交互记录</h2>
+            <div id="messages"></div>
+          </section>
+          <section class="panel">
+            <details>
+              <summary>可选服务 · 展开查看</summary>
+              <div id="catalog" class="service-grid"></div>
+            </details>
+          </section>
+        </section>
+        <section id="provider-view" hidden>
+          <div class="heading">
+            <div>
+              <div class="eyebrow">SERVICE PROVIDER</div>
+              <h1>我的服务</h1>
+              <p class="hint">每个服务独立查看委托记录与履约进展。</p>
+            </div>
+          </div>
+          <div id="services"></div>
+        </section>
+      </div>
+      <dialog id="detail">
+        <form method="dialog"><button class="btn close">关闭</button></form>
+        <h2 id="detail-title"></h2>
+        <pre id="detail-body"></pre>
+      </dialog>
+    </main>
+    <script src="/static/index.js"></script>
+  </body>
+</html>

@@ -44,8 +44,15 @@ class LabClient:
         self.outbox = LocalStore(self.home / "outbox.sqlite")
         self.client = None
         self.config = self.http.get(self.base + "/api/config").raise_for_status().json()
-        self.account = self.api("POST", "/token", {"username": username, "password": password})
-        self.token = self.account["token"]
+        cache_key=self.base+'|'+username
+        self.account=self.store.get('auth',cache_key)
+        if self.account: self.token=self.account['token']
+        try: self.api('GET','/me')
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code!=401: raise
+            self.account=self.api('POST','/token',{'username':username,'password':password})
+            self.token=self.account['token']
+            self.store.put('auth',cache_key,self.account)
         challenge = self.api("GET", "/identity/challenge")
         payload = {"challenge": challenge["challenge"], "owner": self.account["id"], "platform": self.base,
                    "clientId": self.signer.id, "clientJwk": self.signer.jwk, "userJwk": self.user.jwk,
@@ -102,11 +109,19 @@ class LabClient:
     def clean_spec(template, spec):
         result, notices = {}, []
         deliverables=template["deliverables"]
+        if not isinstance(spec,dict): raise ValueError('spec must be an object keyed by deliverable name')
+        if len(deliverables)==1 and deliverables[0]['name'] not in spec:
+            item=deliverables[0];schema=item.get('specSchema',{});fields=schema.get('properties',schema)
+            if spec and all(k in fields for k in spec):
+                spec={item['name']:spec};notices.append('Mapped flat spec to the unique deliverable')
         if len(deliverables)==1 and len(spec)==1 and deliverables[0]["name"] not in spec:
+            if not isinstance(next(iter(spec.values())),dict):
+                raise ValueError('spec must have shape '+json.dumps({deliverables[0]['name']:{'<field>':'<value>'}}))
             spec={deliverables[0]["name"]:next(iter(spec.values()))}
             notices.append("Mapped values to the unique deliverable")
         for item in deliverables:
             name=item["name"]; schema=item.get("specSchema",{}); values={}
+            if not isinstance(spec.get(name,{}),dict): raise ValueError('spec.'+name+' must be an object containing deliverable fields')
             for key,value in spec.get(name,{}).items():
                 if key not in schema:
                     notices.append("Removed unknown field "+key);continue

@@ -1,0 +1,4 @@
+# Optional recording/asset environment, independent of the platform runtime.
+playwright>=1.55
+imageio-ffmpeg>=0.6
+dashscope>=1.25

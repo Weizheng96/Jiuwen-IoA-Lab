@@ -84,6 +84,20 @@ if [ ! -f /etc/ioalab/providers.env ]; then
 fi
 sed -e "s#/opt/ioalab#$APP_DIR#g" -e "s#/var/lib/ioalab#$STATE_DIR#g" -e "s#^User=.*#User=$SVC_USER#" -e "s#^Group=.*#Group=$SVC_USER#" \
   deploy/ioalab-providers.service > /etc/systemd/system/ioalab-providers.service
+# 独立管理员九问；默认附带安装，可在受限服务器先设置IOALAB_INSTALL_SWARM=0后补装。
+if [ "${IOALAB_INSTALL_SWARM:-1}" = "1" ]; then
+  command -v npm >/dev/null || { say "安装九问网页需要 Node/npm，请先安装后重试"; exit 1; }
+  if [ ! -x "$APP_DIR/.swarm-venv/bin/python" ]; then
+    .venv/bin/python personal-assistant/install_swarm.py --venv "$APP_DIR/.swarm-venv" --data "$STATE_DIR/swarm"
+  fi
+  .venv/bin/python deploy/configure_assistant.py --core-env "$ENV_FILE" --assistant-env /etc/ioalab/personal-assistant.env --swarm-data "$STATE_DIR/swarm" --assistant-data "$STATE_DIR/personal-assistant"
+  chown -R "$SVC_USER:$SVC_USER" "$STATE_DIR/swarm"
+  chown root:"$SVC_USER" /etc/ioalab/personal-assistant.env
+  chmod 640 /etc/ioalab/personal-assistant.env
+fi
+for unit in ioalab-assistant ioalab-swarm; do
+  sed -e "s#/opt/ioalab#$APP_DIR#g" -e "s#/var/lib/ioalab#$STATE_DIR#g" -e "s#^User=.*#User=$SVC_USER#" -e "s#^Group=.*#Group=$SVC_USER#" "deploy/$unit.service" > "/etc/systemd/system/$unit.service"
+done
 systemctl daemon-reload
 say "安装完成。下一步："
 say "  1) 编辑 $ENV_FILE：IOALAB_PUBLIC_URL（首次启动后不可改）；发现模型key可选；另配providers.env与服务九问"

@@ -51,6 +51,12 @@ def build(output):
         with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
             for path in bundle.rglob('*'):
                 if path.is_file(): archive.write(path,path.relative_to(temp))
+        # Directly importable via Jiuwen's public skills.import_local / Skills UI.
+        standalone=output.with_name('ioalab-skill.zip')
+        skill=bundle/'skills/ioalab-delegate'
+        with zipfile.ZipFile(standalone,'w',zipfile.ZIP_DEFLATED) as archive:
+            for path in skill.rglob('*'):
+                if path.is_file(): archive.write(path,Path('ioalab-delegate')/path.relative_to(skill))
     return output
 
 

@@ -10,10 +10,15 @@ from .client import LabClient
 
 
 def main(argv=None):
+    argv=list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0]=='mail':
+        from .message_cli import main as mail_main
+        return mail_main(argv[1:])
     parser = argparse.ArgumentParser(prog="ioalab-client")
     parser.add_argument("command", choices=["me", "search", "templates", "draft", "sign", "request", "adopt", "start",
                                            "poll", "watch", "fetch", "verify", "accept", "pay", "answer-step", "terminate", "arbitrate"])
     parser.add_argument("--args", default="{}", help="JSON parameters")
+    parser.add_argument('--args-file',type=Path,help='UTF-8 JSON parameters; avoids shell quoting problems')
     parser.add_argument("--confirmed", action="store_true", help="Pass only after actual user confirmation")
     args = parser.parse_args(argv)
     client = None
@@ -22,7 +27,7 @@ def main(argv=None):
         key = hashlib.sha256((base.rstrip("/") + "|" + username).encode()).hexdigest()[:20]
         home = Path(os.environ.get("IOALAB_HOME", str(Path.home() / ".ioalab" / key)))
         client = LabClient(base, username, password, home)
-        params = json.loads(args.args)
+        params = json.loads(args.args_file.read_text(encoding='utf-8-sig') if args.args_file else args.args)
         if args.command == "me":
             out = client.api("GET", "/me")
         else:

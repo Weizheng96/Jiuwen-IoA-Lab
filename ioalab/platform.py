@@ -117,6 +117,8 @@ class Platform:
                                             jwks={"keys": [self.pay_signer.jwk]}, extensions=(A2C_EXTENSION, AP2_EXTENSION))
         self.started = False
         self.background = []
+        from .messaging import MessageCenter
+        self.messaging=MessageCenter(self)
 
     def _agent_of_provider(self, provider_id):
         return next((r for r in self.db.rows("SELECT * FROM agents WHERE role='service'")
@@ -159,6 +161,7 @@ class Platform:
         while True:
             await asyncio.sleep(1)
             self.sync_orders()
+            self.messaging.cleanup()
 
     def sync_orders(self):
         for row in self.db.rows("SELECT card_digest,state FROM orders"):
@@ -346,7 +349,9 @@ class Platform:
         stats = self.stats()
         reports=[jload(r['meta']) for r in self.db.rows("SELECT meta FROM agents WHERE role='service'")]
         connected=[r for r in reports if now()-r.get('lastSeen',0)<45 and 'execution' in r]
-        return {"registry": {"services": stats["services"], "online": stats["runnable"], "categories": len(self.discovery.categories()),
+        self.messaging.cleanup()
+        message_states={r['state']:r['n'] for r in self.db.rows('SELECT state,COUNT(*) AS n FROM messages GROUP BY state')}
+        return {"messaging":{"interfaces":self.db.one('SELECT COUNT(*) AS n FROM message_interfaces')['n'],"states":message_states,"pending":sum(v for k,v in message_states.items() if k not in ('completed','rejected','expired'))},"registry": {"services": stats["services"], "online": stats["runnable"], "categories": len(self.discovery.categories()),
                              "taxonomy": stats["taxonomy"], "last_mode": self.discovery.last_mode},
                 "templates": {"endorsed": len(self.market.market.store.all("templates")), "snapshots": len(self.market.market.store.all("snapshots")),
                               "certifications": len(self.db.rows("SELECT agent_id FROM certifications"))},

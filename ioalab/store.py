@@ -15,6 +15,7 @@ from typing import Any, Iterator
 from a2c.common import Store
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS user_roles(user_id TEXT,role TEXT,PRIMARY KEY(user_id,role));
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE, pw_hash TEXT, kind TEXT DEFAULT 'external', display_name TEXT DEFAULT '', created REAL, last_login REAL, note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS wallets (user_id TEXT PRIMARY KEY, balance TEXT NOT NULL DEFAULT '0', payer_thumbprint TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS wallet_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL, user_id TEXT, delta TEXT, balance TEXT, kind TEXT, ref TEXT, by TEXT, note TEXT);
