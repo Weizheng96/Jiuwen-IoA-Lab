@@ -58,7 +58,7 @@
   "limits": [
     "Linux deployment has syntax/config checks, no real server acceptance",
     "Recordings use sample provider and test calendar; real Swarm production verified separately",
-    "AgentMail inbox created and SMTP authenticated; ownership OTP, external invitation receipt/acceptance and Outlook calendar authorization remain pending"
+    "AgentMail ownership and SMTP verified; one real invitation submitted and provider sent record found; Outlook receipt/acceptance and calendar read authorization remain pending"
   ],
   "administratorSkillInstall": "passed: complete skill installed and account configured; real CLI reuses receiver identity; isolated SDK bootstrap; local settings excluded from bundle",
   "agentmailEvidence": "agentmail.json"

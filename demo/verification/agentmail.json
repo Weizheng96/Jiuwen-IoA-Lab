@@ -3,15 +3,14 @@
   "provider": "AgentMail",
   "inbox": "jiuwenioa@agentmail.to",
   "registration": "created",
-  "ownershipVerified": false,
+  "ownershipVerified": true,
   "smtp": {
     "status": "authenticated",
     "sender": "jiuwenioa@agentmail.to",
     "auth": "password",
-    "messageSent": false,
-    "ownershipVerified": false
+    "messageSent": false
   },
-  "externalInvitation": "not sent",
+  "externalInvitation": "submitted via actual SMTP",
   "outlookReceived": "not verified",
   "outlookAccepted": "not verified",
   "outlookCalendarRead": "not authorized",
@@ -21,5 +20,34 @@
     "failed": 0
   },
   "selfcheck": "passed",
-  "bootstrap": "passed"
+  "bootstrap": "passed",
+  "invitation": {
+    "uid": "ioa-notification-check-b5f7dee8a86a4d7cafc0207c40d014c1@jiuwen-ioa-lab",
+    "sender": "jiuwenioa@agentmail.to",
+    "recipient": "zhengw.cc@outlook.com",
+    "appointment": {
+      "title": "[邮件通路验收] Jiuwen IoA Lab 测试会议",
+      "start": "2026-10-28T10:00:00+08:00",
+      "end": "2026-10-28T10:15:00+08:00"
+    }
+  },
+  "providerMessage": {
+    "message_id": "<010001a17c101d61-53256a1c-c5e0-482a-8c73-7f19f46676d9-000000@email.amazonses.com>",
+    "labels": [
+      "sent"
+    ],
+    "timestamp": "2026-10-27T06:33:13.241Z",
+    "subject": "会议邀请：[邮件通路验收] Jiuwen IoA Lab 测试会议",
+    "direction": "sent"
+  },
+  "calendarConflictCheck": "not performed; Outlook calendar authorization is missing",
+  "providerMimeCheck": {
+    "calendarMime": true,
+    "methodRequest": true,
+    "uidMatches": true,
+    "organizerMatches": true,
+    "attendeeMatches": true,
+    "startMatches": true,
+    "endMatches": true
+  }
 }
