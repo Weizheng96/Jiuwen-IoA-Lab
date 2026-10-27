@@ -33,7 +33,7 @@ def constraints():
 def build(output):
     with tempfile.TemporaryDirectory(prefix='ioalab-connector-') as temp:
         temp=Path(temp);bundle=temp/'ioalab-client'
-        shutil.copytree(ROOT/'connector/ioalab-client',bundle,ignore=shutil.ignore_patterns('__pycache__','*.pyc','assets'))
+        shutil.copytree(ROOT/'connector/ioalab-client',bundle,ignore=shutil.ignore_patterns('__pycache__','*.pyc','assets','settings.local.json'))
         assets=bundle/'skills/ioalab-delegate/assets';wheels=assets/'wheels';wheels.mkdir(parents=True)
         subprocess.run([sys.executable,'-m','pip','wheel','--no-index','--no-deps','--no-build-isolation',str(ROOT/'sdk'),'-w',str(wheels)],check=True)
         source=json.loads((ROOT/'vendor/wheels/SOURCE.json').read_text(encoding='utf-8'))
