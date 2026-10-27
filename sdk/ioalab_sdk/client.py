@@ -105,6 +105,20 @@ class LabClient:
     def templates(self, provider: str):
         return self.client.get_templates(provider)
 
+    def compare(self, providers: list[str], reason: str, selected: str, cd: str | None = None):
+        """Read complete signed templates; record the assistant's choice as reported."""
+        if not isinstance(providers,list) or not 2<=len(providers)<=8 or len(set(providers))!=len(providers):
+            raise ValueError('Compare 2–8 distinct provider endpoints')
+        if selected not in providers or not isinstance(reason,str) or not 1<=len(reason)<=1200:
+            raise ValueError('A candidate and a bounded comparison reason are required')
+        templates=[{'provider':p,'templates':self.templates(p)} for p in providers]
+        if cd and self.client.card(cd)['provider']!=selected:
+            raise ValueError('Selected provider does not match this contract')
+        result={'candidates':templates,'selected':selected,'reason':reason,'trust':'reported'}
+        self.store.put('comparisons',cd or uuid.uuid4().hex,result)
+        self.observe('discovery.compared',cd,providers=providers,selected=selected,reason=reason)
+        return result
+
     @staticmethod
     def clean_spec(template, spec):
         result, notices = {}, []

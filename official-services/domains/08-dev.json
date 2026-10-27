@@ -605,6 +605,226 @@
     "scale": "日订单 10 万",
     "constraints": "团队 5 人，云上部署"
    }
+  },
+  {
+   "id": "nail-booking-basic",
+   "name": "美甲预约工具·基础版",
+   "description": "为美甲店配置本地预约工具：营业时段、容量、项目时长。提案型，拟卡费1虚拟币，报价259虚拟币；5项WASM配置判据，配合仓内独立运行器使用。非微信发布服务。",
+   "tags": [
+    "软件开发",
+    "美甲",
+    "预约",
+    "本地工具"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "booking",
+    "title": "本地预约配置",
+    "file": "booking.json",
+    "mediaType": "application/json",
+    "description": "JSON配置，配合examples/booking_app.py运行；判据核对配置，不执行任意服务代码。",
+    "specSchema": {
+     "shop": {
+      "type": "string",
+      "maxLength": 80
+     },
+     "open": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 23
+     },
+     "close": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 24
+     },
+     "capacity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+     },
+     "services": {
+      "type": "string",
+      "maxLength": 1500
+     },
+     "level": {
+      "const": "basic"
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     259,
+     259
+    ]
+   },
+   "verifier": {
+    "id": "nail_booking_basic@1.0",
+    "reads": [
+     "spec.booking.shop",
+     "spec.booking.open",
+     "spec.booking.close",
+     "spec.booking.capacity",
+     "spec.booking.services",
+     "spec.booking.level"
+    ],
+    "script": "nail_booking.py"
+   },
+   "notCovered": [
+    "微信注册、发布及审核",
+    "任意软件源代码的质量",
+    "公网部署和身份认证"
+   ],
+   "generator": {
+    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services解析规格中的JSON数组；format固定ioalab.booking；allowCancel和idempotent均为true。仅使用ioa_selftest和ioa_deliver验证并交付，不生成可执行源码。",
+    "output": "{\"format\": \"ioalab.booking\", \"shop\": \"小满美甲店\", \"open\": 10, \"close\": 20, \"capacity\": 2, \"services\": [{\"name\": \"纯色美甲\", \"minutes\": 60}, {\"name\": \"延长甲\", \"minutes\": 90}], \"allowCancel\": true, \"idempotent\": true}",
+    "quote_system": "本服务统一定价259虚拟币，仅输出JSON：{\"price\":259,\"summary\":\"5项配置判据的本地预约工具\"}。"
+   },
+   "sample": {
+    "format": "ioalab.booking",
+    "shop": "小满美甲店",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "services": [
+     {
+      "name": "纯色美甲",
+      "minutes": 60
+     },
+     {
+      "name": "延长甲",
+      "minutes": 90
+     }
+    ],
+    "allowCancel": true,
+    "idempotent": true
+   },
+   "sample_spec": {
+    "shop": "小满美甲店",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "services": "[{\"name\":\"纯色美甲\",\"minutes\":60},{\"name\":\"延长甲\",\"minutes\":90}]"
+   }
+  },
+  {
+   "id": "nail-booking-reliable",
+   "name": "美甲预约工具·可靠版",
+   "description": "为美甲店配置本地预约工具：营业时段、容量、项目时长。提案型，拟卡费1虚拟币，报价299虚拟币；10项WASM配置判据，配合仓内独立运行器使用。非微信发布服务。",
+   "tags": [
+    "软件开发",
+    "美甲",
+    "预约",
+    "本地工具"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "booking",
+    "title": "本地预约配置",
+    "file": "booking.json",
+    "mediaType": "application/json",
+    "description": "JSON配置，配合examples/booking_app.py运行；判据核对配置，不执行任意服务代码。",
+    "specSchema": {
+     "shop": {
+      "type": "string",
+      "maxLength": 80
+     },
+     "open": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 23
+     },
+     "close": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 24
+     },
+     "capacity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+     },
+     "services": {
+      "type": "string",
+      "maxLength": 1500
+     },
+     "level": {
+      "const": "reliable"
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     299,
+     299
+    ]
+   },
+   "verifier": {
+    "id": "nail_booking_reliable@1.0",
+    "reads": [
+     "spec.booking.shop",
+     "spec.booking.open",
+     "spec.booking.close",
+     "spec.booking.capacity",
+     "spec.booking.services",
+     "spec.booking.level"
+    ],
+    "script": "nail_booking.py"
+   },
+   "notCovered": [
+    "微信注册、发布及审核",
+    "任意软件源代码的质量",
+    "公网部署和身份认证"
+   ],
+   "generator": {
+    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services解析规格中的JSON数组；format固定ioalab.booking；allowCancel和idempotent均为true。仅使用ioa_selftest和ioa_deliver验证并交付，不生成可执行源码。",
+    "output": "{\"format\": \"ioalab.booking\", \"shop\": \"小满美甲店\", \"open\": 10, \"close\": 20, \"capacity\": 2, \"services\": [{\"name\": \"纯色美甲\", \"minutes\": 60}, {\"name\": \"延长甲\", \"minutes\": 90}], \"allowCancel\": true, \"idempotent\": true}",
+    "quote_system": "本服务统一定价299虚拟币，仅输出JSON：{\"price\":299,\"summary\":\"10项配置判据的本地预约工具\"}。"
+   },
+   "sample": {
+    "format": "ioalab.booking",
+    "shop": "小满美甲店",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "services": [
+     {
+      "name": "纯色美甲",
+      "minutes": 60
+     },
+     {
+      "name": "延长甲",
+      "minutes": 90
+     }
+    ],
+    "allowCancel": true,
+    "idempotent": true
+   },
+   "sample_spec": {
+    "shop": "小满美甲店",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "services": "[{\"name\":\"纯色美甲\",\"minutes\":60},{\"name\":\"延长甲\",\"minutes\":90}]"
+   }
   }
  ]
 }

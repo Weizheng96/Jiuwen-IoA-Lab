@@ -17,9 +17,9 @@ def test_rules_engine_core_checks():
 
 def test_domain_files_shape():
     domains=load_domains()
-    assert len(domains)==8 and all(len(d['services'])==6 for d in domains)
+    assert len(domains)==8 and all(5<=len(d['services'])<=10 for d in domains)
     items=definitions()
-    assert len(items)==48 and len({d['id'] for d in items})==48
+    assert len(items)==50 and len({d['id'] for d in items})==50
     assert {'preapproval','countersign','proposal'}=={d.get('formation','preapproval') for d in items}
     assert all(d['sample'] and d['verifier']['source'] for d in items)
 

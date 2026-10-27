@@ -1,6 +1,6 @@
 # 官方服务
 
-领域定义在 `domains/`，验收器在 `verifiers/`，服务技能在 `skills/`。默认 8 个 ISP 领域、每领域 6 个服务。独立进程只依赖 `ioalab-sdk` 与九问，不导入平台核心。
+领域定义在 `domains/`，验收器在 `verifiers/`，服务技能在 `skills/`。默认8个ISP领域、50项服务；软件开发8项，其余各6项。独立进程只依赖 `ioalab-sdk` 与九问，不导入平台核心。
 
 核心启动后执行 `python official-services/serve.py`。默认监听 8751；配置见 `设计/部署.md`。无任务时只保持协议端点，浏览模板不启动九问。真实模式需已安装并配置兼容的 `jiuwenswarm-process`，支持机器协议 `--run-json` / schema `0.1`；适配依据上游 b465f45（workswarm 0.2.5b1），完整真机验收状态见变更记录。缺少入口时 health 报错，不自动改成桩。
 
