@@ -1,11 +1,11 @@
 {
   "date": "2026-10-27",
   "pytest": {
-    "passed": 78,
+    "passed": 81,
     "failed": 0
   },
   "selfcheck": "passed: versions, 48 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
-  "bootstrap": "passed: fresh environment, standalone SDK, cached reuse",
+  "bootstrap": "passed after SDK update: fresh environment, standalone SDK, cached reuse; constraints use current source version",
   "syntax": {
     "javascript": "passed",
     "deployInstallBash": "passed"
@@ -53,6 +53,30 @@
         "provider-sample"
       ],
       "sha256": "12d868939fc7235b605c248404e7a177de9245208ef4e2ae65f3a9d32f326259"
+    },
+    {
+      "case": "global",
+      "path": "demo/out/01-global.mp4",
+      "result": "passed",
+      "dimensions": "1920x1080",
+      "meanVolumeDb": -18.9,
+      "narrationClips": 5,
+      "duration": 44.75,
+      "frames": [
+        "review-1.png",
+        "review-2.png",
+        "review-3.png"
+      ],
+      "fixtures": [
+        "provider-sample"
+      ],
+      "experiment": {
+        "participants": 4,
+        "completedOrders": 24,
+        "messages": 24,
+        "errors": []
+      },
+      "sha256": "9e68fee6ff59433074c37b243edb5ff942f4acb5c54c51726ac3520cdff49d3f"
     }
   ],
   "limits": [

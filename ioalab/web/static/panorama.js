@@ -13,6 +13,8 @@ const Panorama = (() => {
   const Stat = { asst: 0, svc: 0, signed: 0, transfers: 0, volume: 0, completed: 0, arbitrated: 0, endorsed: 0, sig3: 0, sig5: 0, declined: 0, searches: 0 };
   const Anims = [], Timers = [], links = [];
   let baseSeq = 0, replay = false, ready = false, touched = [], pendingCredit = {}, quiet = false;   // quiet：历史事件只改状态不画脉冲
+  let serverStats=null;
+  const observedMessages=new Set(), anchoredCards=new Set();
 
   function anim(dur, fn, done) { Anims.push({ start: Clock.now(), dur, fn, done }); }
   function later(ms, fn) { Timers.push({ at: Clock.now() + ms, fn }); }
@@ -35,10 +37,10 @@ const Panorama = (() => {
   function mkAssistant(a, u) {
     if (N.asst[a.id]) return N.asst[a.id];
     const el = document.createElement('div'); el.className = 'pn-asst'; el.dataset.id = a.id; el.dataset.acct = u.id; el.dataset.accts = u.id;
-    const drv = (() => { try { return (typeof a.meta === 'string' ? JSON.parse(a.meta || '{}') : a.meta || {}).last_driver; } catch (e) { return null; } })();
+    const experimental = (() => { try { return (typeof a.meta === 'string' ? JSON.parse(a.meta || '{}') : a.meta || {}).source==='experiment'; } catch (e) { return false; } })();
     el.innerHTML = `<div class="ava">${esc((u.display_name || u.username || '').slice(-2))}</div>
-      <div class="name"><b>${esc(u.display_name || u.username)}</b><small>${esc(a.name || '九问 Swarm')}${drv === 'external' ? ' · swarm 驾驭' : ''}</small></div>
-      <div class="kind kind-${esc(u.kind)}">${esc(kindTag(u.kind))}</div><div class="wallet">${money(u.balance)}</div>
+      <div class="name"><b>${esc(u.display_name || u.username)}</b><small>${esc(experimental?'独立SDK客户端':a.name || '个人助手')}</small></div>
+      <div class="kind kind-${esc(u.kind)}">${esc(experimental?'仿真助手':kindTag(u.kind))}</div><div class="wallet">${money(u.balance)}</div>
       <div class="state">空闲</div><div class="sigs"><i class="s1"></i><i class="p s2"></i><i class="m s3"></i><i class="p s4"></i><i class="m s5"></i><i class="s6"></i><i class="s7"></i></div>`;
     $('pnAsstList').appendChild(el);
     const n = { el, id: a.id, uid: u.id, wallet: Number(u.balance || 0), provider: null, link: null, state: '空闲', st: el.querySelector('.state'), w: el.querySelector('.wallet') };
@@ -148,7 +150,12 @@ const Panorama = (() => {
     const op = ev.op, s = Names.key(ev.sender), r = Names.key(ev.receiver), d = ev.detail || {};
     const money_ = replay || (ev.seq || 0) > baseSeq;            // 实时模式下初始余量已含历史事件，只对新事件记钱
     quiet = !money_;                                               // 历史事件：只恢复状态，不画脉冲、不闪
-    const A = N.asst[s] || N.asst[r] || (N.byUser[s] && N.asst[N.byUser[s]]) || (N.byUser[r] && N.asst[N.byUser[r]]) || null;
+    const A = N.asst[s] || N.asst[r] || N.asst[d.assistant] || (N.byUser[s] && N.asst[N.byUser[s]]) || (N.byUser[r] && N.asst[N.byUser[r]]) || null;
+    if(d.evidenceTrust==='verified'&&d.signatures){
+      if(d.signatures['5']?.some(Boolean)&&ev.cardDigest)anchoredCards.add(ev.cardDigest);
+      if(A)Object.entries(d.signatures).forEach(([k,value])=>sig(A,k,Array.isArray(value)?value.some(Boolean):!!value));
+    }
+    if(ev.kind==='message'&&d.messageId)observedMessages.add(d.messageId);
     const accts = Focus.accountsOf(ev);
     switch (op) {
       case 'message.queued': { const from = nodeEl(s), to = nodeEl(r); if (from && to) { pulse(from, $('pnMessages'), '结构化消息', COLORS.agent, 700, accts); later(700, () => pulse($('pnMessages'), to, d.interface || '收取', COLORS.agent, 700, accts)); } break; }
@@ -215,7 +222,7 @@ const Panorama = (() => {
       case 'delivery.fetch': if (A) pulse(A.el, r, '取件', COLORS.agent, 700, accts); break;
       case 'order.fetched': if (A) setState(A, '签收 · 运行验收器', 'info'); break;
       case 'order.verified': if (A) { sig(A, 6); setState(A, ev.outcome === 'pass' ? '验收器通过（签6）' : '验收器判不通过', ev.outcome === 'pass' ? 'ok' : 'bad'); } break;
-      case 'order.accepted': if (A) { sig(A, 7); setState(A, '签7 · 已付款', 'ok'); } break;
+      case 'order.accepted': if (A) { sig(A, 7); setState(A, '签7 · 已接受', 'ok'); } break;
       case 'arbitration.ruling': { const a = Object.values(N.asst).find(x => x.provider && /不通过/.test(x.state)) || null; pulse($('pnLedger'), a ? a.el : null, '裁定文书', COLORS.bad, 900, accts); flash($('pnLedger'), 'glow', 900); break; }
       case 'order.arbitrated': if (A) { Stat.arbitrated++; setState(A, '已裁定 · ' + (OUTCOME[ev.outcome] || ev.outcome || ''), 'warn'); const n = svcNode(A.provider); setSvcState(n, '裁定 · 责任方', 'warn'); if (n) { n.done++; n.rep.textContent = ` · ${n.done} 单`; } break; }
       case 'card.close': { pulse(s, $('pnLedger'), '结清', COLORS.provider, 800, accts); flash($('pnLedger'), 'glow', 600); break; }
@@ -230,13 +237,15 @@ const Panorama = (() => {
     renderCounters();
   }
   function renderCounters() {
-    $('pnCounters').innerHTML = [['助手', Stat.asst], ['服务', Stat.svc], ['检索', Stat.searches], ['定约', Stat.signed], ['被拒换家', Stat.declined], ['过账', `${Stat.transfers} 笔 · ${money(Stat.volume)}`], ['结清', Stat.completed], ['裁定', Stat.arbitrated]]
+    const rows=serverStats&&!replay?[['已接入助手',serverStats.assistants],['服务',serverStats.services],['今日委托记录',serverStats.orders_today],['今日过账',`${serverStats.transfers_today} 笔 · ${money(serverStats.volume_today)}`],['已结清',serverStats.completed],['已观察消息',observedMessages.size]]:[['助手', Stat.asst], ['服务', Stat.svc], ['检索', Stat.searches], ['定约', Stat.signed], ['被拒换家', Stat.declined], ['过账', `${Stat.transfers} 笔 · ${money(Stat.volume)}`], ['结清', Stat.completed], ['裁定', Stat.arbitrated]];
+    $('pnCounters').innerHTML = rows
       .map(([k, v]) => `<span>${k}<b>${v}</b></span>`).join('');
     $('pnRegStat').textContent = `A2X 注册表 · 服务 ${Stat.svc} · 分类树导航`;
     $('pnTplStat').textContent = `已签认 ${Stat.endorsed} 份`;
-    $('pnNotaryStat').textContent = `签3 快照 ${Stat.sig3} · 签5 时间戳 ${Stat.sig5}`;
+    $('pnNotaryStat').textContent = `已观察交付存证 ${anchoredCards.size} 单 · 签名链可核验`;
     $('pnLedgerStat').textContent = `结清 ${Stat.completed} · 裁定 ${Stat.arbitrated}`;
     $('pnPayStat').textContent = `过账 ${Stat.transfers} 笔 · 合计 ${money(Stat.volume)}`;
+    $('pnMessageStat').textContent=`已观察 ${observedMessages.size} 条消息 · 正文不进入全局广播`;
   }
 
   /* ── 初始化 ─────────────────────────────────────────────── */
@@ -244,6 +253,7 @@ const Panorama = (() => {
   function catIndex() { return CATS; }
   function init(users, registry, categories, opts) {
     opts = opts || {};
+    observedMessages.clear();anchoredCards.clear();serverStats=null;
     replay = !!opts.replay; baseSeq = opts.baseSeq || 0; ready = false;
     ['pnAsstList', 'pnBlocks', 'pnWires'].forEach(id => { $(id).innerHTML = ''; });
     Object.keys(N.asst).forEach(k => delete N.asst[k]); Object.keys(N.svc).forEach(k => delete N.svc[k]); Object.keys(N.byUser).forEach(k => delete N.byUser[k]);
@@ -292,5 +302,5 @@ const Panorama = (() => {
   function focus(acct) {
     document.querySelectorAll('#pnWires .pls').forEach(g => g.setAttribute('class', 'pls' + (acct && !(g.dataset.accts || '').split(' ').includes(acct) ? ' dim' : '')));
   }
-  return { init, apply, tick, restore, focus, N, Stat };
+  return { init, apply, tick, restore, focus, N, Stat, setStats(s){serverStats=s;renderCounters();} };
 })();

@@ -1,0 +1,36 @@
+{
+  "case": "global",
+  "source": "real browser recording",
+  "participants": "independent experimental SDK clients",
+  "providerMode": "explicit samples",
+  "experiment": {
+    "participants": 4,
+    "completedOrders": 24,
+    "messages": 24,
+    "errors": []
+  },
+  "qa": {
+    "result": "passed",
+    "dimensions": "1920x1080",
+    "meanVolumeDb": -18.9,
+    "narrationClips": 5,
+    "duration": 44.75,
+    "frames": [
+      "review-1.png",
+      "review-2.png",
+      "review-3.png"
+    ],
+    "fixtures": [
+      "provider-sample"
+    ]
+  },
+  "subtitles": {
+    "pixels": 48,
+    "shortCaptions": true
+  },
+  "narration": {
+    "speechRate": 1.12,
+    "timedFromMeasuredAudio": true
+  },
+  "video": "demo/out/01-global.mp4"
+}

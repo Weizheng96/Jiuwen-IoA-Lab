@@ -1,4 +1,5 @@
 /* 全景（管理员端实时拓扑）与账号聚焦 */
+#pnMessages{flex:0 0 auto;min-height:112px;margin-top:16px}
 #view-panorama .pn-top { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
 #view-panorama .pn-top .counters { display: flex; gap: 8px; flex-wrap: wrap; }
 #view-panorama .pn-top .counters span { padding: 3px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); font-size: 14px; color: var(--fg2); white-space: nowrap; }

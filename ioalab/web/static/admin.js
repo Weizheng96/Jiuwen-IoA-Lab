@@ -93,7 +93,7 @@ function renderStats(s) {
   $('discTag').textContent = OUTCOME[s.discovery] || s.discovery || '';
 }
 async function pollStats() {
-  try { renderStats(await api('/api/admin/stats')); }
+  try { const stats=await api('/api/admin/stats'); renderStats(stats); Panorama.setStats(stats); }
   catch (e) { if (e.status === 401) location.reload(); }
 }
 /** 回放：指标从事件推出来（同一套渲染，不读库） */

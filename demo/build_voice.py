@@ -18,14 +18,15 @@ def main():
         if not match:raise RuntimeError('Audio duration unavailable')
         return int(match[1])*3600+int(match[2])*60+float(match[3])
     for i,line in enumerate(captions):
-        path=assets/(hashlib.sha256(line['text'].encode()).hexdigest()[:16]+'.mp3')
+        spoken=line.get('voice',line['text'])
+        path=assets/(hashlib.sha256(('slightly-faster-v2|'+spoken).encode()).hexdigest()[:16]+'.mp3')
         if not path.exists():
-            pcm=client.tts_realtime(line['text'],voice='Elias',instructions='产品演示解说，清晰、平稳、简洁，语速稍快',speech_rate=1.3)
+            pcm=client.tts_realtime(spoken,voice='Elias',instructions='产品演示解说，清晰、平稳、简洁，语速比日常说话略快，句内停顿自然',speech_rate=1.12)
             subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-hide_banner','-loglevel','error','-y','-f','s16le','-ar','24000','-ac','1','-i','-','-c:a','libmp3lame','-q:a','2',str(path)],input=pcm,check=True)
         seconds=duration(path);available=(captions[i+1]['at'] if i+1<len(captions) else proof['duration'])-line['at']-.2
         if seconds>available:
             rate=seconds/max(available,.5)
-            if rate>2.5:raise RuntimeError('Recording needs a longer pause for narration: '+line['text'])
+            if rate>1.18:raise RuntimeError('Recording needs a longer pause for narration: '+line['text'])
             fitted=path.with_name(path.stem+'-fit.mp3')
             subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-hide_banner','-loglevel','error','-y','-i',str(path),'-af','atempo='+str(rate),str(fitted)],check=True);path=fitted;seconds=duration(path)
         index.append({**line,'file':str(path.relative_to(folder)),'duration':seconds});print('Narration '+str(i+1)+'/'+str(len(captions)),flush=True)

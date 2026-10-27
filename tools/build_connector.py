@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import zipfile
 from packaging.requirements import Requirement
 
@@ -15,6 +16,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def constraints():
+    sdk=tomllib.loads((ROOT/'sdk/pyproject.toml').read_text(encoding='utf-8'))['project']
     pending=[('ioalab-sdk',set())]
     seen={}; versions={}
     while pending:
@@ -22,8 +24,15 @@ def constraints():
         key=name.lower().replace('_','-')
         if key in seen and extras<=seen[key]: continue
         seen.setdefault(key,set()).update(extras)
-        dist=md.distribution(name);versions[dist.metadata['Name']]=dist.version
-        for raw in dist.requires or []:
+        # Editable-install metadata may still describe the previous SDK release.
+        # Lock the package we just built, not its previously installed version.
+        if key=='ioalab-sdk':
+            versions[sdk['name']]=(ROOT/'sdk/VERSION').read_text().strip().removeprefix('v')
+            requirements=sdk['dependencies']
+        else:
+            dist=md.distribution(name);versions[dist.metadata['Name']]=dist.version
+            requirements=dist.requires or []
+        for raw in requirements:
             req=Requirement(raw)
             if req.marker and not any(req.marker.evaluate({'extra':e}) for e in extras|{''}): continue
             pending.append((req.name,set(req.extras)))

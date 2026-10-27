@@ -7,7 +7,8 @@ def main():
     import imageio_ffmpeg
     ff=imageio_ffmpeg.get_ffmpeg_exe();proof=json.loads((folder/'evidence.json').read_text(encoding='utf-8'));video=folder/('local-test.mp4' if proof.get('fixtures') else 'demo.mp4')
     assert proof['screens']=='real browser pages' and not proof['browserErrors']
-    if proof['case']=='delegation':assert proof['delegation']['state']=='completed' and proof['delegation']['signatures']['7']==[True]
+    if proof['case']=='global':assert proof['experiment']['completedOrders']>=4 and proof['experiment']['messages']>=4 and not proof['experiment']['errors']
+    elif proof['case']=='delegation':assert proof['delegation']['state']=='completed' and proof['delegation']['signatures']['7']==[True]
     else:assert proof['forward']['transport']=='jiuwen-web' and proof['meeting']['status']=='invite_submitted'
     result=subprocess.run([ff,'-hide_banner','-i',str(video),'-af','volumedetect','-f','null','-'],capture_output=True,text=True,encoding='utf-8',errors='replace',check=True)
     assert '1920x1080' in result.stderr and 'Audio:' in result.stderr

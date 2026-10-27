@@ -1,4 +1,8 @@
-# 两个用例的本地验收与录屏
+# 三段演示的本地验收与录屏
+
+镜头安排见[三段演示](三段演示.md)，界面与证据边界以设计为准。已完成的全局概念片：[全局视角](out/01-global.mp4)；并发与成片检查摘要见[global.json](verification/global.json)。委托与交互正式片仍须分别完成美甲服务场景与真实预约依据验收，旧本地测试片不替代它们。
+
+全局片使用独立实验客户端与样例服务，实际执行签约、WASM验收、模拟付款和免费消息；全程标识仿真实验。运行：`python demo/local_stack.py --folder data/global-scene --port 8753 --services all --without-receiver`，另一个终端执行`python demo/record_global.py --config data/global-scene/run.json`。首次生成旁白后可用`--voice-timing recordings/<上次目录>/voice.json`按实际音频时长重录，再使用下文同一套配音、拼接与检查入口。字幕为1080p下48px，旁白约1.12倍正常语速，超长句要求延长镜头。
 
 录制真实九问网页与真实平台页面，协议调用来自运行中的参与方；不使用管理员回放或预编排事件代替执行。原始录像、账号配置和运行日志位于忽略的`data/`、`recordings/`，不提交凭据或个人消息。
 

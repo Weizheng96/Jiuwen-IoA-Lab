@@ -75,15 +75,19 @@ class DurableProvider(Provider):
             self.tasks[tid]=task
 
     def save_tasks(self):
-        for tid, task in self.tasks.items():
-            raw=dataclasses.asdict(task)
-            raw["files"]={n:base64.b64encode(v).decode() for n,v in task.files.items()}
-            self.store.put("tasks",tid,raw)
+        # The endpoint uses this same reentrant lock for task creation and updates.
+        # Keep it through persistence so an older snapshot cannot overwrite a newer one.
+        with self._lock:
+            for tid, task in self.tasks.items():
+                raw=dataclasses.asdict(task)
+                raw["files"]={n:base64.b64encode(v).decode() for n,v in task.files.items()}
+                self.store.put("tasks",tid,raw)
 
     def new_task(self, op):
-        if not self._next_task_id:
-            self._next_task_id="task-"+uuid.uuid4().hex
-        return super().new_task(op)
+        with self._lock:
+            if not self._next_task_id:
+                self._next_task_id="task-"+uuid.uuid4().hex
+            return super().new_task(op)
 
     def handle(self, *args, **kwargs):
         result=super().handle(*args,**kwargs)
