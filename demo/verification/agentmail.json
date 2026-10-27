@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-27",
+  "provider": "AgentMail",
+  "inbox": "jiuwenioa@agentmail.to",
+  "registration": "created",
+  "ownershipVerified": false,
+  "smtp": {
+    "status": "authenticated",
+    "sender": "jiuwenioa@agentmail.to",
+    "auth": "password",
+    "messageSent": false,
+    "ownershipVerified": false
+  },
+  "externalInvitation": "not sent",
+  "outlookReceived": "not verified",
+  "outlookAccepted": "not verified",
+  "outlookCalendarRead": "not authorized",
+  "credentials": "local ignored data only",
+  "pytest": {
+    "passed": 76,
+    "failed": 0
+  },
+  "selfcheck": "passed",
+  "bootstrap": "passed"
+}

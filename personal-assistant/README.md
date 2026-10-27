@@ -4,8 +4,8 @@
 
 1. 复制`deploy/personal-assistant.env.example`到忽略的`data/personal-assistant.env`，配置平台账号、九问WebChannel和部署方通知邮箱。
 2. 在Lab的SDK环境执行`python personal-assistant/assistant.py check --env data/personal-assistant.env`。
-3. 在Microsoft Entra注册支持个人Microsoft账号的公共客户端应用，启用Allow public client flows，委托权限`Calendars.Read`、`User.Read`。将应用ID写入`IOALAB_GRAPH_CLIENT_ID`，无需客户端密钥。
-4. 执行`python personal-assistant/assistant.py calendar-login --env data/personal-assistant.env`，按终端设备码以配置的收件账号登录。令牌仅在`IOALAB_HOME`中。
+3. 选择下表的通知邮箱。AgentMail复用SMTP发信，不需要Microsoft发信应用；需要先完成所有权验证。
+4. 如需自动检查Outlook日历冲突，再配置独立的日历读取授权，见下文；仅收到邀请邮件不代表此项已验收。
 5. 启动已锁定的九问，再执行`python personal-assistant/assistant.py run --env data/personal-assistant.env`。`once`只收取处理一轮，适合诊断。
 
 独立九问安装：`python personal-assistant/install_swarm.py --venv .swarm-venv --data data/admin-swarm`。需Python 3.11、Git、Node/npm；源码、版本和依赖在同目录锁文件中。安装器只在新建归档副本中构建，不改传入的参考仓。模型配置写入九问自己的config/.env，不上传核心。当前锁在Windows实测；Linux实机安装另行验收。
@@ -17,3 +17,25 @@
 `message.forward`写入真实九问Web会话；`meeting.request`执行本地预约规则，读取日历并通过通知邮箱发送标准邀请邮件。邮件已受理与用户已接受分别记录；不直接创建管理员日历事件。当前不自动处理接受回执，记录保持等待接受；与已有待接受预约冲突时拒绝。
 
 本机配置不等于外部验收：没有Microsoft授权或SMTP配置时，不会宣称日历空闲或邀请已送达。完整验收和录屏见`demo/README.md`。
+
+| AgentMail操作 | 命令/结果 |
+|---|---|
+| 首次创建 | `python personal-assistant/agentmail.py signup --human-email change-me-owner@example.com --username change-me-inbox`；替换占位值，验证码发到所有者邮箱 |
+| 验证所有权 | `python personal-assistant/agentmail.py verify`隐藏输入验证码，或`verify --code-file data/agentmail-otp.txt`读取本机文件；不把验证码放在命令行参数 |
+| 写本机配置 | `python personal-assistant/agentmail.py configure --env data/personal-assistant.env`；仅验证后可用，保留平台账号、SDK身份和日历配置 |
+| 状态 | `python personal-assistant/agentmail.py status`；不输出API key；重复signup复用本地登记，网络结果不明不自动重试 |
+| 存储与传输 | 登记在忽略的data/agentmail/account.json；smtp.agentmail.to:465、TLS、用户名为实际邮箱地址、密码为API key |
+
+AgentMail提供收信箱，但本轮只接入通知发信，不额外授权九问任意读取邮件或执行邮件正文。接口、配额与新账号限制遵循实际服务结果；不能用未验证账号向外部收件人测试。参考[注册与验证](https://docs.agentmail.to/quickstart)、[SMTP配置](https://docs.agentmail.to/imap-smtp)。
+
+日历读取：在可管理的Microsoft Entra目录注册支持个人账号的公共客户端应用，启用Allow public client flows及Graph委托权限`Calendars.Read`、`User.Read`，应用ID写入`IOALAB_GRAPH_CLIENT_ID`，无需客户端密钥。执行`calendar-login --env data/personal-assistant.env`并以被预约邮箱登录；calendar-token.json仅在客户端。若通知方也选择Outlook，另配置oauth2模式与SMTP.Send权限，通过`smtp-login`登录通知邮箱；资源和令牌分开，不复用日历访问令牌发信。
+
+| 诊断项 | 处理 |
+|---|---|
+| `smtp-check --env data/personal-assistant.env` | 只连接STARTTLS并认证，不发送邮件；通过不代表邀请已送达 |
+| `live.com`不属于`Microsoft Services`/AADSTS50020 | 个人Outlook邮箱不等于Entra目录；改用自己有权限的目录注册应用，不申请加入微软目录 |
+| 没有可管理目录 | 按微软当前注册要求建立可用Azure/Entra账号；涉及身份、银行卡或订阅的步骤由部署者本人完成，不自动购买或升级 |
+| 错误账号/授权失效 | 登录指定邮箱；校验失败不会覆盖已有有效授权；收件账号和通知账号无需相同 |
+| 升级后修改账号或应用ID | 对应资源重新登录；不复用另一账号、应用或资源的缓存令牌 |
+
+参考：[Outlook SMTP OAuth](https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth)、[Microsoft Services登录错误](https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/app-integration/error-code-aadsts50020-user-account-identity-provider-does-not-exist)、[应用注册前提](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app)。

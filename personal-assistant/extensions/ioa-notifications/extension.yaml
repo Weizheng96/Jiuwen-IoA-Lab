@@ -1,6 +1,6 @@
 id: ioa-notifications
 name: IoA Personal Assistant Notifications
-version: 0.0.5
+version: 0.0.7
 description: Persist authenticated IoA notifications in real Jiuwen sessions without model or tool execution
 author: Jiuwen IoA Lab
 package_type: application

@@ -36,3 +36,7 @@ python demo/check_recording.py --recording recordings/<本次目录>
 | 录制保护 | `--formal`拒绝fixtures；正式会议录制需`--headed`及本机已授权的`outlookStorageState`，用户在真实Outlook接受，脚本记录人工核对，不伪造接受回执 |
 
 正式Outlook窗口由用户授权的浏览器状态打开，需另行对该窗口录屏（如OBS窗口/屏幕采集）；自动双屏成片只包含九问与IoA页。未完成Microsoft登录或通知配置时保持未验收。不要将浏览器状态、SMTP密码、模型密钥或原始个人消息推送远端。
+
+使用Outlook通知邮箱时，先按[独立助手说明](../personal-assistant/README.md)完成两份设备授权：`calendar-login`登录被预约邮箱，`smtp-login`登录通知邮箱；`smtp-check`只验证发信身份，不发邮件。通知邮箱公开地址可以对外展示，密码、设备授权和令牌仍属本机配置。Outlook不使用SMTP密码回退；应用注册及用户同意未完成时，不以模拟响应替代真实验收。
+
+通知方可选AgentMail，按独立助手说明注册、验证并写入本机配置，再执行`smtp-check`。单独验证邮件通路可用`python demo/verify_notification.py --env data/personal-assistant.env --appointment-file data/notification-appointment.json --out data/notification-check --send`；预约文件包含title、start、end，时间必须带时区且在将来。该入口不读取日历、不运行测试日历、不代替消息中心端到端验收；只向配置的收件邮箱发送一封真实邀请，记录邮件受理。相同out目录有发送意图即拒绝重发；接收与接受仍需收件人核对。

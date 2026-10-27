@@ -1,7 +1,7 @@
 {
   "date": "2026-10-27",
   "pytest": {
-    "passed": 65,
+    "passed": 76,
     "failed": 0
   },
   "selfcheck": "passed: versions, 48 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
@@ -56,9 +56,10 @@
     }
   ],
   "limits": [
-    "Outlook OAuth, external SMTP delivery and user acceptance deferred by user; local SMTP capture verified only",
     "Linux deployment has syntax/config checks, no real server acceptance",
-    "Recordings use sample provider and test calendar; real Swarm production verified separately"
+    "Recordings use sample provider and test calendar; real Swarm production verified separately",
+    "AgentMail inbox created and SMTP authenticated; ownership OTP, external invitation receipt/acceptance and Outlook calendar authorization remain pending"
   ],
-  "administratorSkillInstall": "passed: complete skill installed and account configured; real CLI reuses receiver identity; isolated SDK bootstrap; local settings excluded from bundle"
+  "administratorSkillInstall": "passed: complete skill installed and account configured; real CLI reuses receiver identity; isolated SDK bootstrap; local settings excluded from bundle",
+  "agentmailEvidence": "agentmail.json"
 }
