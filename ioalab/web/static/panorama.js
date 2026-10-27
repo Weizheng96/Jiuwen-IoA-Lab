@@ -243,8 +243,8 @@ const Panorama = (() => {
     $('pnRegStat').textContent = `A2X 注册表 · 服务 ${Stat.svc} · 分类树导航`;
     $('pnTplStat').textContent = `已签认 ${Stat.endorsed} 份`;
     $('pnNotaryStat').textContent = `已观察交付存证 ${anchoredCards.size} 单 · 签名链可核验`;
-    $('pnLedgerStat').textContent = `结清 ${Stat.completed} · 裁定 ${Stat.arbitrated}`;
-    $('pnPayStat').textContent = `过账 ${Stat.transfers} 笔 · 合计 ${money(Stat.volume)}`;
+    $('pnLedgerStat').textContent = serverStats&&!replay ? `结清 ${serverStats.completed} · 裁定 ${serverStats.arbitrated}` : `已观察结清 ${Stat.completed} · 裁定 ${Stat.arbitrated}`;
+    $('pnPayStat').textContent = serverStats&&!replay ? `今日过账 ${serverStats.transfers_today} 笔 · 合计 ${money(serverStats.volume_today)}` : `已观察过账 ${Stat.transfers} 笔 · 合计 ${money(Stat.volume)}`;
     $('pnMessageStat').textContent=`已观察 ${observedMessages.size} 条消息 · 正文不进入全局广播`;
   }
 

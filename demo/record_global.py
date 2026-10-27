@@ -1,26 +1,38 @@
 """Record the live admin UI while independent clients perform real protocol work."""
 import argparse
 import json
+import shutil
 import sys
 import time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'experiments'))
 from network import NetworkTraffic
+from global_story import SHOTS,REFERENCE,NAME
 
 
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--config',type=Path,required=True)
     parser.add_argument('--out',type=Path,default=ROOT/'recordings')
-    parser.add_argument('--voice-timing',type=Path,help='Use measured narration durations to time camera holds')
+    parser.add_argument('--voice-timing',type=Path,required=True,help='Measured narration prepared from global_story.py')
     args=parser.parse_args()
     config=json.loads(args.config.read_text(encoding='utf-8'))
     out=args.out.resolve()/('global-'+time.strftime('%Y%m%d-%H%M%S'))
     out.mkdir(parents=True,exist_ok=False)
+    prepared=json.loads(args.voice_timing.read_text(encoding='utf-8'))
+    timing={line['id']:line for line in prepared}
+    voices=[]
+    for shot in SHOTS:
+        line=timing[shot['id']]
+        if line['text']!=shot['text'] or line.get('voice')!=shot['voice']:raise ValueError('Narration changed; rebuild audio before recording')
+        source=(args.voice_timing.parent/line['file']).resolve()
+        if not source.is_relative_to(args.voice_timing.parent.resolve()):raise ValueError('Voice asset escapes narration directory')
+        dest=out/'voice'/source.name;dest.parent.mkdir(exist_ok=True)
+        shutil.copyfile(source,dest)
+        line['file']=str(dest.relative_to(out))
     traffic=NetworkTraffic(config,Path(config['folder'])/out.name)
-    captions=[];errors=[]
-    timing={x['text']:x['duration'] for x in json.loads(args.voice_timing.read_text(encoding='utf-8'))} if args.voice_timing else {}
+    captions=[];errors=[];guide_frames=[]
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         browser=p.chromium.launch()
@@ -36,22 +48,32 @@ def main():
         page.locator('#mainView').wait_for(state='visible')
         page.locator('.pn-asst').first.wait_for()
         page.wait_for_timeout(3000)
+        def participant(index):
+            node=page.locator('.pn-asst').filter(has_text=traffic.accounts[index]['username']).first
+            return '[data-id="'+node.get_attribute('data-id')+'"]'
+        service=page.locator('.pn-svc').filter(has_text='用药提醒表工坊').first
+        service.scroll_into_view_if_needed()
+        refs={'assistant':participant(0),'other':participant(1),'service':'[data-id="'+service.get_attribute('data-id')+'"]',
+              'market':'#pnMarket','registry':'#pnRegistry','templates':'#pnTemplates','notary':'#pnNotary','ledger':'#pnLedger','messages':'#pnMessages','payment':'#pnPay'}
+        page.add_script_tag(path=str(ROOT/'demo/guide_overlay.js'))
+        platform_width=page.locator('.pn-mid').bounding_box()['width']
+        service_width=page.locator('.pn-right').bounding_box()['width']
+        assert platform_width>service_width*1.5,'Platform components must dominate the service column'
         started=time.monotonic()
         lead=started-capture
-        def shot(text,voice,hold=9):
-            captions.append({'at':round(time.monotonic()-started,2),'text':text,'voice':voice})
-            page.wait_for_timeout((timing.get(text,hold-.5)+.5)*1000)
         try:
-            shot('一个活跃的智能体互联网','个人助手、专业服务和公共组件，组成一个共同工作的智能体网络。')
-            page.locator('#pnRegistry').click()
-            shot('找服务，先经过 A2X','左侧的仿真个人助手，经真实 SDK 发现服务、定约和交付。右侧按领域组织专业服务。')
-            page.locator('#pnMessages').click()
-            shot('委托与消息，两条交互路径','付费委托遵循 A2C 合同，免费消息按账号定向投递；多方可以同时参与。')
-            node=page.locator('.pn-asst').filter(has_text=traffic.accounts[0]['username']).first
-            node.click()
-            shot('聚焦一人，看清关联活动','选择一个助手，同账号的参与方和关联活动高亮，其余变淡，便于追踪一件事。')
-            page.keyboard.press('Escape')
-            shot('全局可观察，参与方独立运行','平台连接和观察整个网络。个人助手在客户端运行，服务方独立生产，签字和验收由本地 SDK 完成。',10)
+            for shot in SHOTS:
+                if shot.get('action')=='focus':page.locator(refs['assistant']).click()
+                if shot.get('action')=='clear':page.keyboard.press('Escape')
+                page.evaluate('([shot,refs])=>window.IoaDemoGuide.show(shot,refs)',[shot,refs])
+                at=round(time.monotonic()-started,2)
+                shot_started=time.monotonic()
+                captions.append({'id':shot['id'],'at':at,'text':shot['text'],'voice':shot['voice']})
+                voices.append({**timing[shot['id']],'at':at})
+                page.wait_for_timeout(500)
+                if shot['id'] in ('intro','discovery','delivery','messaging','internal','external'):
+                    frame='guide-'+shot['id']+'.png';page.screenshot(path=str(out/frame));guide_frames.append(frame)
+                page.wait_for_timeout(max(0,shot_started+timing[shot['id']]['duration']+.35-time.monotonic())*1000)
         finally:
             result=traffic.close()
             duration=time.monotonic()-started
@@ -60,9 +82,13 @@ def main():
             context.close();video.save_as(out/'screen.webm');browser.close()
     orders=[r for r in result['records'] if r['kind']=='order']
     messages=[r for r in result['records'] if r['kind']=='message']
-    proof={'case':'global','layout':'single','screens':'real browser pages','browserErrors':errors,'captureLead':round(lead,2),'duration':round(duration,2),'fixtures':config.get('fixtures',[]),'experiment':{'participants':result['participants'],'completedOrders':len(orders),'messages':len(messages),'errors':result['errors']}}
+    proof={'case':'global','layout':'single','screens':'real browser pages','browserErrors':errors,'captureLead':round(lead,2),'duration':round(duration,2),'fixtures':config.get('fixtures',[]),
+           'displayName':NAME,'narrationReference':REFERENCE,'editorialOverlay':{'labelled':True,'businessStateModified':False,'reviewFrames':guide_frames},
+           'layoutWidths':{'platform':platform_width,'services':service_width},
+           'experiment':{'participants':result['participants'],'completedOrders':len(orders),'messages':len(messages),'formations':sorted({r['formation'] for r in orders}),'errors':result['errors']}}
     (out/'evidence.json').write_text(json.dumps(proof,ensure_ascii=False,indent=2),encoding='utf-8')
     (out/'captions.json').write_text(json.dumps(captions,ensure_ascii=False,indent=2),encoding='utf-8')
+    (out/'voice.json').write_text(json.dumps(voices,ensure_ascii=False,indent=2),encoding='utf-8')
     assert not errors and not result['errors'] and len(orders)>=4 and len(messages)>=4,proof
     print('Global recording saved: '+str(out))
 

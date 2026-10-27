@@ -33,7 +33,7 @@ def create_app(platform: Platform) -> FastAPI:
         yield
         await platform.shutdown()
 
-    app = FastAPI(title="九问IoA仿真平台 · Jiuwen IoA Lab", lifespan=lifespan, docs_url="/api/docs" if not s.open else None, redoc_url=None)
+    app = FastAPI(title="九问IoA实验平台（Jiuwen IoA Lab）", lifespan=lifespan, docs_url="/api/docs" if not s.open else None, redoc_url=None)
     app.mount("/a2a", platform.router)
 
     class OriginCheck(BaseHTTPMiddleware):

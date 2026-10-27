@@ -59,9 +59,9 @@
       "path": "demo/out/01-global.mp4",
       "result": "passed",
       "dimensions": "1920x1080",
-      "meanVolumeDb": -18.9,
-      "narrationClips": 5,
-      "duration": 44.75,
+      "meanVolumeDb": -19.4,
+      "narrationClips": 13,
+      "duration": 170.84,
       "frames": [
         "review-1.png",
         "review-2.png",
@@ -72,11 +72,16 @@
       ],
       "experiment": {
         "participants": 4,
-        "completedOrders": 24,
-        "messages": 24,
+        "completedOrders": 28,
+        "messages": 161,
+        "formations": [
+          "countersign",
+          "preapproval",
+          "proposal"
+        ],
         "errors": []
       },
-      "sha256": "9e68fee6ff59433074c37b243edb5ff942f4acb5c54c51726ac3520cdff49d3f"
+      "sha256": "1766d6915ad53e68a90f347df1f33fcfa986acac53a5683b93160c6af82a64ba"
     }
   ],
   "limits": [
@@ -86,5 +91,6 @@
   ],
   "administratorSkillInstall": "passed: complete skill installed and account configured; real CLI reuses receiver identity; isolated SDK bootstrap; local settings excluded from bundle",
   "agentmailEvidence": "agentmail.json",
-  "localScheduleEvidence": "local-schedule.json"
+  "localScheduleEvidence": "local-schedule.json",
+  "globalUiReview": "passed: final display name and introduction; platform width 994 vs service width 316; editorial overlay leaves counters unchanged"
 }

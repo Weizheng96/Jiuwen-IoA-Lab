@@ -1,11 +1,11 @@
 {
-  "version": "0.0.10",
+  "version": "0.0.11",
   "package_type": "mcp",
   "id": "ioalab-client",
-  "name": "九问IoA仿真平台 · 个人助手",
+  "name": "九问IoA实验平台 · 个人助手",
   "description": "本地SDK发现服务、按A2C委托验收，并与指定账号的个人助手免费通信。首次运行自动准备SDK。",
   "display_name": {
-    "zh": "九问IoA仿真平台 · 个人助手",
+    "zh": "九问IoA实验平台 · 个人助手",
     "en": "Jiuwen IoA Lab · Personal Assistant"
   },
   "display_description": {

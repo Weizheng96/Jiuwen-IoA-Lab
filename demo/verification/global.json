@@ -1,20 +1,28 @@
 {
   "case": "global",
+  "displayName": "九问IoA实验平台（Jiuwen IoA Lab）",
+  "description": "面向智能体互联网的仿真验证与开放体验平台。",
   "source": "real browser recording",
+  "narrationReference": "AgentContractProtocol/demo/智能体互联网/剧本.md",
   "participants": "independent experimental SDK clients",
   "providerMode": "explicit samples",
   "experiment": {
     "participants": 4,
-    "completedOrders": 24,
-    "messages": 24,
+    "completedOrders": 28,
+    "messages": 161,
+    "formations": [
+      "countersign",
+      "preapproval",
+      "proposal"
+    ],
     "errors": []
   },
   "qa": {
     "result": "passed",
     "dimensions": "1920x1080",
-    "meanVolumeDb": -18.9,
-    "narrationClips": 5,
-    "duration": 44.75,
+    "meanVolumeDb": -19.4,
+    "narrationClips": 13,
+    "duration": 170.84,
     "frames": [
       "review-1.png",
       "review-2.png",
@@ -24,13 +32,31 @@
       "provider-sample"
     ]
   },
+  "editorialOverlay": {
+    "labelled": true,
+    "businessStateModified": false,
+    "reviewFrames": [
+      "guide-intro.png",
+      "guide-discovery.png",
+      "guide-delivery.png",
+      "guide-messaging.png",
+      "guide-internal.png",
+      "guide-external.png"
+    ]
+  },
+  "layoutWidths": {
+    "platform": 994,
+    "services": 316
+  },
   "subtitles": {
     "pixels": 48,
     "shortCaptions": true
   },
   "narration": {
     "speechRate": 1.12,
-    "timedFromMeasuredAudio": true
+    "timedFromMeasuredAudio": true,
+    "clips": 13
   },
-  "video": "demo/out/01-global.mp4"
+  "video": "demo/out/01-global.mp4",
+  "sha256": "1766d6915ad53e68a90f347df1f33fcfa986acac53a5683b93160c6af82a64ba"
 }

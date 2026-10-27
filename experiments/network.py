@@ -48,21 +48,28 @@ class NetworkTraffic:
 
     def run(self,i,client,box):
         self.ready.wait()
-        definition=next(d for d in definitions() if d['id']==('med-reminder' if i<3 else 'triage-advice'))
+        selected=('med-reminder','triage-advice','rehab-plan','med-reminder')[i%4]
+        definition=next(d for d in definitions() if d['id']==selected)
         url=self.config['provider']+'/a2a/providers/svc-'+definition['id']
         try:
-            for iteration in range(8):
-                if self.stop.wait(i*.3 if iteration==0 else 7):break
+            iteration=0;orders=0
+            while not self.stop.is_set():
+                if self.stop.wait(i*.3 if iteration==0 else 4):break
                 target=self.accounts[(i+1)%len(self.accounts)]['username']
                 message=box.send(target,'network.note',{'text':f'实验交流：第{iteration+1}轮需求同步'})
                 self.records.append({'kind':'message','id':message['id'],'actor':i,'iteration':iteration})
                 box.sync()
                 box.process(lambda m:{'status':'received'})
-                client.search(definition['name'],8)
-                result=run_order(client,definition,url)
-                self.records.append({'kind':'order','actor':i,'iteration':iteration,**result})
+                # Keep messages active through narration while staying within the initial credit.
+                if iteration%6==0 and orders<7:
+                    client.search(definition['name'],8)
+                    result=run_order(client,definition,url)
+                    if result['status']!='accepted':raise RuntimeError('Experiment contract did not pass acceptance')
+                    orders+=1
+                    self.records.append({'kind':'order','actor':i,'iteration':iteration,'service':selected,'formation':definition.get('formation','preapproval'),**result})
                 box.sync()
                 box.process(lambda m:{'status':'received'})
+                iteration+=1
         except Exception as exc:
             self.errors.append({'actor':i,'error':type(exc).__name__,'detail':str(exc)[:300]})
         finally:
