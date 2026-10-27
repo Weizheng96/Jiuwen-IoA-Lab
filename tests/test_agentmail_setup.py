@@ -33,6 +33,7 @@ def test_signup_reuse_verification_and_config_preserve_other_accounts(module,tmp
     assert values['IOALAB_HOME']=='D:/assistant' and values['IOALAB_PASSWORD']=='platform-test-only' and values['IOALAB_GRAPH_CLIENT_ID']=='existing-app'
     assert values['IOALAB_SMTP_FROM']==values['IOALAB_SMTP_USERNAME']=='test-ioa@agentmail.to'
     assert values['IOALAB_SMTP_PASSWORD']=='test-local-only-key' and values['IOALAB_SMTP_PORT']=='465'
+    assert values['IOALAB_NOTIFICATION_TRANSPORT']=='agentmail'
     assert 'test-local-only-key' not in capsys.readouterr().out
 
 

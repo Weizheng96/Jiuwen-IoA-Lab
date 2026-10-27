@@ -10,44 +10,73 @@
     "auth": "password",
     "messageSent": false
   },
-  "externalInvitation": "submitted via actual SMTP",
-  "outlookReceived": "not verified",
-  "outlookAccepted": "not verified",
+  "externalInvitation": "native iMIP request sent; user accepted and confirmed calendar visibility",
+  "outlookReceived": "confirmed by user",
+  "outlookAccepted": "confirmed by user",
   "outlookCalendarRead": "not authorized",
   "credentials": "local ignored data only",
   "pytest": {
-    "passed": 76,
+    "passed": 78,
     "failed": 0
   },
   "selfcheck": "passed",
   "bootstrap": "passed",
   "invitation": {
-    "uid": "ioa-notification-check-b5f7dee8a86a4d7cafc0207c40d014c1@jiuwen-ioa-lab",
     "sender": "jiuwenioa@agentmail.to",
     "recipient": "zhengw.cc@outlook.com",
     "appointment": {
-      "title": "[邮件通路验收] Jiuwen IoA Lab 测试会议",
+      "title": "[会议请求修正验收] Jiuwen IoA Lab 测试会议",
       "start": "2026-10-28T10:00:00+08:00",
       "end": "2026-10-28T10:15:00+08:00"
-    }
+    },
+    "uid": "92604cfc-6d7c-4b36-b5bf-08e70589d66d@email.amazonses.com"
   },
   "providerMessage": {
-    "message_id": "<010001a17c101d61-53256a1c-c5e0-482a-8c73-7f19f46676d9-000000@email.amazonses.com>",
+    "message_id": "<010001a17c2705d5-3703fa95-ad0e-4184-bcd3-2394b57c2ff0-000000@email.amazonses.com>",
+    "subject": "Invitation: [会议请求修正验收] Jiuwen IoA Lab 测试会议",
     "labels": [
       "sent"
-    ],
-    "timestamp": "2026-10-27T06:33:13.241Z",
-    "subject": "会议邀请：[邮件通路验收] Jiuwen IoA Lab 测试会议",
-    "direction": "sent"
+    ]
   },
   "calendarConflictCheck": "not performed; Outlook calendar authorization is missing",
   "providerMimeCheck": {
     "calendarMime": true,
-    "methodRequest": true,
+    "mimeMethodRequest": true,
+    "icsMethodRequest": true,
     "uidMatches": true,
     "organizerMatches": true,
     "attendeeMatches": true,
     "startMatches": true,
     "endMatches": true
-  }
+  },
+  "outlookCalendarVisible": "confirmed by user",
+  "confirmationSource": "User reported an Accept button and calendar visibility after acceptance; not a Graph calendar read",
+  "firstSmtpAttempt": {
+    "transport": "smtp",
+    "uid": "ioa-notification-check-b5f7dee8a86a4d7cafc0207c40d014c1@jiuwen-ioa-lab",
+    "providerMessageId": "<010001a17c101d61-53256a1c-c5e0-482a-8c73-7f19f46676d9-000000@email.amazonses.com>",
+    "outlookReceived": "confirmed by user",
+    "outlookResult": "Only attachment, no Accept button",
+    "mimeMethodRequestParameter": "missing after SMTP forwarding",
+    "result": "calendar compatibility failed"
+  },
+  "nativeReceipt": {
+    "status": "invite_submitted",
+    "calendar": "awaiting_acceptance",
+    "uid": "92604cfc-6d7c-4b36-b5bf-08e70589d66d@email.amazonses.com",
+    "requestId": "ioa-notification-check-9c76904cee02463fbfbbd731669ad89c@jiuwen-ioa-lab",
+    "recipient": "zhengw.cc@outlook.com",
+    "transport": "agentmail-calendar",
+    "providerClientId": "fbbc58232bd867ec4e3b725f74aebd613561efc6efe09c691a512a4009cb7dd5",
+    "providerEventId": "92604cfc-6d7c-4b36-b5bf-08e70589d66d",
+    "providerOperationId": "992a0b0c-f882-41dc-a33c-e212949902aa",
+    "delivery": "pending_provider_send"
+  },
+  "providerAttendeeObservation": [
+    {
+      "email": "zhengw.cc@outlook.com",
+      "status": "needs_action",
+      "responded_at": null
+    }
+  ]
 }

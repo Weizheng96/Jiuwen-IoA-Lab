@@ -1,7 +1,7 @@
 {
   "date": "2026-10-27",
   "pytest": {
-    "passed": 76,
+    "passed": 78,
     "failed": 0
   },
   "selfcheck": "passed: versions, 48 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
@@ -58,7 +58,7 @@
   "limits": [
     "Linux deployment has syntax/config checks, no real server acceptance",
     "Recordings use sample provider and test calendar; real Swarm production verified separately",
-    "AgentMail ownership and SMTP verified; one real invitation submitted and provider sent record found; Outlook receipt/acceptance and calendar read authorization remain pending"
+    "Native AgentMail invitation received and accepted with calendar visibility confirmed by user; automatic Outlook calendar conflict reads remain unauthorized; earlier SMTP-only invite failed client recognition"
   ],
   "administratorSkillInstall": "passed: complete skill installed and account configured; real CLI reuses receiver identity; isolated SDK bootstrap; local settings excluded from bundle",
   "agentmailEvidence": "agentmail.json"

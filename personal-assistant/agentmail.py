@@ -78,9 +78,9 @@ class AgentMailSetup:
         if not re.fullmatch(r'[A-Za-z0-9_.+-]+@[A-Za-z0-9.-]+',inbox):raise ValueError('AgentMail inbox is not an email address')
         path=Path(env_path)
         values=read_env(path if path.exists() else ROOT/'deploy/personal-assistant.env.example')
-        values.update(IOALAB_SMTP_AUTH='password',IOALAB_SMTP_HOST='smtp.agentmail.to',IOALAB_SMTP_PORT='465',IOALAB_SMTP_FROM=inbox,IOALAB_SMTP_USERNAME=inbox,IOALAB_SMTP_PASSWORD=state['api_key'])
+        values.update(IOALAB_NOTIFICATION_TRANSPORT='agentmail',IOALAB_SMTP_AUTH='password',IOALAB_SMTP_HOST='smtp.agentmail.to',IOALAB_SMTP_PORT='465',IOALAB_SMTP_FROM=inbox,IOALAB_SMTP_USERNAME=inbox,IOALAB_SMTP_PASSWORD=state['api_key'])
         private_write(path,'\n'.join(k+'='+json.dumps(v,ensure_ascii=False) for k,v in values.items())+'\n')
-        return {'inbox':inbox,'configured':str(path),'smtpHost':'smtp.agentmail.to','smtpPort':465}
+        return {'inbox':inbox,'configured':str(path),'invitationTransport':'agentmail-calendar','smtpHost':'smtp.agentmail.to','smtpPort':465}
 
 
 def main():
