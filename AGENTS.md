@@ -1,4 +1,4 @@
-# 九问IoA仿真平台（Jiuwen IoA Lab）· Codex 项目约定
+# 九问IoA实验平台（Jiuwen IoA Lab）· Codex 项目约定
 
 本仓完全使用 Codex，开发约定入口是本文件。当前交接与待验证事项见 [docs/开发计划.md](docs/开发计划.md)。
 `connector/ioalab-client/skills/` 是交付给九问 swarm 的产品技能，保持其格式和运行方式。
