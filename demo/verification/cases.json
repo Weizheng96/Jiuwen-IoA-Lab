@@ -111,6 +111,138 @@
           "narrationWithinShot": true
         }
       ]
+    },
+    "delegation": {
+      "case": "delegation",
+      "providerExecution": "swarm",
+      "fixtures": [],
+      "browserErrors": [],
+      "quotes": [
+        {
+          "cardDigest": "sha256:eeddf3c36c5533ef2f36b76a43fa464e2ba00d7ba847e81f6f96bf90fcaec5dd",
+          "total": "299",
+          "provider": "美甲预约工具·可靠版"
+        },
+        {
+          "cardDigest": "sha256:442c8f5753ba37da989aba374fd2e0f31538b4e94c0a33bb2f1d6b4ad82cf598",
+          "total": "259",
+          "provider": "美甲预约工具·基础版"
+        }
+      ],
+      "focusedCardDigest": "sha256:eeddf3c36c5533ef2f36b76a43fa464e2ba00d7ba847e81f6f96bf90fcaec5dd",
+      "cardDigest": "sha256:eeddf3c36c5533ef2f36b76a43fa464e2ba00d7ba847e81f6f96bf90fcaec5dd",
+      "delegation": {
+        "state": "completed",
+        "cardDigest": "sha256:eeddf3c36c5533ef2f36b76a43fa464e2ba00d7ba847e81f6f96bf90fcaec5dd",
+        "signatures": {
+          "2": true,
+          "5": [
+            true
+          ],
+          "7": [
+            true
+          ],
+          "6": [
+            true
+          ],
+          "4": [
+            true
+          ],
+          "3": true,
+          "1": true
+        },
+        "paid": "299.00"
+      },
+      "bookingDemo": {
+        "booked": true,
+        "cancelled": true,
+        "configuration": "actual accepted delivery"
+      },
+      "movie": "out/02-delegation.mp4",
+      "sha256": "367104901aa442c6de39376c780df5d07d533caddc497b768973218a95c78faf",
+      "bytes": 9788197,
+      "qa": {
+        "result": "passed",
+        "dimensions": "1920x1080",
+        "meanVolumeDb": -19.9,
+        "narrationClips": 13,
+        "duration": 97.66,
+        "frames": [
+          "review-1.png",
+          "review-2.png",
+          "review-3.png"
+        ],
+        "fixtures": [],
+        "outlook": null,
+        "preview": false
+      },
+      "allShots": [
+        {
+          "id": "cover",
+          "meanVolumeDb": -19.4,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "need",
+          "meanVolumeDb": -18.8,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "discovery",
+          "meanVolumeDb": -19.4,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "quotes",
+          "meanVolumeDb": -20.6,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "choice",
+          "meanVolumeDb": -20.3,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "contract",
+          "meanVolumeDb": -19.4,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "production",
+          "meanVolumeDb": -19.1,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "delivery",
+          "meanVolumeDb": -18.3,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "verification",
+          "meanVolumeDb": -19.0,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "payment",
+          "meanVolumeDb": -19.0,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "provider",
+          "meanVolumeDb": -22.1,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "tool",
+          "meanVolumeDb": -19.9,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "close",
+          "meanVolumeDb": -19.4,
+          "narrationWithinShot": true
+        }
+      ]
     }
   },
   "checkedAt": "2026-10-28"

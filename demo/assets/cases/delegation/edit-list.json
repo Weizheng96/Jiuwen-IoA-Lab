@@ -1,0 +1,93 @@
+[
+  {
+    "id": "cover",
+    "rawStart": 1.797,
+    "rawSource": "screen.webm",
+    "finalStart": 0,
+    "duration": 6.21
+  },
+  {
+    "id": "need",
+    "rawStart": 20.328,
+    "rawSource": "screen.webm",
+    "finalStart": 6.21,
+    "duration": 6.74
+  },
+  {
+    "id": "discovery",
+    "rawStart": 129.703,
+    "rawSource": "screen.webm",
+    "finalStart": 12.95,
+    "duration": 7.51
+  },
+  {
+    "id": "quotes",
+    "rawStart": 232.656,
+    "rawSource": "screen.webm",
+    "finalStart": 20.46,
+    "duration": 7.61
+  },
+  {
+    "id": "choice",
+    "rawStart": 258.984,
+    "rawSource": "screen.webm",
+    "finalStart": 28.07,
+    "duration": 6.84
+  },
+  {
+    "id": "contract",
+    "rawStart": 292.468,
+    "rawSource": "screen.webm",
+    "finalStart": 34.91,
+    "duration": 6.57
+  },
+  {
+    "id": "production",
+    "rawStart": 310.718,
+    "rawSource": "screen.webm",
+    "finalStart": 41.48,
+    "duration": 7.61
+  },
+  {
+    "id": "delivery",
+    "rawStart": 339.093,
+    "rawSource": "screen.webm",
+    "finalStart": 49.09,
+    "duration": 7.25
+  },
+  {
+    "id": "verification",
+    "rawStart": 375.562,
+    "rawSource": "screen.webm",
+    "finalStart": 56.34,
+    "duration": 8.09
+  },
+  {
+    "id": "payment",
+    "rawStart": 408.0,
+    "rawSource": "screen.webm",
+    "finalStart": 64.43,
+    "duration": 6.84
+  },
+  {
+    "id": "provider",
+    "rawStart": 426.578,
+    "rawSource": "screen.webm",
+    "finalStart": 71.27,
+    "duration": 8.04
+  },
+  {
+    "id": "tool",
+    "rawStart": 444.828,
+    "rawSource": "screen.webm",
+    "finalStart": 79.31,
+    "duration": 8.13
+  },
+  {
+    "id": "close",
+    "rawStart": 463.453,
+    "rawSource": "screen.webm",
+    "finalStart": 87.44,
+    "duration": 10.22
+  }
+]
