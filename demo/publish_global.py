@@ -5,11 +5,34 @@ import hashlib
 import json
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
-from artifacts import read_json, require, write_json
+from artifacts import inside, read_json, require, write_json
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def replace_media(staged, target):
+    require(
+        staged.parent == target.parent and "-publishing" in staged.stem,
+        "Expected owned sibling staging file",
+    )
+    if (
+        target.is_file()
+        and hashlib.sha256(staged.read_bytes()).digest()
+        == hashlib.sha256(target.read_bytes()).digest()
+    ):
+        staged.unlink()
+        return
+    for attempt in range(12):
+        try:
+            staged.replace(target)
+            return
+        except PermissionError:
+            if attempt == 11:
+                raise
+            time.sleep(0.25)
 
 
 def main():
@@ -47,6 +70,12 @@ def main():
     )
 
     ff = imageio_ffmpeg.get_ffmpeg_exe()
+    require(
+        run["proof"].get("density", {}).get("passed")
+        and run["proof"]["ui"].get("equalColumnHeights")
+        and run["proof"]["ui"].get("logRows", 0) > 0,
+        "Missing density, full-height layout or real behavior log evidence",
+    )
     dest = ROOT / "demo/assets/run/global"
     dest.mkdir(parents=True, exist_ok=True)
     subprocess.run(
@@ -73,14 +102,22 @@ def main():
             "yuv420p",
             "-movflags",
             "+faststart",
-            str(dest / "monitor.mp4"),
+            str(dest / ".monitor-publishing.mp4"),
         ],
         check=True,
     )
+    replace_media(dest / ".monitor-publishing.mp4", dest / "monitor.mp4")
     run["sourceMonitorTrim"] = run["monitorTrim"]
     run["monitorTrim"] = 0
     write_json(dest / "public-run.json", run)
-    shutil.copyfile(movie, ROOT / proof["video"])
+    target = inside(ROOT, proof["video"])
+    staged = target.with_name("." + target.stem + "-publishing.mp4")
+    shutil.copyfile(movie, staged)
+    require(
+        hashlib.sha256(staged.read_bytes()).hexdigest() == proof["sha256"],
+        "Staged movie digest mismatch",
+    )
+    replace_media(staged, target)
     voice = ROOT / "demo/assets/voice/global"
     voice.mkdir(parents=True, exist_ok=True)
     cues = read_json(recording / "voice.json")
@@ -98,6 +135,7 @@ def main():
     tiles = []
     for cue in cues:
         dst = frames / (cue["id"] + ".jpg")
+        staged_image = dst.with_name("." + dst.stem + "-publishing.jpg")
         subprocess.run(
             [
                 ff,
@@ -113,10 +151,11 @@ def main():
                 "1",
                 "-q:v",
                 "3",
-                str(dst),
+                str(staged_image),
             ],
             check=True,
         )
+        replace_media(staged_image, dst)
         with Image.open(dst) as img:
             thumb = img.resize((480, 270))
             tiles.append(thumb.copy())
@@ -126,18 +165,28 @@ def main():
         x, y = (i % 4) * 480, (i // 4) * 292
         contact.paste(tile, (x, y))
         draw.text((x + 8, y + 274), cue["id"], fill="white")
-    contact.save(frames / "contact.jpg", quality=90)
+    contact.save(frames / ".contact-publishing.jpg", quality=90)
+    replace_media(frames / ".contact-publishing.jpg", frames / "contact.jpg")
     proof["qa"]["reviewFrames"] = [
         str((frames / (c["id"] + ".jpg")).relative_to(ROOT)).replace("\\", "/")
         for c in cues
     ]
     value = next(c for c in cues if c["id"] == "value")
     transition_files = []
-    transition_strip = Image.new("RGB", (1920, 270), "#0a1424")
+    transition_strip = Image.new("RGB", (1920, 540), "#0a1424")
     for i, (name, offset) in enumerate(
-        (("before", -0.15), ("users-fade", 0.65), ("blend", 1.25), ("after", 1.8))
+        (
+            ("before", -0.15),
+            ("users-fade", 0.65),
+            ("blend", 1.25),
+            ("aligned", 2.0),
+            ("nearly-real", 2.65),
+            ("first-real", 2.8),
+            ("after", 3.15),
+        )
     ):
         image = frames / ("transition-" + name + ".jpg")
+        staged_image = image.with_name("." + image.stem + "-publishing.jpg")
         subprocess.run(
             [
                 ff,
@@ -153,14 +202,18 @@ def main():
                 "1",
                 "-q:v",
                 "3",
-                str(image),
+                str(staged_image),
             ],
             check=True,
         )
+        replace_media(staged_image, image)
         transition_files.append(str(image.relative_to(ROOT)).replace("\\", "/"))
         with Image.open(image) as img:
-            transition_strip.paste(img.resize((480, 270)), (i * 480, 0))
-    transition_strip.save(frames / "transition.jpg", quality=90)
+            transition_strip.paste(
+                img.resize((480, 270)), ((i % 4) * 480, (i // 4) * 270)
+            )
+    transition_strip.save(frames / ".transition-publishing.jpg", quality=90)
+    replace_media(frames / ".transition-publishing.jpg", frames / "transition.jpg")
     proof["qa"]["reviewFrames"].extend(transition_files)
     proof["qa"]["transitionReview"] = str(
         (frames / "transition.jpg").relative_to(ROOT)

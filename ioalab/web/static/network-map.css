@@ -34,3 +34,22 @@ body.trial #mainView.trial-grid{display:block}body.trial #view-stream,body.trial
 .pn .pn-infra.construction{background:#1a2028;border:1px dashed #59616c;filter:grayscale(1);opacity:.65}
 .pn .pn-infra.construction .title,.pn .pn-infra.construction small{color:#909aa6}
 .pn #pnIntent .map-stat{font-size:11px}
+
+/* Full-height network columns; the workbench keeps its separate compact layout. */
+#pn{height:calc(100vh - 154px);min-height:0}
+#pn>.pn-col{min-height:0;display:flex;flex-direction:column}
+#pn>.pn-mid{padding-top:32px;height:100%}
+#pn>.pn-mid>.pn-infra{flex:1 1 0;display:flex;flex-direction:column;justify-content:center}
+#pn>.pn-mid>#pnMarket{flex:3.2 1 0;min-height:220px!important}
+#pn>.pn-mid>#pnMarket .subs{flex:1;grid-auto-rows:1fr}
+#pn .pn-list,#pn .pn-blocks{flex:1;min-height:0}
+#pn:has(>.pn-log){grid-template-columns:minmax(360px,1.05fr) minmax(520px,1.5fr) minmax(260px,.78fr) minmax(280px,.82fr);gap:18px}
+.pn-log{min-height:0;display:flex;flex-direction:column;border:1px solid #345469;border-radius:12px;background:#0e1b2b;padding:12px;margin-top:32px;color:#b8ccdc;overflow:hidden}
+.log-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#d1eceb;font-size:17px}
+.log-heading button{border:1px solid #46657b;border-radius:6px;background:#1b3042;color:#c1dae6;padding:4px 7px;font:12px var(--font, sans-serif);cursor:pointer}
+.pn-log>small{font-size:11px;color:#7e99b0;margin:7px 0}
+#pnLogRows{flex:1;min-height:0;overflow:auto;font-size:12px;line-height:1.6;scrollbar-width:thin}
+.log-row{border-bottom:1px solid #26394c;padding:8px 0;overflow-wrap:anywhere}
+.log-row time{display:block;font:10px var(--mono, monospace);color:#708b9e}
+.log-row.p2p span{color:#9cddd6}.log-row.delegation span{color:#c2b3eb}
+@media(max-width:1600px){#pn:has(>.pn-log){grid-template-columns:minmax(270px,1fr) minmax(420px,1.5fr) minmax(220px,.8fr) minmax(220px,.8fr);gap:12px}#pn .pn-infra .title{font-size:19px}#pn .pn-infra .title small{font-size:11px}}

@@ -55,6 +55,7 @@ class NetworkTraffic:
         for i in range(count):
             account = {
                 "username": f"lab_{run}_{i+1:02}",
+                "display_name": f"个人助手 {i+1:02}",
                 "password": secrets.token_urlsafe(24),
             }
             response = httpx.post(
@@ -101,10 +102,7 @@ class NetworkTraffic:
                 )
             # Message I/O must continue while a separate worker waits on A2X or a contract.
             jobs = [(self.run_messages, (i, box))]
-            if i < len(self.services):
-                jobs.append((self.run_orders, (i, client)))
-            else:
-                client.close()
+            jobs.append((self.run_orders, (i, client)))
             for target, args in jobs:
                 thread = threading.Thread(target=target, args=args, daemon=True)
                 self.threads.append(thread)
@@ -115,7 +113,7 @@ class NetworkTraffic:
         self.ready.wait()
         rng = random.Random(secrets.randbits(64))
         # Spread initial traffic over the whole recurrence interval, not one opening burst.
-        next_send = time.monotonic() + rng.uniform(0.5, 65)
+        next_send = time.monotonic() + rng.uniform(0.5, 12)
         next_receive = time.monotonic() + rng.uniform(0.1, 3)
         try:
             while not self.stop.wait(0.18):
@@ -139,7 +137,7 @@ class NetworkTraffic:
                             "at": time.time(),
                         }
                     )
-                    next_send = time.monotonic() + rng.uniform(50, 75)
+                    next_send = time.monotonic() + rng.uniform(14, 20)
                 if now >= next_receive:
                     box.sync()
                     box.process(lambda m: {"status": "received", "experiment": True})
@@ -159,15 +157,32 @@ class NetworkTraffic:
         )
         url = self.config["provider"] + "/a2a/providers/svc-" + definition["id"]
         try:
-            if self.stop.wait(rng.uniform(1, 30)):
+            if self.stop.wait(rng.uniform(0.5, 8)):
                 return
+            rounds = 0
             while not self.stop.is_set():
                 with self.service_locks[definition["id"]]:
                     if self.stop.is_set():
                         break
                     started = time.time()
-                    client.search(definition["name"], 8)
+                    # Repeat commissions may use a previously discovered service.
+                    if rounds % 2 == 0:
+                        client.search(definition["name"], 8)
                     result = run_order(client, definition, url)
+                    # Acceptance/payment precedes the provider's asynchronous capacity release.
+                    until = time.monotonic() + 30
+                    while (
+                        result["status"] == "accepted"
+                        and client.api("GET", "/orders/" + result["cardDigest"])[
+                            "state"
+                        ]
+                        != "completed"
+                    ):
+                        if time.monotonic() > until:
+                            raise TimeoutError(
+                                "Provider did not complete the accepted contract"
+                            )
+                        time.sleep(0.5)
                 if result["status"] != "accepted":
                     raise RuntimeError("Experiment contract did not pass acceptance")
                 self.records.append(
@@ -181,7 +196,8 @@ class NetworkTraffic:
                         **result,
                     }
                 )
-                if self.stop.wait(rng.uniform(25, 45)):
+                rounds += 1
+                if self.stop.wait(rng.uniform(12, 20)):
                     break
         except Exception as exc:
             self.errors.append(

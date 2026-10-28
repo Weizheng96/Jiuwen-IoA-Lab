@@ -48,6 +48,11 @@ def main():
             )
             assert len(widths) == 6 and max(widths) - min(widths) < 1, widths
             assert page.locator("#pnEvents").count() == 0
+            assert page.locator("#pnLog").is_visible()
+            columns = page.locator(
+                "#pn>.pn-mid,#pn>.pn-right,#pn>.pn-log"
+            ).evaluate_all("nodes=>nodes.map(n=>n.getBoundingClientRect().bottom)")
+            assert max(columns) - min(columns) < 2, columns
             assert (
                 page.locator(".concept-user").count() == 0
             ), "User roles belong only to the explanatory scene"
@@ -100,6 +105,24 @@ def main():
             assert (
                 page.locator("#pnWires > *").count() == 0
             ), "Completed transmission must leave no SVG remnants"
+            assert "收取消息" in page.locator("#pnLogRows").inner_text()
+            before = page.locator("#pnLogRows").inner_text()
+            page.locator("#pnLogPause").click()
+            page.evaluate(
+                "for(let i=10;i<230;i++)Panorama.apply({seq:i,at:1700000000+i,kind:'message',op:'message.queued',sender:'assistant-a',receiver:'assistant-b',detail:{messageId:String(i),interface:'safety.checkin',payload:{text:'PRIVATE-PAYLOAD-NEVER-LOG'}}})"
+            )
+            page.clock.run_for(300)
+            page.evaluate("Panorama.tick(Clock.now())")
+            assert page.locator("#pnLogRows").inner_text() == before
+            page.locator("#pnLogPause").click()
+            assert page.locator("#pnLogRows .log-row").count() == 200
+            assert (
+                "PRIVATE-PAYLOAD-NEVER-LOG"
+                not in page.locator("#pnLogRows").inner_text()
+            )
+            page.clock.run_for(1400)
+            page.evaluate("Panorama.tick(Clock.now())")
+            assert page.locator("#pnWires > *").count() == 0
             page.evaluate(
                 "Panorama.init(USERS,REGISTRY,[{id:'test',name:'Test'}],{baseSeq:100});Panorama.apply({seq:50,op:'discovery.search',sender:'assistant-a',detail:{ids:['service']}})"
             )

@@ -1,18 +1,18 @@
 {
   "date": "2026-10-28",
   "pytest": {
-    "passed": 103,
+    "passed": 105,
     "failed": 0
   },
   "selfcheck": "passed: versions, screenplays/movie hashes, documentation links, service definitions, three-process smoke, A2C wheel, runtime boundary, wording and signed evidence",
   "originalTenTestFiles": "preserved",
   "workbenchUi": "passed: 960x928 and 1920x1080, fixed network while forms/details scroll, preserved expanded schema, neutral interface text, anonymous local background, no global requests, finite own flows, no replay on refresh",
-  "adminUi": "passed: equal-width components, click/Esc, hidden observer, correct concurrent contract routing, queue/processing separation, zero residual lines",
+  "adminUi": "passed: full-height four columns, real event log with 200-row bound, pause/resume and payload exclusion; component focus, scoped contract routing and zero residual paths",
   "demoScriptDocuments": {
     "passed": 3,
     "source": "script_documents.py --check"
   },
-  "encodedReviews": "passed: 20 global shots and 4 transition frames; existing 13 delegation and 9 messaging preview shots remain unchanged; media SHA256 and narration windows verified",
+  "encodedReviews": "passed: 20 global shots and 7 transition frames; existing 13 delegation and 9 messaging shots unchanged; video SHA256 and audio verified",
   "a2cSkillChecks": {
     "skillValidation": "passed",
     "demoSelfchecks": {
@@ -37,10 +37,25 @@
   ],
   "globalMixedActivity": {
     "result": "passed",
-    "source": "global.json#experiment.mixedActivity",
+    "source": "global.json#experiment",
     "mixedWindows": 15,
     "totalWindows": 15,
-    "sampleIntervalSeconds": 0.2,
-    "sameShortIntervalCoactivity": 30
+    "density": {
+      "transmissionsPerSecond": 8.326,
+      "maxConcurrentInitiators": 9,
+      "multipleInitiatorSampleShare": 0.7709,
+      "distinctInitiators": 36,
+      "maxActiveLines": 10,
+      "passed": true
+    }
+  },
+  "globalTransition": {
+    "seconds": 2.8,
+    "alignedTargets": 38,
+    "maxGeometryErrorPixels": "<1",
+    "heldFirstFrame": true,
+    "preloadedImage": true,
+    "encodedTransitionFrames": 7,
+    "subtitleAvoidsLog": true
   }
 }

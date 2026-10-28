@@ -77,6 +77,9 @@ def test_mailbox_keeps_working_during_blocked_order_and_orders_continue(
     monkeypatch.setattr(network, "run_order", complete)
 
     class Client:
+        def api(self, *args):
+            return {"state": "completed"}
+
         def search(self, *args):
             entered.set()
             assert release.wait(3)

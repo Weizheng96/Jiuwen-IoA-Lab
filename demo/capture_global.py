@@ -128,6 +128,20 @@ def main():
         traffic = NetworkTraffic(
             config, folder / "participants", count=a.participants, services=services
         )
+        # Prepare explicit virtual experiment credit through the normal admin API.
+        with httpx.Client(base_url=base, trust_env=False) as http:
+            http.post("/api/auth/login", json=account).raise_for_status()
+            allowed = {a["username"] for a in traffic.accounts}
+            for user in http.get("/api/admin/users").raise_for_status().json():
+                if user["username"] in allowed:
+                    http.post(
+                        "/api/admin/wallet",
+                        json={
+                            "user_id": user["id"],
+                            "delta": "1000",
+                            "note": "独立实验虚拟体验额",
+                        },
+                    ).raise_for_status()
         from playwright.sync_api import sync_playwright
 
         with sync_playwright() as pw:
@@ -188,16 +202,21 @@ def main():
                 activity.append(
                     {
                         "at": round(time.monotonic() - start, 3),
-                        **page.evaluate("({...Panorama.flowStats})"),
+                        **page.evaluate(
+                            "({...Panorama.flowStats,...Panorama.activitySnapshot()})"
+                        ),
                     }
                 )
                 if activity[-1]["at"] >= next_log:
                     print("Monitor elapsed", round(activity[-1]["at"]), "s", flush=True)
                     next_log += 20
             mixed = summarize(activity)
+            from mixed_activity import density
+
+            dense = density(activity)
             (folder / "mixed-activity.json").write_text(
                 json.dumps(
-                    {"samples": activity, "summary": mixed},
+                    {"samples": activity, "summary": mixed, "density": dense},
                     ensure_ascii=False,
                     indent=2,
                 ),
@@ -213,12 +232,28 @@ def main():
             node_layout = page.locator("#pnAsstList .pn-asst").evaluate_all(
                 "nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return {id:n.dataset.id,x:r.x,y:r.y,width:r.width,height:r.height};})"
             )
+            panels = page.locator("#pn>.pn-mid,#pn>.pn-right").evaluate_all(
+                "nodes=>Object.fromEntries(nodes.map(n=>{const r=n.getBoundingClientRect();return [n.classList.contains('pn-mid')?'components':'services',{x:r.x,y:r.y,width:r.width,height:r.height}]}))"
+            )
+            assert (
+                abs(
+                    panels["components"]["y"]
+                    + panels["components"]["height"]
+                    - panels["services"]["y"]
+                    - panels["services"]["height"]
+                )
+                < 2
+            )
+            log_count = page.locator("#pnLogRows .log-row").count()
+            assert 0 < log_count <= 200
             ui_proof = {
                 "sharedLayout": True,
                 "equalComponentWidths": widths,
                 "componentClickAndEscape": True,
                 "residualWiresAfterIdle": residual,
                 "hiddenObserver": True,
+                "logRows": log_count,
+                "equalColumnHeights": True,
             }
 
             users = page.request.get(base + "/api/admin/users").json()
@@ -262,7 +297,7 @@ def main():
         safe = {
             "monitorTrim": round(monitor_trim, 3),
             "actors": actors,
-            "layout": {"assistants": node_layout},
+            "layout": {"assistants": node_layout, "panels": panels},
             "services": [
                 {
                     k: s.get(k)
@@ -284,6 +319,7 @@ def main():
                 "ui": ui_proof,
                 "renderedTransmissions": flow_stats,
                 "mixedActivity": mixed,
+                "density": dense,
                 "messageKinds": sorted(
                     set(
                         r["interface"]
@@ -303,6 +339,7 @@ def main():
             and not result["errors"]
             and safe["proof"]["orders"] >= 6
             and mixed["passed"]
+            and dense["passed"]
         ), safe["proof"]
         print(json.dumps(safe["proof"], ensure_ascii=False), flush=True)
     finally:

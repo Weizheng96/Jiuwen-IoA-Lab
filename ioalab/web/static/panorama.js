@@ -12,7 +12,32 @@ const Panorama = (() => {
   const N = { asst: {}, svc: {}, byUser: {} };
   const Stat = { asst: 0, svc: 0, signed: 0, transfers: 0, volume: 0, completed: 0, arbitrated: 0, endorsed: 0, sig3: 0, sig5: 0, declined: 0, searches: 0 };
   const Anims = [], Timers = [];
-  const flowStats={delegation:0,p2p:0,other:0};let eventFamily='other';
+  const flowStats={delegation:0,p2p:0,other:0};let eventFamily='other',eventInitiator='';
+  const logRows=[],logSeen=new Set();let logPaused=false,logDirty=false,logPaintAt=0;
+  const logLabels={'discovery.search':'发现服务','order.proposed':'收到合约卡草案','order.signed':'确认合同','work.start':'开始履约','delivery.anchor':'交付存证','delivery.fetch':'获取交付','order.verified':'本地验收','order.accepted':'确认验收','transfer':'虚拟币付款','reputation.append':'记录信誉','message.queued':'发送消息','message.processing':'收取消息','message.completed':'处理完成','message.rejected':'处理拒绝'};
+  function ensureLog(){
+    if($('pnLog'))return;
+    const box=document.createElement('aside');box.id='pnLog';box.className='pn-log';
+    box.innerHTML='<div class="log-heading"><b>行为日志</b><button type="button" id="pnLogPause">暂停滚动</button></div><small>真实平台事件 · 最近200条</small><div id="pnLogRows" role="log" aria-live="off"></div>';
+    $('pn').append(box);
+    $('pnLogPause').onclick=()=>{logPaused=!logPaused;$('pnLogPause').textContent=logPaused?'继续滚动':'暂停滚动';if(!logPaused)drawLog();};
+  }
+  function drawLog(){
+    if(logPaused||!$('pnLogRows'))return;
+    const box=$('pnLogRows');box.replaceChildren();
+    logRows.forEach(item=>{const row=document.createElement('div');row.className='log-row '+item.family;const time=document.createElement('time');time.textContent=item.time;const text=document.createElement('span');text.textContent=item.text;row.append(time,text);box.append(row);});
+    box.scrollTop=box.scrollHeight;
+    logDirty=false;logPaintAt=Clock.now();
+  }
+  function recordLog(ev,A){
+    const action=logLabels[ev.op];if(quiet||!action||logSeen.has(ev.seq))return;
+    const key=ev.seq??('event-'+logRows.length),at=Number(ev.at)||Date.now()/1000;
+    const who=ev.op.startsWith('message.')?Names.of(ev.op==='message.queued'?ev.sender:ev.receiver):A?Names.of(A.id):Names.of(ev.sender||'market');
+    const extra=ev.op.startsWith('message.')?NetworkMap.messageLabel(ev.detail?.interface||''):ev.cardDigest?ev.cardDigest.slice(-10):'';
+    logRows.push({key,family:eventFamily,time:new Date(at*1000).toLocaleTimeString('zh-CN',{hour12:false,timeZone:'Asia/Shanghai'}),text:who+' · '+action+(extra?' · '+extra:'')});logSeen.add(key);
+    if(logRows.length>200)logSeen.delete(logRows.shift().key);
+    logDirty=true;
+  }
   let baseSeq = 0, replay = false, ready = false, touched = [], pendingCredit = {}, quiet = false;   // quiet：历史事件只改状态不画脉冲
   let serverStats=null;
   const observedMessages=new Set(), anchoredCards=new Set();
@@ -20,8 +45,8 @@ const Panorama = (() => {
   function anim(dur, fn, done) { Anims.push({ start: Clock.now(), dur, fn, done }); }
   function later(ms, fn) {
     if(quiet){fn();return;}
-    const family=eventFamily;
-    Timers.push({at:Clock.now()+ms,fn:()=>{const previous=eventFamily;eventFamily=family;try{fn();}finally{eventFamily=previous;}}});
+    const family=eventFamily,initiator=eventInitiator;
+    Timers.push({at:Clock.now()+ms,fn:()=>{const previous=eventFamily,previousInitiator=eventInitiator;eventFamily=family;eventInitiator=initiator;try{fn();}finally{eventFamily=previous;eventInitiator=previousInitiator;}}});
   }
   function flash(el, cls, ms) { if (!el || quiet) return; el.classList.add(cls); later(ms || 900, () => el.classList.remove(cls)); }
   function fade(el, dur) { el.style.opacity = 0; anim(dur || 420, p => { el.style.opacity = ease(p); }); }
@@ -100,6 +125,7 @@ const Panorama = (() => {
     if (!ea || !eb || ea === eb) return;
     flowStats[eventFamily]++;
     const drawing=NetworkMap.flow($('pnWires'),ea,eb,label,color);
+    drawing.group.dataset.initiator=eventInitiator;drawing.group.dataset.family=eventFamily;
     if(accts){drawing.group.dataset.accts=accts.join(' ');if(Focus.acct&&!accts.includes(Focus.acct))drawing.group.classList.add('dim');}
     const duration=Math.min(600,Math.max(260,(dur||800)*.55));
     anim(duration,p=>drawing.paint(p),()=>drawing.remove());
@@ -116,6 +142,7 @@ const Panorama = (() => {
       flash(node.el, 'hit', 450);
       const p1 = center(node.el);
       const l = document.createElementNS(SVG_NS, 'line'); l.setAttribute('class', 'hitline');
+      l.dataset.initiator=eventInitiator;l.dataset.family='delegation';
       l.setAttribute('x1', p0.x); l.setAttribute('y1', p0.y); l.setAttribute('x2', p1.x); l.setAttribute('y2', p1.y);
       flowStats.delegation++;
       $('pnWires').appendChild(l);
@@ -139,6 +166,8 @@ const Panorama = (() => {
     }
     if(ev.kind==='message'&&d.messageId)observedMessages.add(d.messageId);
     const accts = Focus.accountsOf(ev);
+    eventInitiator=(op.startsWith('message.')?N.asst[s]?.uid:A?.uid)||s;
+    recordLog(ev,A);
     switch (op) {
       case 'message.queued': { const from=nodeEl(s);if(from)pulse(from,$('pnMessages'),NetworkMap.messageLabel(d.interface)||'发送消息',COLORS.agent,650,accts);break; }
       case 'message.processing': { const to=nodeEl(r);if(to)pulse($('pnMessages'),to,'收取 · '+NetworkMap.messageLabel(d.interface||''),COLORS.agent,650,accts);break; }
@@ -240,6 +269,7 @@ const Panorama = (() => {
   function catIndex() { return CATS; }
   function init(users, registry, categories, opts) {
     opts = opts || {};
+    ensureLog();
     observedMessages.clear();anchoredCards.clear();serverStats=null;
     Object.keys(flowStats).forEach(key=>flowStats[key]=0);
     replay = !!opts.replay; baseSeq = opts.baseSeq || 0; ready = false;
@@ -275,6 +305,7 @@ const Panorama = (() => {
   }
   function tick(n) {
     if (!ready) return;
+    if(logDirty&&n-logPaintAt>=200)drawLog();
     for (let i = Timers.length - 1; i >= 0; i--) if (Timers[i].at <= n) { const t = Timers.splice(i, 1)[0]; t.fn(); }
     for (let i = Anims.length - 1; i >= 0; i--) {
       const a = Anims[i], p = Math.min(Math.max((n - a.start) / a.dur, 0), 1);
@@ -289,5 +320,5 @@ const Panorama = (() => {
   function focus(acct) {
     document.querySelectorAll('#pnWires .pls').forEach(g => g.setAttribute('class', 'pls' + (acct && !(g.dataset.accts || '').split(' ').includes(acct) ? ' dim' : '')));
   }
-  return { init, apply, tick, restore, focus, N, Stat, flowStats, setStats(s){serverStats=s;renderCounters();} };
+  return { init, apply, tick, restore, focus, N, Stat, flowStats, activitySnapshot(){const lines=[...$('pnWires').querySelectorAll('[data-initiator]')].filter(n=>n.dataset.initiator&&n.dataset.family!=='other');return {activeLines:lines.length,initiators:[...new Set(lines.map(n=>n.dataset.initiator))]};}, setStats(s){serverStats=s;renderCounters();} };
 })();

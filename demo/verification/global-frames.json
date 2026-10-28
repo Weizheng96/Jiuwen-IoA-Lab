@@ -1,5 +1,5 @@
 {
-  "sha256": "3fc5af746e2139f9450913f8c02729687b9e70dd334a964424ad2f8cff2f0d05",
+  "sha256": "d8a3292e0093a312d40a33cb17fda9358c4db614c9918ce6929f7d44b2417737",
   "frames": [
     "demo\\assets\\run\\global\\review\\intro.jpg",
     "demo\\assets\\run\\global\\review\\join.jpg",
@@ -28,6 +28,9 @@
     "demo/assets/run/global/review/transition-before.jpg",
     "demo/assets/run/global/review/transition-users-fade.jpg",
     "demo/assets/run/global/review/transition-blend.jpg",
+    "demo/assets/run/global/review/transition-aligned.jpg",
+    "demo/assets/run/global/review/transition-nearly-real.jpg",
+    "demo/assets/run/global/review/transition-first-real.jpg",
     "demo/assets/run/global/review/transition-after.jpg"
   ],
   "transitionContact": "demo/assets/run/global/review/transition.jpg"

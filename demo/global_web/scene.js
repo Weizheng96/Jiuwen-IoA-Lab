@@ -6,7 +6,7 @@ const chapters=['平台介绍','个人助手接入','登录赠币','专业服务
 const terms=['翻译品牌介绍','写朋友圈文案','给宝宝起名','润色简历','写正则','排杭州两日行程'];
 const kinds=['预约会议','报平安','预约维修','吃饭邀请','行程同步','资料交流'];
 let data,timeline,current=-1,shot,origin=performance.now(),plan=[],active=new Map(),transitionNodes=[];
-const TRANSITION_SECONDS=1.6;
+const TRANSITION_SECONDS=2.8;
 const colors={join:'#89e0d2',credit:'#f3d17a',provider:'#8bb8f2',needs:'#9ce5b9',authorization:'#9ce5b9',discovery:'#baa2f0',delivery:'#8ab3ef',acceptance:'#87dec4',payment:'#f3d17a',reputation:'#c3a9f4',messages:'#8bdedb'};
 function detail(mode){
  let html='';
@@ -57,6 +57,7 @@ function enter(index){
    const to=data.layout.assistants.find(a=>a.id===agent.id);if(!to)throw Error('Missing real assistant geometry');
    return {element,from:{x:from.x,y:from.y,width:from.width,height:from.height},to};
   });
+  [['components','.pn-mid'],['services','.pn-right']].forEach(([key,selector])=>{const element=document.querySelector('#pn>'+selector),from=element.getBoundingClientRect(),to=data.layout.panels[key];transitionNodes.push({element,from:{x:from.x,y:from.y,width:from.width,height:from.height},to});});
  }
  document.body.classList.toggle('monitor-only',live&&shot.mode==='tail');
  $('callout').style.display='none';
@@ -87,24 +88,26 @@ function paint(now){
  if(shot.mode==='methods'){
   $('cursor').style.display=dt<1.1?'block':'none';const r=$('pnRegistry').getBoundingClientRect();$('cursor').style.left=r.x+r.width/2+'px';$('cursor').style.top=r.y+r.height/2+'px';if(dt>=.8&&$('detail').style.display==='none')detail('methods');
  }else $('cursor').style.display='none';
- let transitionProgress=0;
+ let transitionProgress=0,monitorFrame=0,geometryError=0;
  if(live){
-  const start=timeline.find(s=>s.stage>=9).at,frame=Math.min(window.monitorFrames-1,Math.floor((t-start)*window.monitorRate*window.monitorFps));
+  const start=timeline.find(s=>s.stage>=9).at,elapsed=t-start,frame=Math.min(window.monitorFrames-1,Math.floor(Math.max(0,elapsed-TRANSITION_SECONDS)*window.monitorRate*window.monitorFps));monitorFrame=frame;
   $('monitor').src='monitor/'+String(Math.max(0,frame)).padStart(4,'0')+'.jpg';
   transitionProgress=Math.min(1,Math.max(0,(t-start)/TRANSITION_SECONDS));
-  const move=Math.min(1,transitionProgress/.65),smooth=move*move*(3-2*move);
-  const blend=Math.max(0,Math.min(1,(transitionProgress-.55)/.45)),fade=blend*blend*(3-2*blend);
-  document.querySelectorAll('.concept-user').forEach(el=>{el.style.opacity=String(Math.max(0,1-transitionProgress*1.8));el.style.filter='blur('+(transitionProgress*12)+'px)';});
-  transitionNodes.forEach(({element,from,to})=>{element.style.transform=`translate(${(to.x-from.x)*smooth}px,${(to.y-from.y)*smooth}px) scale(${1+(to.width/from.width-1)*smooth},${1+(to.height/from.height-1)*smooth})`;element.style.opacity=String(1-.65*Math.sin(Math.PI*move));element.style.filter='blur('+(2.5*Math.sin(Math.PI*move))+'px)';});
-  $('network').style.opacity=String(1-fade);$('network').style.filter='blur('+(fade*8)+'px)';$('realMonitor').style.opacity=String(fade);$('network').style.display=transitionProgress>=1?'none':'block';
+  const move=Math.max(0,Math.min(1,(elapsed-.35)/1.25)),smooth=move*move*(3-2*move);
+  const blend=Math.max(0,Math.min(1,(elapsed-.9)/1.9)),fade=blend*blend*(3-2*blend);
+  document.querySelectorAll('.concept-user').forEach(el=>{el.style.opacity=String(Math.max(0,1-elapsed/.65));el.style.filter='blur('+(Math.min(1,elapsed/.65)*12)+'px)';});
+  transitionNodes.forEach(({element,from,to})=>{element.style.transform=`translate(${(to.x-from.x)*smooth}px,${(to.y-from.y)*smooth}px) scale(${1+(to.width/from.width-1)*smooth},${1+(to.height/from.height-1)*smooth})`;element.style.opacity='1';element.style.filter='none';const r=element.getBoundingClientRect();geometryError=Math.max(geometryError,Math.abs(r.x-to.x),Math.abs(r.y-to.y),Math.abs(r.width-to.width),Math.abs(r.height-to.height));});
+  // Fade one opaque incoming layer over the aligned outgoing layer: no brightness dip.
+  $('network').style.opacity='1';$('network').style.filter='none';$('realMonitor').style.opacity=String(fade);$('network').style.display=transitionProgress>=1?'none':'block';
+  document.querySelector('footer').style.width=(1920-400*fade)+'px';
   document.querySelector('header').style.opacity=String(Math.max(0,1-transitionProgress*2));$('chapter').style.opacity=String(Math.max(0,1-transitionProgress*2));
  }
  window.transitionProgress=transitionProgress;
  $('progress').style.width=Math.min(1920,t/window.totalSeconds*1920)+'px';
- window.frameInfo={stage:shot.stage,mode:shot.mode,families:[...families],subtitle:shot.text,cover:shot.mode==='cover',monitor:live,transitionProgress,activeFlows:active.size,plannedEvents:plan.length};
+ window.frameInfo={stage:shot.stage,mode:shot.mode,families:[...families],subtitle:shot.text,cover:shot.mode==='cover',monitor:live,transitionProgress,monitorFrame,geometryError,morphTargets:transitionNodes.length,activeFlows:active.size,plannedEvents:plan.length};
  requestAnimationFrame(paint);
 }
-Promise.all([fetch('public-run.json').then(r=>r.json()),fetch('timeline.json').then(r=>r.json())]).then(([d,sc])=>{
+Promise.all([fetch('public-run.json').then(r=>r.json()),fetch('timeline.json').then(r=>r.json())]).then(async([d,sc])=>{
  data=d;d.services.sort((a,b)=>String(a.category||'').localeCompare(String(b.category||''))||String(a.name).localeCompare(String(b.name)));timeline=sc.shots;window.totalSeconds=sc.duration;window.monitorFrames=sc.monitorFrames;window.monitorFps=sc.monitorFps;window.monitorRate=sc.monitorRate;
  NetworkMap.mount(document.querySelector('#pn .pn-mid'));
  d.actors.forEach((actor,i)=>{
@@ -120,5 +123,5 @@ Promise.all([fetch('public-run.json').then(r=>r.json()),fetch('timeline.json').t
   const el=document.createElement('article');el.className='pn-svc offline';el.id='s'+i;const name=document.createElement('div');name.className='name';name.textContent=service.name;el.append(name);groups.get(key).append(el);
  });
  $('pnRegStat').textContent='服务 '+d.services.length+' · A2X分类树导航';$('pnIdentityStat').textContent=d.actors.length+'位个人助手 · 概念接入，非在线心跳';
- $('pnRegistry').addEventListener('click',()=>detail('methods'));origin=performance.now();window.ready=true;requestAnimationFrame(paint);
+ $('pnRegistry').addEventListener('click',()=>detail('methods'));$('monitor').src='monitor/0000.jpg';await $('monitor').decode();origin=performance.now();window.ready=true;requestAnimationFrame(paint);
 }).catch(e=>{document.body.textContent='Recording source failed: '+e.message;throw e;});

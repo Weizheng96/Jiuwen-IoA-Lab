@@ -6,28 +6,30 @@
   "narrationReference": "AgentContractProtocol/demo/智能体互联网/scenario/{story,script}.py + web/map.js + tools/record.py",
   "experiment": {
     "participants": 36,
-    "a2xTreeSearches": 48,
-    "orders": 48,
-    "messages": 93,
+    "a2xTreeSearches": 113,
+    "orders": 208,
+    "messages": 353,
     "errors": [],
     "browserErrors": [],
     "ui": {
       "sharedLayout": true,
       "equalComponentWidths": [
-        673.765625,
-        673.765625,
-        673.765625,
-        673.765625,
-        673.765625,
-        673.765625
+        661.453125,
+        661.453125,
+        661.453125,
+        661.453125,
+        661.453125,
+        661.453125
       ],
       "componentClickAndEscape": true,
       "residualWiresAfterIdle": 0,
-      "hiddenObserver": true
+      "hiddenObserver": true,
+      "logRows": 200,
+      "equalColumnHeights": true
     },
     "renderedTransmissions": {
-      "delegation": 240,
-      "p2p": 186,
+      "delegation": 660,
+      "p2p": 705,
       "other": 1
     },
     "mixedActivity": {
@@ -36,106 +38,106 @@
         {
           "start": 0,
           "end": 10,
-          "delegation": 20,
-          "p2p": 8,
+          "delegation": 45,
+          "p2p": 42,
           "mixed": true
         },
         {
           "start": 10,
           "end": 20,
-          "delegation": 16,
-          "p2p": 15,
+          "delegation": 35,
+          "p2p": 37,
           "mixed": true
         },
         {
           "start": 20,
           "end": 30,
-          "delegation": 4,
-          "p2p": 15,
+          "delegation": 43,
+          "p2p": 52,
           "mixed": true
         },
         {
           "start": 30,
           "end": 40,
-          "delegation": 11,
-          "p2p": 17,
+          "delegation": 49,
+          "p2p": 30,
           "mixed": true
         },
         {
           "start": 40,
           "end": 50,
-          "delegation": 25,
-          "p2p": 7,
+          "delegation": 26,
+          "p2p": 48,
           "mixed": true
         },
         {
           "start": 50,
           "end": 60,
-          "delegation": 14,
-          "p2p": 9,
+          "delegation": 30,
+          "p2p": 40,
           "mixed": true
         },
         {
           "start": 60,
           "end": 70,
-          "delegation": 15,
-          "p2p": 11,
+          "delegation": 42,
+          "p2p": 39,
           "mixed": true
         },
         {
           "start": 70,
           "end": 80,
-          "delegation": 11,
-          "p2p": 15,
+          "delegation": 45,
+          "p2p": 49,
           "mixed": true
         },
         {
           "start": 80,
           "end": 90,
-          "delegation": 9,
-          "p2p": 3,
+          "delegation": 38,
+          "p2p": 37,
           "mixed": true
         },
         {
           "start": 90,
           "end": 100,
-          "delegation": 20,
-          "p2p": 21,
+          "delegation": 42,
+          "p2p": 45,
           "mixed": true
         },
         {
           "start": 100,
           "end": 110,
-          "delegation": 11,
-          "p2p": 15,
+          "delegation": 46,
+          "p2p": 40,
           "mixed": true
         },
         {
           "start": 110,
           "end": 120,
-          "delegation": 22,
-          "p2p": 7,
+          "delegation": 49,
+          "p2p": 46,
           "mixed": true
         },
         {
           "start": 120,
           "end": 130,
-          "delegation": 12,
-          "p2p": 10,
+          "delegation": 35,
+          "p2p": 49,
           "mixed": true
         },
         {
           "start": 130,
           "end": 140,
-          "delegation": 5,
-          "p2p": 5,
+          "delegation": 49,
+          "p2p": 32,
           "mixed": true
         },
         {
           "start": 140,
           "end": 150,
-          "delegation": 20,
-          "p2p": 13,
+          "delegation": 42,
+          "p2p": 47,
           "mixed": true
         }
       ],
@@ -143,10 +145,18 @@
       "totalWindows": 15,
       "mixedShare": 1.0,
       "renderedTransmissions": {
-        "delegation": 215,
-        "p2p": 171
+        "delegation": 616,
+        "p2p": 633
       },
-      "delegationShare": 0.5569948186528497,
+      "delegationShare": 0.4931945556445156,
+      "passed": true
+    },
+    "density": {
+      "transmissionsPerSecond": 8.326,
+      "maxConcurrentInitiators": 9,
+      "multipleInitiatorSampleShare": 0.7709,
+      "distinctInitiators": 36,
+      "maxActiveLines": 10,
       "passed": true
     },
     "messageKinds": [
@@ -191,6 +201,9 @@
       "demo/assets/run/global/review/transition-before.jpg",
       "demo/assets/run/global/review/transition-users-fade.jpg",
       "demo/assets/run/global/review/transition-blend.jpg",
+      "demo/assets/run/global/review/transition-aligned.jpg",
+      "demo/assets/run/global/review/transition-nearly-real.jpg",
+      "demo/assets/run/global/review/transition-first-real.jpg",
       "demo/assets/run/global/review/transition-after.jpg"
     ],
     "finiteRandomEvents": true,
@@ -226,116 +239,118 @@
     "fullScreenOnly": true,
     "tailSeconds": 20,
     "sharedLayout": true,
-    "crossfadeSeconds": 1.6,
+    "crossfadeSeconds": 2.8,
+    "componentAndServiceGeometryFromCapture": true,
+    "heldFirstFrame": true,
     "usersFadeBeforeMonitor": true,
     "assistantGeometryFromCapture": true,
-    "delegationTransmissionShare": 0.557,
+    "delegationTransmissionShare": 0.4932,
     "mixedActivity": {
       "windowSeconds": 10,
       "windows": [
         {
           "start": 0,
           "end": 10,
-          "delegation": 20,
-          "p2p": 8,
+          "delegation": 45,
+          "p2p": 42,
           "mixed": true
         },
         {
           "start": 10,
           "end": 20,
-          "delegation": 16,
-          "p2p": 15,
+          "delegation": 35,
+          "p2p": 37,
           "mixed": true
         },
         {
           "start": 20,
           "end": 30,
-          "delegation": 4,
-          "p2p": 15,
+          "delegation": 43,
+          "p2p": 52,
           "mixed": true
         },
         {
           "start": 30,
           "end": 40,
-          "delegation": 11,
-          "p2p": 17,
+          "delegation": 49,
+          "p2p": 30,
           "mixed": true
         },
         {
           "start": 40,
           "end": 50,
-          "delegation": 25,
-          "p2p": 7,
+          "delegation": 26,
+          "p2p": 48,
           "mixed": true
         },
         {
           "start": 50,
           "end": 60,
-          "delegation": 14,
-          "p2p": 9,
+          "delegation": 30,
+          "p2p": 40,
           "mixed": true
         },
         {
           "start": 60,
           "end": 70,
-          "delegation": 15,
-          "p2p": 11,
+          "delegation": 42,
+          "p2p": 39,
           "mixed": true
         },
         {
           "start": 70,
           "end": 80,
-          "delegation": 11,
-          "p2p": 15,
+          "delegation": 45,
+          "p2p": 49,
           "mixed": true
         },
         {
           "start": 80,
           "end": 90,
-          "delegation": 9,
-          "p2p": 3,
+          "delegation": 38,
+          "p2p": 37,
           "mixed": true
         },
         {
           "start": 90,
           "end": 100,
-          "delegation": 20,
-          "p2p": 21,
+          "delegation": 42,
+          "p2p": 45,
           "mixed": true
         },
         {
           "start": 100,
           "end": 110,
-          "delegation": 11,
-          "p2p": 15,
+          "delegation": 46,
+          "p2p": 40,
           "mixed": true
         },
         {
           "start": 110,
           "end": 120,
-          "delegation": 22,
-          "p2p": 7,
+          "delegation": 49,
+          "p2p": 46,
           "mixed": true
         },
         {
           "start": 120,
           "end": 130,
-          "delegation": 12,
-          "p2p": 10,
+          "delegation": 35,
+          "p2p": 49,
           "mixed": true
         },
         {
           "start": 130,
           "end": 140,
-          "delegation": 5,
-          "p2p": 5,
+          "delegation": 49,
+          "p2p": 32,
           "mixed": true
         },
         {
           "start": 140,
           "end": 150,
-          "delegation": 20,
-          "p2p": 13,
+          "delegation": 42,
+          "p2p": 47,
           "mixed": true
         }
       ],
@@ -343,16 +358,16 @@
       "totalWindows": 15,
       "mixedShare": 1.0,
       "renderedTransmissions": {
-        "delegation": 215,
-        "p2p": 171
+        "delegation": 616,
+        "p2p": 633
       },
-      "delegationShare": 0.5569948186528497,
+      "delegationShare": 0.4931945556445156,
       "passed": true
     },
-    "sourceClipSha256": "61dc8e28e9b804e55889133c716b890408eacd75b1b430987383f0b041eb406a"
+    "sourceClipSha256": "bb4ecf347a06a22d4ad8d6c946f7da91e657dd5f521212c6d3127fbbb6750661"
   },
   "video": "demo/out/01-global.mp4",
-  "sha256": "3fc5af746e2139f9450913f8c02729687b9e70dd334a964424ad2f8cff2f0d05",
+  "sha256": "d8a3292e0093a312d40a33cb17fda9358c4db614c9918ce6929f7d44b2417737",
   "persistentLabels": [
     "概念动画（讲解段）",
     "真实管理员监控（片尾）",

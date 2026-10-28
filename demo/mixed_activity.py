@@ -3,6 +3,31 @@
 import math
 
 
+def density(samples):
+    observed = samples[1:]
+    counts = [len(s.get("initiators", [])) for s in observed]
+    distinct = set(a for s in observed for a in s.get("initiators", []))
+    seconds = samples[-1]["at"] - samples[0]["at"]
+    rate = sum(samples[-1][k] - samples[0][k] for k in ("delegation", "p2p")) / max(
+        0.001, seconds
+    )
+    concurrent = sum(c >= 2 for c in counts) / max(1, len(counts))
+    result = {
+        "transmissionsPerSecond": round(rate, 3),
+        "maxConcurrentInitiators": max(counts, default=0),
+        "multipleInitiatorSampleShare": round(concurrent, 4),
+        "distinctInitiators": len(distinct),
+        "maxActiveLines": max((s.get("activeLines", 0) for s in observed), default=0),
+    }
+    result["passed"] = (
+        rate >= 6
+        and result["maxConcurrentInitiators"] >= 4
+        and concurrent >= 0.25
+        and len(distinct) >= 24
+    )
+    return result
+
+
 def summarize(samples, *, window_seconds=10):
     if len(samples) < 2:
         raise ValueError("Need timed renderer samples")

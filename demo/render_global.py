@@ -13,7 +13,7 @@ def label_video(ff, source, dest):
     from assemble import ffpath
 
     font = Path("C:/Windows/Fonts/msyh.ttc")
-    filters = f"drawtext=fontfile='{ffpath(font)}':text='样例服务 · 虚拟币':x=w-tw-40:y=h-144:fontsize=17:fontcolor=0xa6becb:box=1:boxcolor=0x0a1424aa:boxborderw=7"
+    filters = f"drawtext=fontfile='{ffpath(font)}':text='样例服务 · 虚拟币':x=40:y=h-144:fontsize=17:fontcolor=0xa6becb:box=1:boxcolor=0x0a1424aa:boxborderw=7"
     subprocess.run(
         [
             ff,
@@ -62,6 +62,7 @@ def main():
     for name in ("panorama.css", "network-map.css", "network-map.js"):
         shutil.copyfile(ROOT / "ioalab/web/static" / name, web / name)
     run = json.loads((a.source / "public-run.json").read_text(encoding="utf-8"))
+    assert run['proof'].get('density',{}).get('passed'),'Real monitor must pass multiple-initiator density checks'
     assert not run["proof"]["errors"] and run["proof"]["a2xTreeSearches"] > 0
     assert (
         run["proof"].get("mixedActivity", {}).get("passed")
@@ -194,7 +195,7 @@ def main():
             page.goto(url)
             page.wait_for_function("window.ready")
             page.clock.run_for(50)
-            last = 0
+            last = 0.05  # Account for the explicit 50ms advance immediately above.
             assert page.locator(".pn-asst").count() == len(run["actors"]) >= 30
             assert page.locator(".pn-svc").count() == len(run["services"]) >= 50
             assert page.locator("#pnEvents").count() == 0
@@ -264,7 +265,17 @@ def main():
                         == 0
                     )
                     page.screenshot(path=str(out / "shot-transition-blend.png"))
-                point = shot["at"] + min(2, shot["hold"] / 2)
+                    align_at=shot['at']+2.0
+                    page.clock.fast_forward(max(1,round((align_at-last)*1000)));last=align_at
+                    aligned=page.evaluate('window.frameInfo')
+                    assert aligned['geometryError']<1 and aligned['morphTargets']>=38,aligned
+                    assert aligned['monitorFrame']==0,aligned
+                    first_real=shot['at']+2.82
+                    page.clock.fast_forward(max(1,round((first_real-last)*1000)));last=first_real
+                    first=page.evaluate('window.frameInfo')
+                    assert first['monitorFrame']==0 and page.locator('#network').is_hidden(),first
+                    checks.append({'alignedAllRegions':True,'heldFirstFrame':True,'maximumAlignmentError':aligned['geometryError']})
+                point = shot["at"] + (3.15 if shot['id']=='value' else min(2, shot["hold"] / 2))
                 page.clock.fast_forward(max(1, round((point - last) * 1000)))
                 last = point
                 info = page.evaluate("window.frameInfo")
@@ -387,7 +398,9 @@ def main():
         assert 0.35 <= share <= 0.65, ("Unbalanced rendered activity", activity, share)
         summary["monitor"].update(
             {
-                "crossfadeSeconds": 1.6,
+                "crossfadeSeconds": 2.8,
+                "componentAndServiceGeometryFromCapture":True,
+                "heldFirstFrame":True,
                 "usersFadeBeforeMonitor": True,
                 "assistantGeometryFromCapture": True,
                 "delegationTransmissionShare": round(share, 4),
