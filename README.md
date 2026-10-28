@@ -50,5 +50,6 @@ python -m pytest -q tests
 | 视频 | 内容 |
 |---|---|
 | [全局视角](demo/out/01-global.mp4) | 片头、接入、赠币、发现、合同履约、支付信誉、助手消息与平台价值；固定剧本动画结合真实监控 |
+| [助手交互（预览）](demo/out/03-messaging-preview.mp4) | 真实九问留言、账号白名单、冲突拒绝与改约邀请；Outlook接受入历镜头待补录 |
 
-剧本、复现入口和其余两段制作状态见[录屏说明](demo/README.md)。
+剧本和复现入口见[录屏说明](demo/README.md)，委托聚焦版与交互正式片剩余事项见[验证记录](demo/verification/README.md)。

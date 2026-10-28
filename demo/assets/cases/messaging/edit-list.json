@@ -1,0 +1,65 @@
+[
+  {
+    "id": "cover",
+    "rawStart": 0.89,
+    "rawSource": "screen.webm",
+    "finalStart": 0,
+    "duration": 6.38
+  },
+  {
+    "id": "policy",
+    "rawStart": 20.015,
+    "rawSource": "screen.webm",
+    "finalStart": 6.38,
+    "duration": 7.61
+  },
+  {
+    "id": "schedule",
+    "rawStart": 38.531,
+    "rawSource": "screen.webm",
+    "finalStart": 13.99,
+    "duration": 8.3
+  },
+  {
+    "id": "lookup",
+    "rawStart": 57.093,
+    "rawSource": "screen.webm",
+    "finalStart": 22.29,
+    "duration": 7.92
+  },
+  {
+    "id": "forward",
+    "rawStart": 105.828,
+    "rawSource": "screen.webm",
+    "finalStart": 30.21,
+    "duration": 8.23
+  },
+  {
+    "id": "busy",
+    "rawStart": 124.359,
+    "rawSource": "screen.webm",
+    "finalStart": 38.44,
+    "duration": 7.53
+  },
+  {
+    "id": "reschedule",
+    "rawStart": 154.672,
+    "rawSource": "screen.webm",
+    "finalStart": 45.97,
+    "duration": 7.29
+  },
+  {
+    "id": "invitation",
+    "rawStart": 172.953,
+    "rawSource": "screen.webm",
+    "finalStart": 53.26,
+    "duration": 7.25
+  },
+  {
+    "id": "close",
+    "rawStart": 191.187,
+    "rawSource": "screen.webm",
+    "finalStart": 60.51,
+    "duration": 7.08
+  }
+]

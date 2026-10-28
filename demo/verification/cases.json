@@ -1,0 +1,117 @@
+{
+  "cases": {
+    "messaging": {
+      "case": "messaging",
+      "fixtures": [],
+      "browserErrors": [],
+      "accessControl": {
+        "outsideInterfaces": [],
+        "directSendStatus": 403,
+        "allowedAccount": "demo_b@huawei.com",
+        "identityMeaning": "platform account string"
+      },
+      "busy": {
+        "status": "no_time",
+        "reason": "calendar_conflict"
+      },
+      "outlook": {
+        "status": "awaiting_actual_acceptance",
+        "title": "九问IoA协作演示 220827",
+        "start": "2026-10-29T14:00:00+08:00",
+        "end": "2026-10-29T14:30:00+08:00",
+        "recipient": "zhengw.cc@outlook.com"
+      },
+      "appointment": {
+        "title": "九问IoA协作演示 220827",
+        "start": "2026-10-29T14:00:00+08:00",
+        "end": "2026-10-29T14:30:00+08:00",
+        "timeZone": "Asia/Shanghai"
+      },
+      "preview": true,
+      "forward": {
+        "status": "delivered",
+        "transport": "jiuwen-web",
+        "read": "unknown"
+      },
+      "meeting": {
+        "status": "invite_submitted",
+        "calendar": "awaiting_acceptance",
+        "recipient": "zhengw.cc@outlook.com",
+        "transport": "agentmail-calendar",
+        "delivery": "pending_provider_send"
+      },
+      "movie": "out/03-messaging-preview.mp4",
+      "sha256": "47a17e901bb6848593b1eec9836b354d5e5b5680d4d41cdfbf64d172229b91b5",
+      "bytes": 5819520,
+      "qa": {
+        "result": "preview-passed",
+        "dimensions": "1920x1080",
+        "meanVolumeDb": -19.7,
+        "narrationClips": 9,
+        "duration": 67.59,
+        "frames": [
+          "review-1.png",
+          "review-2.png",
+          "review-3.png"
+        ],
+        "fixtures": [],
+        "outlook": {
+          "status": "awaiting_actual_acceptance",
+          "title": "九问IoA协作演示 220827",
+          "start": "2026-10-29T14:00:00+08:00",
+          "end": "2026-10-29T14:30:00+08:00",
+          "recipient": "zhengw.cc@outlook.com"
+        },
+        "preview": true
+      },
+      "allShots": [
+        {
+          "id": "cover",
+          "meanVolumeDb": -18.9,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "policy",
+          "meanVolumeDb": -19.9,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "schedule",
+          "meanVolumeDb": -20.3,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "lookup",
+          "meanVolumeDb": -20.3,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "forward",
+          "meanVolumeDb": -18.5,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "busy",
+          "meanVolumeDb": -18.9,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "reschedule",
+          "meanVolumeDb": -19.9,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "invitation",
+          "meanVolumeDb": -17.7,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "close",
+          "meanVolumeDb": -20.3,
+          "narrationWithinShot": true
+        }
+      ]
+    }
+  },
+  "checkedAt": "2026-10-28"
+}

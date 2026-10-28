@@ -1,11 +1,11 @@
 {
-  "date": "2026-10-27",
+  "date": "2026-10-28",
   "pytest": {
-    "passed": 93,
+    "passed": 96,
     "failed": 0
   },
   "selfcheck": "passed: versions, 50 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
-  "bootstrap": "passed: SDK comparison update, fresh standalone environment and cached reuse",
+  "bootstrap": "passed: current connector, fresh standalone environment, SDK independence and cached reuse",
   "syntax": {
     "javascript": "passed",
     "deployInstallBash": "passed"
@@ -107,5 +107,15 @@
   "agentmailEvidence": "agentmail.json",
   "localScheduleEvidence": "local-schedule.json",
   "globalUiReview": "passed: full cover, compact six market components, identity/event observation, chapter-isolated paths, local acceptance, 52px high-contrast captions, A to C, faster narration and 4x actual admin replay",
-  "globalRebuildFromCommittedAssets": "passed"
+  "globalRebuildFromCommittedAssets": "passed",
+  "formalCaseEvidence": "cases.json",
+  "recordingStatusSource": "README.md",
+  "a2cSkillChecks": {
+    "skillValidation": "passed",
+    "demoSelfchecks": {
+      "passed": 7,
+      "failed": 0
+    },
+    "designCheck": "blocked by pre-existing untracked materials draft missing VERSION; draft unchanged"
+  }
 }
