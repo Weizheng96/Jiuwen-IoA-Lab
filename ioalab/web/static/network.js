@@ -1,129 +1,102 @@
-/* Account-scoped network. Ambient nodes are geometry only, never other users' data. */
+/* Account-scoped map. Grey geometry is synthetic and never contains other accounts' data. */
 window.IoaNetwork = (() => {
-  const escape = (v) =>
-    String(v ?? "").replace(
-      /[&<>"']/g,
-      (c) =>
-        ({
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#39;",
-        })[c],
-    );
+  const escape = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const nodes = {assistant:'ownAssistant',a2x:'pnRegistry',contract:'pnMarket',message:'pnMessages',payment:'pnPay',service:'ownService'};
   const components = {
-    assistant: [
-      "我的九问",
-      "需求与本地验收",
-      "九问在你的设备运行。由本地 IoA SDK 签约、取件，在 WASM 沙箱验收，确认后签字。",
-    ],
-    a2x: [
-      "A2X 注册中心",
-      "搜索 · 筛选服务",
-      "按领域发现服务，读取公示合同模板，比较输入要求、报价与验收标准。",
-    ],
-    contract: [
-      "A2C 合同中心",
-      "定约 · 签名 · 存证",
-      "核验合同与签名链，记录交付存证；不代替个人助手生产或验收。",
-    ],
-    message: [
-      "智能体消息中心",
-      "免费 · 定向 · 离线",
-      "按账号查询已获授权的接口，核验 inputSchema 后投递。接收方上线处理并回执。",
-    ],
-    payment: [
-      "模拟支付",
-      "读卡过账",
-      "使用虚拟币演示。付款依据是合同金额与相应签名，已付金额以实际过账记录为准。",
-    ],
-    service: [
-      "服务方智能体",
-      "协商 · 生产 · 交付",
-      "服务在独立进程运行，按合同生产交付成果；官方九问服务按需启动。",
-    ],
+    assistant:['我的个人助手','','在用户自己的九问运行，由本地 SDK 签约、取件与验收。'],
+    service:['相关专业服务','','独立服务按合同生产和交付，个人助手按约验收。'],
   };
-  let selected = "assistant",
-    latest = null,
-    selectedOrder = null;
-  const done = new Set([
-    "completed",
-    "finished",
-    "arbitrated",
-    "client-terminated",
-    "terminated",
-  ]);
-  const positions = {
-    assistant: [15, 43],
-    a2x: [43, 18],
-    contract: [52, 47],
-    message: [42, 79],
-    payment: [72, 80],
-    service: [83, 34],
-  };
-  const links = [
-    ["assistant", "a2x"],
-    ["a2x", "service"],
-    ["assistant", "contract"],
-    ["contract", "service"],
-    ["assistant", "message"],
-    ["contract", "payment"],
-    ["payment", "service"],
-  ];
-  function detail() {
-    const c = components[selected],
-      box = document.getElementById("component-detail");
-    let extra = "";
-    if (selected === "message")
-      extra = `已登记 ${latest.interfaces.length} 个接口 · ${latest.messages.length} 条双方交互记录`;
-    else if (selected === "payment")
-      extra = `当前可见委托已付 ${latest.orders.reduce((s, o) => s + Number(o.paid || 0), 0).toFixed(2)} 虚拟币`;
-    else if (selected === "service")
-      extra =
-        [...new Set(latest.orders.slice(0, 3).map((o) => o.providerName))].join(
-          " · ",
-        ) || "从 A2X 发现适合当前需求的服务";
-    else if (selected === "contract")
-      extra = `${latest.orders.length} 笔可见委托 · 合同卡与签名可从记录详情展开`;
-    box.innerHTML = `<b>${escape(c[0])}</b><span>${escape(c[2])}</span><small>${escape(extra)}</small>`;
-    document
-      .querySelectorAll("[data-graph-node]")
-      .forEach((n) =>
-        n.classList.toggle("selected", n.dataset.graphNode === selected),
-      );
+  NetworkMap.components.concat(NetworkMap.subs).forEach(([id,title,protocol,hint]) => {
+    const key=Object.keys(nodes).find(k=>nodes[k]===id) || id;
+    nodes[key]=id; components[key]=[title,protocol,hint];
+  });
+  let selected='assistant',latest=null,selectedOrder=null,lastSeq=null,messageStates=new Map();
+  const done = new Set(['completed','finished','arbitrated','client-terminated','terminated']);
+  const live=[], rng=NetworkMap.random(4721), peerSlots=new Map();
+  let nextAmbient=0;
+  const el=key=>document.getElementById(nodes[key] || key);
+  function detail(){
+    const c=components[selected],box=document.getElementById('component-detail');
+    const extra=selected==='message' ? `${latest.interfaces.length} 个自定义接口 · ${latest.messages.length} 条双方消息` : selected==='contract' ? `${latest.orders.length} 笔本人委托` : '';
+    box.innerHTML=`<b>${escape(c[0])}</b><span>${escape(c[2])}</span><small>${escape(extra)}</small>`;
+    document.querySelectorAll('[data-graph-node]').forEach(n=>n.classList.toggle('selected',n.dataset.graphNode===selected));
   }
-  function select(key) {
-    if (components[key]) {
-      selected = key;
-      detail();
+  function select(key){if(components[key]){selected=key;detail();}}
+  function pulse(a,b,label,color='#79dfd9',ambient=false){
+    if(!a||!b||a===b||document.hidden||document.getElementById('assistant-view').hidden)return;
+    const item=NetworkMap.flow(document.getElementById('accountWires'),a,b,label,color);
+    item.group.dataset.activity=ambient?'background':'own';
+    live.push({item,at:performance.now(),duration:ambient?460+rng()*280:700});
+  }
+  function animate(now){
+    for(let i=live.length-1;i>=0;i--){const f=live[i],p=(now-f.at)/f.duration;f.item.paint(p);if(p>=1)live.splice(i,1);}
+    if(now>=nextAmbient){
+      nextAmbient=now+240+rng()*520;
+      const a=document.querySelectorAll('.ambient-assistant'),s=document.querySelectorAll('.ambient-service');
+      if(a.length&&s.length){
+        const from=a[Math.floor(rng()*a.length)],other=a[Math.floor(rng()*a.length)];
+        if(rng()<.54) pulse(from,s[Math.floor(rng()*s.length)],'', '#7b8593',true);
+        else pulse(from,other,'','#7b8593',true);
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+  function build(map){
+    map.className='pn account-network';
+    map.innerHTML='<div class="account-left"><button id="ownAssistant" class="account-actor" data-graph-node="assistant"><b></b><small>我的个人助手</small></button><small class="anonymous-label">匿名个人助手 · 背景示意</small><div class="anonymous-grid">'+Array.from({length:16},(_,i)=>`<span class="anonymous-node ambient-assistant" aria-label="匿名个人助手">助手 ${String(i+1).padStart(2,'0')}</span>`).join('')+'</div></div><div class="pn-mid account-centers"></div><div class="account-right"><button id="ownService" class="account-actor" data-graph-node="service"><b>相关专业服务</b><small>尚无关联委托</small></button><div id="accountPeers"></div><small class="anonymous-label">匿名服务 · 背景示意</small><div class="anonymous-grid">'+Array.from({length:12},(_,i)=>`<span class="anonymous-node ambient-service" aria-label="匿名专业服务">服务 ${String(i+1).padStart(2,'0')}</span>`).join('')+'</div></div><svg id="accountWires" aria-hidden="true"></svg>';
+    NetworkMap.mount(map.querySelector('.account-centers'));
+    Object.entries(nodes).forEach(([key,id])=>{if(document.getElementById(id))document.getElementById(id).dataset.graphNode=key;});
+    map.addEventListener('click',e=>{const n=e.target.closest('[data-graph-node]');if(n)select(n.dataset.graphNode);});
+    requestAnimationFrame(animate);
+  }
+  function updateActors(){
+    const name=latest.account.display_name||latest.account.username;
+    el('assistant').querySelector('b').textContent=name+'的个人助手';
+    el('assistant').querySelector('small').textContent=latest.identities.some(x=>x.role==='assistant')?'已登记 · 本地九问':'等待九问接入';
+    const order=latest.orders.find(o=>o.card_digest===selectedOrder)||latest.orders[0];
+    el('service').querySelector('b').textContent=order?.providerName||'相关专业服务';
+    el('service').querySelector('small').textContent=order ? (done.has(order.state)?'已结束委托':'当前委托') : '从 A2X 发现服务';
+    // Only names from authorized two-party messages, never a global directory.
+    const names=new Map();
+    latest.messages.forEach(m=>{const side=m.sender===latest.account.id?'receiver':'sender';names.set(m[side],m[side+'DisplayName']||m[side+'Username']);});
+    const peers=document.getElementById('accountPeers');
+    if([...names].map(([id,n])=>id+n).join('|')!==peers.dataset.names){
+      peers.dataset.names=[...names].map(([id,n])=>id+n).join('|');peers.replaceChildren();peerSlots.clear();
+      [...names].slice(0,2).forEach(([id,n])=>{const b=document.createElement('button');b.className='account-actor peer-actor';b.textContent=n+'的个人助手';b.onclick=()=>select('message');peers.append(b);peerSlots.set(id,b);});
     }
   }
-  function render(data) {
-    latest = data;
-    const map = document.getElementById("network-map");
-    // Build only once: selection and background animations survive polling.
-    if (!map.children.length) {
-      map.innerHTML = `<div class="ambient-field" aria-hidden="true">${Array.from({ length: 14 }, (_, i) => `<i style="left:${4 + ((i * 19) % 93)}%;top:${7 + ((i * 31) % 88)}%;animation-delay:-${i / 3}s"></i>`).join("")}</div><svg class="network-links" viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true">${links
-        .map(([a, b], i) => {
-          const p = positions[a],
-            q = positions[b];
-          const d = `M ${p[0] * 10},${p[1] * 3} Q ${(p[0] + q[0]) * 5},${Math.min(p[1], q[1]) * 3 - 18} ${q[0] * 10},${q[1] * 3}`;
-          return `<path d="${d}"/><circle r="3" class="network-packet"><animateMotion dur="${3 + i * 0.3}s" repeatCount="indefinite" begin="-${i}s" path="${d}"/></circle>`;
-        })
-        .join("")}</svg>${Object.entries(components)
-        .map(
-          ([key, c]) =>
-            `<button class="network-node node-${key}" data-graph-node="${key}" style="left:${positions[key][0]}%;top:${positions[key][1]}%" aria-label="${c[0]}详情"><i>${{ assistant: "问", a2x: "寻", contract: "约", message: "信", payment: "付", service: "工" }[key]}</i><b>${c[0]}</b><small>${c[1]}</small></button>`,
-        )
-        .join("")}`;
-      map
-        .querySelectorAll("[data-graph-node]")
-        .forEach((n) => (n.onclick = () => select(n.dataset.graphNode)));
+  function ownEvents(){
+    const events=latest.events||[];
+    if(lastSeq!==null){
+      events.filter(e=>e.seq>lastSeq).forEach(e=>{
+        const op=e.op,a=el('assistant'),s=el('service');
+        if(op==='discovery.search')pulse(a,el('a2x'),'A2X 搜索');
+        else if(op==='discovery.compared')pulse(el('a2x'),a,'筛选结果');
+        else if(op==='order.proposed')pulse(s,el('contract'),'合约卡草案');
+        else if(op==='work.start')pulse(a,s,'开工');
+        else if(op==='delivery.anchor')pulse(s,el('pnNotary'),'交付存证');
+        else if(op==='delivery.fetch'||op==='order.fetched')pulse(a,s,'取件');
+        else if(op==='order.verified')pulse(el('pnNotary'),a,'本地验收结果');
+        else if(op==='order.accepted')pulse(a,el('contract'),'验收签字');
+        else if(op==='transfer'||op==='ap2.pay')pulse(el('payment'),s,'读卡过账','#efd282');
+      });
+      latest.messages.forEach(m=>{
+        const prior=messageStates.get(m.id),own=latest.account.id,out=m.sender===own,peer=peerSlots.get(out?m.receiver:m.sender);
+        const before=prior||'new';
+        if(before===m.state)return;
+        if(!prior) pulse(out?el('assistant'):peer,el('message'),'结构化消息');
+        if(['processing','completed','rejected'].includes(m.state)&&!['processing','completed','rejected'].includes(prior))pulse(el('message'),out?peer:el('assistant'),'收取 / 处理');
+        if(['completed','rejected'].includes(m.state))pulse(out?peer:el('assistant'),el('message'),'处理回执');
+      });
     }
-    detail();
-    journey();
+    lastSeq=Math.max(lastSeq||0,...events.map(e=>e.seq));
+    messageStates=new Map(latest.messages.map(m=>[m.id,m.state]));
   }
+  function render(data){
+    latest=data;const map=document.getElementById('network-map');if(!map.children.length)build(map);
+    updateActors();ownEvents();detail();journey();
+  }
+
   function journey() {
     const o =
         latest.orders.find((x) => x.card_digest === selectedOrder) ||

@@ -1,65 +1,65 @@
 [
   {
     "id": "cover",
-    "rawStart": 0.89,
+    "rawStart": 2.296,
     "rawSource": "screen.webm",
     "finalStart": 0,
-    "duration": 6.38
+    "duration": 7.32
   },
   {
     "id": "policy",
-    "rawStart": 20.015,
-    "rawSource": "screen.webm",
-    "finalStart": 6.38,
-    "duration": 7.61
+    "rawStart": 2.015,
+    "rawSource": "interface-retake.webm",
+    "finalStart": 7.32,
+    "duration": 8.69
   },
   {
     "id": "schedule",
-    "rawStart": 38.531,
-    "rawSource": "screen.webm",
-    "finalStart": 13.99,
-    "duration": 8.3
+    "rawStart": 20.297,
+    "rawSource": "interface-retake.webm",
+    "finalStart": 16.01,
+    "duration": 12.91
   },
   {
     "id": "lookup",
-    "rawStart": 57.093,
+    "rawStart": 75.484,
     "rawSource": "screen.webm",
-    "finalStart": 22.29,
-    "duration": 7.92
+    "finalStart": 28.92,
+    "duration": 12.14
   },
   {
     "id": "forward",
-    "rawStart": 105.828,
+    "rawStart": 185.265,
     "rawSource": "screen.webm",
-    "finalStart": 30.21,
-    "duration": 8.23
+    "finalStart": 41.06,
+    "duration": 8.13
   },
   {
     "id": "busy",
-    "rawStart": 124.359,
+    "rawStart": 204.046,
     "rawSource": "screen.webm",
-    "finalStart": 38.44,
-    "duration": 7.53
+    "finalStart": 49.19,
+    "duration": 8.66
   },
   {
     "id": "reschedule",
-    "rawStart": 154.672,
+    "rawStart": 234.671,
     "rawSource": "screen.webm",
-    "finalStart": 45.97,
-    "duration": 7.29
+    "finalStart": 57.85,
+    "duration": 8.09
   },
   {
     "id": "invitation",
-    "rawStart": 172.953,
+    "rawStart": 257.125,
     "rawSource": "screen.webm",
-    "finalStart": 53.26,
-    "duration": 7.25
+    "finalStart": 65.94,
+    "duration": 7.29
   },
   {
     "id": "close",
-    "rawStart": 191.187,
+    "rawStart": 275.421,
     "rawSource": "screen.webm",
-    "finalStart": 60.51,
-    "duration": 7.08
+    "finalStart": 73.23,
+    "duration": 9.53
   }
 ]

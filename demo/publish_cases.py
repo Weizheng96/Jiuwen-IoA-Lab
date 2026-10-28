@@ -21,7 +21,9 @@ def publish(folder, case):
     proof = read(folder / "evidence.json")
     qa = read(folder / "qa.json")
     shots = read(folder / "shot-review.json")
-    require(proof["case"] == case, "Recording case does not match its publication target")
+    require(
+        proof["case"] == case, "Recording case does not match its publication target"
+    )
     validate_real_case(proof)
     preview = proof.get("preview", False)
     digest = validate_reviews(proof, qa, shots, folder / "demo.mp4")
@@ -58,7 +60,14 @@ def publish(folder, case):
             )
         }
         evidence["preview"] = preview
-        evidence["forward"] = {k: proof["forward"][k] for k in ("status", "transport", "read")}
+        if proof.get("interfaceRetake"):
+            evidence["interfaceRetake"] = {
+                k: proof["interfaceRetake"][k]
+                for k in ("source", "reason", "shots", "browserErrors")
+            }
+        evidence["forward"] = {
+            k: proof["forward"][k] for k in ("status", "transport", "read")
+        }
         evidence["meeting"] = {
             k: proof["meeting"][k]
             for k in ("status", "calendar", "recipient", "transport", "delivery")
@@ -70,7 +79,9 @@ def publish(folder, case):
         sha256=digest,
         bytes=target.stat().st_size,
         qa=qa,
-        allShots=[{k: v for k, v in shot.items() if k != "frame"} for shot in shots["shots"]],
+        allShots=[
+            {k: v for k, v in shot.items() if k != "frame"} for shot in shots["shots"]
+        ],
     )
     dest = ROOT / "demo/assets/cases" / case
     dest.mkdir(parents=True, exist_ok=True)

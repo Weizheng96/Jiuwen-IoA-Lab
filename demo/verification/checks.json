@@ -4,154 +4,35 @@
     "passed": 100,
     "failed": 0
   },
-  "selfcheck": "passed: versions, generated scene scripts and movie digests, 27 current documentation entries/links, 50 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
-  "bootstrap": "passed: current connector, fresh standalone environment, SDK independence and cached reuse",
-  "syntax": {
-    "javascript": "passed",
-    "deployInstallBash": "passed"
-  },
-  "processSdkWheelDigest": "passed",
+  "selfcheck": "passed: versions, screenplays/movie hashes, documentation links, service definitions, three-process smoke, A2C wheel, runtime boundary, wording and signed evidence",
   "originalTenTestFiles": "preserved",
-  "realSwarmEvidence": "real-swarm.json",
-  "recordings": [
-    {
-      "case": "delegation",
-      "path": "recordings/delegation-20261027-094536/local-test.mp4",
-      "result": "passed",
-      "dimensions": "1920x1080",
-      "meanVolumeDb": -28.2,
-      "narrationClips": 3,
-      "duration": 128.34,
-      "frames": [
-        "review-1.png",
-        "review-2.png",
-        "review-3.png"
-      ],
-      "fixtures": [
-        "calendar",
-        "smtp-capture",
-        "provider-sample"
-      ],
-      "sha256": "0c142fe3d57da310b60696d11fe9308cd385c1f2b404a0e085a7d2f72343a38b"
-    },
-    {
-      "case": "messaging",
-      "path": "recordings/messaging-20261026-213056/local-test.mp4",
-      "result": "passed",
-      "dimensions": "1920x1080",
-      "meanVolumeDb": -21.6,
-      "narrationClips": 5,
-      "duration": 33.86,
-      "frames": [
-        "review-1.png",
-        "review-2.png",
-        "review-3.png"
-      ],
-      "fixtures": [
-        "calendar",
-        "smtp-capture",
-        "provider-sample"
-      ],
-      "sha256": "12d868939fc7235b605c248404e7a177de9245208ef4e2ae65f3a9d32f326259"
-    },
-    {
-      "case": "global",
-      "path": "demo/out/01-global.mp4",
-      "result": "passed",
-      "dimensions": "1920x1080",
-      "duration": 145.98,
-      "meanVolumeDb": -19.8,
-      "narrationClips": 20,
-      "phaseIsolation": true,
-      "reviewFrames": [
-        "shot-intro.png",
-        "shot-join.png",
-        "shot-credit.png",
-        "shot-provider.png",
-        "shot-needs.png",
-        "shot-authorization.png",
-        "shot-discovery.png",
-        "shot-methods.png",
-        "shot-compare.png",
-        "shot-contract.png",
-        "shot-delivery.png",
-        "shot-acceptance.png",
-        "shot-arbitration.png",
-        "shot-payment.png",
-        "shot-reputation.png",
-        "shot-messages.png",
-        "shot-meeting.png",
-        "shot-value.png",
-        "shot-internal.png",
-        "shot-external.png"
-      ],
-      "sha256": "b4bef687a98d37c83f996cc81c88c2a3b8deb947a163bad277e63c5a6ba0983f",
-      "experiment": {
-        "participants": 6,
-        "a2xTreeSearches": 18,
-        "orders": 18,
-        "messages": 108,
-        "errors": [],
-        "browserErrors": [],
-        "serviceExecution": "labelled sample outputs",
-        "monitorSeconds": 100
-      }
-    }
-  ],
-  "limits": [
-    "Linux deployment has syntax/config checks, no real server acceptance",
-    "Native AgentMail invitation received and accepted with calendar visibility confirmed by user; automatic Outlook calendar conflict reads remain unauthorized; earlier SMTP-only invite failed client recognition",
-    "Global film explicitly combines conceptual animation and real protocol observations; sample service outputs. Two formal scenario movies remain in production; prior local-test movies do not replace them."
-  ],
-  "administratorSkillInstall": "passed: complete skill installed and account configured; real CLI reuses receiver identity; isolated SDK bootstrap; local settings excluded from bundle",
-  "agentmailEvidence": "agentmail.json",
-  "localScheduleEvidence": "local-schedule.json",
-  "globalUiReview": "passed: full cover, compact six market components, identity/event observation, chapter-isolated paths, local acceptance, 52px high-contrast captions, A to C, faster narration and 4x actual admin replay",
-  "globalRebuildFromCommittedAssets": "passed",
-  "formalCaseEvidence": "cases.json",
-  "recordingStatusSource": "README.md",
+  "workbenchUi": "passed: 960x928 and 1920x1080, fixed network while forms/details scroll, preserved expanded schema, neutral interface text, anonymous local background, no global requests, finite own flows, no replay on refresh",
+  "adminUi": "passed: equal-width components, click/Esc, hidden observer, correct concurrent contract routing, queue/processing separation, zero residual lines",
+  "demoScriptDocuments": {
+    "passed": 3,
+    "source": "script_documents.py --check"
+  },
+  "encodedReviews": "passed: all 13 delegation shots and 9 messaging preview shots; final SHA256 and narration windows checked",
   "a2cSkillChecks": {
     "skillValidation": "passed",
     "demoSelfchecks": {
       "passed": 7,
       "failed": 0
     },
-    "designCheck": "blocked by pre-existing untracked materials draft missing VERSION; draft unchanged",
-    "trackedVersionSnapshot": "passed; original untracked materials draft excluded and unchanged"
+    "trackedVersionSnapshot": "passed",
+    "designCheck": "pre-existing untracked materials draft lacks VERSION; unchanged"
   },
-  "demoScriptDocuments": {
-    "passed": 3,
-    "paths": [
-      "demo/全局视角/剧本.md",
-      "demo/美甲委托/剧本.md",
-      "demo/助手交互/剧本.md"
-    ]
+  "evidence": {
+    "currentGlobal": "global.json",
+    "globalFrames": "global-frames.json",
+    "currentCases": "cases.json",
+    "earlyRealSwarm": "real-swarm.json",
+    "notificationTransport": "agentmail.json",
+    "localSchedule": "local-schedule.json"
   },
-  "recordingCodeReview": {
-    "formatOnlyAst": "passed: four live recording modules",
-    "originalCaptionsAndNarration": "unchanged",
-    "encodedChecksBoundToMediaSha256": "passed for current delegation and messaging preview"
-  },
-  "globalRevision": {
-    "filmSha256": "9c6f1cc704bb2a4570c168772f6c5b7c3fa94dba81f99db85d6940485ac292b5",
-    "duration": 163.54,
-    "participants": 36,
-    "services": 50,
-    "activeServices": 12,
-    "orders": 36,
-    "messages": 107,
-    "renderedTransmissions": {
-      "delegation": 180,
-      "p2p": 212,
-      "other": 1
-    },
-    "delegationTransmissionShare": 0.4592,
-    "userAssistantPairs": 36,
-    "transition": "passed: users fade/blur, assistant geometry interpolation, soft crossfade, one full-screen real monitor",
-    "uiRegression": "passed: six equal-width components, intent placeholder, real monitor has no explanatory user, click/Esc, contract-specific routing, historical delayed callbacks and zero residue",
-    "player": "passed: single full-screen capture loop and automatic end switch",
-    "encodedFrames": "global-frames.json",
-    "finiteEvents": "global-scene-checks.json",
-    "sourceMonitorSha256": "d4b79b636201e8e6cc3ff68e67e7baced5f2705f88815e861ed49fca6fe55118"
-  }
+  "limits": [
+    "Messaging preview ends with a real invitation awaiting owner acceptance; current Outlook acceptance/calendar footage remains unavailable.",
+    "Earlier user-confirmed Outlook acceptance establishes transport compatibility, not acceptance of this recording invitation.",
+    "Linux deployment has config/syntax checks but no real-server acceptance."
+  ]
 }

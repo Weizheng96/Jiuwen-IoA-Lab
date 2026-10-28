@@ -59,6 +59,7 @@ function orders(rows) {
     : '<div class="empty">还没有委托记录。向九问描述需求，确认合同后即可开始。</div>';
 }
 function render() {
+  $("assistant-title").textContent = `${data.account.display_name || data.account.username}的个人助手`;
   $("identity").textContent = data.account.username;
   $("credit").textContent = `余量 ${data.wallet} 虚拟币`;
   $("admin-link").hidden = !data.roles.includes("admin");
@@ -79,7 +80,7 @@ function render() {
       ).length,
     ],
     ["交互消息", data.messages.length],
-    ["免费接口", data.interfaces.filter((i) => i.enabled).length],
+    ["交互接口", data.interfaces.filter((i) => i.enabled).length],
   ]
     .map(([n, v]) => `<div class="metric"><b>${v}</b><span>${n}</span></div>`)
     .join("");
@@ -90,11 +91,12 @@ function render() {
   $("order-history").innerHTML = orders(
     data.orders.filter((o) => IoaNetwork.done.has(o.state)),
   );
+  const openInterfaces = new Set([...$("interfaces").querySelectorAll("details[open]")].map(n => n.dataset.interface));
   $("interfaces").innerHTML = data.interfaces.length
     ? data.interfaces
         .map(
           (i) =>
-            `<p><b>${esc(i.name)}</b> <span class="badge">修订 ${i.revision} · ${i.enabled ? "启用" : "停用"}</span><br><small>${esc(i.allowedSenders === null ? "所有登录账号" : i.allowedSenders?.join("、") || "无允许账号")}</small></p>`,
+            `<details class="interface-definition" data-interface="${esc(i.name)}" ${openInterfaces.has(i.name) ? "open" : ""}><summary><b>${esc(i.name)}</b> <span class="badge">修订 ${i.revision} · ${i.enabled ? "启用" : "停用"}</span></summary><p class="interface-scope">允许账号：${esc(i.allowedSenders === null ? "所有登录账号" : i.allowedSenders?.join("、") || "无允许账号")}</p><p>${esc(i.description || "")}</p><pre>${esc(JSON.stringify(i.inputSchema, null, 2))}</pre></details>`,
         )
         .join("")
     : '<div class="empty">尚未登记接口</div>';
@@ -102,10 +104,10 @@ function render() {
     ? data.messages
         .map(
           (m) =>
-            `<div class="row"><div><b>${esc(m.senderUsername)} → ${esc(m.receiverUsername)}</b><small>${esc(m.interface)}</small></div><div>${badge(m.state)}<small>${esc(labels[m.result?.status] || m.result?.status || "")}</small></div><div>${esc(when(m.created))}</div><button class="btn" data-message="${m.id}">查看消息</button></div>`,
+            `<div class="row"><div><b>${esc(m.senderDisplayName || m.senderUsername)} → ${esc(m.receiverDisplayName || m.receiverUsername)}</b><small>${esc(m.interface)}</small></div><div>${badge(m.state)}<small>${esc(labels[m.result?.status] || m.result?.status || "")}</small></div><div>${esc(when(m.created))}</div><button class="btn" data-message="${m.id}">查看消息</button></div>`,
         )
         .join("")
-    : '<div class="empty">尚无交互。查询对方账号的免费接口，按输入格式发送。</div>';
+    : '<div class="empty">尚无交互。查询对方账号对你开放的交互接口，按输入格式发送。</div>';
   $("services").innerHTML = data.services.length
     ? data.services
         .map(
@@ -180,8 +182,20 @@ function render() {
 function show(title, body) {
   $("detail-title").textContent = title;
   $("detail-body").textContent = JSON.stringify(body, null, 2);
-  $("detail").showModal();
+  if ($("detail").open) $("detail").close();
+  $("detail").classList.toggle("assistant-detail", active === "assistant");
+  if (active === "assistant") {
+    const bounds = document.querySelector(".assistant-content").getBoundingClientRect();
+    $("detail").style.top = `${bounds.top}px`;
+    $("detail").style.height = `${Math.max(100, bounds.height - 10)}px`;
+    $("detail").show();
+  } else {
+    $("detail").style.top = "";
+    $("detail").style.height = "";
+    $("detail").showModal();
+  }
 }
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("detail").open) $("detail").close(); });
 function notice(text) {
   $("notice").textContent = text;
 }
@@ -191,6 +205,7 @@ async function refresh() {
   data = await api("/api/workbench");
   $("welcome").hidden = true;
   $("workspace").hidden = false;
+  document.body.classList.add("workbench-connected");
   $("logout").hidden = false;
   render();
 }

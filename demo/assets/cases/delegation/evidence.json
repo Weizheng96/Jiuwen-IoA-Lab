@@ -5,21 +5,21 @@
   "browserErrors": [],
   "quotes": [
     {
-      "cardDigest": "sha256:eeddf3c36c5533ef2f36b76a43fa464e2ba00d7ba847e81f6f96bf90fcaec5dd",
+      "cardDigest": "sha256:99c0a2f1925bf59fdc4d9ac2b95d44c49fe305b5fe109875f970d26730a7a75e",
       "total": "299",
       "provider": "美甲预约工具·可靠版"
     },
     {
-      "cardDigest": "sha256:442c8f5753ba37da989aba374fd2e0f31538b4e94c0a33bb2f1d6b4ad82cf598",
+      "cardDigest": "sha256:5ef7b75d006508e323c9a4a8402c8001b378681f6392fa76d1bde87e290eb131",
       "total": "259",
       "provider": "美甲预约工具·基础版"
     }
   ],
-  "focusedCardDigest": "sha256:eeddf3c36c5533ef2f36b76a43fa464e2ba00d7ba847e81f6f96bf90fcaec5dd",
-  "cardDigest": "sha256:eeddf3c36c5533ef2f36b76a43fa464e2ba00d7ba847e81f6f96bf90fcaec5dd",
+  "focusedCardDigest": "sha256:99c0a2f1925bf59fdc4d9ac2b95d44c49fe305b5fe109875f970d26730a7a75e",
+  "cardDigest": "sha256:99c0a2f1925bf59fdc4d9ac2b95d44c49fe305b5fe109875f970d26730a7a75e",
   "delegation": {
     "state": "completed",
-    "cardDigest": "sha256:eeddf3c36c5533ef2f36b76a43fa464e2ba00d7ba847e81f6f96bf90fcaec5dd",
+    "cardDigest": "sha256:99c0a2f1925bf59fdc4d9ac2b95d44c49fe305b5fe109875f970d26730a7a75e",
     "signatures": {
       "2": true,
       "5": [
@@ -45,14 +45,14 @@
     "configuration": "actual accepted delivery"
   },
   "movie": "out/02-delegation.mp4",
-  "sha256": "367104901aa442c6de39376c780df5d07d533caddc497b768973218a95c78faf",
-  "bytes": 9788197,
+  "sha256": "cecfe29f51b02e451876380dacb8e53ae7a79ce4131a9c2c55127a01f299b3f2",
+  "bytes": 9337272,
   "qa": {
     "result": "passed",
     "dimensions": "1920x1080",
-    "meanVolumeDb": -19.9,
+    "meanVolumeDb": -20.0,
     "narrationClips": 13,
-    "duration": 97.66,
+    "duration": 97.49,
     "frames": [
       "review-1.png",
       "review-2.png",
@@ -61,7 +61,7 @@
     "fixtures": [],
     "outlook": null,
     "preview": false,
-    "videoSha256": "367104901aa442c6de39376c780df5d07d533caddc497b768973218a95c78faf"
+    "videoSha256": "cecfe29f51b02e451876380dacb8e53ae7a79ce4131a9c2c55127a01f299b3f2"
   },
   "allShots": [
     {
@@ -101,12 +101,12 @@
     },
     {
       "id": "delivery",
-      "meanVolumeDb": -18.3,
+      "meanVolumeDb": -19.4,
       "narrationWithinShot": true
     },
     {
       "id": "verification",
-      "meanVolumeDb": -19.0,
+      "meanVolumeDb": -19.1,
       "narrationWithinShot": true
     },
     {

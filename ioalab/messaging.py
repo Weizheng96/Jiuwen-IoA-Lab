@@ -152,7 +152,9 @@ class MessageCenter:
         row.pop('fingerprint',None);row.pop('idempotency_key',None)
         row.pop('lease',None)
         for side in ('sender','receiver'):
-            row[side+'Username']=(self.db.one('SELECT username FROM users WHERE id=?',row[side]) or {}).get('username','')
+            user=self.db.one('SELECT username,display_name FROM users WHERE id=?',row[side]) or {}
+            row[side+'Username']=user.get('username','')
+            row[side+'DisplayName']=user.get('display_name') or user.get('username','')
         return row
 
     def get(self,uid,mid,admin=False):

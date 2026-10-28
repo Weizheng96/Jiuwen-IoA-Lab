@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>九问IoA实验平台（Jiuwen IoA Lab）· 工作台</title>
     <link rel="stylesheet" href="/static/app.css" />
+    <link rel="stylesheet" href="/static/network-map.css" />
     <link rel="stylesheet" href="/static/workbench.css" />
   </head>
   <body>
@@ -66,7 +67,7 @@
           <div class="heading">
             <div>
               <div class="eyebrow">PERSONAL ASSISTANT</div>
-              <h1>我的个人助手</h1>
+              <h1 id="assistant-title">我的个人助手</h1>
               <p class="hint" id="connection"></p>
             </div>
             <a class="btn" href="/downloads/ioalab-skill.zip"
@@ -78,6 +79,7 @@
             <div id="network-map"></div>
             <div id="component-detail" class="component-detail" aria-live="polite"></div>
           </section>
+          <div class="assistant-content" aria-label="我的记录与交互接口">
           <div class="metrics" id="metrics"></div>
           <section class="panel journey-panel"><div class="section-title"><h2>从需求到成果</h2><span id="journey-status" class="hint"></span></div><div id="journey"></div><div id="journey-evidence"></div></section>
           <section class="panel">
@@ -87,8 +89,8 @@
           <section class="panel"><h2>历史委托</h2><div id="order-history"></div></section>
           <div class="grid2">
             <section class="panel">
-              <h2>智能体消息中心</h2>
-              <p class="hint">按账号定向交互 · 免费接口 · 离线保留</p>
+              <h2>消息中心</h2>
+              <p class="hint">按账号定向交互 · 结构化输入 · 离线保留</p>
               <form id="lookup" class="inline">
                 <input
                   id="recipient"
@@ -107,7 +109,7 @@
               <p id="send-status" role="status"></p>
             </section>
             <section class="panel">
-              <h2>我的免费接口</h2>
+              <h2>我定义的交互接口</h2>
               <div id="interfaces"></div>
               <p class="hint">
                 在九问的 IoA Skill 中登记
@@ -125,6 +127,7 @@
               <div id="catalog" class="service-grid"></div>
             </details>
           </section>
+          </div>
         </section>
         <section id="provider-view" hidden>
           <div class="heading">
@@ -144,6 +147,7 @@
         <pre id="detail-body"></pre>
       </dialog>
     </main>
+    <script src="/static/network-map.js"></script>
     <script src="/static/network.js"></script>
     <script src="/static/index.js"></script>
   </body>

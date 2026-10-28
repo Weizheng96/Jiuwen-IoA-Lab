@@ -36,8 +36,11 @@ def test_schema_acl_and_exact_lookup(platform,pair):
 
 def test_offline_cursor_ack_and_effect_once(platform,pair,tmp_path):
     users,(a,b,c)=pair
+    platform.db.run('UPDATE users SET display_name=? WHERE id=?','王经理',users[0]['id'])
     message=b.send(users[0]['username'],'message.forward',{'text':'offline'},idempotency_key='stable')
     assert message['state']=='queued'
+    assert message['receiverDisplayName']=='王经理'
+    assert message['receiverUsername']==users[0]['username']
     assert b.send(users[0]['username'],'message.forward',{'text':'offline'},idempotency_key='stable')['id']==message['id']
     with pytest.raises(ValueError): b.send(users[0]['username'],'message.forward',{'text':'changed'},idempotency_key='stable')
     # A UI read must not acknowledge or consume the inbox.

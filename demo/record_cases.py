@@ -20,6 +20,8 @@ def main():
     p.add_argument("--out", type=Path, required=True)
     a = p.parse_args()
     cfg = json.loads(a.config.read_text(encoding="utf-8"))
+    if cfg.get("scenario", a.case) != a.case:
+        raise ValueError("Use the independent participant stack for this scenario")
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     if cfg.get("fixtures"):
@@ -27,9 +29,13 @@ def main():
     from urllib.parse import urlsplit
 
     if any(urlsplit(cfg[k]).hostname != "127.0.0.1" for k in ("base", "provider")):
-        raise ValueError("This recording harness is limited to local simulation participants")
+        raise ValueError(
+            "This recording harness is limited to local simulation participants"
+        )
     b = cfg["accounts"]["b"]
-    box = MailboxClient(cfg["base"], b["username"], b["password"], Path(cfg["folder"]) / "client-b")
+    box = MailboxClient(
+        cfg["base"], b["username"], b["password"], Path(cfg["folder"]) / "client-b"
+    )
     health = box.http.get(cfg["provider"] + "/health").raise_for_status().json()
     assert health["execution"] == "swarm"
     proof = {
@@ -44,7 +50,11 @@ def main():
     html = (
         html.replace(
             "CASE_TITLE",
-            "美甲预约 · 合同委托" if a.case == "delegation" else "个人助手 · 留言与预约",
+            (
+                "美甲预约 · 合同委托"
+                if a.case == "delegation"
+                else "个人助手 · 留言与预约"
+            ),
         )
         .replace("NINE_URL", json.dumps(cfg["swarmWeb"] + "/?user_id=ioa-demo-b"))
         .replace("LAB_URL", json.dumps(cfg["base"]))
@@ -55,56 +65,6 @@ def main():
             pass
 
         def do_GET(self):
-            if self.path == "/schedule":
-                from html import escape
-                from ioalab_sdk.schedule import LocalSchedule
-
-                state = LocalSchedule(Path(cfg["folder"]) / "assistant-a/schedule.json").show()
-                doc = state["document"]
-                rules = doc["rules"]
-                events = "".join(
-                    "<tr><td>"
-                    + escape(e["title"])
-                    + "</td><td>"
-                    + escape(e["start"])
-                    + "</td><td>"
-                    + escape(e["end"])
-                    + "</td></tr>"
-                    for e in doc["events"]
-                )
-                raw = (
-                    '<!doctype html><meta charset="utf-8"><style>body{background:#0b1424;color:#d9f6f0;padding:48px;font:25px Microsoft YaHei}h1{font-size:42px;color:#9de9d5}table{width:100%;border-collapse:collapse;margin:38px 0}td,th{text-align:left;border-bottom:1px solid #315068;padding:24px 12px}small{color:#98b2c6;font-size:18px;word-break:break-all}section{background:#15283c;border:1px solid #3c6478;border-radius:18px;padding:24px}</style><h1 id="schedule">助手A · 本地时间安排</h1><p>实际读取助手本地文件 · 可通过SDK或编辑器更新</p><section>时区：'
-                    + escape(doc["timeZone"])
-                    + "<p>可预约日："
-                    + escape(
-                        "、".join(
-                            ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][i]
-                            for i in rules["weekdays"]
-                        )
-                    )
-                    + " · "
-                    + str(rules["startHour"])
-                    + ":00—"
-                    + str(rules["endHour"])
-                    + ":00</p><p>会议时长 "
-                    + str(rules["minMinutes"])
-                    + "—"
-                    + str(rules["maxMinutes"])
-                    + " 分钟 · 至少提前 "
-                    + str(rules["leadMinutes"])
-                    + " 分钟</p></section><table><tr><th>已有安排</th><th>开始</th><th>结束</th></tr>"
-                    + events
-                    + "</table><small>来源："
-                    + escape(state["path"])
-                    + "<br>修订："
-                    + escape(state["revision"])
-                    + "</small>"
-                ).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(raw)
-                return
             raw = html.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -113,7 +73,10 @@ def main():
 
     srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import (
+        sync_playwright,
+        TimeoutError as PlaywrightTimeoutError,
+    )
 
     def save():
         (out / "segments.json").write_text(
@@ -146,6 +109,10 @@ def main():
             lab.locator("#auth button[type=submit]").click()
             lab.locator("#workspace").wait_for(state="visible")
             nine.locator("[contenteditable=true]").last.wait_for(timeout=20000)
+            try:
+                nine.get_by_text("qwen-flash", exact=True).last.wait_for(timeout=8000)
+            except PlaywrightTimeoutError:
+                pass  # The previously selected model may already be the configured alias.
             if nine.get_by_text("qwen-flash", exact=True).count():
                 nine.get_by_text("qwen-flash", exact=True).last.click()
                 nine.get_by_text(cfg["swarmModelAlias"], exact=False).last.click()
@@ -153,11 +120,15 @@ def main():
             def shot(key, node=None, seconds=18):
                 if node:
                     lab.locator("[data-graph-node=" + node + "]").click()
-                    lab.locator(".ioa-network").evaluate('(e)=>e.scrollIntoView({block:"start"})')
+                    lab.locator(".ioa-network").evaluate(
+                        '(e)=>e.scrollIntoView({block:"start"})'
+                    )
                 start = time.monotonic() - capture
                 page.screenshot(path=str(out / (key + ".png")))
                 page.wait_for_timeout(seconds * 1000)
-                segments.append({"id": key, "start": round(start, 3), "duration": seconds})
+                segments.append(
+                    {"id": key, "start": round(start, 3), "duration": seconds}
+                )
                 save()
                 print("SHOT", key, flush=True)
 
@@ -182,7 +153,10 @@ def main():
                 if ident in seen:
                     return
                 if item["kind"] == "message":
-                    if not isinstance(item.get("text"), str) or not 1 <= len(item["text"]) <= 4000:
+                    if (
+                        not isinstance(item.get("text"), str)
+                        or not 1 <= len(item["text"]) <= 4000
+                    ):
                         raise ValueError("Invalid operator message")
                     send(item["text"])
                 elif item["kind"] != "snapshot":
@@ -193,7 +167,11 @@ def main():
                     nine.locator("body").inner_text(), encoding="utf-8"
                 )
                 proof.setdefault("operatorActions", []).append(
-                    {"id": ident, "kind": item["kind"], "at": round(time.monotonic() - capture, 3)}
+                    {
+                        "id": ident,
+                        "kind": item["kind"],
+                        "at": round(time.monotonic() - capture, 3),
+                    }
                 )
                 save()
 
@@ -237,12 +215,18 @@ def main():
                     + DELEGATION
                 )
                 shot("need", "assistant")
-                wait(lambda d: any(e["op"] == "discovery.search" for e in d["events"]), "discovery")
+                wait(
+                    lambda d: any(e["op"] == "discovery.search" for e in d["events"]),
+                    "discovery",
+                )
                 shot("discovery", "a2x")
                 proposed = wait(
                     lambda d: (
                         [o for o in d["orders"] if o["card_digest"] not in before]
-                        if len([o for o in d["orders"] if o["card_digest"] not in before]) >= 2
+                        if len(
+                            [o for o in d["orders"] if o["card_digest"] not in before]
+                        )
+                        >= 2
                         else None
                     ),
                     "quotes",
@@ -256,8 +240,12 @@ def main():
                     }
                     for o in proposed
                 ]
-                focus = next(o["card_digest"] for o in proposed if float(o["total"]) == 299)
-                lab.locator('[data-order="' + focus + '"]').first.wait_for(timeout=30000)
+                focus = next(
+                    o["card_digest"] for o in proposed if float(o["total"]) == 299
+                )
+                lab.locator('[data-order="' + focus + '"]').first.wait_for(
+                    timeout=30000
+                )
                 lab.locator('[data-order="' + focus + '"]').first.click()
                 lab.locator("#detail").evaluate("(e)=>e.close()")
                 proof["focusedCardDigest"] = focus
@@ -299,7 +287,8 @@ def main():
                         (
                             o
                             for o in d["orders"]
-                            if o["card_digest"] == cd and any(o["signatures"].get("5", []))
+                            if o["card_digest"] == cd
+                            and any(o["signatures"].get("5", []))
                         ),
                         None,
                     ),
@@ -308,7 +297,8 @@ def main():
                 shot("delivery", "contract")
                 wait(
                     lambda d: any(
-                        e["op"] == "order.verified" and e["card_digest"] == cd for e in d["events"]
+                        e["op"] == "order.verified" and e["card_digest"] == cd
+                        for e in d["events"]
                     ),
                     "verification",
                 )
@@ -327,7 +317,8 @@ def main():
                     "completion",
                 )
                 assert (
-                    completed["signatures"]["7"] == [True] and float(completed["paid"]) == 299
+                    completed["signatures"]["7"] == [True]
+                    and float(completed["paid"]) == 299
                 ), completed
                 proof["delegation"] = {
                     "state": completed["state"],
@@ -351,9 +342,12 @@ def main():
                 assert cd[:23] in lab.locator("#services").inner_text()
                 # The trusted local runner consumes the real fetched JSON, never executes provider code.
                 files = list(
-                    (Path(cfg["folder"]) / "client-b/deliveries" / cd.split(":")[-1] / "1").glob(
-                        "booking.json"
-                    )
+                    (
+                        Path(cfg["folder"])
+                        / "client-b/deliveries"
+                        / cd.split(":")[-1]
+                        / "1"
+                    ).glob("booking.json")
                 )
                 assert len(files) == 1
                 proof["deliveryFile"] = str(files[0])
@@ -375,7 +369,9 @@ def main():
                 db = out / "booking-demo.sqlite"
                 booking_config = json.loads(files[0].read_text(encoding="utf-8"))
                 thread = threading.Thread(
-                    target=runner.serve, args=(booking_config, db, tool_port), daemon=True
+                    target=runner.serve,
+                    args=(booking_config, db, tool_port),
+                    daemon=True,
                 )
                 thread.start()
                 page.locator("#right").evaluate("(e,url)=>e.src=url", tool_base)
@@ -391,11 +387,16 @@ def main():
                 page.wait_for_timeout(4500)
                 lab.get_by_role("button", name="取消预约").click()
                 page.wait_for_timeout(13500)
-                segments.append({"id": "tool", "start": round(start, 3), "duration": 18})
+                segments.append(
+                    {"id": "tool", "start": round(start, 3), "duration": 18}
+                )
                 proof["bookingDemo"] = (
                     box.http.get(tool_base + "/bookings").raise_for_status().json()
                 )
-                assert len(proof["bookingDemo"]) == 1 and proof["bookingDemo"][0]["cancelled"] == 1
+                assert (
+                    len(proof["bookingDemo"]) == 1
+                    and proof["bookingDemo"][0]["cancelled"] == 1
+                )
                 save()
                 print("SHOT tool", flush=True)
                 page.locator("#right").evaluate("(e,url)=>e.src=url", cfg["base"])
@@ -406,7 +407,9 @@ def main():
                 lab.locator("#auth button[type=submit]").click()
                 lab.locator("#workspace").wait_for(state="visible")
                 page.locator("body").evaluate('(e)=>e.classList.remove("full")')
-                page.locator("#rightlabel").evaluate('(e)=>e.textContent="我的个人助手"')
+                page.locator("#rightlabel").evaluate(
+                    '(e)=>e.textContent="我的个人助手"'
+                )
                 shot("close", "assistant")
             else:
                 from message_case import record

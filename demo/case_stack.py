@@ -24,7 +24,10 @@ def main():
     p.add_argument("--folder", type=Path, required=True)
     p.add_argument("--model-env", type=Path, required=True)
     p.add_argument("--notification-env", type=Path, required=True)
-    p.add_argument("--service-model", required=True, help="Process SDK model.list selection_key")
+    p.add_argument(
+        "--service-model", required=True, help="Process SDK model.list selection_key"
+    )
+    p.add_argument("--scenario", choices=("delegation", "messaging"), required=True)
     a = p.parse_args()
     folder = a.folder.resolve()
     folder.mkdir(parents=True, exist_ok=False)
@@ -34,8 +37,16 @@ def main():
     base = f"http://127.0.0.1:{cp}"
     provider = f"http://127.0.0.1:{pp}"
     accounts = {
-        "a": {"username": "ISC_001", "password": secrets.token_urlsafe(24)},
-        "b": {"username": "demo_b@huawei.com", "password": secrets.token_urlsafe(24)},
+        "a": {
+            "username": "wang.manager",
+            "display_name": "王经理",
+            "password": secrets.token_urlsafe(24),
+        },
+        "b": {
+            "username": "demo_b@huawei.com",
+            "display_name": "赵专员" if a.scenario == "messaging" else "小满店主",
+            "password": secrets.token_urlsafe(24),
+        },
         "outside": {"username": "outside_demo", "password": secrets.token_urlsafe(24)},
     }
     admin = secrets.token_urlsafe(24)
@@ -65,6 +76,7 @@ def main():
     }
     config = {
         "folder": str(folder),
+        "scenario": a.scenario,
         "base": base,
         "provider": provider,
         "accounts": accounts,
@@ -109,7 +121,7 @@ def main():
     try:
         core = launch("core", [sys.executable, "-m", "ioalab", "serve"], env)
         ready(base + "/api/config", core)
-        for key in ("b", "outside"):
+        for key in ("a", "b", "outside"):
             httpx.post(
                 base + "/api/auth/register", json=accounts[key], trust_env=False
             ).raise_for_status()
@@ -117,10 +129,16 @@ def main():
         with httpx.Client(base_url=base, trust_env=False) as http:
             http.post("/api/admin/login", json={"password": admin}).raise_for_status()
             users = http.get("/api/admin/users").raise_for_status().json()
-            uid = next(u["id"] for u in users if u["username"] == accounts["b"]["username"])
+            uid = next(
+                u["id"] for u in users if u["username"] == accounts["b"]["username"]
+            )
             http.post(
                 "/api/admin/wallet",
-                json={"user_id": uid, "delta": "1000", "note": "两段正式演示的虚拟体验额度"},
+                json={
+                    "user_id": uid,
+                    "delta": "1000",
+                    "note": "两段正式演示的虚拟体验额度",
+                },
             ).raise_for_status()
         services = launch(
             "providers",
@@ -133,7 +151,9 @@ def main():
             env,
         )
         ready(provider + "/health", services)
-        health = httpx.get(provider + "/health", trust_env=False).raise_for_status().json()
+        health = (
+            httpx.get(provider + "/health", trust_env=False).raise_for_status().json()
+        )
         assert health["execution"] == "swarm"
         schedule = LocalSchedule(folder / "assistant-a/schedule.json")
         state = schedule.init()
@@ -155,13 +175,13 @@ def main():
         schedule.replace(doc, state["revision"])
         config["appointments"] = {
             "busy": {
-                "title": "IoA协作交流",
+                "title": "预约王经理技术交流",
                 "start": start.isoformat(),
                 "end": (start + timedelta(minutes=30)).isoformat(),
                 "timeZone": "Asia/Shanghai",
             },
             "free": {
-                "title": "九问IoA协作演示 " + time.strftime("%H%M%S"),
+                "title": "九问IoA会议预约演示 " + time.strftime("%H%M%S"),
                 "start": free.isoformat(),
                 "end": (free + timedelta(minutes=30)).isoformat(),
                 "timeZone": "Asia/Shanghai",
@@ -183,7 +203,8 @@ def main():
         ) or notify.get("IOALAB_SWARM_BRIDGE_SECRET", "")
         receiver_file = folder / "assistant-a.env"
         receiver_file.write_text(
-            "\n".join(k + "=" + json.dumps(v) for k, v in receiver.items()) + "\n", encoding="utf-8"
+            "\n".join(k + "=" + json.dumps(v) for k, v in receiver.items()) + "\n",
+            encoding="utf-8",
         )
         receiver_proc = launch(
             "receiver",

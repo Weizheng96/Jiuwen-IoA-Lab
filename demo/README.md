@@ -48,9 +48,11 @@ python demo/script_documents.py
 | 用例 | 实际执行与镜头 |
 |---|---|
 | 美甲委托 | 用户九问→A2X→两份真实提案→比较报价和判据→确认合同→独立Swarm生产→本地WASM验收→再次确认→签7与模拟付款→服务方同单收入→交付配置预约/取消 |
-| 助手交互 | A的精确账号白名单与本地可编辑安排→B的九问查询inputSchema→留言→忙碌拒绝→改约→AgentMail邀请→收件人在真实Outlook接受并查看日历 |
+| 助手交互 | 王经理定义交互接口与账号范围→赵专员的九问查询inputSchema→留言→冲突回执→改约→邀请交王经理接受；真实Outlook接受与入历另行验收 |
 
 `case_story.py`是两段用例字幕与旁白的唯一源，`script_documents.py`维护画面操作并生成上表剧本。52px短字幕、较快旁白，A2C念“A to C”。按实测音频安排镜头，剪短等待时标明；工作台详情按钮聚焦同一合同。报价叠层明确为讲解，数字来自实际签名提案。
+
+两段用例的个人助手工作台固定上方网络，下方记录、接口与详情独立滚动。网络复用管理员组件目录；灰色匿名节点与短连接仅为本地背景示意，不请求其他账号的数据。本人活动依真实事件变化播放，不循环补造业务。接口区统一为“我定义的交互接口”，助手间交互不预设都是协作。使用录屏环境运行`python tools/check_workbench.py`复查布局、隐私请求、轮询展开保持和短线清除。
 
 前提：按[独立助手说明](../personal-assistant/README.md)安装锁定九问与通知扩展，确认Web和Process模型可用，构建技能包；录屏Python环境安装`demo/requirements.txt`并执行`python -m playwright install chromium`。
 
@@ -58,10 +60,11 @@ python demo/script_documents.py
 
 ```powershell
 python tools/build_connector.py
-python demo/case_stack.py --folder data/<新一轮> --model-env <九问本地模型env> --notification-env <通知env> --service-model <model.list的selection_key>
+python demo/case_stack.py --scenario delegation --folder data/<新委托参与方目录> --model-env <九问本地模型env> --notification-env <通知env> --service-model <model.list的selection_key>
 # 保持上方进程运行；另开终端，使用其生成的配置，不输出口令
-python demo/record_cases.py --config data/<新一轮>/run.json --case delegation --out recordings/<新委托录像目录>
-python demo/record_cases.py --config data/<新一轮>/run.json --case messaging --out recordings/<新交互录像目录>
+python demo/record_cases.py --config data/<新委托参与方目录>/run.json --case delegation --out recordings/<新委托录像目录>
+# 委托录制结束后另建 --scenario messaging 的独立参与方目录，再录交互片；两轮依次运行，避免覆盖本地技能配置
+python demo/record_cases.py --config data/<新交互参与方目录>/run.json --case messaging --out recordings/<新交互录像目录>
 ```
 
 `case_stack.py`关闭样例替身：服务由真实Swarm生产，独立A客户端读取本地日程并使用部署方真实通知邮箱。账号、密钥和配置只落本机忽略目录。启动不发信；消息用例改约会向配置收件人提交一封邀请。邮箱形式B账号只是平台账号字符串，不代表企业邮箱认证。
