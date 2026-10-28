@@ -82,7 +82,9 @@ def serve(config,database,port):
                 if not 0<length<=4096:raise ValueError('Invalid request size')
                 data=json.loads(self.rfile.read(length))
                 if self.path=='/book':result=bookings.book(**data)
-                elif self.path=='/cancel':result=bookings.cancel(**data)
+                elif self.path=='/cancel':
+                    if set(data)!={'id'}:raise ValueError('Invalid cancellation fields')
+                    result=bookings.cancel(data['id'])
                 else:self.reply(404,{'error':'Not found'});return
                 self.reply(200,result)
             except (ValueError,TypeError,KeyError):self.reply(400,{'error':'预约失败：格式、时段、容量或请求标识不符合规则'})

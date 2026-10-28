@@ -17,6 +17,22 @@ class SwarmEngine:
         if shutil.which(self.command[0]) is None:raise RuntimeError('Jiuwen process CLI is not installed; configure IOALAB_SWARM_COMMAND')
         result=subprocess.run([*self.command,'--help'],capture_output=True,text=True,encoding='utf-8',timeout=20,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         if result.returncode or '--run-jsonl' not in result.stdout:raise RuntimeError('Jiuwen process CLI must support --run-jsonl machine mode')
+        catalog=self.model_catalog()
+        keys={m.get('selection_key') for m in catalog.get('models',[]) if m.get('selection_key')}
+        selected=os.getenv('IOALAB_SERVICE_MODEL') or catalog.get('current_selection')
+        if not selected or selected not in keys:
+            raise RuntimeError('Configure IOALAB_SERVICE_MODEL with a model.list selection_key, not a Web model resource ID')
+
+    def model_catalog(self):
+        """Read local model choices before registering any service or accepting fees."""
+        async def query():
+            from jiuwenswarm_sdk import Client
+            client=Client(command=self.command,env={**os.environ,'PYTHONUTF8':'1'})
+            return await client.query('model.list',deadline_seconds=45)
+        try:result=asyncio.run(query())
+        except Exception as exc:raise RuntimeError('Jiuwen model catalog is unavailable: '+type(exc).__name__) from None
+        if result.get('status')!='completed':raise RuntimeError('Jiuwen model catalog query failed')
+        return result.get('data',{})
 
     def run(self,job,definition,workspace,url,token):
         from ioalab_sdk.provider_capability import ProviderJob
@@ -41,7 +57,14 @@ class SwarmEngine:
                 if name not in {t['name'] for t in tools}:raise ValueError('Tool is outside the current job capability')
                 operation=name.removeprefix('ioa_');body=arguments if operation=='quote' else arguments.get('data',{})
                 return await asyncio.to_thread(capability.call,operation,body)
-            try:return await client.run(request,on_tool_call=tool_call,cancel=cancel,deadline_seconds=330)
+            events=Path(workspace)/'swarm-events.jsonl'
+            async def event(record):
+                # Current-job tool traffic only; host capability tokens never enter records.
+                with events.open('a',encoding='utf-8') as stream:stream.write(json.dumps(record,ensure_ascii=False)+'\n')
+            try:
+                result=await client.run(request,on_event=event,on_tool_call=tool_call,cancel=cancel,deadline_seconds=330)
+                (Path(workspace)/'swarm-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+                return result
             finally:
                 with self.lock:self.runs.discard((loop,cancel))
         try:result=asyncio.run(execute())

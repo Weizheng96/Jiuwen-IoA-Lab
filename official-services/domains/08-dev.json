@@ -644,12 +644,26 @@
       "minimum": 1,
       "maximum": 10
      },
-     "services": {
-      "type": "string",
-      "maxLength": 1500
-     },
      "level": {
       "const": "basic"
+     },
+     "service1Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service1Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
+     },
+     "service2Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service2Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
      }
     }
    },
@@ -674,8 +688,11 @@
      "spec.booking.open",
      "spec.booking.close",
      "spec.booking.capacity",
-     "spec.booking.services",
-     "spec.booking.level"
+     "spec.booking.level",
+     "spec.booking.service1Name",
+     "spec.booking.service1Minutes",
+     "spec.booking.service2Name",
+     "spec.booking.service2Minutes"
     ],
     "script": "nail_booking.py"
    },
@@ -685,7 +702,7 @@
     "公网部署和身份认证"
    ],
    "generator": {
-    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services解析规格中的JSON数组；format固定ioalab.booking；allowCancel和idempotent均为true。仅使用ioa_selftest和ioa_deliver验证并交付，不生成可执行源码。",
+    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services数组固定两项，依序使用service1Name/service1Minutes与service2Name/service2Minutes，元素键为name与minutes，禁止改变合同名称或时长；format固定ioalab.booking；allowCancel和idempotent均为true。仅使用ioa_selftest和ioa_deliver验证并交付，不生成可执行源码。",
     "output": "{\"format\": \"ioalab.booking\", \"shop\": \"小满美甲店\", \"open\": 10, \"close\": 20, \"capacity\": 2, \"services\": [{\"name\": \"纯色美甲\", \"minutes\": 60}, {\"name\": \"延长甲\", \"minutes\": 90}], \"allowCancel\": true, \"idempotent\": true}",
     "quote_system": "本服务统一定价259虚拟币，仅输出JSON：{\"price\":259,\"summary\":\"5项配置判据的本地预约工具\"}。"
    },
@@ -713,7 +730,10 @@
     "open": 10,
     "close": 20,
     "capacity": 2,
-    "services": "[{\"name\":\"纯色美甲\",\"minutes\":60},{\"name\":\"延长甲\",\"minutes\":90}]"
+    "service1Name": "纯色美甲",
+    "service1Minutes": 60,
+    "service2Name": "延长甲",
+    "service2Minutes": 90
    }
   },
   {
@@ -754,12 +774,26 @@
       "minimum": 1,
       "maximum": 10
      },
-     "services": {
-      "type": "string",
-      "maxLength": 1500
-     },
      "level": {
       "const": "reliable"
+     },
+     "service1Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service1Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
+     },
+     "service2Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service2Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
      }
     }
    },
@@ -784,8 +818,11 @@
      "spec.booking.open",
      "spec.booking.close",
      "spec.booking.capacity",
-     "spec.booking.services",
-     "spec.booking.level"
+     "spec.booking.level",
+     "spec.booking.service1Name",
+     "spec.booking.service1Minutes",
+     "spec.booking.service2Name",
+     "spec.booking.service2Minutes"
     ],
     "script": "nail_booking.py"
    },
@@ -795,7 +832,7 @@
     "公网部署和身份认证"
    ],
    "generator": {
-    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services解析规格中的JSON数组；format固定ioalab.booking；allowCancel和idempotent均为true。仅使用ioa_selftest和ioa_deliver验证并交付，不生成可执行源码。",
+    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services数组固定两项，依序使用service1Name/service1Minutes与service2Name/service2Minutes，元素键为name与minutes，禁止改变合同名称或时长；format固定ioalab.booking；allowCancel和idempotent均为true。仅使用ioa_selftest和ioa_deliver验证并交付，不生成可执行源码。",
     "output": "{\"format\": \"ioalab.booking\", \"shop\": \"小满美甲店\", \"open\": 10, \"close\": 20, \"capacity\": 2, \"services\": [{\"name\": \"纯色美甲\", \"minutes\": 60}, {\"name\": \"延长甲\", \"minutes\": 90}], \"allowCancel\": true, \"idempotent\": true}",
     "quote_system": "本服务统一定价299虚拟币，仅输出JSON：{\"price\":299,\"summary\":\"10项配置判据的本地预约工具\"}。"
    },
@@ -823,7 +860,10 @@
     "open": 10,
     "close": 20,
     "capacity": 2,
-    "services": "[{\"name\":\"纯色美甲\",\"minutes\":60},{\"name\":\"延长甲\",\"minutes\":90}]"
+    "service1Name": "纯色美甲",
+    "service1Minutes": 60,
+    "service2Name": "延长甲",
+    "service2Minutes": 90
    }
   }
  ]

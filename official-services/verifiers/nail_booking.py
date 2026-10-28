@@ -11,7 +11,8 @@ def verify(ctx):
         test('营业时间一致',d.get('open')==s['spec.booking.open'] and d.get('close')==s['spec.booking.close'])
         test('容量为约定整数',type(d.get('capacity')) is int and d['capacity']==s['spec.booking.capacity'])
         services=d.get('services',[])
-        test('服务项目与时长一致',services==json.loads(s['spec.booking.services']))
+        expected=[{'name':s['spec.booking.service'+str(n)+'Name'],'minutes':s['spec.booking.service'+str(n)+'Minutes']} for n in (1,2)]
+        test('服务项目与时长一致',services==expected)
         test('本地配置格式',d.get('format')=='ioalab.booking' and len(services)>0)
         if s['spec.booking.level']=='reliable':
             test('支持取消释放名额',d.get('allowCancel') is True)

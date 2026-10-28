@@ -1,7 +1,7 @@
 ---
 name: ioalab-delegate
 description: 用本地IoA SDK发现服务、签约验收，并按账号与其他个人助手留言、预约会议；需要IoA委托或个人助手通信时使用。
-version: 0.0.12
+version: 0.0.15
 ---
 
 # IoA 合同委托
@@ -32,6 +32,8 @@ version: 0.0.12
 | 9 | 用户要停止则 `terminate {cd}`；已签7但未付且明确付款失败，确认后 `pay {cd,period}`；付款结果不明时不盲目重付 |
 
 `sign/request/adopt/start/accept/pay/answer-step/terminate/arbitrate` 必须先取得用户确认，再加 `--confirmed`。不能把该参数当成自动同意；SDK成功返回合同摘要、回执或凭证前，不宣称操作完成。`verify`结果不能用聊天判断替代；付款按合同金额，不另议价。预算超过授权时重新询问用户，不直接加大budget。
+
+用户已在本轮明确同意的对象、用途和金额范围内，直接将该授权通过`--confirmed`传给相应命令，不重复询问。若漏加该参数导致“User confirmation is required”，先检查已有授权；已有明确授权时补参数重试，新增对象/用途或超额仍需询问。提案型服务须实际执行`request --confirmed`取得返回的cardDigest与derived，不能把模板参考价或自然语言推荐说成已获得签名提案。用户要求暂不签约或暂不接受时，严格停在对应边界。
 
 `spec`按模板deliverables的name分组，例如模板交付件name为`table`，字段为medicines和days时，参数为`{"template_digest":"真实摘要","spec":{"table":{"medicines":["维生素C"],"days":7}},"budget":100}`。字段、值域和交付件name均以真实模板为准；不要把数组直接当作交付件对象。单交付件也保留这一层名称。
 

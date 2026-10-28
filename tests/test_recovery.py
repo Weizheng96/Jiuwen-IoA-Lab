@@ -96,7 +96,9 @@ def test_swarm_machine_mode_and_result_validation(tmp_path):
     from swarm import SwarmEngine
     fake=tmp_path/'fake_swarm.py'
     fake.write_text('import sys,json\nif "--help" in sys.argv: print("--run-json --run-jsonl")\nelse: print(json.dumps({"type":"result","status":"failed"}))\n')
-    engine=SwarmEngine([sys.executable,str(fake)]);engine.check()
+    engine=SwarmEngine([sys.executable,str(fake)])
+    engine.model_catalog=lambda:{'current_selection':'test#0','models':[{'selection_key':'test#0'}]}
+    engine.check()
     with pytest.raises(RuntimeError,match='failed'):
         engine.run({'id':'job'}, {},tmp_path,'http://localhost/task','test-token')
     fake.write_text('print("incompatible CLI")')

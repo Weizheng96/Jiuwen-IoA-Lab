@@ -9,7 +9,11 @@ def main():
     assert proof['screens']=='real browser pages' and not proof['browserErrors']
     if proof['case']=='global':assert proof['experiment']['completedOrders']>=4 and proof['experiment']['messages']>=4 and not proof['experiment']['errors']
     elif proof['case']=='delegation':assert proof['delegation']['state']=='completed' and proof['delegation']['signatures']['7']==[True]
-    else:assert proof['forward']['transport']=='jiuwen-web' and proof['meeting']['status']=='invite_submitted'
+    else:
+        assert proof['forward']['transport']=='jiuwen-web' and proof['meeting']['status']=='invite_submitted'
+        if proof.get('editedFromActualRaw'):
+            assert proof['accessControl']['directSendStatus']==403 and proof['busy']['reason']=='calendar_conflict'
+            if not proof.get('preview'):assert proof['outlook']['status']=='accepted_and_visible'
     result=subprocess.run([ff,'-hide_banner','-i',str(video),'-af','volumedetect','-f','null','-'],capture_output=True,text=True,encoding='utf-8',errors='replace',check=True)
     assert '1920x1080' in result.stderr and 'Audio:' in result.stderr
     mean=re.search(r'mean_volume: ([-\d.]+)',result.stderr);assert mean and float(mean[1])>-45,'Narration is absent or too quiet'
@@ -21,7 +25,7 @@ def main():
     for i,fraction in enumerate((.1,.5,.9)):
         frame=folder/f'review-{i+1}.png'
         subprocess.run([ff,'-hide_banner','-loglevel','error','-y','-ss',str(proof['duration']*fraction),'-i',str(video),'-frames:v','1',str(frame)],check=True);frames.append(frame.name)
-    qa={'result':'passed','dimensions':'1920x1080','meanVolumeDb':float(mean[1]),'narrationClips':len(voice),'duration':proof['duration'],'frames':frames,'fixtures':proof.get('fixtures',[])}
+    qa={'result':'preview-passed' if proof.get('preview') else 'passed','dimensions':'1920x1080','meanVolumeDb':float(mean[1]),'narrationClips':len(voice),'duration':proof['duration'],'frames':frames,'fixtures':proof.get('fixtures',[]),'outlook':proof.get('outlook'),'preview':proof.get('preview',False)}
     (folder/'qa.json').write_text(json.dumps(qa,ensure_ascii=False,indent=2),encoding='utf-8');print(json.dumps(qa,ensure_ascii=False))
 
 if __name__=='__main__':main()
