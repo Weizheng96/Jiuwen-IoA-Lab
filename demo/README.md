@@ -21,7 +21,7 @@ python demo/script_documents.py --check  # 核对剧本、镜头覆盖与已发�
 
 ## 全局视角
 
-`global_story.py`定义字幕与旁白，`global_web/`定义只读讲解地图。0—8按剧本隔离动画；9—10直接切入单一全屏真实管理员监控，旁白后延续网络活动；概念片与真实界面共用组件布局及短连接。上下线、授权和条件仲裁为机制示意；执行A2X分类树，ANN只介绍方案。实际统计和成片检查见[global.json](verification/global.json)。
+`global_story.py`定义字幕与旁白，`global_web/`定义只读讲解地图。0—8按剧本隔离动画，左侧用户与个人助手一一配对；9—10用户先虚化消失、助手重排，再柔焦渐变进入单一全屏真实管理员监控，旁白后延续网络活动。概念片与真实界面共用组件布局及短连接；真实界面没有讲解用户。上下线、授权和条件仲裁为机制示意；执行A2X分类树，ANN只介绍方案。实际统计和成片检查见[global.json](verification/global.json)。
 
 复用入库素材重制，无需模型或邮箱凭据：
 
@@ -31,7 +31,9 @@ python demo/record_global.py --source demo/assets/run/global --voice-timing demo
 
 重新采集时先执行`capture_global.py --model-env <本地模型env> --out data/<新目录> --seconds 150 --participants 36`；`global_story.py --prepare data/<新配音目录>`生成字幕，再按下文配音和录制。保持概念动画与实际数据分开标识，不修改A2C共用录制器。
 
-真实监控与概念地图共用`ioalab/web/static/network-map.js`和`network-map.css`。讲解段使用固定种子的有限随机计划，收发错峰、部分并发、传输结束撤除；真实监控仅响应实际事件，历史状态不产生常驻连线。灰色悬赏中心仅展示规划，没有业务接口和旁白。
+真实监控与概念地图共用`ioalab/web/static/network-map.js`和`network-map.css`。讲解段使用固定种子的有限随机计划，收发错峰、部分并发、传输结束撤除；真实监控仅响应实际事件，历史状态不产生常驻连线。身份中心、委托中心统一命名；灰色悬赏中心与意图中心仅展示规划，没有业务接口、交互或旁白。意图中心副标题为“用户权限白名单管理”。
+
+真实流量按实际绘制的委托/P2P传输接近各半调整，不以订单数直接对比消息数。独立实验客户端分散调用不同服务；原始订单、消息、绘制计数分别保留，未达目标与失败的录制不作为成片素材。
 
 ```powershell
 python tools/check_panorama.py  # 使用demo录制环境的Playwright；离线DOM及残影回归，不调用模型

@@ -194,6 +194,15 @@ def main():
             assert page.locator(".pn-svc").count() == len(run["services"]) >= 50
             assert page.locator("#pnEvents").count() == 0
             assert page.locator("#pnBounty").inner_text().startswith("悬赏中心")
+            assert page.locator("#pnIntent").inner_text().startswith("意图中心")
+            assert page.locator(".concept-user").count() == len(run["actors"])
+            assert page.locator(".assistant-pair").evaluate_all(
+                "nodes=>nodes.every(n=>n.querySelectorAll('.concept-user').length===1&&n.querySelectorAll('.pn-asst').length===1)"
+            )
+            assert (
+                page.locator("#pnIdentity .title").inner_text().startswith("身份中心")
+            )
+            assert page.locator("#pnMarket .title").inner_text().startswith("委托中心")
             widths = page.locator("#pn .pn-mid > .pn-infra").evaluate_all(
                 "(nodes)=>nodes.map(n=>n.getBoundingClientRect().width)"
             )
@@ -207,8 +216,51 @@ def main():
                 flush=True,
             )
             for shot in timeline:
+                if shot["id"] == "value":
+                    transition_at = shot["at"] + 0.65
+                    page.clock.fast_forward(
+                        max(1, round((transition_at - last) * 1000))
+                    )
+                    last = transition_at
+                    state = page.evaluate("window.frameInfo")
+                    assert 0 < state["transitionProgress"] < 1, state
+                    assert (
+                        float(
+                            page.locator(".concept-user").first.evaluate(
+                                "el=>getComputedStyle(el).opacity"
+                            )
+                        )
+                        < 0.5
+                    )
+                    assert "blur(" in page.locator(".concept-user").first.evaluate(
+                        "el=>getComputedStyle(el).filter"
+                    )
+                    assert (
+                        page.locator("#network").is_visible()
+                        and page.locator("#realMonitor").is_visible()
+                    )
+                    page.screenshot(path=str(out / "shot-transition.png"))
+                    checks.append({**state, "userFadeAndAssistantMorph": True})
+                    blend_at = shot["at"] + 1.25
+                    page.clock.fast_forward(max(1, round((blend_at - last) * 1000)))
+                    last = blend_at
+                    opacity = float(
+                        page.locator("#realMonitor").evaluate(
+                            "el=>getComputedStyle(el).opacity"
+                        )
+                    )
+                    assert 0 < opacity < 1, opacity
+                    assert (
+                        float(
+                            page.locator(".concept-user").first.evaluate(
+                                "el=>getComputedStyle(el).opacity"
+                            )
+                        )
+                        == 0
+                    )
+                    page.screenshot(path=str(out / "shot-transition-blend.png"))
                 point = shot["at"] + min(2, shot["hold"] / 2)
-                page.clock.run_for(max(1, round((point - last) * 1000)))
+                page.clock.fast_forward(max(1, round((point - last) * 1000)))
                 last = point
                 info = page.evaluate("window.frameInfo")
                 assert info["mode"] == shot["mode"], info
@@ -323,6 +375,19 @@ def main():
             "video": "demo/out/01-global.mp4",
             "sha256": hashlib.sha256((out / "demo.mp4").read_bytes()).hexdigest(),
         }
+        activity = run["proof"]["renderedTransmissions"]
+        share = activity["delegation"] / max(
+            1, activity["delegation"] + activity["p2p"]
+        )
+        assert 0.35 <= share <= 0.65, ("Unbalanced rendered activity", activity, share)
+        summary["monitor"].update(
+            {
+                "crossfadeSeconds": 1.6,
+                "usersFadeBeforeMonitor": True,
+                "assistantGeometryFromCapture": True,
+                "delegationTransmissionShare": round(share, 4),
+            }
+        )
         summary["persistentLabels"] = [
             "概念动画（讲解段）",
             "真实管理员监控（片尾）",

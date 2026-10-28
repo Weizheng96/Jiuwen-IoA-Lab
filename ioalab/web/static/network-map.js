@@ -2,11 +2,12 @@
 'use strict';
 window.NetworkMap = (() => {
   const components = [
-    ['pnIdentity','账号和公钥登记模块','智能体身份码','登记账号及参与方公钥；私钥留在参与方本机。'],
-    ['pnMarket','交易中心','智能体委托合同协议','发现服务，比较公开模板，以合同约定交付与验收。'],
+    ['pnIdentity','身份中心','智能体身份码','登记账号及参与方公钥；私钥留在参与方本机。'],
+    ['pnMarket','委托中心','智能体委托合同协议','发现服务，比较公开模板，以合同约定交付与验收。'],
     ['pnMessages','消息中心','个人助手交互协议','按账号定向投递免费结构化消息；离线保留，上线收取。'],
     ['pnPay','支付中心','智能体支付授权协议','按用户授权与合同验收依据记录虚拟币过账。'],
-    ['pnBounty','悬赏中心','建设中','可发布不指定对象的委托，由个人助手或专业服务主动接取。此处仅展示规划，尚无业务接口。']
+    ['pnBounty','悬赏中心','建设中','可发布不指定对象的委托，由个人助手或专业服务主动接取。此处仅展示规划，尚无业务接口。'],
+    ['pnIntent','意图中心','用户权限白名单管理','建设中；仅展示规划，当前不参与授权或消息处理。']
   ];
   const subs = [
     ['pnRegistry','A2X 注册中心','pnRegStat','分类树导航 · 服务发现'],
@@ -18,8 +19,8 @@ window.NetworkMap = (() => {
   ];
   function mount(root) {
     root.innerHTML = components.map(([id,title,protocol,description]) => {
-      const content = id==='pnMarket' ? '<div class="subs">'+subs.map(([key,name,stat,hint])=>`<button class="sub" id="${key}" type="button"><b>${name}</b><span id="${stat}">${hint}</span></button>`).join('')+'</div>' : `<span class="map-stat" id="${{pnIdentity:'pnIdentityStat',pnMessages:'pnMessageStat',pnPay:'pnPayStat',pnBounty:'pnBountyStat'}[id]}">${id==='pnBounty'?'面向全网发布 · 自主接取':description}</span>`;
-      return `<section class="pn-infra ${id==='pnBounty'?'construction':''}" id="${id}" tabindex="0" data-map-component><div class="title">${title}<small>${protocol}</small></div>${content}</section>`;
+      const content = id==='pnMarket' ? '<div class="subs">'+subs.map(([key,name,stat,hint])=>`<button class="sub" id="${key}" type="button"><b>${name}</b><span id="${stat}">${hint}</span></button>`).join('')+'</div>' : `<span class="map-stat" id="${{pnIdentity:'pnIdentityStat',pnMessages:'pnMessageStat',pnPay:'pnPayStat',pnBounty:'pnBountyStat',pnIntent:'pnIntentStat'}[id]}">${id==='pnBounty'?'面向全网发布 · 自主接取':description}</span>`;
+      return `<section class="pn-infra ${id==='pnBounty'||id==='pnIntent'?'construction':''}" id="${id}" tabindex="0" data-map-component><div class="title">${title}<small>${protocol}</small></div>${content}</section>`;
     }).join('')+'<aside id="mapInfo" hidden></aside>';
     let selected;
     function clear() { root.querySelectorAll('.component-focus').forEach(n=>n.classList.remove('component-focus'));root.closest('.pn').classList.remove('component-selected');root.querySelector('#mapInfo').hidden=true;selected=null; }
@@ -45,5 +46,6 @@ window.NetworkMap = (() => {
     return {group,paint(progress){if(progress>=1){group.remove();return;}const at=path.getPointAtLength(length*Math.max(0,progress));dot.setAttribute('cx',at.x);dot.setAttribute('cy',at.y);text.setAttribute('x',at.x+7);text.setAttribute('y',at.y-8);path.setAttribute('opacity',String(.42*(1-progress)));},remove(){group.remove();}};
   }
   function random(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t^=t+Math.imul(t^t>>>7,61|t);return((t^t>>>14)>>>0)/4294967296;};}
-  return {mount,flow,random,components,subs};
+  const messageNames={'meeting.request':'预约会议','safety.checkin':'报平安','repair.request':'预约维修','meal.invitation':'吃饭邀请','travel.update':'行程同步','document.share':'资料交流'};
+  return {mount,flow,random,components,subs,messageLabel:name=>messageNames[name]||name};
 })();

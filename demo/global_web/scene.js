@@ -5,7 +5,8 @@ const ids={identity:'pnIdentity',registry:'pnRegistry',templates:'pnTemplates',c
 const chapters=['平台介绍','个人助手接入','登录赠币','专业服务登记','用户需求与授权','服务发现','合同与履约','支付与信誉','助手间交互','探索智能体经济','对内验证 · 对外体验'];
 const terms=['翻译品牌介绍','写朋友圈文案','给宝宝起名','润色简历','写正则','排杭州两日行程'];
 const kinds=['预约会议','报平安','预约维修','吃饭邀请','行程同步','资料交流'];
-let data,timeline,current=-1,shot,origin=performance.now(),plan=[],active=new Map();
+let data,timeline,current=-1,shot,origin=performance.now(),plan=[],active=new Map(),transitionNodes=[];
+const TRANSITION_SECONDS=1.6;
 const colors={join:'#89e0d2',credit:'#f3d17a',provider:'#8bb8f2',needs:'#9ce5b9',authorization:'#9ce5b9',discovery:'#baa2f0',delivery:'#8ab3ef',acceptance:'#87dec4',payment:'#f3d17a',reputation:'#c3a9f4',messages:'#8bdedb'};
 function detail(mode){
  let html='';
@@ -49,7 +50,14 @@ function enter(index){
  document.querySelectorAll('.lit,.dim,.component-focus').forEach(n=>n.classList.remove('lit','dim','component-focus'));
  document.querySelectorAll('#pn .pn-infra').forEach(n=>n.classList.toggle('dim',shot.stage<9&&!(shot.focus||[]).some(key=>n.id===ids[key]||n.contains($(ids[key])))));
  $('cover').style.display=shot.mode==='cover'?'flex':'none';$('chapter').textContent=String(shot.stage).padStart(2,'0')+'  '+chapters[shot.stage];$('caption').textContent=shot.text;
- const live=shot.stage>=9;$('network').style.display=live?'none':'block';$('realMonitor').style.display=live?'block':'none';$('badge').textContent='概念动画 · 样例服务 · 虚拟币';
+ const live=shot.stage>=9;$('network').style.display='block';$('realMonitor').style.display=live?'block':'none';$('badge').textContent='概念动画 · 样例服务 · 虚拟币';
+ if(live&&!transitionNodes.length){
+  transitionNodes=data.actors.map((actor,i)=>{
+   const element=$('a'+i),from=element.getBoundingClientRect(),agent=actor.agents.find(a=>a.role==='assistant');
+   const to=data.layout.assistants.find(a=>a.id===agent.id);if(!to)throw Error('Missing real assistant geometry');
+   return {element,from:{x:from.x,y:from.y,width:from.width,height:from.height},to};
+  });
+ }
  document.body.classList.toggle('monitor-only',live&&shot.mode==='tail');
  $('callout').style.display='none';
  const labels={authorization:'用户授权机制示意 · 预算上限＋可委托类别',acceptance:'个人助手通过本地SDK执行WASM验收',credit:'每次登录赠送100虚拟币',meeting:'多种结构化消息 · 异步发送与收取'};
@@ -79,17 +87,31 @@ function paint(now){
  if(shot.mode==='methods'){
   $('cursor').style.display=dt<1.1?'block':'none';const r=$('pnRegistry').getBoundingClientRect();$('cursor').style.left=r.x+r.width/2+'px';$('cursor').style.top=r.y+r.height/2+'px';if(dt>=.8&&$('detail').style.display==='none')detail('methods');
  }else $('cursor').style.display='none';
- if(live){const start=timeline.find(s=>s.stage>=9).at,frame=Math.min(window.monitorFrames-1,Math.floor((t-start)*window.monitorRate*window.monitorFps));$('monitor').src='monitor/'+String(Math.max(0,frame)).padStart(4,'0')+'.jpg';}
+ let transitionProgress=0;
+ if(live){
+  const start=timeline.find(s=>s.stage>=9).at,frame=Math.min(window.monitorFrames-1,Math.floor((t-start)*window.monitorRate*window.monitorFps));
+  $('monitor').src='monitor/'+String(Math.max(0,frame)).padStart(4,'0')+'.jpg';
+  transitionProgress=Math.min(1,Math.max(0,(t-start)/TRANSITION_SECONDS));
+  const move=Math.min(1,transitionProgress/.65),smooth=move*move*(3-2*move);
+  const blend=Math.max(0,Math.min(1,(transitionProgress-.55)/.45)),fade=blend*blend*(3-2*blend);
+  document.querySelectorAll('.concept-user').forEach(el=>{el.style.opacity=String(Math.max(0,1-transitionProgress*1.8));el.style.filter='blur('+(transitionProgress*12)+'px)';});
+  transitionNodes.forEach(({element,from,to})=>{element.style.transform=`translate(${(to.x-from.x)*smooth}px,${(to.y-from.y)*smooth}px) scale(${1+(to.width/from.width-1)*smooth},${1+(to.height/from.height-1)*smooth})`;element.style.opacity=String(1-.65*Math.sin(Math.PI*move));element.style.filter='blur('+(2.5*Math.sin(Math.PI*move))+'px)';});
+  $('network').style.opacity=String(1-fade);$('network').style.filter='blur('+(fade*8)+'px)';$('realMonitor').style.opacity=String(fade);$('network').style.display=transitionProgress>=1?'none':'block';
+  document.querySelector('header').style.opacity=String(Math.max(0,1-transitionProgress*2));$('chapter').style.opacity=String(Math.max(0,1-transitionProgress*2));
+ }
+ window.transitionProgress=transitionProgress;
  $('progress').style.width=Math.min(1920,t/window.totalSeconds*1920)+'px';
- window.frameInfo={stage:shot.stage,mode:shot.mode,families:[...families],subtitle:shot.text,cover:shot.mode==='cover',monitor:live,activeFlows:active.size,plannedEvents:plan.length};
+ window.frameInfo={stage:shot.stage,mode:shot.mode,families:[...families],subtitle:shot.text,cover:shot.mode==='cover',monitor:live,transitionProgress,activeFlows:active.size,plannedEvents:plan.length};
  requestAnimationFrame(paint);
 }
 Promise.all([fetch('public-run.json').then(r=>r.json()),fetch('timeline.json').then(r=>r.json())]).then(([d,sc])=>{
  data=d;d.services.sort((a,b)=>String(a.category||'').localeCompare(String(b.category||''))||String(a.name).localeCompare(String(b.name)));timeline=sc.shots;window.totalSeconds=sc.duration;window.monitorFrames=sc.monitorFrames;window.monitorFps=sc.monitorFps;window.monitorRate=sc.monitorRate;
  NetworkMap.mount(document.querySelector('#pn .pn-mid'));
  d.actors.forEach((actor,i)=>{
+  const pair=document.createElement('div');pair.className='assistant-pair';pair.dataset.pair=String(i);
+  const user=document.createElement('article');user.id='a'+i+'user';user.className='concept-user';user.innerHTML='<b>用户 '+String(i+1).padStart(2,'0')+'</b><small>需求 · 授权</small>';
   const el=document.createElement('article');el.id='a'+i;el.className='pn-asst offline';
-  el.innerHTML='<span class="ava" id="a'+i+'user">用户</span><div class="name"><b>个人助手 '+String(i+1).padStart(2,'0')+'</b></div><span class="state">未登录</span><span class="wallet"></span>';$('pnAsstList').append(el);
+  el.innerHTML='<span class="ava">九问</span><div class="name"><b>个人助手 '+String(i+1).padStart(2,'0')+'</b></div><span class="state">未登录</span><span class="wallet"></span>';pair.append(user,el);$('pnAsstList').append(pair);
  });
  const groups=new Map();
  d.services.forEach((service,i)=>{

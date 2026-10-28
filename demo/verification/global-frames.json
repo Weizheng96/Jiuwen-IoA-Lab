@@ -1,5 +1,5 @@
 {
-  "sha256": "949dc32a789222dbbb221edda7d4a395a3e06f9f5146dce143098a05ba89b2be",
+  "sha256": "9c6f1cc704bb2a4570c168772f6c5b7c3fa94dba81f99db85d6940485ac292b5",
   "frames": [
     "demo\\assets\\run\\global\\review\\intro.jpg",
     "demo\\assets\\run\\global\\review\\join.jpg",
@@ -23,5 +23,12 @@
     "demo\\assets\\run\\global\\review\\external.jpg"
   ],
   "contact": "demo\\assets\\run\\global\\review\\contact.jpg",
-  "realCaptureLoop": "demo/全局视角/播放.html"
+  "realCaptureLoop": "demo/全局视角/播放.html",
+  "transitionFrames": [
+    "demo/assets/run/global/review/transition-before.jpg",
+    "demo/assets/run/global/review/transition-users-fade.jpg",
+    "demo/assets/run/global/review/transition-blend.jpg",
+    "demo/assets/run/global/review/transition-after.jpg"
+  ],
+  "transitionContact": "demo/assets/run/global/review/transition.jpg"
 }

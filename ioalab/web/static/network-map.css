@@ -26,3 +26,11 @@ body.trial #mainView.trial-grid{display:block}body.trial #view-stream,body.trial
 @media(max-width:1500px){.pn,.trial .pn{grid-template-columns:minmax(270px,1fr) minmax(430px,1.4fr) minmax(250px,.9fr);gap:15px}.pn .pn-list{grid-template-columns:repeat(2,minmax(0,1fr))}.pn .pn-infra .title small{font-size:12px;margin-left:8px}}
 
 .pn [data-map-component]:focus:not(:focus-visible){outline:none}
+.pn .pn-mid{gap:9px}
+.pn .pn-infra{padding:10px 15px}
+.pn .sub,.trial .pn-mid .sub{min-height:59px;padding:8px 11px}
+.pn .sub b,.trial .pn-mid .sub b{font-size:18px;margin-bottom:4px}
+.pn .map-stat{margin-top:4px;font-size:12px}
+.pn .pn-infra.construction{background:#1a2028;border:1px dashed #59616c;filter:grayscale(1);opacity:.65}
+.pn .pn-infra.construction .title,.pn .pn-infra.construction small{color:#909aa6}
+.pn #pnIntent .map-stat{font-size:11px}

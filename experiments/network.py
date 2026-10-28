@@ -43,7 +43,14 @@ class NetworkTraffic:
             "regex-snippet",
             "trip-plan",
             "brand-story",
+            "med-reminder",
+            "contract-risks",
+            "mistake-explain",
+            "product-page",
+            "translate-en-zh",
+            "packing-list",
         ]
+        self.service_locks = {name: threading.Lock() for name in self.services}
         run = secrets.token_hex(3)
         for i in range(count):
             account = {
@@ -106,7 +113,7 @@ class NetworkTraffic:
             d for d in definitions() if d["id"] == self.services[i % len(self.services)]
         )
         url = self.config["provider"] + "/a2a/providers/svc-" + definition["id"]
-        next_send = time.monotonic() + rng.uniform(0.05, 8)
+        next_send = time.monotonic() + rng.uniform(2, 18)
         next_receive = time.monotonic() + rng.uniform(0.1, 3)
         next_order = time.monotonic() + rng.uniform(4, 38)
         orders = 0
@@ -132,14 +139,18 @@ class NetworkTraffic:
                             "at": time.time(),
                         }
                     )
-                    next_send = time.monotonic() + rng.uniform(2, 7)
+                    next_send = time.monotonic() + rng.uniform(50, 75)
                 if now >= next_receive:
                     box.sync()
                     box.process(lambda m: {"status": "received", "experiment": True})
                     next_receive = time.monotonic() + rng.uniform(0.5, 3.5)
-                if i < 6 and orders < 3 and now >= next_order:
-                    client.search(definition["name"], 8)
-                    result = run_order(client, definition, url)
+                if i < 12 and orders < 3 and now >= next_order:
+                    with self.service_locks[definition["id"]]:
+                        if self.stop.is_set():
+                            break
+                        client.search(definition["name"], 8)
+                        result = run_order(client, definition, url)
+                        self.stop.wait(1)
                     if result["status"] != "accepted":
                         raise RuntimeError(
                             "Experiment contract did not pass acceptance"

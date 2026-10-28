@@ -133,16 +133,25 @@
     "encodedChecksBoundToMediaSha256": "passed for current delegation and messaging preview"
   },
   "globalRevision": {
-    "filmSha256": "949dc32a789222dbbb221edda7d4a395a3e06f9f5146dce143098a05ba89b2be",
-    "duration": 164.11,
+    "filmSha256": "9c6f1cc704bb2a4570c168772f6c5b7c3fa94dba81f99db85d6940485ac292b5",
+    "duration": 163.54,
     "participants": 36,
     "services": 50,
-    "orders": 18,
-    "messages": 1148,
-    "uiRegression": "passed: equal widths, component click/Esc, hidden observer, contract-specific concurrent routing, closed history without lines, send/receive separation, zero SVG residue",
-    "player": "passed: one visible video, end switches to full-screen monitor, muted loop, return to film, rapid switching",
+    "activeServices": 12,
+    "orders": 36,
+    "messages": 107,
+    "renderedTransmissions": {
+      "delegation": 180,
+      "p2p": 212,
+      "other": 1
+    },
+    "delegationTransmissionShare": 0.4592,
+    "userAssistantPairs": 36,
+    "transition": "passed: users fade/blur, assistant geometry interpolation, soft crossfade, one full-screen real monitor",
+    "uiRegression": "passed: six equal-width components, intent placeholder, real monitor has no explanatory user, click/Esc, contract-specific routing, historical delayed callbacks and zero residue",
+    "player": "passed: single full-screen capture loop and automatic end switch",
     "encodedFrames": "global-frames.json",
     "finiteEvents": "global-scene-checks.json",
-    "sourceMonitorSha256": "85a5074cfe8f1977e8a0752dee155b061ebdda98ccc220746734ca5740eaf821"
+    "sourceMonitorSha256": "d4b79b636201e8e6cc3ff68e67e7baced5f2705f88815e861ed49fca6fe55118"
   }
 }

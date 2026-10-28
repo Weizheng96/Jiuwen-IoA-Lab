@@ -126,6 +126,40 @@ def main():
         str((frames / (c["id"] + ".jpg")).relative_to(ROOT)).replace("\\", "/")
         for c in cues
     ]
+    value = next(c for c in cues if c["id"] == "value")
+    transition_files = []
+    transition_strip = Image.new("RGB", (1920, 270), "#0a1424")
+    for i, (name, offset) in enumerate(
+        (("before", -0.15), ("users-fade", 0.65), ("blend", 1.25), ("after", 1.8))
+    ):
+        image = frames / ("transition-" + name + ".jpg")
+        subprocess.run(
+            [
+                ff,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-ss",
+                str(value["at"] + offset),
+                "-i",
+                str(movie),
+                "-frames:v",
+                "1",
+                "-q:v",
+                "3",
+                str(image),
+            ],
+            check=True,
+        )
+        transition_files.append(str(image.relative_to(ROOT)).replace("\\", "/"))
+        with Image.open(image) as img:
+            transition_strip.paste(img.resize((480, 270)), (i * 480, 0))
+    transition_strip.save(frames / "transition.jpg", quality=90)
+    proof["qa"]["reviewFrames"].extend(transition_files)
+    proof["qa"]["transitionReview"] = str(
+        (frames / "transition.jpg").relative_to(ROOT)
+    ).replace("\\", "/")
     proof["qa"]["reviewedFromFinalEncoding"] = True
     proof["monitor"]["sourceClipSha256"] = hashlib.sha256(
         (dest / "monitor.mp4").read_bytes()
@@ -144,6 +178,8 @@ def main():
             ],
             "contact": str((frames / "contact.jpg").relative_to(ROOT)),
             "realCaptureLoop": "demo/全局视角/播放.html",
+            "transitionFrames": transition_files,
+            "transitionContact": proof["qa"]["transitionReview"],
         },
     )
     print(

@@ -46,8 +46,15 @@ def main():
             widths = page.locator("#pn .pn-mid > .pn-infra").evaluate_all(
                 "(nodes)=>nodes.map(n=>n.getBoundingClientRect().width)"
             )
-            assert len(widths) == 5 and max(widths) - min(widths) < 1, widths
+            assert len(widths) == 6 and max(widths) - min(widths) < 1, widths
             assert page.locator("#pnEvents").count() == 0
+            assert (
+                page.locator(".concept-user").count() == 0
+            ), "User roles belong only to the explanatory scene"
+            assert "用户权限白名单管理" in page.locator("#pnIntent").inner_text()
+            assert page.locator("#pnIntent").evaluate(
+                "e=>e.classList.contains('construction')"
+            )
             page.locator("#pnIdentity").click()
             assert page.locator("#pnIdentity").evaluate(
                 '(el)=>el.classList.contains("component-focus")'
@@ -60,10 +67,17 @@ def main():
             assert (
                 page.locator("#pnWires > *").count() == 0
             ), "Closed history must never create a persistent connection"
-            page.evaluate("cases.byCard['sha256:second']={assistant:'assistant-b',provider:'service'};Panorama.apply({seq:1,op:'delivery.anchor',sender:'service',receiver:'market',cardDigest:'sha256:second',detail:{}})")
-            assert page.evaluate("Panorama.N.asst['assistant-b'].state")=="收到存证通知"
-            assert page.evaluate("Panorama.N.asst['assistant-a'].state")=="已结清 ✓",'Concurrent orders must be routed by card, not the first matching service'
-            page.clock.run_for(2000);page.evaluate('Panorama.tick(Clock.now())')
+            page.evaluate(
+                "cases.byCard['sha256:second']={assistant:'assistant-b',provider:'service'};Panorama.apply({seq:1,op:'delivery.anchor',sender:'service',receiver:'market',cardDigest:'sha256:second',detail:{}})"
+            )
+            assert (
+                page.evaluate("Panorama.N.asst['assistant-b'].state") == "收到存证通知"
+            )
+            assert (
+                page.evaluate("Panorama.N.asst['assistant-a'].state") == "已结清 ✓"
+            ), "Concurrent orders must be routed by card, not the first matching service"
+            page.clock.run_for(2000)
+            page.evaluate("Panorama.tick(Clock.now())")
             page.evaluate(
                 "Panorama.apply({seq:1,kind:'message',op:'message.queued',sender:'assistant-a',receiver:'assistant-b',detail:{messageId:'one',interface:'safety.checkin'}})"
             )
@@ -86,6 +100,14 @@ def main():
             assert (
                 page.locator("#pnWires > *").count() == 0
             ), "Completed transmission must leave no SVG remnants"
+            page.evaluate(
+                "Panorama.init(USERS,REGISTRY,[{id:'test',name:'Test'}],{baseSeq:100});Panorama.apply({seq:50,op:'discovery.search',sender:'assistant-a',detail:{ids:['service']}})"
+            )
+            page.clock.run_for(1200)
+            page.evaluate("Panorama.tick(Clock.now())")
+            assert (
+                page.locator("#pnWires > *").count() == 0
+            ), "Historical callbacks must not animate after restoration"
             assert not errors, errors
             browser.close()
         print(

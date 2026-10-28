@@ -1,5 +1,5 @@
 /**
- * 全景：实时拓扑——左 账号与个人助手 · 中 交易中心（注册中心 · 合同模板公示 · 存证与签名 · 信誉日志与仲裁）与支付中心 · 右 服务方按领域成块。
+ * 全景：实时拓扑——左 账号与个人助手 · 中 委托中心（注册中心 · 合同模板公示 · 存证与签名 · 信誉日志与仲裁）与支付中心 · 右 服务方按领域成块。
  * 节点来自 /api/admin/users 与 /api/admin/registry，事件（WebSocket 或回放）画成节点状态变化与节点间脉冲。
  * 版面是普通 DOM 流式布局，SVG 覆盖层按元素实时坐标画线；动效按 Clock.now() 逐帧算（common.js），由 admin.js 的 loop 调 Panorama.tick。
  * 点任一助手 / 服务方 → Focus.set(账号)：同账号的节点与事件高亮，其余变淡（common.js Focus）。
@@ -12,12 +12,17 @@ const Panorama = (() => {
   const N = { asst: {}, svc: {}, byUser: {} };
   const Stat = { asst: 0, svc: 0, signed: 0, transfers: 0, volume: 0, completed: 0, arbitrated: 0, endorsed: 0, sig3: 0, sig5: 0, declined: 0, searches: 0 };
   const Anims = [], Timers = [];
+  const flowStats={delegation:0,p2p:0,other:0};let eventFamily='other';
   let baseSeq = 0, replay = false, ready = false, touched = [], pendingCredit = {}, quiet = false;   // quiet：历史事件只改状态不画脉冲
   let serverStats=null;
   const observedMessages=new Set(), anchoredCards=new Set();
 
   function anim(dur, fn, done) { Anims.push({ start: Clock.now(), dur, fn, done }); }
-  function later(ms, fn) { Timers.push({ at: Clock.now() + ms, fn }); }
+  function later(ms, fn) {
+    if(quiet){fn();return;}
+    const family=eventFamily;
+    Timers.push({at:Clock.now()+ms,fn:()=>{const previous=eventFamily;eventFamily=family;try{fn();}finally{eventFamily=previous;}}});
+  }
   function flash(el, cls, ms) { if (!el || quiet) return; el.classList.add(cls); later(ms || 900, () => el.classList.remove(cls)); }
   function fade(el, dur) { el.style.opacity = 0; anim(dur || 420, p => { el.style.opacity = ease(p); }); }
   function touch(el) { if (el) touched.push({ el, at: Clock.now() }); }
@@ -93,6 +98,7 @@ const Panorama = (() => {
     if (quiet) return;
     const ea = nodeEl(a), eb = nodeEl(b);
     if (!ea || !eb || ea === eb) return;
+    flowStats[eventFamily]++;
     const drawing=NetworkMap.flow($('pnWires'),ea,eb,label,color);
     if(accts){drawing.group.dataset.accts=accts.join(' ');if(Focus.acct&&!accts.includes(Focus.acct))drawing.group.classList.add('dim');}
     const duration=Math.min(600,Math.max(260,(dur||800)*.55));
@@ -111,6 +117,7 @@ const Panorama = (() => {
       const p1 = center(node.el);
       const l = document.createElementNS(SVG_NS, 'line'); l.setAttribute('class', 'hitline');
       l.setAttribute('x1', p0.x); l.setAttribute('y1', p0.y); l.setAttribute('x2', p1.x); l.setAttribute('y2', p1.y);
+      flowStats.delegation++;
       $('pnWires').appendChild(l);
       anim(450, p => l.setAttribute('opacity', p < 0.15 ? p / 0.15 : 1 - (p - 0.15) / 0.85), () => l.remove());
     });
@@ -121,6 +128,7 @@ const Panorama = (() => {
   function apply(ev) {
     if (!ready) return;
     const op = ev.op, s = Names.key(ev.sender), r = Names.key(ev.receiver), d = ev.detail || {};
+    eventFamily=op.startsWith('message.')?'p2p':(ev.cardDigest||/^(discovery|template|order|request|card|work|delivery|anchor|ap2|transfer|arbitration)[.]/.test(op)||op==='transfer')?'delegation':'other';
     const money_ = replay || (ev.seq || 0) > baseSeq;            // 实时模式下初始余量已含历史事件，只对新事件记钱
     quiet = !money_;                                               // 历史事件：只恢复状态，不画脉冲、不闪
     const cardCase=ev.cardDigest&&cases.byCard[ev.cardDigest];
@@ -132,8 +140,8 @@ const Panorama = (() => {
     if(ev.kind==='message'&&d.messageId)observedMessages.add(d.messageId);
     const accts = Focus.accountsOf(ev);
     switch (op) {
-      case 'message.queued': { const from=nodeEl(s);if(from)pulse(from,$('pnMessages'),d.interface||'发送消息',COLORS.agent,650,accts);break; }
-      case 'message.processing': { const to=nodeEl(r);if(to)pulse($('pnMessages'),to,'收取 · '+(d.interface||''),COLORS.agent,650,accts);break; }
+      case 'message.queued': { const from=nodeEl(s);if(from)pulse(from,$('pnMessages'),NetworkMap.messageLabel(d.interface)||'发送消息',COLORS.agent,650,accts);break; }
+      case 'message.processing': { const to=nodeEl(r);if(to)pulse($('pnMessages'),to,'收取 · '+NetworkMap.messageLabel(d.interface||''),COLORS.agent,650,accts);break; }
       case 'user.register': break;
       case 'assistant.register': if (!N.asst[r]) { const u = (USERS || []).find(x => x.id === s); if (u) mkAssistant({ id: r, name: ev.outcome }, u); } break;
       case 'service.register': {
@@ -208,7 +216,7 @@ const Panorama = (() => {
       case 'confirm.answer': { const aid = N.byUser[s]; if (aid) pulse(N.asst[aid].el.querySelector('.ava'), N.asst[aid].el.querySelector('.state'), ev.outcome === 'granted' ? '允许' : '拒绝', COLORS.user, 500, accts); break; }
       default: break;
     }
-    quiet = false;
+    quiet = false;eventFamily='other';
     renderCounters();
   }
   function renderCounters() {
@@ -233,6 +241,7 @@ const Panorama = (() => {
   function init(users, registry, categories, opts) {
     opts = opts || {};
     observedMessages.clear();anchoredCards.clear();serverStats=null;
+    Object.keys(flowStats).forEach(key=>flowStats[key]=0);
     replay = !!opts.replay; baseSeq = opts.baseSeq || 0; ready = false;
     ['pnAsstList', 'pnBlocks', 'pnWires'].forEach(id => { $(id).innerHTML = ''; });
     Object.keys(N.asst).forEach(k => delete N.asst[k]); Object.keys(N.svc).forEach(k => delete N.svc[k]); Object.keys(N.byUser).forEach(k => delete N.byUser[k]);
@@ -280,5 +289,5 @@ const Panorama = (() => {
   function focus(acct) {
     document.querySelectorAll('#pnWires .pls').forEach(g => g.setAttribute('class', 'pls' + (acct && !(g.dataset.accts || '').split(' ').includes(acct) ? ' dim' : '')));
   }
-  return { init, apply, tick, restore, focus, N, Stat, setStats(s){serverStats=s;renderCounters();} };
+  return { init, apply, tick, restore, focus, N, Stat, flowStats, setStats(s){serverStats=s;renderCounters();} };
 })();

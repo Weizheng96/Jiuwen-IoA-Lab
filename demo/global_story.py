@@ -36,7 +36,7 @@ SHOTS = [
         id="provider",
         stage=3,
         text="注册专业智能体，公开接取委托",
-        voice="也可以把自己开发的专业智能体，向交易中心注册为公开接取委托的服务方，获得虚拟货币委托金。",
+        voice="也可以把自己开发的专业智能体，向委托中心注册为公开接取委托的服务方，获得虚拟货币委托金。",
         focus=["registry", "templates"],
         mode="provider",
     ),

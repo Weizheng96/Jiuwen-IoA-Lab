@@ -108,6 +108,12 @@ def main():
             "regex-snippet",
             "trip-plan",
             "brand-story",
+            "med-reminder",
+            "contract-risks",
+            "mistake-explain",
+            "product-page",
+            "translate-en-zh",
+            "packing-list",
         ]
         service = launch(
             "providers",
@@ -173,6 +179,10 @@ def main():
             page.evaluate("Panorama.restore(cases.list)")
             residual = page.locator("#pnWires > *").count()
             assert residual == 0, ("Completed traffic left SVG remnants", residual)
+            flow_stats = page.evaluate("Panorama.flowStats")
+            node_layout = page.locator("#pnAsstList .pn-asst").evaluate_all(
+                "nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return {id:n.dataset.id,x:r.x,y:r.y,width:r.width,height:r.height};})"
+            )
             ui_proof = {
                 "sharedLayout": True,
                 "equalComponentWidths": widths,
@@ -222,6 +232,7 @@ def main():
         safe = {
             "monitorTrim": round(monitor_trim, 3),
             "actors": actors,
+            "layout": {"assistants": node_layout},
             "services": [
                 {
                     k: s.get(k)
@@ -241,6 +252,7 @@ def main():
                 "errors": result["errors"],
                 "browserErrors": errors,
                 "ui": ui_proof,
+                "renderedTransmissions": flow_stats,
                 "messageKinds": sorted(
                     set(
                         r["interface"]

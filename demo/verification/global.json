@@ -6,9 +6,9 @@
   "narrationReference": "AgentContractProtocol/demo/智能体互联网/scenario/{story,script}.py + web/map.js + tools/record.py",
   "experiment": {
     "participants": 36,
-    "a2xTreeSearches": 18,
-    "orders": 18,
-    "messages": 1148,
+    "a2xTreeSearches": 36,
+    "orders": 36,
+    "messages": 107,
     "errors": [],
     "browserErrors": [],
     "ui": {
@@ -18,11 +18,17 @@
         673.765625,
         673.765625,
         673.765625,
+        673.765625,
         673.765625
       ],
       "componentClickAndEscape": true,
       "residualWiresAfterIdle": 0,
       "hiddenObserver": true
+    },
+    "renderedTransmissions": {
+      "delegation": 180,
+      "p2p": 212,
+      "other": 1
     },
     "messageKinds": [
       "document.share",
@@ -38,8 +44,8 @@
   "qa": {
     "result": "passed",
     "dimensions": "1920x1080",
-    "duration": 164.11,
-    "meanVolumeDb": -20.4,
+    "duration": 163.54,
+    "meanVolumeDb": -20.5,
     "narrationClips": 20,
     "phaseIsolation": true,
     "reviewFrames": [
@@ -62,7 +68,11 @@
       "demo/assets/run/global/review/meeting.jpg",
       "demo/assets/run/global/review/value.jpg",
       "demo/assets/run/global/review/internal.jpg",
-      "demo/assets/run/global/review/external.jpg"
+      "demo/assets/run/global/review/external.jpg",
+      "demo/assets/run/global/review/transition-before.jpg",
+      "demo/assets/run/global/review/transition-users-fade.jpg",
+      "demo/assets/run/global/review/transition-blend.jpg",
+      "demo/assets/run/global/review/transition-after.jpg"
     ],
     "finiteRandomEvents": true,
     "fastFlowSeconds": [
@@ -72,6 +82,7 @@
     "equalComponentWidths": true,
     "zeroIdleWireResidue": true,
     "singleFullScreenMonitor": true,
+    "transitionReview": "demo/assets/run/global/review/transition.jpg",
     "reviewedFromFinalEncoding": true
   },
   "subtitles": {
@@ -96,10 +107,14 @@
     "fullScreenOnly": true,
     "tailSeconds": 20,
     "sharedLayout": true,
-    "sourceClipSha256": "85a5074cfe8f1977e8a0752dee155b061ebdda98ccc220746734ca5740eaf821"
+    "crossfadeSeconds": 1.6,
+    "usersFadeBeforeMonitor": true,
+    "assistantGeometryFromCapture": true,
+    "delegationTransmissionShare": 0.4592,
+    "sourceClipSha256": "d4b79b636201e8e6cc3ff68e67e7baced5f2705f88815e861ed49fca6fe55118"
   },
   "video": "demo/out/01-global.mp4",
-  "sha256": "949dc32a789222dbbb221edda7d4a395a3e06f9f5146dce143098a05ba89b2be",
+  "sha256": "9c6f1cc704bb2a4570c168772f6c5b7c3fa94dba81f99db85d6940485ac292b5",
   "persistentLabels": [
     "概念动画（讲解段）",
     "真实管理员监控（片尾）",
