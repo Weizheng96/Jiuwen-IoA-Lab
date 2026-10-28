@@ -63,6 +63,9 @@ def main():
         shutil.copyfile(ROOT / "ioalab/web/static" / name, web / name)
     run = json.loads((a.source / "public-run.json").read_text(encoding="utf-8"))
     assert not run["proof"]["errors"] and run["proof"]["a2xTreeSearches"] > 0
+    assert (
+        run["proof"].get("mixedActivity", {}).get("passed")
+    ), "Real monitor must contain mixed delegation/P2P in every time window"
     shutil.copyfile(a.source / "public-run.json", web / "public-run.json")
     spec = importlib.util.spec_from_file_location(
         "a2c_video_record", a.render_helper.resolve()
@@ -86,6 +89,8 @@ def main():
                 str(run.get("monitorTrim", 6)),
                 "-i",
                 str(monitor),
+                "-t",
+                str(run["proof"]["monitorSeconds"]),
                 "-vf",
                 "fps=12,scale=1920:1080",
                 "-q:v",
@@ -375,7 +380,7 @@ def main():
             "video": "demo/out/01-global.mp4",
             "sha256": hashlib.sha256((out / "demo.mp4").read_bytes()).hexdigest(),
         }
-        activity = run["proof"]["renderedTransmissions"]
+        activity = run["proof"]["mixedActivity"]["renderedTransmissions"]
         share = activity["delegation"] / max(
             1, activity["delegation"] + activity["p2p"]
         )
@@ -386,6 +391,7 @@ def main():
                 "usersFadeBeforeMonitor": True,
                 "assistantGeometryFromCapture": True,
                 "delegationTransmissionShare": round(share, 4),
+                "mixedActivity": run["proof"]["mixedActivity"],
             }
         )
         summary["persistentLabels"] = [

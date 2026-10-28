@@ -1,7 +1,7 @@
 {
   "date": "2026-10-28",
   "pytest": {
-    "passed": 100,
+    "passed": 103,
     "failed": 0
   },
   "selfcheck": "passed: versions, screenplays/movie hashes, documentation links, service definitions, three-process smoke, A2C wheel, runtime boundary, wording and signed evidence",
@@ -12,7 +12,7 @@
     "passed": 3,
     "source": "script_documents.py --check"
   },
-  "encodedReviews": "passed: all 13 delegation shots and 9 messaging preview shots; final SHA256 and narration windows checked",
+  "encodedReviews": "passed: 20 global shots and 4 transition frames; existing 13 delegation and 9 messaging preview shots remain unchanged; media SHA256 and narration windows verified",
   "a2cSkillChecks": {
     "skillValidation": "passed",
     "demoSelfchecks": {
@@ -34,5 +34,13 @@
     "Messaging preview ends with a real invitation awaiting owner acceptance; current Outlook acceptance/calendar footage remains unavailable.",
     "Earlier user-confirmed Outlook acceptance establishes transport compatibility, not acceptance of this recording invitation.",
     "Linux deployment has config/syntax checks but no real-server acceptance."
-  ]
+  ],
+  "globalMixedActivity": {
+    "result": "passed",
+    "source": "global.json#experiment.mixedActivity",
+    "mixedWindows": 15,
+    "totalWindows": 15,
+    "sampleIntervalSeconds": 0.2,
+    "sameShortIntervalCoactivity": 30
+  }
 }

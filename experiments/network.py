@@ -99,24 +99,24 @@ class NetworkTraffic:
                         },
                     },
                 )
-            thread = threading.Thread(
-                target=self.run, args=(i, client, box), daemon=True
-            )
-            self.threads.append(thread)
-            thread.start()
+            # Message I/O must continue while a separate worker waits on A2X or a contract.
+            jobs = [(self.run_messages, (i, box))]
+            if i < len(self.services):
+                jobs.append((self.run_orders, (i, client)))
+            else:
+                client.close()
+            for target, args in jobs:
+                thread = threading.Thread(target=target, args=args, daemon=True)
+                self.threads.append(thread)
+                thread.start()
         self.ready.set()
 
-    def run(self, i, client, box):
+    def run_messages(self, i, box):
         self.ready.wait()
         rng = random.Random(secrets.randbits(64))
-        definition = next(
-            d for d in definitions() if d["id"] == self.services[i % len(self.services)]
-        )
-        url = self.config["provider"] + "/a2a/providers/svc-" + definition["id"]
-        next_send = time.monotonic() + rng.uniform(2, 18)
+        # Spread initial traffic over the whole recurrence interval, not one opening burst.
+        next_send = time.monotonic() + rng.uniform(0.5, 65)
         next_receive = time.monotonic() + rng.uniform(0.1, 3)
-        next_order = time.monotonic() + rng.uniform(4, 38)
-        orders = 0
         try:
             while not self.stop.wait(0.18):
                 now = time.monotonic()
@@ -144,35 +144,55 @@ class NetworkTraffic:
                     box.sync()
                     box.process(lambda m: {"status": "received", "experiment": True})
                     next_receive = time.monotonic() + rng.uniform(0.5, 3.5)
-                if i < 12 and orders < 3 and now >= next_order:
-                    with self.service_locks[definition["id"]]:
-                        if self.stop.is_set():
-                            break
-                        client.search(definition["name"], 8)
-                        result = run_order(client, definition, url)
-                        self.stop.wait(1)
-                    if result["status"] != "accepted":
-                        raise RuntimeError(
-                            "Experiment contract did not pass acceptance"
-                        )
-                    orders += 1
-                    self.records.append(
-                        {
-                            "kind": "order",
-                            "actor": i,
-                            "at": time.time(),
-                            "service": definition["id"],
-                            "formation": definition.get("formation", "preapproval"),
-                            **result,
-                        }
-                    )
-                    next_order = time.monotonic() + rng.uniform(25, 45)
         except Exception as exc:
             self.errors.append(
                 {"actor": i, "error": type(exc).__name__, "detail": str(exc)[:300]}
             )
         finally:
             box.close()
+
+    def run_orders(self, i, client):
+        self.ready.wait()
+        rng = random.Random(secrets.randbits(64))
+        definition = next(
+            d for d in definitions() if d["id"] == self.services[i % len(self.services)]
+        )
+        url = self.config["provider"] + "/a2a/providers/svc-" + definition["id"]
+        try:
+            if self.stop.wait(rng.uniform(1, 30)):
+                return
+            while not self.stop.is_set():
+                with self.service_locks[definition["id"]]:
+                    if self.stop.is_set():
+                        break
+                    started = time.time()
+                    client.search(definition["name"], 8)
+                    result = run_order(client, definition, url)
+                if result["status"] != "accepted":
+                    raise RuntimeError("Experiment contract did not pass acceptance")
+                self.records.append(
+                    {
+                        "kind": "order",
+                        "actor": i,
+                        "started": started,
+                        "at": time.time(),
+                        "service": definition["id"],
+                        "formation": definition.get("formation", "preapproval"),
+                        **result,
+                    }
+                )
+                if self.stop.wait(rng.uniform(25, 45)):
+                    break
+        except Exception as exc:
+            self.errors.append(
+                {
+                    "actor": i,
+                    "worker": "order",
+                    "error": type(exc).__name__,
+                    "detail": str(exc)[:300],
+                }
+            )
+        finally:
             client.close()
 
     def close(self):

@@ -6,9 +6,9 @@
   "narrationReference": "AgentContractProtocol/demo/智能体互联网/scenario/{story,script}.py + web/map.js + tools/record.py",
   "experiment": {
     "participants": 36,
-    "a2xTreeSearches": 36,
-    "orders": 36,
-    "messages": 107,
+    "a2xTreeSearches": 48,
+    "orders": 48,
+    "messages": 93,
     "errors": [],
     "browserErrors": [],
     "ui": {
@@ -26,9 +26,128 @@
       "hiddenObserver": true
     },
     "renderedTransmissions": {
-      "delegation": 180,
-      "p2p": 212,
+      "delegation": 240,
+      "p2p": 186,
       "other": 1
+    },
+    "mixedActivity": {
+      "windowSeconds": 10,
+      "windows": [
+        {
+          "start": 0,
+          "end": 10,
+          "delegation": 20,
+          "p2p": 8,
+          "mixed": true
+        },
+        {
+          "start": 10,
+          "end": 20,
+          "delegation": 16,
+          "p2p": 15,
+          "mixed": true
+        },
+        {
+          "start": 20,
+          "end": 30,
+          "delegation": 4,
+          "p2p": 15,
+          "mixed": true
+        },
+        {
+          "start": 30,
+          "end": 40,
+          "delegation": 11,
+          "p2p": 17,
+          "mixed": true
+        },
+        {
+          "start": 40,
+          "end": 50,
+          "delegation": 25,
+          "p2p": 7,
+          "mixed": true
+        },
+        {
+          "start": 50,
+          "end": 60,
+          "delegation": 14,
+          "p2p": 9,
+          "mixed": true
+        },
+        {
+          "start": 60,
+          "end": 70,
+          "delegation": 15,
+          "p2p": 11,
+          "mixed": true
+        },
+        {
+          "start": 70,
+          "end": 80,
+          "delegation": 11,
+          "p2p": 15,
+          "mixed": true
+        },
+        {
+          "start": 80,
+          "end": 90,
+          "delegation": 9,
+          "p2p": 3,
+          "mixed": true
+        },
+        {
+          "start": 90,
+          "end": 100,
+          "delegation": 20,
+          "p2p": 21,
+          "mixed": true
+        },
+        {
+          "start": 100,
+          "end": 110,
+          "delegation": 11,
+          "p2p": 15,
+          "mixed": true
+        },
+        {
+          "start": 110,
+          "end": 120,
+          "delegation": 22,
+          "p2p": 7,
+          "mixed": true
+        },
+        {
+          "start": 120,
+          "end": 130,
+          "delegation": 12,
+          "p2p": 10,
+          "mixed": true
+        },
+        {
+          "start": 130,
+          "end": 140,
+          "delegation": 5,
+          "p2p": 5,
+          "mixed": true
+        },
+        {
+          "start": 140,
+          "end": 150,
+          "delegation": 20,
+          "p2p": 13,
+          "mixed": true
+        }
+      ],
+      "mixedWindows": 15,
+      "totalWindows": 15,
+      "mixedShare": 1.0,
+      "renderedTransmissions": {
+        "delegation": 215,
+        "p2p": 171
+      },
+      "delegationShare": 0.5569948186528497,
+      "passed": true
     },
     "messageKinds": [
       "document.share",
@@ -110,11 +229,130 @@
     "crossfadeSeconds": 1.6,
     "usersFadeBeforeMonitor": true,
     "assistantGeometryFromCapture": true,
-    "delegationTransmissionShare": 0.4592,
-    "sourceClipSha256": "d4b79b636201e8e6cc3ff68e67e7baced5f2705f88815e861ed49fca6fe55118"
+    "delegationTransmissionShare": 0.557,
+    "mixedActivity": {
+      "windowSeconds": 10,
+      "windows": [
+        {
+          "start": 0,
+          "end": 10,
+          "delegation": 20,
+          "p2p": 8,
+          "mixed": true
+        },
+        {
+          "start": 10,
+          "end": 20,
+          "delegation": 16,
+          "p2p": 15,
+          "mixed": true
+        },
+        {
+          "start": 20,
+          "end": 30,
+          "delegation": 4,
+          "p2p": 15,
+          "mixed": true
+        },
+        {
+          "start": 30,
+          "end": 40,
+          "delegation": 11,
+          "p2p": 17,
+          "mixed": true
+        },
+        {
+          "start": 40,
+          "end": 50,
+          "delegation": 25,
+          "p2p": 7,
+          "mixed": true
+        },
+        {
+          "start": 50,
+          "end": 60,
+          "delegation": 14,
+          "p2p": 9,
+          "mixed": true
+        },
+        {
+          "start": 60,
+          "end": 70,
+          "delegation": 15,
+          "p2p": 11,
+          "mixed": true
+        },
+        {
+          "start": 70,
+          "end": 80,
+          "delegation": 11,
+          "p2p": 15,
+          "mixed": true
+        },
+        {
+          "start": 80,
+          "end": 90,
+          "delegation": 9,
+          "p2p": 3,
+          "mixed": true
+        },
+        {
+          "start": 90,
+          "end": 100,
+          "delegation": 20,
+          "p2p": 21,
+          "mixed": true
+        },
+        {
+          "start": 100,
+          "end": 110,
+          "delegation": 11,
+          "p2p": 15,
+          "mixed": true
+        },
+        {
+          "start": 110,
+          "end": 120,
+          "delegation": 22,
+          "p2p": 7,
+          "mixed": true
+        },
+        {
+          "start": 120,
+          "end": 130,
+          "delegation": 12,
+          "p2p": 10,
+          "mixed": true
+        },
+        {
+          "start": 130,
+          "end": 140,
+          "delegation": 5,
+          "p2p": 5,
+          "mixed": true
+        },
+        {
+          "start": 140,
+          "end": 150,
+          "delegation": 20,
+          "p2p": 13,
+          "mixed": true
+        }
+      ],
+      "mixedWindows": 15,
+      "totalWindows": 15,
+      "mixedShare": 1.0,
+      "renderedTransmissions": {
+        "delegation": 215,
+        "p2p": 171
+      },
+      "delegationShare": 0.5569948186528497,
+      "passed": true
+    },
+    "sourceClipSha256": "61dc8e28e9b804e55889133c716b890408eacd75b1b430987383f0b041eb406a"
   },
   "video": "demo/out/01-global.mp4",
-  "sha256": "9c6f1cc704bb2a4570c168772f6c5b7c3fa94dba81f99db85d6940485ac292b5",
+  "sha256": "3fc5af746e2139f9450913f8c02729687b9e70dd334a964424ad2f8cff2f0d05",
   "persistentLabels": [
     "概念动画（讲解段）",
     "真实管理员监控（片尾）",

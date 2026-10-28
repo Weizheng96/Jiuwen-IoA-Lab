@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "deploy"), str(ROOT / "experiments")]
 from configure_assistant import read_env
 from network import NetworkTraffic
+from mixed_activity import summarize
 
 
 def main():
@@ -165,14 +166,43 @@ def main():
                 "Recording current admin UI with independent clients and actual A2X model search",
                 flush=True,
             )
+            # Warm up genuine discovery/contract and P2P together, without replaying history.
+            warmup = time.monotonic()
+            while True:
+                counts = page.evaluate("({...Panorama.flowStats})")
+                if (
+                    counts["delegation"] > 0
+                    and counts["p2p"] > 0
+                    and sum(r["kind"] == "order" for r in traffic.records) >= 4
+                ):
+                    break
+                if time.monotonic() - warmup > 90:
+                    raise TimeoutError("Both traffic families did not start")
+                page.wait_for_timeout(200)
             start = time.monotonic()
             monitor_trim = start - video_origin
-            for i in range(a.seconds):
-                page.wait_for_timeout(1000)
-                if i in (15, 45, 80):
-                    page.screenshot(path=str(folder / f"monitor-{i}.png"))
-                if i % 20 == 0:
-                    print("Monitor elapsed", i, "s", flush=True)
+            activity = [{"at": 0, **counts}]
+            next_log = 0
+            while time.monotonic() - start < a.seconds:
+                page.wait_for_timeout(200)
+                activity.append(
+                    {
+                        "at": round(time.monotonic() - start, 3),
+                        **page.evaluate("({...Panorama.flowStats})"),
+                    }
+                )
+                if activity[-1]["at"] >= next_log:
+                    print("Monitor elapsed", round(activity[-1]["at"]), "s", flush=True)
+                    next_log += 20
+            mixed = summarize(activity)
+            (folder / "mixed-activity.json").write_text(
+                json.dumps(
+                    {"samples": activity, "summary": mixed},
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
             result = traffic.close()
             traffic = None
             page.wait_for_timeout(5000)
@@ -253,6 +283,7 @@ def main():
                 "browserErrors": errors,
                 "ui": ui_proof,
                 "renderedTransmissions": flow_stats,
+                "mixedActivity": mixed,
                 "messageKinds": sorted(
                     set(
                         r["interface"]
@@ -268,7 +299,10 @@ def main():
             json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         assert (
-            not errors and not result["errors"] and safe["proof"]["orders"] >= 6
+            not errors
+            and not result["errors"]
+            and safe["proof"]["orders"] >= 6
+            and mixed["passed"]
         ), safe["proof"]
         print(json.dumps(safe["proof"], ensure_ascii=False), flush=True)
     finally:

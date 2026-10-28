@@ -35,6 +35,8 @@ python demo/record_global.py --source demo/assets/run/global --voice-timing demo
 
 真实流量按实际绘制的委托/P2P传输接近各半调整，不以订单数直接对比消息数。独立实验客户端分散调用不同服务；原始订单、消息、绘制计数分别保留，未达目标与失败的录制不作为成片素材。
 
+委托与消息各用独立工作线程持续运行，搜索或履约等待不会暂停收发；首次消息也铺开到完整周期，避免开头集中一波。录制前等待真实混合流量稳定，再按管理员实际绘制计数定时采样；每个完整十秒窗口必须同时包含两类传输。`public-run.json`内`proof.mixedActivity`保存逐窗结果，剪辑与发布均拒绝时段分离的素材。片尾与循环播放页使用同一份合格实录。
+
 ```powershell
 python tools/check_panorama.py  # 使用demo录制环境的Playwright；离线DOM及残影回归，不调用模型
 python demo/publish_global.py --recording recordings/<已检查全局片> --source data/<本轮真实运行>

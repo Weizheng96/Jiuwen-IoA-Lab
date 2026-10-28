@@ -41,6 +41,11 @@ def main():
     )
     import imageio_ffmpeg
 
+    require(
+        run["proof"].get("mixedActivity", {}).get("passed"),
+        "Real capture must mix delegation and P2P in every complete time window",
+    )
+
     ff = imageio_ffmpeg.get_ffmpeg_exe()
     dest = ROOT / "demo/assets/run/global"
     dest.mkdir(parents=True, exist_ok=True)
