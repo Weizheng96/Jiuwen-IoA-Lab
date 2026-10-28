@@ -4,9 +4,22 @@
 
 成片入口见根[演示视频](../README.md#演示视频)，当前进展与未验收项集中在[验证记录](verification/README.md)。原始配置和录像在本机忽略目录，不提交为公开验收摘要。
 
+| Demo | 剧本 | 当前视频 |
+|---|---|---|
+| 全局视角 | [剧本.md](全局视角/剧本.md) | [正式片](out/01-global.mp4) |
+| 美甲委托 | [剧本.md](美甲委托/剧本.md) | [正式片](out/02-delegation.mp4) |
+| 助手交互 | [剧本.md](助手交互/剧本.md) | [预览，Outlook镜头待补录](out/03-messaging-preview.mp4) |
+
+```powershell
+python demo/script_documents.py          # 生成全部场景的剧本.md
+python demo/script_documents.py --check  # 核对剧本、镜头覆盖与已发布视频哈希
+```
+
+剧本由场景源、配音时间轴、画面操作说明和脱敏证据共同生成，不手改。预览未包含的Outlook镜头仍保留为待补录计划，不编造片中时间。原散放剧本与重复镜头方案已移至[历史备份](../历史备份/README.md)。
+
 ## 全局视角
 
-`global_story.py`生成[全局剧本](全局剧本.md)，`global_web/`定义只读讲解地图。0—8按剧本隔离动画；9—10播放加速概念全景并穿插4倍真实管理员监控。上下线、授权和条件仲裁为机制示意；执行A2X分类树，ANN只介绍方案。实际统计和成片检查见[global.json](verification/global.json)。
+`global_story.py`定义字幕与旁白，`global_web/`定义只读讲解地图。0—8按剧本隔离动画；9—10播放加速概念全景并穿插4倍真实管理员监控。上下线、授权和条件仲裁为机制示意；执行A2X分类树，ANN只介绍方案。实际统计和成片检查见[global.json](verification/global.json)。
 
 复用入库素材重制，无需模型或邮箱凭据：
 
@@ -23,7 +36,7 @@ python demo/record_global.py --source demo/assets/run/global --voice-timing demo
 | 美甲委托 | 用户九问→A2X→两份真实提案→比较报价和判据→确认合同→独立Swarm生产→本地WASM验收→再次确认→签7与模拟付款→服务方同单收入→交付配置预约/取消 |
 | 助手交互 | A的精确账号白名单与本地可编辑安排→B的九问查询inputSchema→留言→忙碌拒绝→改约→AgentMail邀请→收件人在真实Outlook接受并查看日历 |
 
-`case_story.py`是[委托剧本](委托剧本.md)、[交互剧本](交互剧本.md)的唯一源。52px短字幕、较快旁白，A2C念“A to C”。按实测音频安排镜头，剪短等待时标明；工作台详情按钮聚焦同一合同。报价叠层明确为讲解，数字来自实际签名提案。
+`case_story.py`是两段用例字幕与旁白的唯一源，`script_documents.py`维护画面操作并生成上表剧本。52px短字幕、较快旁白，A2C念“A to C”。按实测音频安排镜头，剪短等待时标明；工作台详情按钮聚焦同一合同。报价叠层明确为讲解，数字来自实际签名提案。
 
 前提：按[独立助手说明](../personal-assistant/README.md)安装锁定九问与通知扩展，确认Web和Process模型可用，构建技能包；录屏Python环境安装`demo/requirements.txt`并执行`python -m playwright install chromium`。
 
@@ -51,6 +64,19 @@ python demo/review_cases.py --recording recordings/<本轮>
 ```
 
 交互配音将case改为`messaging`。全景配音使用同一`build_voice.py`参数后，把voice.json传回`record_global.py`。`edit_cases.py`调用`assemble.py`和`check_recording.py`；`review_cases.py`核对每个编码镜头及配音窗口。输出包含剪辑清单、SRT、配音索引、证据、检查与MP4。
+
+`qa.json`与`shot-review.json`均记录实际视频的SHA256；发布前必须同时匹配当前视频。影片重新合成后须重新运行这两项检查，不能沿用旧结果。
+
+| 工具 | 单一职责 |
+|---|---|
+| `global_story.py` / `case_story.py` | 场景字幕与旁白；准备配音输入，不读凭据 |
+| `script_documents.py` | 生成逐场景剧本，核对已发布素材 |
+| `case_stack.py` | 准备本轮独立参与方环境，配置仅保留本地 |
+| `record_cases.py` / `message_case.py` | 记录真实界面、实际调用及分镜时间点 |
+| `artifacts.py` | 共用文件读写、目录边界与真实用例证据判定 |
+| `edit_cases.py` / `assemble.py` | 按实测配音裁切、标识等待剪辑与讲解叠层、合成 |
+| `check_recording.py` / `review_cases.py` | 业务准入、最终编码及逐镜头声画检查 |
+| `publish_cases.py` | 仅发布已核对成片、配音、抽帧和脱敏摘要 |
 
 完整交互片须加入本轮真实Outlook接受及日历画面，剪辑清单记录独立source与时间原点。证据`outlook.status=accepted_and_visible`只能在实际界面核验后填写；不得以邀请受理、旧邀请或模型文字代替。缺此镜头时只能传`--preview`：省略未发生的接受入历旁白，持续显示待补录标识；正式编辑会拒绝缺证输入。浏览器URL/权限受限时停止该浏览器操作，不复制认证状态绕过。
 

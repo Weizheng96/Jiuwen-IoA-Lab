@@ -1,0 +1,169 @@
+"""Shared file handling and evidence gates for the two real demonstration cases."""
+
+import hashlib
+import json
+from decimal import Decimal
+from pathlib import Path
+
+
+def read_json(path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def write_json(path, value):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def media_digest(path):
+    with Path(path).open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def inside(folder, relative):
+    """Resolve an artifact without following a path outside its recording directory."""
+    folder = Path(folder).resolve()
+    target = (folder / relative).resolve()
+    if not target.is_relative_to(folder):
+        raise ValueError("Artifact path escapes its recording directory")
+    return target
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def waiting_was_cut(previous, current):
+    """Only compare timestamps from the same capture file and time origin."""
+    return bool(
+        previous
+        and previous.get("source", "screen.webm") == current.get("source", "screen.webm")
+        and current["start"] > previous["start"] + previous["duration"] + 1
+    )
+
+
+def validate_real_case(proof, *, preview=None):
+    """Check business evidence; this does not replace visual inspection of recorded footage."""
+    preview = proof.get("preview", False) if preview is None else preview
+    require(
+        proof.get("fixtures") == [], "Formal cases reject fixtures or missing fixture declarations"
+    )
+    require(
+        proof.get("screens") == "real browser pages" and proof.get("browserErrors") == [],
+        "Expected declared error-free real browser footage",
+    )
+    case = proof.get("case")
+    if case == "delegation":
+        require(not preview, "Delegation is published only after the full contract loop")
+        require(proof.get("providerExecution") == "swarm", "Real Swarm production is required")
+        order = proof["delegation"]
+        digest = proof["cardDigest"]
+        require(
+            proof.get("focusedCardDigest") == order["cardDigest"] == digest,
+            "Focus, completion and payment must describe the same contract",
+        )
+        require(order["state"] == "completed", "Contract is not completed")
+        signatures = order["signatures"]
+        require(
+            all(signatures.get(slot) is True for slot in ("1", "2", "3")),
+            "Formation signatures are incomplete",
+        )
+        require(
+            all(signatures.get(slot) == [True] for slot in ("4", "5", "6", "7")),
+            "Delivery, anchoring, receipt and acceptance signatures are incomplete",
+        )
+        quotes = proof["quotes"]
+        require(
+            len(quotes) == 2 and len({q["cardDigest"] for q in quotes}) == 2,
+            "Two distinct signed proposals are required",
+        )
+        require(
+            sorted(Decimal(str(q["total"])) for q in quotes) == [Decimal(259), Decimal(299)],
+            "Proposal amounts do not match this demonstration",
+        )
+        selected = next((q for q in quotes if q["cardDigest"] == digest), None)
+        require(
+            selected is not None and Decimal(str(selected["total"])) == Decimal(299),
+            "The completed contract is not the selected reliable proposal",
+        )
+        require(Decimal(str(order["paid"])) == Decimal(299), "Actual payment is incomplete")
+        bookings = proof["bookingDemo"]
+        require(
+            len(bookings) == 1 and bookings[0]["cancelled"] == 1,
+            "The delivered configuration must actually book and cancel",
+        )
+    elif case == "messaging":
+        require(
+            proof["accessControl"]["directSendStatus"] == 403,
+            "Unauthorized sender rejection is missing",
+        )
+        require(
+            proof["forward"]["status"] == "delivered"
+            and proof["forward"]["transport"] == "jiuwen-web",
+            "Real Jiuwen delivery is missing",
+        )
+        require(
+            proof["busy"] == {"status": "no_time", "reason": "calendar_conflict"},
+            "Local schedule conflict rejection is missing",
+        )
+        require(
+            proof["meeting"]["status"] == "invite_submitted"
+            and proof["meeting"]["transport"] == "agentmail-calendar",
+            "Actual AgentMail invitation submission is missing",
+        )
+        if not preview:
+            require(
+                proof.get("outlook", {}).get("status") == "accepted_and_visible",
+                "Actual Outlook acceptance and calendar footage are required",
+            )
+    else:
+        raise ValueError("Unknown real demonstration case")
+
+
+def validate_reviews(proof, qa, shots, video):
+    """Bind both encoded reviews to the exact movie bytes being published."""
+    preview = proof.get("preview", False)
+    digest = media_digest(video)
+    require(
+        qa["result"] == ("preview-passed" if preview else "passed")
+        and qa.get("preview", False) == preview
+        and shots["result"] == "passed"
+        and shots.get("preview", False) == preview,
+        "Encoded reviews do not match this artifact",
+    )
+    require(
+        qa.get("videoSha256") == shots.get("videoSha256") == digest,
+        "Movie changed after review; run both encoded checks again",
+    )
+    return digest
+
+
+def validate_recording(proof):
+    require(
+        proof.get("screens") == "real browser pages" and not proof.get("browserErrors"),
+        "Expected error-free real browser footage",
+    )
+    if proof.get("case") == "global":
+        run = proof["experiment"]
+        require(
+            run["completedOrders"] >= 4 and run["messages"] >= 4 and not run["errors"],
+            "Global recording lacks successful protocol activity",
+        )
+    elif not proof.get("fixtures"):
+        validate_real_case(proof)
+    elif proof["case"] == "delegation":
+        require(
+            proof["delegation"]["state"] == "completed"
+            and proof["delegation"]["signatures"]["7"] == [True],
+            "Local contract test failed",
+        )
+    elif proof["case"] == "messaging":
+        require(
+            proof["forward"]["transport"] == "jiuwen-web"
+            and proof["meeting"]["status"] == "invite_submitted",
+            "Local message test failed",
+        )
+    else:
+        raise ValueError("Unknown recording case")

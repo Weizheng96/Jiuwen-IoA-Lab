@@ -14,6 +14,8 @@
 
 设计现状见 [设计/](设计/README.md)，版本见 [设计/VERSION](设计/VERSION)，实现差异与未验收项见 [变更记录](设计/变更记录.md)。开发约定见 [AGENTS.md](AGENTS.md)。A2C协议来自主仓SDK wheel，来源见 [SOURCE.json](vendor/wheels/SOURCE.json)，不在平台重复实现合同规则。
 
+代码阅读顺序、模块职责与检查入口见[代码导览](docs/代码导览.md)；运行和视频验收结果见[验证记录](demo/verification/README.md)。
+
 ## 本地启动
 
 Python 3.11，首次克隆包含 A2X 子模块：

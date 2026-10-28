@@ -1,0 +1,225 @@
+"""Generate a reviewable screenplay for each demo from its authored and published sources."""
+
+import argparse
+import hashlib
+from pathlib import Path
+
+from artifacts import inside, read_json, require
+
+ROOT = Path(__file__).resolve().parents[1]
+DEMO = ROOT / "demo"
+SCENES = {
+    "global": ("全局视角", "global_story.py", "平台与协议组件为中心；个人助手和服务方为网络两侧。"),
+    "delegation": (
+        "美甲委托",
+        "case_story.py",
+        "小满店主、用户自己的九问、两项官方服务、平台组件、服务方账号。",
+    ),
+    "messaging": (
+        "助手交互",
+        "case_story.py",
+        "A为收件人ISC_001；B为允许的平台账号；独立收件客户端、AgentMail与Outlook。",
+    ),
+}
+
+# These are filming instructions, not a second source for captions or narration.
+ACTIONS = {
+    "global": {
+        "intro": "完整片头，展示平台名称、英文名和一句话介绍。",
+        "join": "灰色个人助手依次变彩色；只播放接入路径。",
+        "credit": "高亮支付中心，100虚拟币沿路径送达个人助手。",
+        "provider": "服务方从灰色变彩色，展示登记与模板公示。",
+        "needs": "多位用户提出不同需求，高亮用户及各自个人助手。",
+        "authorization": "展示预算和委托类别，再播放用户授权路径；明确机制示意。",
+        "discovery": "多个个人助手只向A2X注册中心发出发现请求。",
+        "methods": "点击注册中心，展开分类树与ANN两种方法；实际使用分类树。",
+        "compare": "高亮合同模板，横向比较交付件、报价和判据。",
+        "contract": "高亮合同与签名，展示先约标准再成约。",
+        "delivery": "服务方交付，路径进入存证与签名组件。",
+        "acceptance": "路径返回个人助手本地，展示SDK沙箱验收。",
+        "arbitration": "高亮仲裁，说明复算及文书；明确本轮未发生裁定。",
+        "payment": "高亮模拟支付，验收和授权作为付款依据。",
+        "reputation": "高亮信誉日志，显示委托结清后的记录关系。",
+        "messages": "仅显示消息中心与个人助手间P2P路径。",
+        "meeting": "展示结构化预约消息与离线保留，不画成平台代办日历。",
+        "value": "切为加速全局动画，穿插真实管理员监控。",
+        "internal": "加速网络与上下线概念动效，说明内部验证价值。",
+        "external": "保持活跃全景，说明开发者、用户与数据反馈价值。",
+    },
+    "delegation": {
+        "cover": "完整片头：美甲预约·合同委托。",
+        "need": "左侧真实九问输入需求，右侧点亮个人助手组件；预算500虚拟币。",
+        "discovery": "点击A2X组件，展示真实搜索和完整验签模板。",
+        "quotes": "两份新提案259/299；真实UI选中可靠版；叠层标明实际提案对比。",
+        "choice": "对比5/10项配置判据，店主选择可靠版；说明交付范围。",
+        "contract": "店主明确确认后采纳、签字、开工；高亮合同中心。",
+        "production": "高亮服务方：独立进程按本单需求启动Swarm，不用样件代替。",
+        "delivery": "高亮合同中心存证，九问等待签5后通过SDK取件。",
+        "verification": "点击个人助手节点，展示本地WASM报告；暂不接受、不付尾款。",
+        "payment": "店主第二次确认后签7并付款；点击模拟支付，同一合同已付299。",
+        "provider": "整屏切到ISP_008，展示A2X分类树、同一摘要的完成记录和299实际收入。",
+        "tool": "整屏运行真实交付配置：登记预约、查看名单、点击取消并确认已取消。",
+        "close": "回到本人工作台，保持本单聚焦，回顾已核验流程。",
+    },
+    "messaging": {
+        "cover": "完整片头：个人助手·留言与预约。",
+        "policy": "切到A账号展示精确白名单；屏外验收：非允许账号接口为空、发送403，结果保存在证据摘要。",
+        "schedule": "整屏只读展示A真实本地日程、可预约规则与11:00已有团队例会。",
+        "lookup": "B的真实九问查询A的inputSchema；右侧展示查询返回的表单，正向消息由九问发送。",
+        "forward": "切入A真实九问通知会话，显示B的留言；右侧显示投递与处理回执。",
+        "busy": "回到B，展开11:00预约的真实冲突回执；不自动修改本地安排。",
+        "reschedule": "B明确改约14:00；高亮消息中心，接收客户端按本地规则再次检查。",
+        "invitation": "展开真实AgentMail邀请提交回执，明确收件人与等待接受状态。",
+        "outlook": "真实Outlook打开本轮邀请，收件人接受，再在日历查看对应会议；预览尚无此镜头。",
+        "close": "返回消息中心与本人工作台，回顾免费接口、范围、离线保留和处理回执。",
+    },
+}
+
+
+def shots(case):
+    if case == "global":
+        from global_story import SHOTS
+
+        return SHOTS
+    from case_story import STORIES
+
+    return [{"id": key, "text": text, "voice": voice} for key, text, voice in STORIES[case]]
+
+
+def published(case):
+    if case == "global":
+        proof = read_json(DEMO / "verification/global.json")
+        return proof, inside(ROOT, proof["video"])
+    proof = read_json(DEMO / "verification/cases.json")["cases"][case]
+    return proof, inside(DEMO, proof["movie"])
+
+
+def timestamp(seconds):
+    minutes, centiseconds = divmod(round(float(seconds) * 100), 6000)
+    return f"{minutes:02}:{centiseconds / 100:05.2f}"
+
+
+def cell(value):
+    return str(value).replace("|", "\\|").replace("\n", "<br>")
+
+
+def render(case, timing=None):
+    title, source, roles = SCENES[case]
+    scene = shots(case)
+    require(
+        set(ACTIONS[case]) == {s["id"] for s in scene}, "Filming instructions must cover every shot"
+    )
+    proof, movie = published(case)
+    voice_path = Path(timing) if timing else DEMO / "assets/voice" / case / "voice.json"
+    voices = read_json(voice_path)
+    by_id = {v["id"]: v for v in voices}
+    preview = proof.get("preview", False)
+    lines = [
+        f"# {title}剧本",
+        "",
+        "由`demo/script_documents.py`生成，不手改。字幕和完整旁白来自场景源，片中时间来自配音时间轴。",
+        "",
+        "| 项 | 内容 |",
+        "|---|---|",
+        f"| 场景源 | [{source}](../{source}) |",
+        f"| 当前视频 | [{movie.name}](../out/{movie.name}) |",
+        f"| 发布状态 | {'预览；Outlook接受与入历待补录' if preview else '正式成片'} |",
+        f"| 当前时长 | {proof['qa']['duration']:.2f}秒 |",
+        f"| 角色与视角 | {roles} |",
+        "| 声画要求 | 完整片头；52px高对比短字幕；按实测音长剪辑；A2C念A to C |",
+        "| 证据入口 | [验证记录](../verification/README.md)；原始口令、密钥和私人消息不进入剧本 |",
+        f"| 时间轴 | {'显式指定的工作配音；不代表已替换发布视频' if timing else '当前发布视频的实际时间轴'} |",
+        "",
+        "## 分镜",
+        "",
+        "| 镜头 | 当前片中时间 | 画面与操作 | 短字幕 | 完整旁白 | 证据与状态 |",
+        "|---|---|---|---|---|---|",
+    ]
+    for shot in scene:
+        clip = by_id.get(shot["id"])
+        matches = clip and clip["text"] == shot["text"] and clip["voice"] == shot["voice"]
+        if matches:
+            position = voices.index(clip)
+            end = (
+                voices[position + 1]["at"]
+                if position + 1 < len(voices)
+                else (clip["at"] + clip["duration"] + 0.55 if timing else proof["qa"]["duration"])
+            )
+            interval = f"{timestamp(clip['at'])}—{timestamp(end)}"
+            if timing:
+                status = "工作配音时间；待正式编排发布"
+            elif case == "global":
+                status = "已录；概念动画" if shot["stage"] < 9 else "已录；加速概念全景与真实监控"
+            else:
+                status = "已录；实际执行与回执"
+        else:
+            interval = "待补录" if not clip else "待重新配音/录制"
+            status = (
+                "计划镜头；不在当前预览中"
+                if shot["id"] == "outlook"
+                else "场景源与当前视频尚未同步"
+            )
+        lines.append(
+            "| "
+            + " | ".join(
+                cell(v)
+                for v in (
+                    shot["id"],
+                    interval,
+                    ACTIONS[case][shot["id"]],
+                    shot["text"],
+                    shot["voice"],
+                    status,
+                )
+            )
+            + " |"
+        )
+    lines += ["", "## 验收边界", ""]
+    if case == "global":
+        run = proof["experiment"]
+        lines += [
+            f"0—8只播放旁白对应路径，9—10加速全景并穿插4倍真实监控。接入、上下线、授权与条件仲裁为机制示意；本轮执行A2X分类树，ANN仅介绍方案。实际数据为{run['participants']}个独立客户端、{run['orders']}笔委托、{run['messages']}条消息。样例服务与虚拟币持续标识。"
+        ]
+    elif case == "delegation":
+        lines += [
+            "两份真实签名提案分别为259/299虚拟币、5/10项配置判据；中选摘要、合同完成摘要与已付金额必须一致。签约确认和验收付款确认分开。交付是JSON配置配合固定本地运行器，不声称交付任意软件或完成微信发布。"
+        ]
+    else:
+        lines += [
+            "白名单仅对指定平台账号授权，邮箱形式不代表企业邮箱认证，接口不公示到服务市场。冲突依据助手本地可编辑日程；邀请提交、邮件送达、用户接受与入历分别核验，不读取私人Outlook。当前预览跳过outlook镜头，后续补录会重排收尾时间；旧邀请确认不能代替本轮。"
+        ]
+    return "\n".join(lines) + "\n"
+
+
+def write_script(case, timing=None):
+    target = DEMO / SCENES[case][0] / "剧本.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(render(case, timing), encoding="utf-8")
+    return target
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true")
+    args = parser.parse_args()
+    for case, (title, _, _) in SCENES.items():
+        proof, movie = published(case)
+        require(
+            hashlib.sha256(movie.read_bytes()).hexdigest() == proof["sha256"],
+            f"Movie digest mismatch: {case}",
+        )
+        target = DEMO / title / "剧本.md"
+        if args.check:
+            require(
+                target.exists() and target.read_text(encoding="utf-8") == render(case),
+                f"Regenerate screenplay: {title}",
+            )
+        else:
+            write_script(case)
+        print(
+            f"{title}: screenplay and published movie digest {'checked' if args.check else 'generated'}"
+        )
+
+
+if __name__ == "__main__":
+    main()

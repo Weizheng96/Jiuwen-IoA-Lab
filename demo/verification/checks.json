@@ -1,10 +1,10 @@
 {
   "date": "2026-10-28",
   "pytest": {
-    "passed": 96,
+    "passed": 100,
     "failed": 0
   },
-  "selfcheck": "passed: versions, 50 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
+  "selfcheck": "passed: versions, generated scene scripts and movie digests, 27 current documentation entries/links, 50 definitions, three-process smoke, unchanged A2C, core boundary, wording, runtime exclusions, signed evidence",
   "bootstrap": "passed: current connector, fresh standalone environment, SDK independence and cached reuse",
   "syntax": {
     "javascript": "passed",
@@ -116,6 +116,20 @@
       "passed": 7,
       "failed": 0
     },
-    "designCheck": "blocked by pre-existing untracked materials draft missing VERSION; draft unchanged"
+    "designCheck": "blocked by pre-existing untracked materials draft missing VERSION; draft unchanged",
+    "trackedVersionSnapshot": "passed; original untracked materials draft excluded and unchanged"
+  },
+  "demoScriptDocuments": {
+    "passed": 3,
+    "paths": [
+      "demo/全局视角/剧本.md",
+      "demo/美甲委托/剧本.md",
+      "demo/助手交互/剧本.md"
+    ]
+  },
+  "recordingCodeReview": {
+    "formatOnlyAst": "passed: four live recording modules",
+    "originalCaptionsAndNarration": "unchanged",
+    "encodedChecksBoundToMediaSha256": "passed for current delegation and messaging preview"
   }
 }

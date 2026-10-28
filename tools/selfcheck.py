@@ -19,6 +19,8 @@ def main():
         print(('  ✓ ' if condition else '  ✗ ')+name,flush=True)
         if not condition: failures.append(name)
     for label,command in [('Design versions',[sys.executable,'设计/check.py']),
+                          ('Demo scripts and published evidence',[sys.executable,'demo/script_documents.py','--check']),
+                          ('Current documentation links',[sys.executable,'tools/check_docs.py']),
                           ('Official service definitions',[sys.executable,'tools/check_services.py']),
                           ('Three-process smoke',[sys.executable,'-m','ioalab','smoke'])]:
         result=subprocess.run(command,cwd=ROOT,env=ENV,capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=300)

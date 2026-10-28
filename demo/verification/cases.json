@@ -62,7 +62,8 @@
           "end": "2026-10-29T14:30:00+08:00",
           "recipient": "zhengw.cc@outlook.com"
         },
-        "preview": true
+        "preview": true,
+        "videoSha256": "47a17e901bb6848593b1eec9836b354d5e5b5680d4d41cdfbf64d172229b91b5"
       },
       "allShots": [
         {
@@ -174,7 +175,8 @@
         ],
         "fixtures": [],
         "outlook": null,
-        "preview": false
+        "preview": false,
+        "videoSha256": "367104901aa442c6de39376c780df5d07d533caddc497b768973218a95c78faf"
       },
       "allShots": [
         {
