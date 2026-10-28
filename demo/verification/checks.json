@@ -131,5 +131,18 @@
     "formatOnlyAst": "passed: four live recording modules",
     "originalCaptionsAndNarration": "unchanged",
     "encodedChecksBoundToMediaSha256": "passed for current delegation and messaging preview"
+  },
+  "globalRevision": {
+    "filmSha256": "949dc32a789222dbbb221edda7d4a395a3e06f9f5146dce143098a05ba89b2be",
+    "duration": 164.11,
+    "participants": 36,
+    "services": 50,
+    "orders": 18,
+    "messages": 1148,
+    "uiRegression": "passed: equal widths, component click/Esc, hidden observer, contract-specific concurrent routing, closed history without lines, send/receive separation, zero SVG residue",
+    "player": "passed: one visible video, end switches to full-screen monitor, muted loop, return to film, rapid switching",
+    "encodedFrames": "global-frames.json",
+    "finiteEvents": "global-scene-checks.json",
+    "sourceMonitorSha256": "85a5074cfe8f1977e8a0752dee155b061ebdda98ccc220746734ca5740eaf821"
   }
 }

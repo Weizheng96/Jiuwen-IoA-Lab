@@ -9,7 +9,11 @@ from artifacts import inside, read_json, require
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "demo"
 SCENES = {
-    "global": ("全局视角", "global_story.py", "平台与协议组件为中心；个人助手和服务方为网络两侧。"),
+    "global": (
+        "全局视角",
+        "global_story.py",
+        "平台与协议组件为中心；个人助手和服务方为网络两侧。",
+    ),
     "delegation": (
         "美甲委托",
         "case_story.py",
@@ -26,7 +30,7 @@ SCENES = {
 ACTIONS = {
     "global": {
         "intro": "完整片头，展示平台名称、英文名和一句话介绍。",
-        "join": "灰色个人助手依次变彩色；只播放接入路径。",
+        "join": "多位灰色个人助手随机错峰变彩色，部分并发；只播放单次接入路径。",
         "credit": "高亮支付中心，100虚拟币沿路径送达个人助手。",
         "provider": "服务方从灰色变彩色，展示登记与模板公示。",
         "needs": "多位用户提出不同需求，高亮用户及各自个人助手。",
@@ -42,9 +46,9 @@ ACTIONS = {
         "reputation": "高亮信誉日志，显示委托结清后的记录关系。",
         "messages": "仅显示消息中心与个人助手间P2P路径。",
         "meeting": "展示结构化预约消息与离线保留，不画成平台代办日历。",
-        "value": "切为加速全局动画，穿插真实管理员监控。",
-        "internal": "加速网络与上下线概念动效，说明内部验证价值。",
-        "external": "保持活跃全景，说明开发者、用户与数据反馈价值。",
+        "value": "直接切入单一全屏真实管理员监控，概念地图退场。",
+        "internal": "全屏真实管理员监控持续交互，说明内部验证价值。",
+        "external": "保持全屏真实监控，说明开发者、用户与数据反馈价值；旁白后延续忙碌网络。",
     },
     "delegation": {
         "cover": "完整片头：美甲预约·合同委托。",
@@ -83,7 +87,9 @@ def shots(case):
         return SHOTS
     from case_story import STORIES
 
-    return [{"id": key, "text": text, "voice": voice} for key, text, voice in STORIES[case]]
+    return [
+        {"id": key, "text": text, "voice": voice} for key, text, voice in STORIES[case]
+    ]
 
 
 def published(case):
@@ -107,7 +113,8 @@ def render(case, timing=None):
     title, source, roles = SCENES[case]
     scene = shots(case)
     require(
-        set(ACTIONS[case]) == {s["id"] for s in scene}, "Filming instructions must cover every shot"
+        set(ACTIONS[case]) == {s["id"] for s in scene},
+        "Filming instructions must cover every shot",
     )
     proof, movie = published(case)
     voice_path = Path(timing) if timing else DEMO / "assets/voice" / case / "voice.json"
@@ -137,19 +144,34 @@ def render(case, timing=None):
     ]
     for shot in scene:
         clip = by_id.get(shot["id"])
-        matches = clip and clip["text"] == shot["text"] and clip["voice"] == shot["voice"]
+        matches = (
+            clip and clip["text"] == shot["text"] and clip["voice"] == shot["voice"]
+        )
         if matches:
             position = voices.index(clip)
             end = (
                 voices[position + 1]["at"]
                 if position + 1 < len(voices)
-                else (clip["at"] + clip["duration"] + 0.55 if timing else proof["qa"]["duration"])
+                else (
+                    clip["at"] + clip["duration"] + 0.55
+                    if timing
+                    else proof["qa"]["duration"]
+                    - (
+                        proof.get("monitor", {}).get("tailSeconds", 0)
+                        if case == "global"
+                        else 0
+                    )
+                )
             )
             interval = f"{timestamp(clip['at'])}—{timestamp(end)}"
             if timing:
                 status = "工作配音时间；待正式编排发布"
             elif case == "global":
-                status = "已录；概念动画" if shot["stage"] < 9 else "已录；加速概念全景与真实监控"
+                status = (
+                    "已录；有限随机讲解动画"
+                    if shot["stage"] < 9
+                    else "已录；单一全屏真实管理员监控"
+                )
             else:
                 status = "已录；实际执行与回执"
         else:
@@ -174,11 +196,17 @@ def render(case, timing=None):
             )
             + " |"
         )
+    if case == "global" and not timing and proof.get("monitor", {}).get("tailSeconds"):
+        end = proof["qa"]["duration"]
+        start = end - proof["monitor"]["tailSeconds"]
+        lines.append(
+            f"| monitor-tail | {timestamp(start)}—{timestamp(end)} | 真实管理员监控保持全屏，继续展示网络；播放页随后循环监控录屏 | 无字幕 | 无旁白 | 实际录屏；回放标识持续显示 |"
+        )
     lines += ["", "## 验收边界", ""]
     if case == "global":
         run = proof["experiment"]
         lines += [
-            f"0—8只播放旁白对应路径，9—10加速全景并穿插4倍真实监控。接入、上下线、授权与条件仲裁为机制示意；本轮执行A2X分类树，ANN仅介绍方案。实际数据为{run['participants']}个独立客户端、{run['orders']}笔委托、{run['messages']}条消息。样例服务与虚拟币持续标识。"
+            f"0—8只播放旁白对应路径，9—10直接切入单一全屏真实管理员监控，旁白后继续展示网络；组件和短连接复用真实界面。接入、上下线、授权与条件仲裁为机制示意；本轮执行A2X分类树，ANN仅介绍方案。实际数据为{run['participants']}个独立客户端、{run['orders']}笔委托、{run['messages']}条消息。样例服务与虚拟币持续标识。"
         ]
     elif case == "delegation":
         lines += [

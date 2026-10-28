@@ -1,0 +1,28 @@
+/* Canonical network layout for real admin monitoring and the narrated concept map. */
+.pn,.trial .pn{display:grid;grid-template-columns:minmax(450px,1.14fr) minmax(550px,1.22fr) minmax(370px,.95fr);gap:28px;position:relative;height:calc(100vh - 180px);min-height:720px}
+body.trial #mainView.trial-grid{display:block}body.trial #view-stream,body.trial #view-components{display:none!important}
+.pn .pn-mid{display:flex;flex-direction:column;gap:12px;padding-top:26px;position:relative}
+.pn .pn-infra{width:100%;margin:0!important;min-height:0!important;border:1px solid #456174;border-radius:12px;background:#142538;padding:12px 16px;flex:0 0 auto;box-sizing:border-box;color:#edf5ff;cursor:pointer}
+.pn .pn-infra .title{font-size:23px;font-weight:700;letter-spacing:0;color:#aee6e3}
+.pn .pn-infra .title small{display:inline;font-size:15px;font-weight:400;color:#a6bcd0;margin-left:18px}
+.pn .map-stat{display:block;font-size:13px;color:#91abc1;margin-top:7px;line-height:1.5}
+.pn #pnMarket{background:#1b2035;border-color:#6c6297}.pn #pnMarket .title{color:#c8b4fc}
+.pn .subs{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.pn .sub,.trial .pn-mid .sub{min-height:68px;padding:10px 12px;border:1px solid #494762;border-radius:9px;background:#27283e;text-align:left;color:inherit;cursor:pointer;font-family:inherit}
+.pn .sub b,.trial .pn-mid .sub b{display:block;font-size:19px;margin:0 0 6px}.pn .sub span,.trial .pn-mid .sub span{font-size:12px;line-height:1.4;color:#afbed4}
+.pn #pnPay{background:#2a2820;border-color:#8c7542}.pn #pnPay .title{color:#f1d079}
+.pn #pnMessages{background:#142e32;border-color:#477b80}.pn #pnBounty{background:#1a2028;border:1px dashed #59616c;color:#909aa6;filter:grayscale(1);opacity:.65}.pn #pnBounty .title,.pn #pnBounty small{color:#909aa6}
+.pn .pn-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-content:start;gap:8px;overflow:auto;padding:0 2px 0 0}
+.pn .pn-asst{height:58px;min-height:58px;padding:7px 7px 6px 31px;border-radius:9px;border:1px solid #355b6c;border-left:3px solid #61ced7;background:#142538;position:relative;box-sizing:border-box;cursor:pointer;overflow:hidden}
+.pn .pn-asst .ava{width:21px;height:21px;font-size:9px;left:5px;top:10px;border-width:1px}.pn .pn-asst .name,.trial .pn-asst .name{padding:0;font-size:13px;white-space:nowrap}.pn .pn-asst .name small,.pn .pn-asst .kind,.pn .pn-asst .sigs{display:none}
+.pn .pn-asst .state{left:30px;bottom:7px;font-size:10px;max-width:calc(100% - 70px);padding:0;background:none}.pn .pn-asst .wallet{font-size:10px;top:auto;right:6px;bottom:7px}
+.pn .pn-blocks,.trial .pn-blocks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start;overflow:auto}
+.pn .pn-block{border:1px solid #324b64;border-radius:9px;overflow:hidden;background:#132135}.pn .pn-block .bh{padding:5px 7px;font-size:12px}.pn .pn-block .bh small{display:none}
+.pn .pn-block .bl,.trial .pn-block .bl{display:grid;grid-template-columns:1fr;gap:3px;max-height:none;overflow:visible;padding:3px}
+.pn .pn-svc{height:25px;min-height:25px;padding:4px 6px;margin:0;border-radius:5px;border:1px solid #36506f;background:#1a2a42;position:relative;box-sizing:border-box;cursor:pointer}.pn .pn-svc .name{font-size:11px;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pn .pn-svc .meta,.pn .pn-svc .st,.pn .pn-svc .earn{display:none}
+.pn .pn-h{font-size:15px;color:#8fa8be;margin:0 0 10px;letter-spacing:1px}.pn #pnWires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;overflow:visible}
+.pn .component-focus,.pn .lit{border-color:#a3efda!important;box-shadow:0 0 0 2px #83dfcc66,0 0 22px #57eac533}.pn.component-selected .pn-infra:not(.component-focus):not(:has(.component-focus)){opacity:.35}
+.pn .offline{filter:grayscale(1);opacity:.25}.pn #mapInfo{background:#0c1b2df5;border:1px solid #6eb3ac;border-radius:10px;padding:13px;line-height:1.6;font-size:15px;color:#c7e4e8;position:static;margin-top:2px;z-index:8}
+@media(max-width:1500px){.pn,.trial .pn{grid-template-columns:minmax(270px,1fr) minmax(430px,1.4fr) minmax(250px,.9fr);gap:15px}.pn .pn-list{grid-template-columns:repeat(2,minmax(0,1fr))}.pn .pn-infra .title small{font-size:12px;margin-left:8px}}
+
+.pn [data-map-component]:focus:not(:focus-visible){outline:none}

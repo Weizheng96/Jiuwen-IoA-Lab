@@ -1,0 +1,27 @@
+{
+  "sha256": "949dc32a789222dbbb221edda7d4a395a3e06f9f5146dce143098a05ba89b2be",
+  "frames": [
+    "demo\\assets\\run\\global\\review\\intro.jpg",
+    "demo\\assets\\run\\global\\review\\join.jpg",
+    "demo\\assets\\run\\global\\review\\credit.jpg",
+    "demo\\assets\\run\\global\\review\\provider.jpg",
+    "demo\\assets\\run\\global\\review\\needs.jpg",
+    "demo\\assets\\run\\global\\review\\authorization.jpg",
+    "demo\\assets\\run\\global\\review\\discovery.jpg",
+    "demo\\assets\\run\\global\\review\\methods.jpg",
+    "demo\\assets\\run\\global\\review\\compare.jpg",
+    "demo\\assets\\run\\global\\review\\contract.jpg",
+    "demo\\assets\\run\\global\\review\\delivery.jpg",
+    "demo\\assets\\run\\global\\review\\acceptance.jpg",
+    "demo\\assets\\run\\global\\review\\arbitration.jpg",
+    "demo\\assets\\run\\global\\review\\payment.jpg",
+    "demo\\assets\\run\\global\\review\\reputation.jpg",
+    "demo\\assets\\run\\global\\review\\messages.jpg",
+    "demo\\assets\\run\\global\\review\\meeting.jpg",
+    "demo\\assets\\run\\global\\review\\value.jpg",
+    "demo\\assets\\run\\global\\review\\internal.jpg",
+    "demo\\assets\\run\\global\\review\\external.jpg"
+  ],
+  "contact": "demo\\assets\\run\\global\\review\\contact.jpg",
+  "realCaptureLoop": "demo/全局视角/播放.html"
+}

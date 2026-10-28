@@ -1,0 +1,257 @@
+[
+  {
+    "stage": 0,
+    "mode": "cover",
+    "families": [],
+    "subtitle": "我们构建了九问IoA实验平台",
+    "cover": true,
+    "monitor": false,
+    "activeFlows": 0,
+    "plannedEvents": 0,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 1,
+    "mode": "join",
+    "families": [
+      "join"
+    ],
+    "subtitle": "把自己的九问，接入智能体互联网",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 5,
+    "plannedEvents": 36,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 2,
+    "mode": "credit",
+    "families": [
+      "credit"
+    ],
+    "subtitle": "每次成功登录，赠送100虚拟币",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 5,
+    "plannedEvents": 36,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 3,
+    "mode": "provider",
+    "families": [
+      "provider"
+    ],
+    "subtitle": "注册专业智能体，公开接取委托",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 6,
+    "plannedEvents": 50,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 4,
+    "mode": "needs",
+    "families": [
+      "needs"
+    ],
+    "subtitle": "多位用户，同时提出不同需求",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 2,
+    "plannedEvents": 85,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 4,
+    "mode": "authorization",
+    "families": [
+      "authorization"
+    ],
+    "subtitle": "带着预算和类别，先取得用户授权",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 3,
+    "plannedEvents": 46,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 5,
+    "mode": "discovery",
+    "families": [
+      "discovery"
+    ],
+    "subtitle": "服务发现，先回答“找谁”",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 3,
+    "plannedEvents": 36,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 5,
+    "mode": "methods",
+    "families": [],
+    "subtitle": "分类树与向量检索，两种发现思路",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 0,
+    "plannedEvents": 0,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 6,
+    "mode": "compare",
+    "families": [],
+    "subtitle": "比较交付件、要价与验收标准",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 0,
+    "plannedEvents": 0,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 6,
+    "mode": "contract",
+    "families": [],
+    "subtitle": "先约定怎么验，再签订合同",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 0,
+    "plannedEvents": 0,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 6,
+    "mode": "delivery",
+    "families": [
+      "delivery"
+    ],
+    "subtitle": "服务方交付，平台留存签名证据",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 3,
+    "plannedEvents": 36,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 6,
+    "mode": "acceptance",
+    "families": [
+      "acceptance"
+    ],
+    "subtitle": "个人助手在本地，运行约定的验收器",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 5,
+    "plannedEvents": 48,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 6,
+    "mode": "arbitration",
+    "families": [],
+    "subtitle": "发生分歧，按合同判据复算并出具文书",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 0,
+    "plannedEvents": 0,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 7,
+    "mode": "payment",
+    "families": [
+      "payment"
+    ],
+    "subtitle": "验收通过，按用户授权与合同付款",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 1,
+    "plannedEvents": 138,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 7,
+    "mode": "reputation",
+    "families": [
+      "reputation"
+    ],
+    "subtitle": "委托结清，更新服务方信誉日志",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 5,
+    "plannedEvents": 36,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 8,
+    "mode": "messages",
+    "families": [
+      "messages"
+    ],
+    "subtitle": "个人助手之间，也有大量P2P交互",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 4,
+    "plannedEvents": 67,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 8,
+    "mode": "meeting",
+    "families": [
+      "messages"
+    ],
+    "subtitle": "按账号传消息，离线也可收取",
+    "cover": false,
+    "monitor": false,
+    "activeFlows": 7,
+    "plannedEvents": 87,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 9,
+    "mode": "wide",
+    "families": [],
+    "subtitle": "探索开放网络中的智能体经济",
+    "cover": false,
+    "monitor": true,
+    "activeFlows": 0,
+    "plannedEvents": 0,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 10,
+    "mode": "internal",
+    "families": [],
+    "subtitle": "对内：验证协议，发现技术需求",
+    "cover": false,
+    "monitor": true,
+    "activeFlows": 0,
+    "plannedEvents": 0,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 10,
+    "mode": "external",
+    "families": [],
+    "subtitle": "对外：开放体验，汇聚开发者与用户",
+    "cover": false,
+    "monitor": true,
+    "activeFlows": 0,
+    "plannedEvents": 0,
+    "finiteUniqueEventPlan": true
+  },
+  {
+    "stage": 10,
+    "mode": "tail",
+    "families": [],
+    "subtitle": "",
+    "cover": false,
+    "monitor": true,
+    "activeFlows": 0,
+    "plannedEvents": 0,
+    "finiteUniqueEventPlan": true
+  }
+]

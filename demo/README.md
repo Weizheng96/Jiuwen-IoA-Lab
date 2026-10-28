@@ -4,6 +4,8 @@
 
 成片入口见根[演示视频](../README.md#演示视频)，当前进展与未验收项集中在[验证记录](verification/README.md)。原始配置和录像在本机忽略目录，不提交为公开验收摘要。
 
+全局演示可直接打开[播放页](全局视角/播放.html)：讲解结束自动切入单一全屏真实管理员监控录屏并循环播放，持续标注回放。实际平台的`/admin?view=panorama`提供组件点选说明与账号聚焦；视频本身不代表可操作的实时页面。
+
 | Demo | 剧本 | 当前视频 |
 |---|---|---|
 | 全局视角 | [剧本.md](全局视角/剧本.md) | [正式片](out/01-global.mp4) |
@@ -19,7 +21,7 @@ python demo/script_documents.py --check  # 核对剧本、镜头覆盖与已发�
 
 ## 全局视角
 
-`global_story.py`定义字幕与旁白，`global_web/`定义只读讲解地图。0—8按剧本隔离动画；9—10播放加速概念全景并穿插4倍真实管理员监控。上下线、授权和条件仲裁为机制示意；执行A2X分类树，ANN只介绍方案。实际统计和成片检查见[global.json](verification/global.json)。
+`global_story.py`定义字幕与旁白，`global_web/`定义只读讲解地图。0—8按剧本隔离动画；9—10直接切入单一全屏真实管理员监控，旁白后延续网络活动；概念片与真实界面共用组件布局及短连接。上下线、授权和条件仲裁为机制示意；执行A2X分类树，ANN只介绍方案。实际统计和成片检查见[global.json](verification/global.json)。
 
 复用入库素材重制，无需模型或邮箱凭据：
 
@@ -27,7 +29,17 @@ python demo/script_documents.py --check  # 核对剧本、镜头覆盖与已发�
 python demo/record_global.py --source demo/assets/run/global --voice-timing demo/assets/voice/global/voice.json --render-helper ../AgentContractProtocol/demo/_lib/video/record.py --out recordings/global-rebuild
 ```
 
-重新采集时先执行`capture_global.py --model-env <本地模型env> --out data/<新目录> --seconds 100`；`global_story.py --prepare data/<新配音目录>`生成字幕，再按下文配音和录制。保持概念动画与实际数据分开标识，不修改A2C共用录制器。
+重新采集时先执行`capture_global.py --model-env <本地模型env> --out data/<新目录> --seconds 150 --participants 36`；`global_story.py --prepare data/<新配音目录>`生成字幕，再按下文配音和录制。保持概念动画与实际数据分开标识，不修改A2C共用录制器。
+
+真实监控与概念地图共用`ioalab/web/static/network-map.js`和`network-map.css`。讲解段使用固定种子的有限随机计划，收发错峰、部分并发、传输结束撤除；真实监控仅响应实际事件，历史状态不产生常驻连线。灰色悬赏中心仅展示规划，没有业务接口和旁白。
+
+```powershell
+python tools/check_panorama.py  # 使用demo录制环境的Playwright；离线DOM及残影回归，不调用模型
+python demo/publish_global.py --recording recordings/<已检查全局片> --source data/<本轮真实运行>
+python demo/script_documents.py
+```
+
+发布工具核对成片哈希和真实运行检查，保存去掉初始化空场的监控片、配音、逐镜头最终编码抽帧和脱敏数据。原始失败运行保留在本机；没有用删除旧合同的方式恢复服务容量。
 
 ## 两段真实用例
 

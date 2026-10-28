@@ -5,44 +5,74 @@
   "source": "chapter-isolated conceptual map with actual run data and real admin capture",
   "narrationReference": "AgentContractProtocol/demo/智能体互联网/scenario/{story,script}.py + web/map.js + tools/record.py",
   "experiment": {
-    "participants": 6,
+    "participants": 36,
     "a2xTreeSearches": 18,
     "orders": 18,
-    "messages": 108,
+    "messages": 1148,
     "errors": [],
     "browserErrors": [],
+    "ui": {
+      "sharedLayout": true,
+      "equalComponentWidths": [
+        673.765625,
+        673.765625,
+        673.765625,
+        673.765625,
+        673.765625
+      ],
+      "componentClickAndEscape": true,
+      "residualWiresAfterIdle": 0,
+      "hiddenObserver": true
+    },
+    "messageKinds": [
+      "document.share",
+      "meal.invitation",
+      "meeting.request",
+      "repair.request",
+      "safety.checkin",
+      "travel.update"
+    ],
     "serviceExecution": "labelled sample outputs",
-    "monitorSeconds": 100
+    "monitorSeconds": 150
   },
   "qa": {
     "result": "passed",
     "dimensions": "1920x1080",
-    "duration": 145.98,
-    "meanVolumeDb": -19.8,
+    "duration": 164.11,
+    "meanVolumeDb": -20.4,
     "narrationClips": 20,
     "phaseIsolation": true,
     "reviewFrames": [
-      "shot-intro.png",
-      "shot-join.png",
-      "shot-credit.png",
-      "shot-provider.png",
-      "shot-needs.png",
-      "shot-authorization.png",
-      "shot-discovery.png",
-      "shot-methods.png",
-      "shot-compare.png",
-      "shot-contract.png",
-      "shot-delivery.png",
-      "shot-acceptance.png",
-      "shot-arbitration.png",
-      "shot-payment.png",
-      "shot-reputation.png",
-      "shot-messages.png",
-      "shot-meeting.png",
-      "shot-value.png",
-      "shot-internal.png",
-      "shot-external.png"
-    ]
+      "demo/assets/run/global/review/intro.jpg",
+      "demo/assets/run/global/review/join.jpg",
+      "demo/assets/run/global/review/credit.jpg",
+      "demo/assets/run/global/review/provider.jpg",
+      "demo/assets/run/global/review/needs.jpg",
+      "demo/assets/run/global/review/authorization.jpg",
+      "demo/assets/run/global/review/discovery.jpg",
+      "demo/assets/run/global/review/methods.jpg",
+      "demo/assets/run/global/review/compare.jpg",
+      "demo/assets/run/global/review/contract.jpg",
+      "demo/assets/run/global/review/delivery.jpg",
+      "demo/assets/run/global/review/acceptance.jpg",
+      "demo/assets/run/global/review/arbitration.jpg",
+      "demo/assets/run/global/review/payment.jpg",
+      "demo/assets/run/global/review/reputation.jpg",
+      "demo/assets/run/global/review/messages.jpg",
+      "demo/assets/run/global/review/meeting.jpg",
+      "demo/assets/run/global/review/value.jpg",
+      "demo/assets/run/global/review/internal.jpg",
+      "demo/assets/run/global/review/external.jpg"
+    ],
+    "finiteRandomEvents": true,
+    "fastFlowSeconds": [
+      0.23,
+      0.5
+    ],
+    "equalComponentWidths": true,
+    "zeroIdleWireResidue": true,
+    "singleFullScreenMonitor": true,
+    "reviewedFromFinalEncoding": true
   },
   "subtitles": {
     "pixels": 52,
@@ -58,20 +88,22 @@
     "payment authorization illustration",
     "ANN alternative",
     "conditional arbitration",
-    "online/offline illustration",
-    "illustrative baby naming endpoint, not executed in this run",
-    "illustrative baby naming endpoint, not executed in this run"
+    "online/offline illustration"
   ],
   "monitor": {
     "actualCapture": true,
-    "playbackRate": 4
+    "playbackRate": 1.6,
+    "fullScreenOnly": true,
+    "tailSeconds": 20,
+    "sharedLayout": true,
+    "sourceClipSha256": "85a5074cfe8f1977e8a0752dee155b061ebdda98ccc220746734ca5740eaf821"
   },
   "video": "demo/out/01-global.mp4",
-  "sha256": "b4bef687a98d37c83f996cc81c88c2a3b8deb947a163bad277e63c5a6ba0983f",
+  "sha256": "949dc32a789222dbbb221edda7d4a395a3e06f9f5146dce143098a05ba89b2be",
   "persistentLabels": [
-    "概念动画",
+    "概念动画（讲解段）",
+    "真实管理员监控（片尾）",
     "样例服务",
     "虚拟币"
-  ],
-  "rebuildFromCommittedAssets": "passed"
+  ]
 }

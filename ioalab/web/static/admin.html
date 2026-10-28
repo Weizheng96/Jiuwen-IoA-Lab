@@ -6,6 +6,7 @@
 <title>九问IoA实验平台（Jiuwen IoA Lab）· 管理员控制台</title>
 <link rel="stylesheet" href="/static/app.css">
 <link rel="stylesheet" href="/static/panorama.css">
+<link rel="stylesheet" href="/static/network-map.css">
 </head>
 <body>
 <div class="topbar">
@@ -60,22 +61,7 @@
     <div class="pn-top"><div class="counters" id="pnCounters"></div><span class="hint">点任一助手或服务方：同账号的智能体与事件高亮，其余变淡；再点或 Esc 还原</span></div>
     <div class="pn" id="pn">
       <div class="pn-col pn-left"><div class="pn-h">账号与个人助手</div><div class="pn-list" id="pnAsstList"></div></div>
-      <div class="pn-col pn-mid">
-        <div class="pn-infra market" id="pnMarket">
-          <div class="title">交易中心<small>Agent 交易市场 · A2C 合同层</small></div>
-          <div class="subs">
-            <div class="sub" id="pnRegistry"><b>注册中心</b><span id="pnRegStat">A2X 注册表</span></div>
-            <div class="sub" id="pnTemplates"><b>合同模板公示</b><span id="pnTplStat">已签认 0 份</span></div>
-            <div class="sub" id="pnContracts"><b>合同记录</b><span id="pnContractStat">等待合同活动</span></div>
-            <div class="sub" id="pnNotary"><b>存证与签名</b><span id="pnNotaryStat">签3 快照 0 · 签5 时间戳 0</span></div>
-            <div class="sub" id="pnLedger"><b>信誉日志</b><span id="pnLedgerStat">结清 0</span></div>
-            <div class="sub" id="pnArbitration"><b>仲裁中心</b><span id="pnArbitrationStat">裁定 0 · 按约复算出文书</span></div>
-          </div>
-        </div>
-        <div class="pn-ops"><div class="pn-infra" id="pnIdentity"><b>账号与公钥登记</b><span id="pnIdentityStat">等待身份登记</span></div><div class="pn-infra" id="pnEvents"><b>事件观察</b><span id="pnEventStat">等待协议事件</span></div></div>
-        <div class="pn-infra market" id="pnMessages"><div class="title">智能体消息中心<small>按账号定向 · 免费接口 · 离线收取</small></div><p class="hint" id="pnMessageStat">等待消息活动</p></div>
-        <div class="pn-infra pay" id="pnPay"><div class="title">支付中心<small>虚拟币账本 · 读卡按卡载金额过账 · 不持有资金</small></div><div class="stat" id="pnPayStat">过账 0 笔 · 合计 0.00</div></div>
-      </div>
+      <div class="pn-col pn-mid"></div>
       <div class="pn-col pn-right"><div class="pn-h">服务方 · 按领域（ISP 账号）</div><div class="pn-blocks" id="pnBlocks"></div></div>
       <svg id="pnWires" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
@@ -159,6 +145,8 @@
 </div></div>
 
 <script src="/static/common.js"></script>
+<script src="/static/network-map.js"></script>
+<script>NetworkMap.mount(document.querySelector("#pn .pn-mid"));</script>
 <script src="/static/panorama.js"></script>
 <script src="/static/admin.js"></script><script src="/static/admin_messages.js"></script>
 </body>
