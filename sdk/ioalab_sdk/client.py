@@ -18,10 +18,14 @@ from a2c.jws import sign
 from a2c.objects import object_digest
 from a2c.payment.ap2 import AP2Payment
 from .store import LocalStore
+from .transport import TaskPollingTransport
 from .lease import Lease
 
 
-class LabClient:
+from .scope import DelegationScopes
+
+
+class LabClient(DelegationScopes):
     def __init__(self, base: str, username: str, password: str, home: Path, *, source: str = "client"):
         self.base, self.username, self.password = base.rstrip("/"), username, password
         if source not in ("client", "experiment"):
@@ -38,7 +42,7 @@ class LabClient:
     def _connect(self, username, password):
         self.http = httpx.Client(timeout=120, trust_env=False)
         self.token = ""
-        self.transport = A2ATransport(http=lambda: httpx.AsyncClient(timeout=120, trust_env=False))
+        self.transport = TaskPollingTransport(http=lambda: httpx.AsyncClient(timeout=120, trust_env=False))
         self.signer, self.user, self.payer = load_identity(self.home)
         self.store = LocalStore(self.home / "contracts.sqlite")
         self.outbox = LocalStore(self.home / "outbox.sqlite")
@@ -64,7 +68,38 @@ class LabClient:
                              payment=AP2Payment(self.transport, psp=self.config["pay"], payer=self.payer, clock=utcnow,
                                                 instrument={"id": "ioalab-" + self.account["id"], "type": "wallet"}),
                              markets=(self.config["market"],))
+        import os
+        if os.environ.get('IOALAB_VERIFIER_MODEL'):
+            from .observation import model_port
+            self.client.model=model_port(os.environ.get('IOALAB_LLM_BASE_URL'),os.environ.get('IOALAB_LLM_API_KEY'),os.environ['IOALAB_VERIFIER_MODEL'])
         self.flush()
+
+    def delegate(self, action, task_id=None, confirmed=False, **kwargs):
+        from .workflow import Workflow
+        previous=getattr(self,'_workflow_dispatch',False)
+        self._workflow_dispatch=True
+        try:return Workflow(self).run(action,task_id=task_id,confirmed=confirmed,**kwargs)
+        finally:self._workflow_dispatch=previous
+
+    def require_workflow_dispatch(self, cd):
+        task_id=self.store.get('workflow_cards',cd)
+        if task_id and not getattr(self,'_workflow_dispatch',False):
+            raise ValueError('Use delegate with task_id='+task_id+' for this managed contract; do not bypass its human gates')
+
+    def inspect(self, cd):
+        card=self.client.card(cd)
+        return {'card':card,'template':self.client.template(card['templateDigest']),
+                'scopeId':self.store.get('card_scopes',cd)}
+
+    def reputation(self, provider):
+        result=self.api('GET','/providers/reputation?provider='+__import__('urllib.parse',fromlist=['quote']).quote(provider,safe=''))
+        from a2c.jws import verify
+        from a2c.objects import object_digest
+        from a2c.jws import header_of
+        sig=result['signature'];header=header_of(sig)
+        key=self.client.keys.jwk(self.config['market'],header.get('kid'))
+        verify(sig,object_digest({k:v for k,v in result.items() if k!='signature'}),key,slot='market',signer=self.config['market'],expect_kid=True)
+        return result
 
     def api(self, method: str, path: str, body=None):
         headers = {"Authorization": "Bearer " + self.token} if self.token else {}
@@ -183,6 +218,7 @@ class LabClient:
             raise ValueError("User confirmation is required")
 
     def sign(self, cd: str, *, confirmed=False):
+        self.require_workflow_dispatch(cd)
         self.require_confirmation(confirmed)
         self.check_budget(cd)
         card = self.client.card(cd)
@@ -196,32 +232,52 @@ class LabClient:
         self.observe("order.signed", cd)
         return {"cardDigest": cd}
 
-    def request(self, template_digest: str, spec: dict, *, materials=None, budget=100, confirmed=False):
+    def request(self, template_digest: str, spec: dict, *, materials=None, budget=100, scope_id=None, confirmed=False):
         self.require_confirmation(confirmed)
+        managed=self.store.get('workflow_scopes',scope_id) if scope_id else None
+        if managed and not getattr(self,'_workflow_dispatch',False):
+            raise ValueError('Use delegate with task_id='+managed+' to resume this authorized proposal collection')
         t = self.resolve_template(template_digest)
         spec, _ = self.clean_spec(t,spec)
+        scope_terms=self.live_scope(scope_id) if scope_id else {'budget':str(budget)}
+        if scope_id: scope_terms={k:scope_terms[k] for k in ('scopeId','purpose','budget','proposalFeeLimit','expiresAt')}
         req = self.client.draft_request(t, request_id=uuid.uuid4().hex, spec=spec, materials=materials or {},
                                         signers={"slot1": "user", "slot7": "user"},
-                                        delegation_scope_digest=object_digest({"budget": str(budget)}))
+                                        delegation_scope_digest=object_digest(scope_terms))
+        scope=key=None
+        if scope_id:
+            scope=self.live_scope(scope_id)
+            if __import__('decimal').Decimal(str(budget))!=__import__('decimal').Decimal(scope['budget']):
+                raise ValueError('Use the authorized total budget')
+            scope,key,cached=self.reserve_proposal(scope_id,t,object_digest({'spec':req['spec'],'inputs':req['inputs']}))
+            if cached is not None: return cached
         card = self.client.submit_request(req)
         if isinstance(card, str):
-            return {"returned": card}
+            result={'returned':card}
+            if scope_id: self.settle_proposal(scope,key,result)
+            return result
         self.store.put("budgets",card_digest(card),str(budget))
+        if scope_id: self.settle_proposal(scope,key,{'cardDigest':card_digest(card),'derived':card['derived']})
         from decimal import Decimal
         if Decimal(str(card["derived"]["total"])) > Decimal(str(budget)):
             return {"overBudget": True, "cardDigest": card_digest(card), "derived": card["derived"]}
         cd = card_digest(card)
+        result={"cardDigest":cd,"derived":card['derived']}
         self.observe("order.proposed", cd)
-        return {"cardDigest": cd, "derived": card["derived"]}
+        return result
 
     def adopt(self, cd: str, *, confirmed=False):
+        self.require_workflow_dispatch(cd)
         self.require_confirmation(confirmed)
         self.check_budget(cd)
-        self.client.adopt(self.client.card(cd))
+        self.check_scope_selection(cd)
+        if not self.client.card(cd)["signatures"].get("1"):
+            self.client.adopt(self.client.card(cd))
         self.observe("order.signed", cd)
         return {"cardDigest": cd}
 
     def start(self, cd: str, *, confirmed=False):
+        self.require_workflow_dispatch(cd)
         self.require_confirmation(confirmed)
         self.check_budget(cd)
         rec = self.store.get("cards", cd)
@@ -262,23 +318,35 @@ class LabClient:
             time.sleep(min(max(float(interval),.1),5))
 
     def fetch(self, cd: str, period: int):
-        files = self.client.fetch_delivery(cd, period)
+        self.require_workflow_dispatch(cd)
+        record=self.store.get('cards',cd)
+        cache_hit=len(record['card']['signatures'].get('6',[]))>=period
+        if cache_hit:
+            cached=record.get('deliveries',{}).get(str(period))
+            if not cached:raise ValueError('Delivery receipt exists but local files require reconciliation')
+            files={n:base64.b64decode(b) for n,b in cached.items()}
+            manifest=record['card']['fulfillment']['periods'][period-1]['manifest']['files']
+            if {n:digest_bytes(b) for n,b in files.items()}!={f['name']:f['digest'] for f in manifest}:
+                raise ValueError('Cached delivery does not match the signed manifest')
+        else:files = self.client.fetch_delivery(cd, period)
         folder = self.home / "deliveries" / cd.split(":")[-1] / str(period)
         folder.mkdir(parents=True, exist_ok=True)
         for name, blob in files.items():
             if Path(name).name != name or name in (".", ".."):
                 raise ValueError("Unsafe delivery filename")
             (folder / name).write_bytes(blob)
-        self.observe("order.fetched", cd, period=period)
+        if not cache_hit:self.observe("order.fetched", cd, period=period)
         return {n: str(folder / n) for n in files}
 
     def verify(self, cd: str, period: int):
+        self.require_workflow_dispatch(cd)
         result = self.client.verify(cd, period)
         self.observe("order.verified", cd, period=period, status=result.status)
         return {"status": result.status, "notBefore": str(result.not_before) if result.not_before else None,
-                "errors": result.errors}
+                "errors": result.errors, "checks": [r.outcome.checks for r in result.runs]}
 
     def accept(self, cd: str, period: int, *, confirmed=False):
+        self.require_workflow_dispatch(cd)
         self.require_confirmation(confirmed)
         if len(self.client.card(cd)["signatures"]["7"]) >= period:
             vouchers = self.store.get("cards", cd).get("vouchers", [])
@@ -293,6 +361,7 @@ class LabClient:
         return {"status": result.status, "voucher": result.voucher}
 
     def pay(self, cd: str, period: int, *, confirmed=False):
+        self.require_workflow_dispatch(cd)
         self.require_confirmation(confirmed)
         card=self.client.card(cd)
         if len(card["signatures"]["7"])<period:
@@ -308,7 +377,14 @@ class LabClient:
         return {"status":"paid","voucher":voucher}
 
     def answer_step(self, cd: str, granted: bool, *, confirmed=False):
+        self.require_workflow_dispatch(cd)
         self.require_confirmation(confirmed)
+        record=self.store.get('cards',cd)
+        steps=record.get('steps',[])
+        if steps and all(step.get('answer') is not None for step in steps):
+            answer=steps[-1]['answer']
+            if answer.get('granted') is not granted:raise ValueError('This step already has a different authorization')
+            return answer
         result = self.client.answer_step(cd, granted)
         self.observe("order.authorized", cd)
         return result

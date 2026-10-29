@@ -63,6 +63,7 @@ class Settings:
     message_rate: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_RATE','60')))
     message_ttl_days: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_TTL_DAYS','7')))
     assistant_password: str = field(default_factory=lambda:_env('IOALAB_ASSISTANT_PASSWORD'))
+    arbitration_models: dict = field(default_factory=lambda: json.loads(_env("IOALAB_ARBITRATION_MODELS", "{}")))
     sandbox_concurrency: int = 2
     sandbox_fuel: int = 5_000_000_000
     currency: str = "CNY"                  # 协议内币种（SDK 白名单）；页面显示为「虚拟币」

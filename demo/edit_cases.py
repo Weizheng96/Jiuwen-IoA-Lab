@@ -56,14 +56,14 @@ def main():
             # Explanation overlay is derived from the two actual signed proposals, never a UI receipt.
             from PIL import Image, ImageDraw, ImageFont
 
-            canvas = Image.new("RGBA", (820, 320), (10, 24, 41, 247))
+            canvas = Image.new("RGBA", (1240 if len(proof["quotes"])==3 else 820, 320), (10, 24, 41, 247))
             draw = ImageDraw.Draw(canvas)
             font = ImageFont.truetype("C:/Windows/Fonts/msyh.ttc", 36)
             small = ImageFont.truetype("C:/Windows/Fonts/msyh.ttc", 23)
             big = ImageFont.truetype("C:/Windows/Fonts/msyh.ttc", 58)
             draw.text((30, 20), "实测签名提案 · 讲解叠层", font=small, fill="#a2bdcc")
             rows = sorted(proof["quotes"], key=lambda r: float(r["total"]))
-            assert [float(r["total"]) for r in rows] == [259, 299]
+            assert [float(r["total"]) for r in rows] == ([239,259,299] if len(rows)==3 else [259,299])
             for n, row in enumerate(rows):
                 x = 28 + n * 395
                 chosen = key == "choice" and float(row["total"]) == 299
@@ -71,7 +71,7 @@ def main():
                 draw.rounded_rectangle((x, 72, x + 368, 287), radius=14, outline=color, width=3)
                 draw.text(
                     (x + 22, 86),
-                    "可靠版" if float(row["total"]) == 299 else "基础版",
+                    row["provider"] if proof.get("flow")=="nail-original" else ("可靠版" if float(row["total"]) == 299 else "基础版"),
                     font=font,
                     fill=color,
                 )
@@ -81,9 +81,9 @@ def main():
                 draw.text(
                     (x + 22, 225),
                     (
-                        ("10项配置判据 · 已选择" if chosen else "10项配置判据")
+                        ("10项行为判据 · 已推荐" if chosen else "10项行为判据")
                         if float(row["total"]) == 299
-                        else "5项配置判据"
+                        else ("skill观察 · 单仲裁模型" if float(row["total"])==239 else "5项行为判据")
                     ),
                     font=small,
                     fill=color,
@@ -91,7 +91,7 @@ def main():
             overlay = clips / (key + "-proposals.png")
             canvas.save(overlay)
             # movie source is fixed and escaped; filter output is still real recorded footage plus labelled explanation.
-            filters.append("movie='" + ffpath(overlay) + "'[q];[0:v][q]overlay=70:380")
+            filters.append("movie='" + ffpath(overlay) + "'[q];[0:v][q]overlay=30:380")
         previous = raw[story[i - 1][0]] if i else None
         if waiting_was_cut(previous, entry):
             filters.append(

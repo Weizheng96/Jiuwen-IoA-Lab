@@ -14,6 +14,48 @@ def read_env(path):
             result[k.strip()]=v
     return result
 
+def configure_skill_discovery(swarm):
+    """Use pinned-host native skill selection and concrete tool schemas, without upstream edits."""
+    import yaml
+    path=Path(swarm)/'config/config.yaml'
+    if not path.exists(): return
+    original=path.read_text(encoding='utf-8')
+    config=yaml.safe_load(original) or {}
+    react=config.setdefault('react',{})
+    if react.get('skill_mode')=='all' and config.get('progressive_tool_enabled') is False: return
+    react['skill_mode']='all'
+    config['progressive_tool_enabled']=False
+    backup=path.with_name('config.before-ioa-discovery.yaml')
+    if not backup.exists(): backup.write_text(original,encoding='utf-8')
+    path.write_text(yaml.safe_dump(config,allow_unicode=True,sort_keys=False),encoding='utf-8')
+
+
+def configure_ioa_instructions(swarm):
+    """Maintain only our marked block in the host's supported personal-instructions file."""
+    path=Path(swarm)/'agent/workspace/AGENT.md'
+    skill=(path.parent/'skills/ioalab-delegate/SKILL.md').resolve().as_posix()
+    start='<!-- ioalab:begin -->';end='<!-- ioalab:end -->'
+    block=f'''{start}
+## IoA专业服务委托
+
+用户提出专业服务需求并以虚拟币为预算时，必须先加载本地IoA技能；不要自行编程或写方案冒充委托。
+第一步调用的工具只能是 skill_tool，参数为 {{"skill_name":"ioalab-delegate"}}。
+ioalab-delegate 是已安装技能的名称，绝对不是工具名；禁止调用名为 ioalab-delegate 的工具。
+若skill_tool不可用，用read_file读取 {skill} 后按文档执行；不要在线搜索同名技能，不推断技能未安装。
+加载后始终调用文档中的delegate阶段入口；完整展示userMessage，四处确认必须等待用户下一条消息，working继续poll。禁止自行授权或伪造完成。
+{end}'''
+    original=path.read_text(encoding='utf-8') if path.exists() else '# 个人助手\n'
+    if (start in original)!=(end in original):raise ValueError('Incomplete IoA personal instruction block')
+    if start in original:
+        a=original.index(start);b=original.index(end)+len(end)
+        updated=original[:a]+block+original[b:]
+    else:updated=original.rstrip()+'\n\n'+block+'\n'
+    if original!=updated:
+        backup=path.with_name('AGENT.before-ioa.md')
+        if path.exists() and not backup.exists():backup.write_text(original,encoding='utf-8')
+        path.parent.mkdir(parents=True,exist_ok=True);path.write_text(updated,encoding='utf-8')
+
+
 def install_skill(root,swarm,values):
     bundle=root/'dist/ioalab-skill.zip'
     if not bundle.is_file(): raise RuntimeError('Run tools/build_connector.py before administrator configuration')
@@ -26,6 +68,8 @@ def install_skill(root,swarm,values):
             if not relative.parts or relative.parts[0]!='ioalab-delegate' or not target.is_relative_to(library): raise ValueError('Invalid skill bundle path')
             if target.name=='settings.local.json': raise ValueError('Skill bundle must not contain local credentials')
             target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(archive.read(member))
+    configure_skill_discovery(swarm)
+    configure_ioa_instructions(swarm)
     config=library/'ioalab-delegate/settings.local.json'
     # Preserve a deliberately configured existing skill account during upgrades.
     if not config.exists():

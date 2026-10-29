@@ -43,7 +43,7 @@ window.IoaNetwork = (() => {
   }
   function build(map){
     map.className='pn account-network';
-    map.innerHTML='<div class="account-left"><button id="ownAssistant" class="account-actor" data-graph-node="assistant"><b></b><small>我的个人助手</small></button><small class="anonymous-label">匿名个人助手 · 背景示意</small><div class="anonymous-grid">'+Array.from({length:16},(_,i)=>`<span class="anonymous-node ambient-assistant" aria-label="匿名个人助手">助手 ${String(i+1).padStart(2,'0')}</span>`).join('')+'</div></div><div class="pn-mid account-centers"></div><div class="account-right"><button id="ownService" class="account-actor" data-graph-node="service"><b>相关专业服务</b><small>尚无关联委托</small></button><div id="accountPeers"></div><small class="anonymous-label">匿名服务 · 背景示意</small><div class="anonymous-grid">'+Array.from({length:12},(_,i)=>`<span class="anonymous-node ambient-service" aria-label="匿名专业服务">服务 ${String(i+1).padStart(2,'0')}</span>`).join('')+'</div></div><svg id="accountWires" aria-hidden="true"></svg>';
+    map.innerHTML='<div class="account-left"><button id="ownAssistant" class="account-actor" data-graph-node="assistant"><b></b><small>我的个人助手</small></button><small class="anonymous-label">个人助手网络</small><div class="anonymous-grid">'+Array.from({length:16},(_,i)=>`<span class="anonymous-node ambient-assistant" aria-label="匿名个人助手">助手 ${String(i+1).padStart(2,'0')}</span>`).join('')+'</div></div><div class="pn-mid account-centers"></div><div class="account-right"><button id="ownService" class="account-actor" data-graph-node="service"><b>相关专业服务</b><small>尚无关联委托</small></button><div id="accountPeers"></div><small class="anonymous-label">公开专业服务</small><div id="public-network-services" class="public-service-list"></div></div><svg id="accountWires" aria-hidden="true"></svg>';
     NetworkMap.mount(map.querySelector('.account-centers'));
     Object.entries(nodes).forEach(([key,id])=>{if(document.getElementById(id))document.getElementById(id).dataset.graphNode=key;});
     map.addEventListener('click',e=>{const n=e.target.closest('[data-graph-node]');if(n)select(n.dataset.graphNode);});
@@ -56,6 +56,15 @@ window.IoaNetwork = (() => {
     const order=latest.orders.find(o=>o.card_digest===selectedOrder)||latest.orders[0];
     el('service').querySelector('b').textContent=order?.providerName||'相关专业服务';
     el('service').querySelector('small').textContent=order ? (done.has(order.state)?'已结束委托':'当前委托') : '从 A2X 发现服务';
+    const services=(latest.publicServices||[]).filter(s=>s.url!==order?.provider_id).slice(0,18);
+    const serviceList=document.getElementById('public-network-services'),signature=services.map(s=>s.id+s.name).join('|');
+    if(serviceList.dataset.signature!==signature){
+      serviceList.dataset.signature=signature;
+      serviceList.innerHTML=services.map(s=>`<button class="public-service ambient-service" title="${escape(s.description)}" data-public-service="${escape(s.id)}" data-provider-url="${escape(s.url)}">${escape(s.name)}</button>`).join('');
+      serviceList.querySelectorAll('button').forEach(b=>b.onclick=()=>{const service=services.find(s=>s.id===b.dataset.publicService);select('service');document.getElementById('component-detail').innerHTML=`<b>${escape(service.name)}</b><span>${escape(service.description)}</span><small>公开服务目录 · ${escape(service.status)}</small>`;});
+    }
+    const related=new Set(latest.orders.map(o=>o.provider_id));
+    serviceList.querySelectorAll('[data-provider-url]').forEach(n=>n.classList.toggle('related',related.has(n.dataset.providerUrl)));
     // Only names from authorized two-party messages, never a global directory.
     const names=new Map();
     latest.messages.forEach(m=>{const side=m.sender===latest.account.id?'receiver':'sender';names.set(m[side],m[side+'DisplayName']||m[side+'Username']);});
@@ -69,7 +78,9 @@ window.IoaNetwork = (() => {
     const events=latest.events||[];
     if(lastSeq!==null){
       events.filter(e=>e.seq>lastSeq).forEach(e=>{
-        const op=e.op,a=el('assistant'),s=el('service');
+        const op=e.op,a=el('assistant'),provider=latest.orders.find(o=>o.card_digest===e.card_digest)?.provider_id;
+        const main=latest.orders.find(o=>o.card_digest===selectedOrder)||latest.orders[0];
+        const s=provider&&provider!==main?.provider_id?[...document.querySelectorAll('[data-provider-url]')].find(n=>n.dataset.providerUrl===provider)||el('service'):el('service');
         if(op==='discovery.search')pulse(a,el('a2x'),'A2X 搜索');
         else if(op==='discovery.compared')pulse(el('a2x'),a,'筛选结果');
         else if(op==='order.proposed')pulse(s,el('contract'),'合约卡草案');
@@ -150,6 +161,8 @@ window.IoaNetwork = (() => {
     done,
     chooseOrder(cd) {
       selectedOrder = cd;
+      updateActors();
+      detail();
       journey();
     },
   };

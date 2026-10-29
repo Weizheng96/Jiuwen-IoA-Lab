@@ -591,3 +591,22 @@ dialog.assistant-detail pre { font-size:13px; white-space:pre-wrap; overflow-wra
   .account-network .account-actor b { font-size:11px; }
   .workbench-connected .network-heading small { display:none; }
 }
+
+/* Public professional identities and a compact owned-service operations workspace. */
+.public-service-list{display:grid;gap:4px;max-height:180px;overflow:auto;scrollbar-width:thin}
+.public-service{background:#1a2433;color:#9aabc0;border:1px solid #33445a;border-radius:5px;font-size:10px;text-align:left;padding:4px 6px;opacity:.68;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.public-service:hover{opacity:1;border-color:#6fded5;color:#e3f5ef}
+.provider-layout{grid-template-columns:minmax(220px,290px) minmax(0,1fr);gap:20px}
+.provider-nav{background:#101c2a;border:1px solid #2b3e51;border-radius:12px;padding:18px;position:sticky;top:0}
+.provider-nav h2{font-size:15px;margin:0 0 12px}.provider-nav h3{font-size:12px;color:#96aabb;margin:24px 0 12px}
+.tree-root{font-size:11px;color:#7e94a8;letter-spacing:1px}.category-filter{display:flex;width:100%;justify-content:space-between;border:0;border-radius:5px;background:transparent;color:#92a9bc;padding:7px 8px;font-size:12px;text-align:left}.category-filter.active{background:#174238;color:#97e9cc}
+.category-filter small{color:#6d8999}.provider-service{display:flex;justify-content:space-between;width:100%;padding:12px 9px;margin:7px 0;border:1px solid #2f4358;border-radius:8px;background:#122031;color:#b7c9d9;text-align:left;gap:10px}.provider-service span{min-width:0}.provider-service b{font-size:12px;display:block}.provider-service small{display:block;font-size:10px;color:#85a0b5;margin-top:5px}.provider-service strong{font-size:14px;color:#8ee4c5;text-align:right}.provider-service.active{border-color:#63cbb5;background:#153a37}
+.provider-hero{display:flex;align-items:start;justify-content:space-between;border:1px solid #2c5060;border-radius:13px;background:linear-gradient(125deg,#173b43,#132339);padding:25px;gap:18px}.provider-hero h2{font-size:29px;margin:8px 0 12px}.provider-hero p{font-size:13px;color:#acc1cf;line-height:1.7;max-width:740px}.provider-hero code{font-size:10px;color:#7898ad;overflow-wrap:anywhere}.provider-online{white-space:nowrap;background:#174d3f;color:#96eacb;border:1px solid #3e9274;border-radius:20px;font-size:11px;padding:6px 12px}
+.provider-summary{display:grid;grid-template-columns:1.5fr 1fr 1fr;margin:18px 0;gap:12px}.provider-summary>div{border:1px solid #2b4055;border-radius:10px;background:#111f30;padding:18px}.provider-summary span{display:block;color:#8da6b8;font-size:12px}.provider-summary strong{display:block;font-size:28px;color:#e6f4f7;margin-top:8px}.provider-summary small{font-size:11px;color:#86b3ac}
+.provider-section{background:#101c2a;border:1px solid #2a3e51;border-radius:12px;padding:20px;margin:16px 0}.provider-section h3{margin:0!important;font-size:16px!important;color:#d3e7ef!important}.provider-empty{padding:25px;text-align:center;color:#6e879a}.provider-empty span{font-size:28px}.provider-empty p{font-size:12px}.table-labels,.provider-order{display:grid;grid-template-columns:minmax(0,1.5fr) 1fr 1fr auto;align-items:center;gap:12px}.table-labels{font-size:11px;color:#7892a6;padding:18px 0 10px}.provider-order{padding:17px 0;border-top:1px solid #26394c;font-size:13px}.provider-order small{display:block;font-size:10px;color:#7892a6;margin-top:5px}.provider-order .btn{font-size:11px;padding:7px 9px}.provider-welcome{border:1px dashed #386074;border-radius:12px;padding:50px;color:#a5bfcc}
+#provider-view>.metrics .metric span{display:block;margin-bottom:6px}
+@media(max-width:1100px){.provider-layout{grid-template-columns:185px minmax(0,1fr);gap:12px}.provider-nav{padding:12px}.provider-hero{padding:18px}.provider-hero h2{font-size:24px}.provider-section{padding:15px}.provider-order{grid-template-columns:1.4fr .8fr 1fr auto;gap:8px}.provider-order .badge{font-size:10px;padding:4px 7px}}
+@media(max-width:700px){.provider-layout{grid-template-columns:1fr}.provider-nav{position:static}.provider-summary{grid-template-columns:1fr 1fr 1fr}.provider-service{display:inline-flex;width:auto;margin-right:6px}.provider-order{grid-template-columns:1fr 1fr}.table-labels{display:none}}
+
+.public-service.related{opacity:1;background:#1a3447;color:#c0e9ef;border-color:#4d8b9e}
+.provider-summary{grid-template-columns:1.4fr repeat(3,minmax(0,1fr))}

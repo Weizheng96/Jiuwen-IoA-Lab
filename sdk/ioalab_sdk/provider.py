@@ -14,7 +14,7 @@ import httpx
 from a2c.binding import A2ATransport
 from a2c.card import card_digest, request_digest
 from a2c.common import Directory, Task
-from a2c.codec import utcnow, parse_duration
+from a2c.codec import utcnow, parse_duration, parse_time
 from a2c.jws import Signer
 from a2c.provider import DefaultPolicy, Proposal, Provider
 from a2c.payment.ap2 import EcKey
@@ -22,7 +22,7 @@ from a2c.verifier.acceptance import run_target
 from a2c.template import acceptance_of
 from .client import LabClient
 from .store import LocalStore
-from .templates import template_from_definition, DEFAULT_DEADLINES
+from .templates import template_from_definition, DEFAULT_DEADLINES, TEMPLATE_RENEW_BEFORE
 
 
 class ServiceAccount:
@@ -38,8 +38,8 @@ class ServiceAccount:
 
     api = LabClient.api
 
-    def put(self, *, verifier_id, source, reads):
-        return self.api("POST", "/provider/packages", {"verifierId":verifier_id,"source":source,"reads":reads})
+    def put(self, *, verifier_id, source, reads, kind="script"):
+        return self.api("POST", "/provider/packages", {"verifierId":verifier_id,"source":source,"reads":reads,"kind":kind})
 
     def close(self):
         self.http.close()
@@ -65,6 +65,15 @@ def service_keys(home: Path, url):
 
 
 class DurableProvider(Provider):
+    def op_template_get(self, body, files, task_id):
+        from a2c.common import Reply
+        if body.get('templateDigest'):
+            return super().op_template_get(body,files,task_id)
+        current=self.store.get('metadata','activeTemplate')
+        templates=list(self.store.all('templates').values())
+        templates=[t for t in templates if (not current or t['templateDigest']==current) and parse_time(t['validUntil'])>self.now()]
+        return Reply({'op':'template.get','templates':templates})
+
     def restore_tasks(self):
         for tid, raw in self.store.all("tasks").items():
             raw["files"]={n:base64.b64decode(v) for n,v in raw.get("files",{}).items()}
@@ -110,6 +119,10 @@ class ProviderAgent:
         self.provider=DurableProvider(signer,market=account.config["market"],keys=Directory(fetch=self.transport.jwks),
                                       transport=self.transport,fetch=account.fetch_package,store=self.store,
                                       ap2_key=payee,name=definition["name"])
+        import os
+        if os.environ.get('IOALAB_VERIFIER_MODEL'):
+            from .observation import model_port
+            self.provider.model=model_port(os.environ.get('IOALAB_LLM_BASE_URL'),os.environ.get('IOALAB_LLM_API_KEY'),os.environ['IOALAB_VERIFIER_MODEL'])
         self.provider.restore_tasks()
         self.submit_job=submit_job
         agent=self
@@ -122,7 +135,9 @@ class ProviderAgent:
             def draft(self, template, request, materials):
                 if self.review(template,None,materials):
                     return "Service is at capacity"
-                ref=account.put(verifier_id=definition["verifier"]["id"],source=definition["verifier"]["source"],reads=definition["verifier"].get("reads",[]))
+                verifier=definition['verifier'];kind=verifier.get('kind','script')
+                ref=account.put(verifier_id=verifier['id'],source=verifier['source'],reads=verifier.get('reads',[]),kind=kind)
+                if kind=='skill': ref['disputeModels']=verifier['disputeModels']
                 job=agent.enqueue("quote",request,materials)
                 timeout=parse_duration(template["deadlines"]["respondWithin"]).total_seconds()
                 deadline=time.monotonic()+timeout
@@ -133,7 +148,7 @@ class ProviderAgent:
                         if isinstance(price,bool) or not isinstance(price,(int,float)) or price<0:
                             raise ValueError("Quote must be a nonnegative fixed number")
                         name=definition["deliverable"]["name"]
-                        return Proposal(acceptance={name:{"verifiers":{"script":ref},"notCovered":definition.get("notCovered",[])}},
+                        return Proposal(acceptance={name:{"verifiers":{kind:ref},"notCovered":definition.get("notCovered",[])}},
                                         accept_within={name:definition.get("deadlines",{}).get("acceptWithin",DEFAULT_DEADLINES["acceptWithin"])},
                                         line_items={name:price})
                     if result["state"]=="failed":
@@ -151,12 +166,37 @@ class ProviderAgent:
     def publish(self):
         from a2c.objects import object_digest
         digest=object_digest(self.definition)
-        existing=list(self.store.all("templates").values())
-        self.template=existing[-1] if existing and self.store.get('metadata','definition')==digest else self.provider.publish(template_from_definition(
-            self.definition,packages=self.account,payment_provider={"id":self.account.config["pay"],
-            "jwksUri":self.account.config["pay"]+"/.well-known/jwks.json"}))
-        self.store.put('metadata','definition',digest)
+        existing=list(self.store.all('templates').values())
+        current=self.store.get('metadata','activeTemplate')
+        candidate=next((t for t in existing if t['templateDigest']==current),None)
+        if candidate is None and existing: candidate=max(existing,key=lambda t:parse_time(t['validUntil']))
+        if candidate and self.store.get('metadata','definition')==digest and parse_time(candidate['validUntil'])-self.provider.now()>TEMPLATE_RENEW_BEFORE:
+            self.template=candidate
+        else:
+            self.template=self.provider.publish(template_from_definition(self.definition,packages=self.account,
+                payment_provider={'id':self.account.config['pay'],'jwksUri':self.account.config['pay']+'/.well-known/jwks.json'},now=self.provider.now()))
+            self.store.put('metadata','definition',digest)
+            self.store.put('metadata','refreshPending',True)
+        self.store.put('metadata','activeTemplate',self.template['templateDigest'])
         return self.template
+
+    def refresh_template(self):
+        try:
+            self.publish()
+        except Exception:
+            # If the former template is already expired, let the public registry observe that fact.
+            # This refresh cannot endorse a replacement or change historical contracts.
+            if self.template and parse_time(self.template['validUntil'])<=self.provider.now() and getattr(self,'registration_id',None):
+                try:self.account.api('POST','/provider/refresh',{'id':self.registration_id})
+                except Exception:pass
+            raise
+        if self.store.get('metadata','refreshPending'):
+            registration=getattr(self,'registration_id',None)
+            if registration is None:
+                rows=self.account.api('GET','/provider/mine')
+                registration=next(r['id'] for r in rows if __import__('json').loads(r['meta'])['url']==self.url)
+            self.account.api('POST','/provider/refresh',{'id':registration})
+            self.store.put('metadata','refreshPending',False)
 
     def enqueue(self, kind, obj, materials):
         digest=card_digest(obj) if kind=="deliver" else request_digest(obj)
@@ -186,7 +226,7 @@ class ProviderAgent:
         name=self.definition["deliverable"]["name"]
         files={self.definition["deliverable"].get("file",name+".json"):json.dumps(content,ensure_ascii=False).encode()}
         result=run_target(acceptance_of(template,card)[name]["verifiers"],fetch=self.account.fetch_package,template=template,card=card,
-                          target=name,files=files,period=len(card["signatures"]["4"])+1,anchored_at=None)
+                          target=name,files=files,period=len(card["signatures"]["4"])+1,anchored_at=None,model=self.provider.model)
         return {"status":result.status,"checks":[r.outcome.checks for r in result.runs],"errors":result.errors}
 
     def deliver(self, cd, content):
@@ -204,6 +244,9 @@ class ProviderAgent:
         return {"status":"delivered"}
 
     def maintain(self):
+        if time.monotonic()-getattr(self,'last_template_check',0)>60:
+            self.last_template_check=time.monotonic()
+            self.refresh_template()
         with self.provider._lock:
             for cd,rec in self.store.all("cards").items():
                 card=rec["card"]

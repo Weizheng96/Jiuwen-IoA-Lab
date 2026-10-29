@@ -105,7 +105,7 @@ class Platform:
         self.discovery = Discovery(settings.data / "a2x", a2x_home=settings.a2x_home,
                                    llm_configured=settings.a2x_configured(), embed_fn=self.llm.embed if self.llm.enabled else None)
         self.market = MarketService(self.market_signer, keys=self.keys, fetch=self.packages.fetch,
-                                    store=SqliteStore(self.db, "market"), db=self.db, discovery=self.discovery)
+                                    store=SqliteStore(self.db, "market"), db=self.db, discovery=self.discovery, models=self.llm.model_ports())
         trace_endpoint(self.market.market, self.bus, self.market_id)
         self.psp = SimPaymentProvider(self.pay_signer, keys=self.keys, ap2_key=self.pay_ec, payee_keys=self._payee_key,
                                       wallets=self.wallets, payee_of=self._payee_of, db=self.db,
@@ -301,7 +301,8 @@ class Platform:
         url = meta["url"]
         try:
             reply = self._transport("platform").send(url, "template.get", {})
-            templates = [t for t in reply.body.get("templates", []) if t.get("provider") == url]
+            from a2c.codec import parse_time
+            templates = [t for t in reply.body.get("templates", []) if t.get("provider") == url and parse_time(t["validUntil"]) > self.market.now()]
             for t in templates:
                 verify_template(t, self.keys)
                 if header_of(t["signatures"]["market"])["a2c-signer"] != self.market_id:

@@ -40,6 +40,8 @@ def publish(folder, case):
             "delegation",
         )
         evidence = {k: proof[k] for k in keys}
+        for key in ('flow','userTurns','confirmationGates','authorization','registration'):
+            if key in proof: evidence[key]=proof[key]
         evidence["bookingDemo"] = {
             "booked": True,
             "cancelled": True,
@@ -73,7 +75,12 @@ def publish(folder, case):
             for k in ("status", "calendar", "recipient", "transport", "delivery")
         }
     target = ROOT / "demo/out" / movie
-    shutil.copyfile(folder / "demo.mp4", target)
+    from publish_global import replace_media
+    from artifacts import media_digest
+    staged=target.with_stem(target.stem+'-publishing')
+    shutil.copyfile(folder / 'demo.mp4', staged)
+    require(media_digest(staged)==digest,'Staged movie digest mismatch')
+    replace_media(staged,target)
     evidence.update(
         movie="out/" + movie,
         sha256=digest,

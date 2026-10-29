@@ -1,10 +1,39 @@
 ---
 name: ioalab-delegate
-description: 用本地IoA SDK发现服务、签约验收，并按账号与其他个人助手留言、预约会议；需要IoA委托或个人助手通信时使用。
-version: 0.0.15
+description: 这是已安装的IoA委托技能，不是同名工具。先调用skill_tool(skill_name='ioalab-delegate')加载完整流程；禁止调用名为ioalab-delegate的工具。用户提出美甲店预约小程序、翻译、文案等专业任务及预算时自动使用，按授权、比选、合同、实名环节、验收流程执行；用户无需提供命令或技术提示。
+version: 0.0.31
 ---
 
 # IoA 合同委托
+
+## 一句需求启动
+
+**回执的userMessage非空时，将其完整直接展示给用户，停止当前回复，等待对应确认；不重写金额、不编造星级或实名材料要求。userMessage为空且gate为working/collecting时，立即继续delegate poll，不结束回复、不询问用户是否继续、不提供其他选项。**
+
+对用户使用业务语言：只解释需求、服务、金额、交付和待确认事项；taskId、gate、CLI命令、内部路径和JSON留在工具区或本地笔记，不逐项搬进面向用户的回复。
+
+用户说“我是小美美甲店店主，帮我做个预约微信小程序，每时段最多接两人，顾客能取消，预算上限500虚拟币”就执行本技能。不要求用户写SDK、路径、命令或阶段指令，不转去自己写设计方案或推荐SaaS。本技能不是同名工具；先通过宿主skill_tool加载，再执行下面的本地脚本。
+
+### 美甲预约：所有阶段的CLI命令名始终是delegate
+
+**不要手动征集、跳步或用模板价格代替提案。** delegate已把发现、渐进筛选、真实拟卡、比选、合同、环节请求、取件和WASM验收编排好。你负责理解需求、解释回执和等待用户确认。低层命令仅用于其他任务及诊断。
+
+先取得skill_tool返回的skill_directory，记为S。用write_file生成独立UTF-8 JSON参数文件，再执行`python "<S>/scripts/ioalab.py" delegate --args-file "<参数文件绝对路径>"`。Windows使用powershell工具（或bash的powershell模式），直接运行python，不嵌套另一层shell；长操作timeout=300秒。不要读取settings.local.json或签名密钥。
+
+| 阶段 | 参数与必须执行的行为 |
+|---|---|
+| 用户发起需求 | 立刻执行begin：`{"action":"begin","plan_file":"<S>/references/nail-booking-plan.json","need":"用户原话","budget":500,"spec":{"shop":"从需求提取的店名","capacity":2}}`。SDK只准备授权范围，不搜索、不付费；不要提前声称已经找到或筛选了服务。保存返回taskId |
+| gate=authorization | 告诉用户真实委托范围、预算、拟卡费上限与7天有效期，明确“确认后会先支付拟卡费，是否采纳提案不影响已经产生的拟卡费；合同和验收仍单独确认”。**不能说征集提案免费或签约前不产生费用**。等待“确认授权” |
+| 用户确认授权 | 执行`{"action":"advance","task_id":"真实taskId"}`，命令加`--confirmed`。SDK自动建立scope、执行A2X发现、渐进筛选、征集三份真实签名卡并比较。不能把这里改成手动templates/compare，也不问用户选基础/高级版本 |
+| gate=contract | 解释quotes及recommended：服务原名、金额、拟卡费和totalCost、规格默认值、交付范围、验收判据及未覆盖项；九问推荐后只请用户确认合同。用户确认后再次advance --confirmed，SDK签约开工 |
+| gate=working | 继续执行`{"action":"poll","task_id":"真实taskId","timeout":60}`，不加confirmed；不要询问用户“是否继续等待”，不把工作状态说成已交付 |
+| gate=step | 按stepRequest原文请求实名注册环节授权，明确本地演示不提交真实身份资料。收到用户同意后advance --confirmed；SDK答复环节请求并继续等待 |
+| gate=acceptance | 告知report中的真实WASM结果与检查；**停止，等待用户确认验收**。不能仅因本地测试通过就签字或付款 |
+| 用户确认验收 | advance --confirmed，SDK签验收并按已签金额支付虚拟币；gate=completed才报告完成，payment-unknown请核实，不重新付费 |
+| 恢复或拒绝 | status读取原taskId恢复，不另建任务重复征集。用户明确拒绝时decline --confirmed停止，不把拒绝当同意 |
+
+四处待确认节点必须各自结束当前回复，等待用户下一条消息；用户只需“确认授权”“确认合同”“授权实名注册”“确认验收”等自然答复。所有默认规格都列入待确认合同，不声称来自用户记忆。完整服务情节见references/nail-booking.md，实际价格、卡摘要与结果只认delegate回执。
+
 
 用户安装时：在九问「技能」页导入平台下载的ioalab-skill.zip。将技能目录中的settings.example.json复制为settings.local.json，填写平台地址、用户名与密码；也可由宿主注入同名环境变量。凭据只留在本机，不回显、不提交。
 
@@ -18,26 +47,7 @@ version: 0.0.15
 
 九问Windows终端：若工具名为bash，使用其`shell_type:"powershell"`参数，command中直接运行python，**不要再嵌套**`powershell -Command`。将S中的反斜杠换成正斜杠，例如`python 'D:/.../ioalab.py' search --args-file 'C:/.../search.json'`。业务JSON由write_file生成；路径不是JSON内容的一部分时不加反斜杠转义。
 
-| 顺序 | 命令与主要参数 |
-|---|---|
-| 1 | `me`；`search {query,top_k}`：发现服务 |
-| 2 | `templates {provider}`：获取完整已验签模板。依次读交付件、材料要求、报价、验收与期限、样件；剔除后不读后续节 |
-| 2a | `compare {providers,selected,reason,cd?}`：重新读取2—8项真实候选的完整验签模板，记录筛选理由，标reported；cd存在时中选方必须与合同一致。不能用过程上报代替签名或付款证据 |
-| 3 | `draft {template_digest,spec,budget,materials?}`；材料 `{name:{path,declared}}` 是本地文件；提案型用 `request` |
-| 4 | 向用户说明服务方、成果、定数金额、期数与判据，得到同意后 `sign {cd}`；提案型 `adopt {cd}`；再 `start {cd}` |
-| 5 | `watch {cd,timeout:60}` 在本地等待存证或环节请求；也可用 `poll {cd}` 单次查询。九问退出后下次从同一本地数据恢复 |
-| 6 | 环节请求须原样告知用户；按用户答复执行 `answer-step {cd,granted}` |
-| 7 | 已存证后 `fetch {cd,period}` → `verify {cd,period}`，由本地 A2C WASM 沙箱验收 |
-| 8 | 将结论告诉用户；获授权后 `accept {cd,period}`。pending 到 notBefore 后重查；失败不签7，问用户是否 `arbitrate` |
-| 9 | 用户要停止则 `terminate {cd}`；已签7但未付且明确付款失败，确认后 `pay {cd,period}`；付款结果不明时不盲目重付 |
-
-`sign/request/adopt/start/accept/pay/answer-step/terminate/arbitrate` 必须先取得用户确认，再加 `--confirmed`。不能把该参数当成自动同意；SDK成功返回合同摘要、回执或凭证前，不宣称操作完成。`verify`结果不能用聊天判断替代；付款按合同金额，不另议价。预算超过授权时重新询问用户，不直接加大budget。
-
-用户已在本轮明确同意的对象、用途和金额范围内，直接将该授权通过`--confirmed`传给相应命令，不重复询问。若漏加该参数导致“User confirmation is required”，先检查已有授权；已有明确授权时补参数重试，新增对象/用途或超额仍需询问。提案型服务须实际执行`request --confirmed`取得返回的cardDigest与derived，不能把模板参考价或自然语言推荐说成已获得签名提案。用户要求暂不签约或暂不接受时，严格停在对应边界。
-
-`spec`按模板deliverables的name分组，例如模板交付件name为`table`，字段为medicines和days时，参数为`{"template_digest":"真实摘要","spec":{"table":{"medicines":["维生素C"],"days":7}},"budget":100}`。字段、值域和交付件name均以真实模板为准；不要把数组直接当作交付件对象。单交付件也保留这一层名称。
-
-保留本地身份目录以恢复合同；不能清空密钥后用同一账号自动换身份。断线后继续poll；观察上报失败会本地重试，不等于协议动作失败。
+底层原语仅用于其他通用接入或经明确诊断需要时，见`references/contract-primitives.md`；美甲任务始终调用delegate，不混用poll/sign/fetch/accept等原语。报错先用delegate status读取原taskId，不能重新begin或改用原语绕过。
 
 ## 个人助手通信
 

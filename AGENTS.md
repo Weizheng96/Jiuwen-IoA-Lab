@@ -40,7 +40,7 @@ A2C 是 custody-agnostic 的合同层。本仓的模拟支付方**只读卡按�
 | 配置 | 只从 `IOALAB_*` 环境变量读（`ioalab/config.py`），不读任何凭据文件；新配置项同时写进 `deploy/ioalab.env.example` 与 `设计/部署.md` |
 | 对外地址 | 参与方 id 内嵌 `IOALAB_PUBLIC_URL`，首次运行后锁定；进程内互调经 `LoopbackTransport` 走回环 |
 | 表达式求值 | 服务方的 `priceFormula` **绝不 `eval`**，走 a2c 的 `expr` 白名单 |
-| 验收器 | 只在 a2c 的 `python.wasm` 沙箱里运行，只认 `ioalab://pkg/<digest>` 的 script 包，**绝不在宿主进程里 import 或 exec** |
+| 验收器 | 只在 a2c 的 `python.wasm` 沙箱里运行，只认 `ioalab://pkg/<digest>` 的 script/skill 包；skill 的模型观察使用受限回调、程序判定，**绝不在宿主进程里 import 或 exec** |
 | 成约方式 | 预批准 / 待批准 / 提案三种产出同一种合同卡；不得为提案型另写算价逻辑 |
 | 零模型调用 | 合同控制与script验收不调用模型；服务生产、提案拟卡与发现模型单独计量，不宣称整笔业务零模型调用 |
 | 时序 | 开工（`work.start`）独立于存证订阅与验收通知，不混在同一调用栈 |

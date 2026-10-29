@@ -11,6 +11,7 @@ def build_router(platform,current_user,require_admin):
         row['detail']=jload(row['detail'])
         provider=platform._agent_of_provider(row['provider_id']) or {}
         row['providerName']=provider.get('name',row['provider_id'])
+        row['clientName']=(platform.db.one('SELECT display_name,username FROM users WHERE id=?',row['owner_id']) or {}).get('display_name') or '委托方'
         card=row['detail'].get('card',{})
         row['signatures']={k:[bool(x) for x in v] if isinstance(v,list) else bool(v) for k,v in card.get('signatures',{}).items()}
         row['payments']=platform.db.rows("SELECT at,amount,purpose,payment_id FROM transfers WHERE ref=? AND payer_id=? AND purpose IN ('deposit','installment') ORDER BY id",row['card_digest'],row['owner_id'])
@@ -21,10 +22,11 @@ def build_router(platform,current_user,require_admin):
     def summary(uid=Depends(current_user)):
         platform.sync_orders()
         account=platform.db.one('SELECT id,username,display_name,kind FROM users WHERE id=?',uid)
-        services=platform.db.rows("SELECT id,name,status,meta,definition FROM agents WHERE owner_id=? AND role='service'",uid)
+        services=platform.db.rows("SELECT id,name,status,meta,definition FROM agents WHERE owner_id=? AND role='service' AND json_extract(meta,'$.url') IS NOT NULL",uid)
         for service in services:
             definition=jload(service.pop('definition'))
             service['category']=definition.get('category')
+            service['description']=definition.get('description','')
             service['url']=jload(service.pop('meta')).get('url')
             rows=platform.db.rows('SELECT * FROM orders WHERE provider_id=? ORDER BY created DESC LIMIT 100',service['url'])
             service['orders']=[order_view(r) for r in rows]
@@ -49,7 +51,7 @@ def build_router(platform,current_user,require_admin):
 
     @router.get('/api/catalog')
     def catalog(uid=Depends(current_user)):
-        rows=platform.db.rows("SELECT id,name,status,definition,meta FROM agents WHERE role='service'")
+        rows=platform.db.rows("SELECT id,name,status,definition,meta FROM agents WHERE role='service' AND status='online'")
         return [{'id':r['id'],'name':r['name'],'status':r['status'],
                  'category':jload(r['definition']).get('category'),
                  'description':jload(r['definition']).get('description',''),

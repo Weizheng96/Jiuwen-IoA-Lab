@@ -22,13 +22,13 @@ from .discovery import Discovery
 
 class MarketService:
     def __init__(self, signer: Signer, *, keys: Directory, fetch: Callable[[str], bytes], store, db: DB,
-                 discovery: Discovery, clock: Clock | None = None) -> None:
+                 discovery: Discovery, clock: Clock | None = None, models=None) -> None:
         self.signer = signer
         self.keys = keys
         self.db = db
         self.discovery = discovery
-        # Market(models={})：skill 验收器的模板自然拒签（首版只认 script）
-        self.market = Market(signer, keys=keys, fetch=fetch, clock=clock, store=store, recognized_services={}, models={})
+        # Unconfigured dispute models are rejected by the A2C snapshot validator.
+        self.market = Market(signer, keys=keys, fetch=fetch, clock=clock, store=store, recognized_services={}, models=models or {})
         self.now = self.market.now
 
     @property

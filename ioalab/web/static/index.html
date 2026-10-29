@@ -75,7 +75,7 @@
             >
           </div>
           <section class="ioa-network" aria-label="我的智能体网络">
-            <div class="network-heading"><div><span class="eyebrow">INTERNET OF AGENTS</span><h2>我的智能体网络</h2></div><small><i class="legend-dot"></i> 我的活动 <span class="ambient-legend">灰色动效为匿名网络背景示意</span></small></div>
+            <div class="network-heading"><div><span class="eyebrow">INTERNET OF AGENTS</span><h2>我的智能体网络</h2></div><small><i class="legend-dot"></i> 我的活动 <span class="ambient-legend" title="其他个人助手匿名显示；服务名称来自公开目录。灰色短连接为本地网络示意，不计入业务统计。">灰色：其他参与方 ⓘ</span></small></div>
             <div id="network-map"></div>
             <div id="component-detail" class="component-detail" aria-live="polite"></div>
           </section>
@@ -87,6 +87,7 @@
             <div id="orders"></div>
           </section>
           <section class="panel"><h2>历史委托</h2><div id="order-history"></div></section>
+          <section class="panel"><h2>候选提案与待确认合同</h2><div id="proposal-orders"></div></section>
           <div class="grid2">
             <section class="panel">
               <h2>消息中心</h2>
@@ -133,12 +134,12 @@
           <div class="heading">
             <div>
               <div class="eyebrow">SERVICE PROVIDER</div>
-              <h1>我的服务</h1>
+              <h1>服务运营台</h1>
               <p class="hint">每个服务独立查看委托记录与履约进展。</p>
             </div>
           </div>
           <div class="metrics" id="provider-metrics"></div>
-          <div class="provider-layout"><aside class="panel"><h2>A2X 分类树</h2><p class="hint">公开服务领域 · 高亮我的服务</p><div id="taxonomy"></div></aside><div id="services"></div></div>
+          <div class="provider-layout"><aside class="provider-nav"><h2>A2X 分类树</h2><div id="taxonomy"></div><h3>我的服务</h3><div id="provider-services"></div></aside><div id="services"></div></div>
         </section>
       </div>
       <dialog id="detail">
@@ -149,6 +150,7 @@
     </main>
     <script src="/static/network-map.js"></script>
     <script src="/static/network.js"></script>
+    <script src="/static/provider-workbench.js"></script>
     <script src="/static/index.js"></script>
   </body>
 </html>

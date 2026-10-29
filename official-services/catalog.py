@@ -55,7 +55,7 @@ def materialize(s: dict, origin: str) -> dict:
         v = {"id": v["id"], "reads": reads, "source": common_source().replace("__RULES__", json.dumps(rules, ensure_ascii=False))}
     elif "script" in v:
         src = (VERIFIERS_DIR / v["script"]).read_text(encoding="utf-8")
-        v = {"id": v["id"], "reads": list(v.get("reads", [])), "source": src}
+        v = {**v, "reads": list(v.get("reads", [])), "source": src}
     elif v and "source" not in v:
         raise ValueError(f"{origin}/{s.get('id')}：verifier 须有 checks 或 script")
     if v:

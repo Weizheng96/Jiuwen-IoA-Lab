@@ -63,7 +63,7 @@ def build_router(platform, current_user):
         source = body.get("source", "")
         if not isinstance(source, str) or len(source.encode()) > 256 * 1024:
             raise HTTPException(400, "Package source exceeds the limit")
-        return platform.packages.put(verifier_id=body["verifierId"], source=source, reads=body.get("reads", []))
+        return platform.packages.put(verifier_id=body["verifierId"], source=source, reads=body.get("reads", []), kind=body.get("kind","script"))
 
     @router.get("/packages/{digest}")
     def package(digest: str):

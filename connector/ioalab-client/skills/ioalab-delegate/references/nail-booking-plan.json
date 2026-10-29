@@ -1,0 +1,22 @@
+{
+  "format": "ioalab.delegate.plan",
+  "query": "美甲预约 微信小程序",
+  "target": "booking",
+  "formation": "proposal",
+  "defaults": {
+    "shop": "待确认店名",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "service1Name": "纯色美甲",
+    "service1Minutes": 60,
+    "service2Name": "延长甲",
+    "service2Minutes": 90
+  },
+  "rejectDescriptions": [
+    "不支持顾客取消",
+    "不提供微信小程序",
+    "不包含顾客自助取消"
+  ],
+  "proposalFeeLimit": 3
+}

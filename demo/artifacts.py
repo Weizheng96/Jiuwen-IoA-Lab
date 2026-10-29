@@ -75,12 +75,21 @@ def validate_real_case(proof, *, preview=None):
             "Delivery, anchoring, receipt and acceptance signatures are incomplete",
         )
         quotes = proof["quotes"]
+        original=proof.get('flow')=='nail-original'
+        count=3 if original else 2
+        require(len(quotes)==count and len({q['cardDigest'] for q in quotes})==count,
+                'Distinct signed proposals are required')
+        if original:
+            require({q['provider'] for q in quotes}=={'灵犀小程序','快搭建站','码上飞'},'Use the authored service identities')
+            require(proof.get('confirmationGates')==['authorization','contract','registration','acceptance'],'Four separate confirmation gates are required')
+            turns=proof.get('userTurns',[])
+            require([t['kind'] for t in turns]==['request','authorization','contract','registration','acceptance'],'User turn order is incomplete')
+            require(not any(word in turns[0]['text'] for word in ('SDK','SKILL.md','--confirmed','基础版','可靠版')),'Initial user request must be business-only')
+            auth=proof.get('authorization',{})
+            require(Decimal(str(auth.get('proposalFees',-1)))==3 and Decimal(str(auth.get('budget',0)))==500,'Actual proposal fees and total scope are required')
+            require(proof.get('registration',{}).get('beforeDelivery') is True,'Registration authorization must precede delivery')
         require(
-            len(quotes) == 2 and len({q["cardDigest"] for q in quotes}) == 2,
-            "Two distinct signed proposals are required",
-        )
-        require(
-            sorted(Decimal(str(q["total"])) for q in quotes) == [Decimal(259), Decimal(299)],
+            sorted(Decimal(str(q["total"])) for q in quotes) == ([Decimal(239),Decimal(259),Decimal(299)] if original else [Decimal(259),Decimal(299)]),
             "Proposal amounts do not match this demonstration",
         )
         selected = next((q for q in quotes if q["cardDigest"] == digest), None)

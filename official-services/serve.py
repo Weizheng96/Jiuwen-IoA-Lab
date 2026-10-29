@@ -25,7 +25,7 @@ from swarm import SwarmEngine
 
 
 class ServiceHost:
-    def __init__(self, *, platform, public_url, data, stub=False, only=None, concurrency=2, engine=None):
+    def __init__(self, *, platform, public_url, data, stub=False, only=None, concurrency=2, engine=None, scenario=None):
         self.platform,self.public_url,self.data,self.stub=platform.rstrip("/"),public_url.rstrip("/"),Path(data),stub
         self.concurrency=max(1,int(concurrency))
         self.engine=engine or SwarmEngine()
@@ -39,6 +39,10 @@ class ServiceHost:
         self.ready=False
         self.error=""
         self.definitions=[(domain["account"],d) for domain in load_domains() for d in domain["services"] if not only or d["id"] in only]
+        if scenario:
+            if scenario!='nail-booking': raise ValueError('Unknown service scenario')
+            from scenario import nail_services
+            self.definitions=[(account,d) for account,d in nail_services() if not only or d['id'] in only]
         self.health={"running":0,"done":0,"failed":0}
         self.port=int(__import__('urllib.parse',fromlist=['urlparse']).urlparse(public_url).port or 8751)
         self.local_url=f"http://127.0.0.1:{self.port}"
@@ -67,8 +71,8 @@ class ServiceHost:
             app.mount("/a2a/providers/"+sid,build_provider_app(agent.provider,name=d["name"],base_url=url))
             row=account.api("POST","/provider/register",{"url":url,"name":d["name"],"description":d["description"],
                             "tags":d.get("tags",[]),"category":d["category"],"ap2Jwk":agent.provider.ap2_key.jwk})
-            agent.publish()
-            account.api("POST","/provider/refresh",{"id":row["id"]})
+            agent.registration_id=row["id"]
+            agent.refresh_template()
             for jid,job in agent.store.all("jobs").items():
                 if job["state"]=="running":
                     job["state"]="queued"
@@ -181,6 +185,7 @@ def create_app(host):
     async def maintenance():
         while True:
             await asyncio.sleep(.5)
+            if not host.ready: continue
             for agent in list(host.agents.values()):
                 try:
                     await asyncio.to_thread(agent.maintain)
@@ -246,6 +251,7 @@ def create_app(host):
 def main():
     import uvicorn,argparse
     parser=argparse.ArgumentParser()
+    parser.add_argument('--scenario',choices=['nail-booking'])
     parser.add_argument('--only',help='Comma-separated service ids for a focused experiment')
     args=parser.parse_args()
     port=int(os.environ.get("IOALAB_PROVIDER_PORT","8751"))
@@ -253,7 +259,7 @@ def main():
                      public_url=os.environ.get("IOALAB_PROVIDER_PUBLIC_URL",f"http://127.0.0.1:{port}"),
                      data=os.environ.get("IOALAB_PROVIDER_DATA",str(Path.home()/".ioalab-providers")),
                      stub=os.environ.get("IOALAB_STUB")=="1",only=args.only.split(",") if args.only else None,
-                     concurrency=int(os.environ.get("IOALAB_PROVIDER_CONCURRENCY","2")))
+                     concurrency=int(os.environ.get("IOALAB_PROVIDER_CONCURRENCY","2")),scenario=args.scenario)
     host.local_url=f"http://127.0.0.1:{port}"
     uvicorn.run(create_app(host),host=os.environ.get("IOALAB_PROVIDER_BIND","127.0.0.1"),port=port,log_level="warning")
 

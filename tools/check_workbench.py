@@ -43,6 +43,8 @@ def main():
             }
         ],
     }
+    public_services=[{'id':f'service-{i}','name':name,'status':'online','category':'cat_dev','description':'公开服务说明','url':f'http://service-{i}'} for i,name in enumerate(['码上飞','快搭建站','灵犀小程序','翻译工作室','行程顾问','正则助手','简历顾问','家庭菜单','品牌文案','配色设计','周报助手','医疗提醒'])]
+    sample['services']=[{'id':f'owned-{i}','name':n,'status':'online','category':'cat_dev','description':'独立的专业服务','url':f'http://owned-{i}','orders':[],'earned':'0.00'} for i,n in enumerate(['码上飞','快搭建站'])]
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
@@ -58,7 +60,7 @@ def main():
                     value = (
                         {"id": "own"}
                         if path == "session"
-                        else sample if path == "workbench" else []
+                        else sample if path == "workbench" else public_services
                     )
                     assert path in ("session", "workbench", "catalog"), path
                     route.fulfill(
@@ -82,6 +84,11 @@ def main():
                 assert page.locator("[data-map-component]").count() == 6
                 assert page.locator(".ambient-assistant").count() == 16
                 assert page.locator(".ambient-service").count() == 12
+                assert page.locator('#network-map').get_by_text('码上飞',exact=True).count()==1
+                assert '匿名服务' not in page.locator('#network-map').inner_text()
+                assert '背景示意' not in page.locator('#network-map').inner_text()
+                page.locator('[data-public-service="service-0"]').click()
+                assert '码上飞' in page.locator('#component-detail').inner_text()
                 bounds = page.locator(".ioa-network").bounding_box()
                 assert (
                     bounds["y"] >= 0 and bounds["y"] + bounds["height"] < height - 120
@@ -125,6 +132,14 @@ def main():
                     "IoaNetwork.render({...data,events:[{seq:1,op:'discovery.search'}]})"
                 )
                 assert page.locator("#accountWires [data-activity=own]").count() == 0
+                page.locator('[data-view=provider]').click()
+                assert page.locator('#provider-view').get_by_text('服务运营台',exact=True).is_visible()
+                page.locator('[data-service="owned-1"]').click()
+                assert '快搭建站' in page.locator('.provider-hero').inner_text()
+                page.evaluate('render()')
+                assert page.locator('[data-service="owned-1"]').get_attribute('class').endswith('active')
+                assert page.locator('#provider-view').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
+                page.locator('[data-view=assistant]').click()
                 assert not errors, errors
                 if width == 960:
                     target = ROOT / "data/workbench-layout-review.png"

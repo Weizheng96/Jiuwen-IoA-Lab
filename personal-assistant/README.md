@@ -48,3 +48,7 @@ AgentMail提供收信箱，但本轮只接入通知发信，不额外授权九�
 | 升级后修改账号或应用ID | 对应资源重新登录；不复用另一账号、应用或资源的缓存令牌 |
 
 参考：[Outlook SMTP OAuth](https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth)、[Microsoft Services登录错误](https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/app-integration/error-code-aadsts50020-user-account-identity-provider-does-not-exist)、[应用注册前提](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app)。
+
+九问技能自动发现：本仓配置器使用锁定宿主的原生react.skill_mode=all和完整工具schema（progressive_tool_enabled=false），避免模型把技能条目误当成可直接执行的工具。只修改本部署的config/config.yaml，首次保留原配置备份；不改九问源码。技能目录更新可通过宿主配置接口刷新缓存；工具可见性开关在进程初始化时建立，改变该开关后须重启本部署的九问实例。用户首条请求只写业务需求；不能用附加技能路径或命令掩盖安装/发现失败。
+
+配置器同时在九问原生AGENT.md中幂等维护IoA路由指引，只更新ioalab标记区块并首次备份原件。通用用户导入技能后，可在自己的AGENT.md加入：专业服务且预算为虚拟币时，先调用skill_tool，参数为`{"skill_name":"ioalab-delegate"}`，再按技能执行；技能名称不是可调用工具，不在线搜索替代。四处确认仍由用户决定。

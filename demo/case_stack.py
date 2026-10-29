@@ -44,7 +44,7 @@ def main():
         },
         "b": {
             "username": "demo_b@huawei.com",
-            "display_name": "赵专员" if a.scenario == "messaging" else "小满店主",
+            "display_name": "赵专员" if a.scenario == "messaging" else "小美店主",
             "password": secrets.token_urlsafe(24),
         },
         "outside": {"username": "outside_demo", "password": secrets.token_urlsafe(24)},
@@ -73,6 +73,7 @@ def main():
         "IOALAB_LLM_API_KEY": model.get("IOALAB_LLM_API_KEY") or model["API_KEY"],
         "IOALAB_LLM_BASE_URL": model.get("IOALAB_LLM_BASE_URL") or model["API_BASE"],
         "IOALAB_A2X_MODEL": "qwen-plus",
+        "IOALAB_ARBITRATION_MODELS": json.dumps({"qwen-plus":"qwen-plus"}),
     }
     config = {
         "folder": str(folder),
@@ -145,8 +146,7 @@ def main():
             [
                 sys.executable,
                 str(ROOT / "official-services/serve.py"),
-                "--only",
-                "nail-booking-basic,nail-booking-reliable",
+                "--scenario", "nail-booking",
             ],
             env,
         )
@@ -230,6 +230,10 @@ def main():
             shutil = __import__("shutil")
             shutil.copyfile(settings, folder / "previous-skill-settings.json")
         settings.write_text(json.dumps(values, indent=2) + "\n", encoding="utf-8")
+        # Installation preparation only: --help builds the isolated SDK without logging in or creating a contract.
+        with (folder/'skill-bootstrap.log').open('w',encoding='utf-8') as bootstrap_log:
+            subprocess.run([sys.executable,str(skill/'scripts/ioalab.py'),'--help'],cwd=ROOT,
+                           env={**env,**values},stdout=bootstrap_log,stderr=bootstrap_log,check=True)
         config["skillDirectory"] = str(skill)
         (folder / "run.json").write_text(
             json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"

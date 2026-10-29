@@ -18,7 +18,7 @@ def main(argv=None):
         from .message_cli import main as mail_main
         return mail_main(argv[1:])
     parser = argparse.ArgumentParser(prog="ioalab-client")
-    parser.add_argument("command", choices=["me", "search", "templates", "compare", "draft", "sign", "request", "adopt", "start",
+    parser.add_argument("command", choices=["me", "delegate", "authorize", "scope", "inspect", "reputation", "search", "templates", "compare", "draft", "sign", "request", "adopt", "start",
                                            "poll", "watch", "fetch", "verify", "accept", "pay", "answer-step", "terminate", "arbitrate"])
     parser.add_argument("--args", default="{}", help="JSON parameters")
     parser.add_argument('--args-file',type=Path,help='UTF-8 JSON parameters; avoids shell quoting problems')
@@ -31,11 +31,13 @@ def main(argv=None):
         home = Path(os.environ.get("IOALAB_HOME", str(Path.home() / ".ioalab" / key)))
         client = LabClient(base, username, password, home)
         params = json.loads(args.args_file.read_text(encoding='utf-8-sig') if args.args_file else args.args)
+        if params.get('action') in ('begin','advance','poll','status','decline'):
+            args.command='delegate'
         if args.command == "me":
             out = client.api("GET", "/me")
         else:
             method = getattr(client, args.command.replace("-", "_"))
-            if args.command in ("sign", "request", "adopt", "start", "accept", "pay", "answer-step", "terminate", "arbitrate"):
+            if args.command in ("delegate", "authorize", "sign", "request", "adopt", "start", "accept", "pay", "answer-step", "terminate", "arbitrate"):
                 params["confirmed"] = args.confirmed
             if "materials" in params:
                 params["materials"] = {n: (Path(v["path"]).read_bytes(), v.get("declared", {})) for n, v in params["materials"].items()}

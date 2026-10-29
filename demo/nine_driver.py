@@ -1,2 +1,2 @@
-"""Single source of the delegation recording prompt; the actual turn starts in the Web UI."""
+"""Legacy medical smoke prompt for record_local.py; formal nail filming uses delegation_case.py."""
 DELEGATION='''这是已授权的IoA演示。使用ioalab-delegate技能委托用药提醒表服务med-reminder，预算100虚拟币，使用本轮提供的具体示范参数。我确认签约、开工，并授权通过SDK本地WASM验收后接受和按卡支付，无需重复询问。严格调用技能脚本，不写脚本绕过SDK，不输出凭据，不访问外部医疗或邮箱服务。先读取skill_tool返回的skill_directory，已有账号配置，禁止新建或猜测凭据。Windows使用bash工具的shell_type=powershell，command直接运行python，不嵌套powershell -Command；路径换成正斜杠。所有业务字段写JSON文件，用--args-file，没有业务位置参数。依次完成me、search、templates、draft、sign、start、watch、fetch、verify、accept，命令成功回执后才报告。period从1开始，以watch回执中的实际期号为准；未收到anchored则继续watch，不提前fetch。更新参数文件前先完整读取旧文件，或为每条命令创建不同文件名。最后给出实际合同摘要和验收结论。'''

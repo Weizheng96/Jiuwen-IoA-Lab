@@ -23,6 +23,8 @@ const labels = {
   accepted: "已验收",
   signed: "已签约",
   drafted: "草拟中",
+  forming: "待确认提案",
+  offered: "待确认提案",
   finished: "已完成",
   invite_submitted: "邀请邮件已提交，等待接受",
   delivered: "已投递九问会话",
@@ -32,7 +34,8 @@ const labels = {
 let data = null,
   definitions = [],
   chosen = null,
-  active = "assistant";
+  active = "assistant",
+  publicServices = [], catalogChecked = 0;
 $("base").textContent = location.origin;
 async function api(path, body, method) {
   const r = await fetch(path, {
@@ -69,14 +72,11 @@ function render() {
       .map((x) => `${x.name} · ${x.status}`)
       .join(" / ") || "账号已就绪，等待本地九问关联助手身份。";
   $("metrics").innerHTML = [
-    ["委托记录", data.orders.length],
+    ["已签委托", data.orders.filter(o=>o.signatures?.["1"]).length],
     [
       "履约中",
       data.orders.filter(
-        (o) =>
-          !["completed", "accepted", "finished", "terminated"].includes(
-            o.state,
-          ),
+        (o) => o.signatures?.['1'] && !IoaNetwork.done.has(o.state),
       ).length,
     ],
     ["交互消息", data.messages.length],
@@ -86,8 +86,9 @@ function render() {
     .join("");
   IoaNetwork.render(data);
   $("orders").innerHTML = orders(
-    data.orders.filter((o) => !IoaNetwork.done.has(o.state)),
+    data.orders.filter((o) => o.signatures?.["1"] && !IoaNetwork.done.has(o.state)),
   );
+  $('proposal-orders').innerHTML=orders(data.orders.filter(o=>!o.signatures?.['1']&&!IoaNetwork.done.has(o.state)));
   $("order-history").innerHTML = orders(
     data.orders.filter((o) => IoaNetwork.done.has(o.state)),
   );
@@ -108,50 +109,7 @@ function render() {
         )
         .join("")
     : '<div class="empty">尚无交互。查询对方账号对你开放的交互接口，按输入格式发送。</div>';
-  $("services").innerHTML = data.services.length
-    ? data.services
-        .map(
-          (s) =>
-            `<section class="panel" id="service-${esc(s.id)}"><div class="section-title"><h2>${esc(s.name)} ${badge(s.status)}</h2><b class="earned">+${esc(s.earned)} 虚拟币</b></div><p class="hint">已关联合同收入 · ${s.orders.length} 笔可见委托</p><h3>正在履约</h3>${orders(s.orders.filter((o) => !IoaNetwork.done.has(o.state)))}<h3>完成与历史</h3>${orders(s.orders.filter((o) => IoaNetwork.done.has(o.state)))}</section>`,
-        )
-        .join("")
-    : '<section class="panel empty">这个账号名下还没有注册服务。通过服务方连接器接入后，服务和独立委托记录会显示在这里。</section>';
-  $("provider-metrics").innerHTML = [
-    ["我的服务", data.services.length],
-    [
-      "正在履约",
-      data.services.reduce(
-        (n, s) =>
-          n + s.orders.filter((o) => !IoaNetwork.done.has(o.state)).length,
-        0,
-      ),
-    ],
-    [
-      "已结束委托",
-      data.services.reduce(
-        (n, s) =>
-          n + s.orders.filter((o) => IoaNetwork.done.has(o.state)).length,
-        0,
-      ),
-    ],
-    [
-      "已关联收入",
-      data.services.reduce((n, s) => n + Number(s.earned), 0).toFixed(2),
-    ],
-  ]
-    .map(
-      ([n, v]) =>
-        `<div class="metric"><b>${esc(v)}</b><span>${n}${n === "已关联收入" ? " · 虚拟币" : ""}</span></div>`,
-    )
-    .join("");
-  $("taxonomy").innerHTML =
-    `<div class="tree-root">A2X 服务网络</div>` +
-    (data.categories || [])
-      .map((c) => {
-        const mine = data.services.filter((s) => s.category === c.id);
-        return `<div class="tree-branch ${mine.length ? "tree-own" : ""}"><b>${esc(c.name)}</b>${mine.map((s) => `<a href="#service-${esc(s.id)}">${esc(s.name)}</a>`).join("")}${mine.length ? "" : "<small>公开领域</small>"}</div>`;
-      })
-      .join("");
+  ProviderWorkbench.render(data);
   document.querySelectorAll("[data-message]").forEach(
     (b) =>
       (b.onclick = () =>
@@ -203,6 +161,8 @@ async function refresh() {
   const s = await api("/api/session");
   if (!s.id) return;
   data = await api("/api/workbench");
+  if(!catalogChecked||Date.now()-catalogChecked>30000){publicServices=await api('/api/catalog');catalogChecked=Date.now();}
+  data.publicServices=publicServices;
   $("welcome").hidden = true;
   $("workspace").hidden = false;
   document.body.classList.add("workbench-connected");
