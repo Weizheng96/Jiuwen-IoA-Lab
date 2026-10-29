@@ -1,9 +1,9 @@
 {
-  "version": "0.0.32",
+  "version": "0.0.35",
   "package_type": "mcp",
   "id": "ioalab-client",
   "name": "九问IoA实验平台 · 个人助手",
-  "description": "本地SDK执行分阶段委托与验收，保留用户确认，并与指定账号的个人助手进行结构化交互。",
+  "description": "按需选择委托交易或私人交互，读取通用流程并调用本地SDK。",
   "display_name": {
     "zh": "九问IoA实验平台 · 个人助手",
     "en": "Jiuwen IoA Lab · Personal Assistant"
@@ -22,8 +22,7 @@
   "icon": "icon.png",
   "skills": [
     {
-      "dir": "skills/ioalab-delegate",
-      "mode": "all"
+      "dir": "skills/ioalab-delegate"
     }
   ],
   "category": "办公与生产力",

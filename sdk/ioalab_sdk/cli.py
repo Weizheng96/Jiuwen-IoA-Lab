@@ -31,8 +31,6 @@ def main(argv=None):
         home = Path(os.environ.get("IOALAB_HOME", str(Path.home() / ".ioalab" / key)))
         client = LabClient(base, username, password, home)
         params = json.loads(args.args_file.read_text(encoding='utf-8-sig') if args.args_file else args.args)
-        if params.get('action') in ('begin','advance','poll','status','decline'):
-            args.command='delegate'
         if args.command == "me":
             out = client.api("GET", "/me")
         else:

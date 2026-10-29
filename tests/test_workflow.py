@@ -25,7 +25,7 @@ def nail_host(platform,tmp_path):
 def test_delegate_drives_real_proposals_and_stops_at_each_human_gate(platform,local_client,nail_host):
     c=local_client
     platform.grant(c.account['id'],1000,by='admin',note='explicit workflow test credit')
-    plan=Path(__file__).resolve().parents[1]/'connector/ioalab-client/skills/ioalab-delegate/references/nail-booking-plan.json'
+    plan=Path(__file__).resolve().parents[1]/'examples/nail-booking/plan.json'
     initial=c.delegate('begin',need='小美美甲店：每时段两人，可以取消，预算500虚拟币',budget=500,plan_file=str(plan),spec={'shop':'小美美甲店','capacity':2})
     task=initial['taskId']
     assert initial['gate']=='authorization' and initial['proposalFeeLimit']=='3'

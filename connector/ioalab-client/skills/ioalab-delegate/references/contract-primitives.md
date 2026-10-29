@@ -1,6 +1,6 @@
 # 底层合同原语（通用接入与诊断）
 
-美甲任务使用主技能的delegate阶段入口，不使用本表替换阶段编排。
+调用顺序以delegation.md为准；本表只列通用参数。
 
 | 顺序 | 命令与主要参数 |
 |---|---|
@@ -8,7 +8,7 @@
 | 1 | `me`；`search {query,top_k}`：发现服务 |
 | 2 | `templates {provider}`：获取完整已验签模板。依次读交付件、材料要求、报价、验收与期限、样件；剔除后不读后续节 |
 | 2a | `compare {providers,selected,reason,cd?}`：重新读取2—8项真实候选的完整验签模板，记录筛选理由，标reported；cd存在时中选方必须与合同一致。不能用过程上报代替签名或付款证据 |
-| 3 | `draft {template_digest,spec,budget,materials?}`；材料 `{name:{path,declared}}` 是本地文件；提案型用 `request {template_digest,spec,budget,scope_id}` |
+| 3 | `draft {template_digest,spec,budget,scope_id?,materials?}`；材料 `{name:{path,declared}}` 是本地文件；提案型用 `request {template_digest,spec,budget,scope_id}` |
 | 4 | 向用户说明服务方、成果、定数金额、期数与判据，得到同意后 `sign {cd}`；提案型 `adopt {cd}`；再 `start {cd}` |
 | 5 | `watch {cd,timeout:60}` 在本地等待存证或环节请求；也可用 `poll {cd}` 单次查询。九问退出后下次从同一本地数据恢复 |
 | 6 | 环节请求须原样告知用户；按用户答复执行 `answer-step {cd,granted}` |

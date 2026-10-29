@@ -35,10 +35,16 @@ def summarize(config, recording):
     require(statuses and statuses[-1]=='pass' and delivered,'Actual selftest and SDK delivery are missing')
     path=folder/'client-b/contracts.sqlite'
     with sqlite3.connect('file:'+path.as_posix()+'?mode=ro',uri=True) as db:
-        tasks=[json.loads(v) for v, in db.execute("SELECT v FROM documents WHERE tbl='delegations'")]
-    task=next(t for t in tasks if t.get('cardDigest')==digest)
-    report=task['report'];checks=[c for group in report['checks'] for c in group]
-    require(task['gate']=='completed' and report['status']=='pass' and len(checks)==10 and all(c.get('ok') for c in checks),'Actual local ten-check report is missing')
+        if proof.get('executionPath')=='generic-primitives':
+            row=db.execute("SELECT v FROM documents WHERE tbl='verification_reports' AND k=?",(digest+':1',)).fetchone()
+            require(row is not None,'Actual primitive verifier report is missing')
+            report=json.loads(row[0])
+        else:
+            tasks=[json.loads(v) for v, in db.execute("SELECT v FROM documents WHERE tbl='delegations'")]
+            task=next(t for t in tasks if t.get('cardDigest')==digest)
+            require(task['gate']=='completed','Legacy task must be completed');report=task['report']
+    checks=[c for group in report['checks'] for c in group]
+    require(report['status']=='pass' and len(checks)==10 and all(c.get('ok') for c in checks),'Actual local ten-check report is missing')
     proof['production']={'source':'actual provider job events','processStatus':result['status'],
         'toolCounts':dict(counts),'selftestStatuses':statuses,'submission':'delivered',
         'processRuns':len(list(job.glob('swarm-result-*.json')))}

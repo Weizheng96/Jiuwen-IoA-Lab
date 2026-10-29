@@ -132,3 +132,20 @@ def test_encoded_review_is_bound_to_acceptance_presentation(tmp_path):
     validate_reviews(proof,review,review,movie)
     changed={**review,'acceptancePresentation':'recorded'}
     with pytest.raises(ValueError,match='presentation changed'):validate_reviews(proof,changed,review,movie)
+
+
+def test_local_onboarding_writes_only_declared_skill_configuration(tmp_path):
+    import sys,json
+    from pathlib import Path
+    root=Path(__file__).resolve().parents[1]
+    sys.path.insert(0,str(root/'demo'))
+    import pytest
+    from onboarding import write_settings
+    skill=tmp_path/'skill';skill.mkdir()
+    cfg={'onboarding':True,'scenario':'delegation','base':'http://127.0.0.1:12345','accounts':{'b':{'username':'xiaomei@outlook.com','password':'123456'}},'folder':str(tmp_path),'skillDirectory':str(skill)}
+    values={'IOALAB_BASE_URL':cfg['base'],'IOALAB_USERNAME':'xiaomei@outlook.com','IOALAB_PASSWORD':'123456'}
+    assert write_settings(cfg,values)['verified']
+    saved=json.loads((skill/'settings.local.json').read_text(encoding='utf-8'))
+    assert all(saved[k]==v for k,v in values.items())
+    with pytest.raises(ValueError):write_settings(cfg,{**values,'OTHER_SECRET':'unrelated'})
+    with pytest.raises(ValueError):write_settings({**cfg,'onboarding':False},values)

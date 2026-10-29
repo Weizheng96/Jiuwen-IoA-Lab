@@ -52,7 +52,10 @@ ACTIONS = {
     },
     "delegation": {
         "cover": "完整片头：美甲预约·合同委托。",
-        "need": "准备阶段通过九问原生菜单预选IoA技能，再只输入业务需求；右侧点亮个人助手组件，预算500虚拟币。预选步骤明确记录，不冒充无配置自动发现。",
+        "account": "真实平台注册表单：输入xiaomei@outlook.com、演示密码123456，点击注册，展示进入本人工作台。账号只在本轮隔离平台创建，不注册外部邮箱。",
+        "configuration": "真实本地skill配置文件：从示例复制settings.local.json，填写本轮真实平台地址、xiaomei@outlook.com和123456，点击保存并重新读取核对。仅演示凭据允许显示，不展示模型或通知邮箱密钥。",
+        "skill": "九问原生菜单选择IoA个人助手技能，保留可见选中状态；此时不发送隐藏技术提示。",
+        "need": "完成前述注册、配置与原生技能选择后，只输入业务需求；右侧点亮个人助手组件，预算500虚拟币。预选步骤明确记录，不冒充无配置自动发现。",
         "discovery": "点击A2X组件，展示真实搜索和完整验签模板。",
         "authorization": "九问先请求发起委托授权，店主确认后authorize保存范围；请求中不夹带技能路径或命令。",
         "quotes": "七家逐步筛选，灵犀239、快搭259、码上飞299三份真实签名提案；不补造历史信誉。",
@@ -122,6 +125,7 @@ def render(case, timing=None):
     voice_path = Path(timing) if timing else DEMO / "assets/voice" / case / "voice.json"
     voices = read_json(voice_path)
     by_id = {v["id"]: v for v in voices}
+    synchronized=all(v['id'] in by_id and by_id[v['id']]['text']==v['text'] and by_id[v['id']]['voice']==v['voice'] for v in scene if not (case=='messaging' and proof.get('acceptancePresentation')=='narrated' and v['id']=='outlook'))
     preview = proof.get("preview", False)
     narrated=case=='messaging' and proof.get('acceptancePresentation')=='narrated'
     if narrated:scene=[s for s in scene if s['id']!='outlook']
@@ -134,7 +138,7 @@ def render(case, timing=None):
         "|---|---|",
         f"| 场景源 | [{source}](../{source}) |",
         f"| 当前视频 | [{movie.name}](../out/{movie.name}) |",
-        f"| 发布状态 | {'正式平台演示；Outlook接受入历为旁白说明' if narrated else ('预览；Outlook接受与入历待补录' if preview else '正式成片')} |",
+        f"| 发布状态 | {'正式平台演示；Outlook接受入历为旁白说明' if narrated else ('预览；Outlook接受与入历待补录' if preview else ('正式成片' if synchronized else '剧本已更新，现有成片待重录'))} |",
         f"| 当前时长 | {proof['qa']['duration']:.2f}秒 |",
         f"| 角色与视角 | {roles} |",
         "| 声画要求 | 完整片头；52px高对比短字幕；按实测音长剪辑；A2C念A to C |",
@@ -219,7 +223,7 @@ def render(case, timing=None):
         ]
     elif case == "delegation":
         lines += [
-            "三份真实提案为灵犀239、快搭259、码上飞299虚拟币，最终采纳码上飞。用户只发需求，并在委托授权、合同确认、实名环节、验收四处确认。中选摘要、完成摘要和实际付款一致；原版旧影片如尚未重录则镜头标待更新。当前不宣称已完成微信真实注册、审核或上线。"
+            "三份真实提案为灵犀239、快搭259、码上飞299虚拟币，最终采纳码上飞。用户先注册演示平台账号xiaomei@outlook.com（密码123456）、保存本地skill配置并从原生菜单选择技能，然后只发需求，并在委托授权、合同确认、实名环节、验收四处确认。这四次确认属于本场景，不是通用流程固定次数。中选摘要、完成摘要和实际付款一致；原版旧影片如尚未重录则镜头标待更新。当前不宣称已完成微信真实注册、审核或上线。"
         ]
     else:
         lines += [

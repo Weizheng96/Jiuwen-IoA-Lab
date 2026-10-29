@@ -1,11 +1,9 @@
-# 九问本地IoA技能
+# IoA个人助手技能
 
-`python tools/build_connector.py`生成两个包：`dist/ioalab-skill.zip`用于九问「技能」页直接导入，`dist/ioalab-client.zip`保留MCP目录形式供兼容部署，不用于九问插件页导入。
+`python tools/build_connector.py`生成`dist/ioalab-skill.zip`（九问技能页导入）与兼容目录包`dist/ioalab-client.zip`。技能包含锁定SDK/A2C wheel、依赖约束和摘要，首次调用自动准备隔离环境。
 
-直接技能包包含SDK与A2C wheel、依赖约束和校验摘要。用户导入技能后，将settings.example.json复制为settings.local.json填平台地址、用户名、密码；首次调用自动创建独立SDK环境。不要把密码发到聊天中，也不要把本地配置提交到仓库。
+导入后复制settings.example.json为settings.local.json，仅填写平台地址、用户名、密码。在九问原生菜单选择IoA技能，再输入业务需求；不修改九问源码、全局指令或技能模式。未预选时自动加载受宿主/模型影响，不保证稳定。既有目录标识ioalab-delegate用于安装兼容，显示标题为IoA个人助手。
 
-同一技能支持A2C委托与`mail`命令。协议和信箱共享用户本地身份目录；收件同步不会长期占用合同执行锁。完整调用顺序由技能SKILL.md唯一维护。
+主SKILL.md只路由委托交易和私人交互，分别按需读取references/delegation.md和private-interaction.md。九问按通用流程逐项调用SDK；协议与信箱共享本地身份，消息同步不长期占用合同执行锁。美甲计划和台词在[独立示例](../examples/nail-booking/README.md)，不随通用skill分发。
 
-美甲委托的用户首句只描述需求和预算；九问使用`delegate`阶段入口，按回执的gate分别请求委托授权、合同确认、实名环节授权和验收确认。`references/nail-booking-plan.json`只含声明式查询、默认规格、排除词与拟卡费限额，不含执行代码。底层原语独立放在技能参考页，避免与阶段参数混用。随部署的九问发现设置见[独立助手](../personal-assistant/README.md)。
-
-可靠使用：配置账号后，在九问原生技能菜单预选ioalab-delegate，再输入业务需求和预算；宿主会预载完整技能。当前模型对未预选的自动发现仍不稳定，不能把“已导入”当作“已加载”。无需输入SDK命令或额外流程描述。
+旧部署的发现配置和AGENT标记区可显式执行`python deploy/restore_swarm_overrides.py --swarm-data <九问数据目录>`撤回；仅恢复匹配旧覆写值的字段并移除自己的标记区，保留其他用户配置及备份。变更后重启该实例。新安装器不写这些配置。

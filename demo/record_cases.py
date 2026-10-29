@@ -1,6 +1,6 @@
 """Record real pages in side-by-side iframes; editing is driven by saved raw timestamps."""
 
-import argparse, json, socket, sys, threading, time
+import argparse, json, socket, sys, threading, time, secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -31,10 +31,9 @@ def main():
             "This recording harness is limited to local simulation participants"
         )
     b = cfg["accounts"]["b"]
-    box = MailboxClient(
-        cfg["base"], b["username"], b["password"], Path(cfg["folder"]) / "client-b"
-    )
-    health = box.http.get(cfg["provider"] + "/health").raise_for_status().json()
+    import httpx
+    box = None if cfg.get('onboarding') else MailboxClient(cfg['base'],b['username'],b['password'],Path(cfg['folder'])/'client-b')
+    health = httpx.get(cfg['provider']+'/health',trust_env=False).raise_for_status().json()
     assert health["execution"] == "swarm"
     proof = {
         "case": a.case,
@@ -58,12 +57,25 @@ def main():
         .replace("LAB_URL", json.dumps(cfg["base"]))
     )
 
+    from onboarding import editor_html,write_settings
+    editor_token=secrets.token_urlsafe(24)
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
 
+        def do_POST(self):
+            try:
+                if self.path!='/save-settings' or self.headers.get('X-Local-Editor-Token')!=editor_token:raise ValueError('Invalid local editor request')
+                size=int(self.headers.get('Content-Length','0'))
+                if not 0<size<4096:raise ValueError('Invalid configuration size')
+                result=write_settings(cfg,json.loads(self.rfile.read(size)))
+                raw=json.dumps(result).encode();self.send_response(200)
+            except (ValueError,KeyError) as e:
+                raw=json.dumps({'error':str(e)}).encode();self.send_response(400)
+            self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(raw)
+
         def do_GET(self):
-            raw = html.encode("utf-8")
+            raw = (editor_html(editor_token) if self.path=='/configuration' else html).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -102,10 +114,9 @@ def main():
             )
             nine = page.frame_locator("#left")
             lab = page.frame_locator("#right")
-            lab.locator("#name").fill(b["username"])
-            lab.locator("#password").fill(b["password"])
-            lab.locator("#auth button[type=submit]").click()
-            lab.locator("#workspace").wait_for(state="visible")
+            if not cfg.get('onboarding'):
+                lab.locator('#name').fill(b['username']);lab.locator('#password').fill(b['password'])
+                lab.locator('#auth button[type=submit]').click();lab.locator('#workspace').wait_for(state='visible')
             page.locator('#left').evaluate('(e)=>{e.style.width="100%";e.style.left="0"}')
             nine.get_by_role('button',name='新建任务',exact=True).click()
             page.locator('#left').evaluate('(e)=>{e.style.width="calc(100% + 312px)";e.style.left="-312px"}')
@@ -146,7 +157,10 @@ def main():
                     editor.press('End')
                     editor.type(' '+text)
                     proof['nativeSkillPreload']='selected in the native Jiuwen skill menu before the first business request'
+                elif proof.get('nativeSkillPreload') and not proof.get('firstBusinessRequestSent'):
+                    editor.press('End');editor.type(' '+text)
                 else:editor.fill(text)
+                proof['firstBusinessRequestSent']=True
                 editor.press("Enter")
                 print("Submitted visible Jiuwen turn", flush=True)
 
@@ -214,6 +228,37 @@ def main():
 
             shot("cover")
             page.locator("#cover").evaluate("(e)=>e.remove()")
+            if cfg.get('onboarding'):
+                page.locator('body').evaluate('(e)=>e.classList.add("full")')
+                def register():
+                    lab.locator('#name').fill(b['username']);lab.locator('#password').fill(b['password'])
+                    lab.locator('#register').click();lab.locator('#workspace').wait_for(state='visible')
+                    proof['onboarding']={'account':b['username'],'registration':'actual UI registration','configuration':'pending','skillSelection':'pending'}
+                shot('account',action=register)
+                # Explicit administrative preparation of simulation credit; never a real transfer.
+                with httpx.Client(base_url=cfg['base'],trust_env=False) as admin:
+                    admin.post('/api/admin/login',json={'password':cfg['demoAdminPassword']}).raise_for_status()
+                    users=admin.get('/api/admin/users').raise_for_status().json()
+                    uid=next(u['id'] for u in users if u['username']==b['username'])
+                    admin.post('/api/admin/wallet',json={'user_id':uid,'delta':'1000','note':'显式演示虚拟额度'}).raise_for_status()
+                proof['onboarding']['demoCredit']=1000
+                page.locator('#right').evaluate('(e,url)=>e.src=url',f'http://127.0.0.1:{srv.server_port}/configuration')
+                lab.locator('#configuration').wait_for()
+                def configure():
+                    values={'IOALAB_BASE_URL':cfg['base'],'IOALAB_USERNAME':b['username'],'IOALAB_PASSWORD':b['password']}
+                    lab.locator('#configuration').fill(json.dumps(values,ensure_ascii=False,indent=2))
+                    page.wait_for_timeout(1800);lab.locator('#save').click();lab.locator('#status').filter(has_text='已保存').wait_for()
+                    proof['onboarding']['configuration']='actual skill file saved and reread'
+                shot('configuration',action=configure)
+                box=MailboxClient(cfg['base'],b['username'],b['password'],Path(cfg['folder'])/'client-b')
+                page.locator('#right').evaluate('(e,url)=>e.src=url',cfg['base']);lab.locator('#workspace').wait_for(state='visible')
+                page.locator('body').evaluate('(e)=>e.classList.remove("full")')
+                def select():
+                    editor=nine.locator('[contenteditable=true]').last;editor.fill('/')
+                    nine.get_by_text('ioalab-delegate',exact=True).last.click()
+                    proof['nativeSkillPreload']='selected visibly in the native Jiuwen menu before the business request'
+                    proof['onboarding']['skillSelection']='native skill menu'
+                shot('skill',action=select)
             if a.case == "delegation":
                 from delegation_case import record
                 record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save)
@@ -229,7 +274,7 @@ def main():
             proof["rawDuration"] = round(time.monotonic() - capture, 3)
             save()
     finally:
-        box.close()
+        if box:box.close()
         srv.shutdown()
 
 

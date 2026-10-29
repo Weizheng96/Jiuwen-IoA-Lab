@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-29",
+  "host": "pinned Jiuwen without IoA global instruction/discovery overrides",
+  "scope": "Native skill and flow loading only; SDK business flows tested separately",
+  "firstFormalTake": "Failed after successful onboarding: skill name mistaken for tool; kept locally",
+  "results": [
+    {
+      "kind": "delegation",
+      "selected": true,
+      "mainSkillLoaded": true,
+      "flowRead": true,
+      "request": "请帮我寻找翻译品牌介绍的专业服务，预算上限100虚拟币。",
+      "toolNames": [
+        "skill_tool",
+        "read_file",
+        "bash",
+        "read_file"
+      ]
+    },
+    {
+      "kind": "private",
+      "selected": true,
+      "mainSkillLoaded": true,
+      "flowRead": true,
+      "request": "帮我向另一个个人助手报个平安，告诉对方我已经安全到达。",
+      "toolNames": [
+        "skill_tool",
+        "skill_tool"
+      ]
+    },
+    {
+      "kind": "private",
+      "selected": false,
+      "mainSkillLoaded": false,
+      "flowRead": false,
+      "request": "帮我向另一个个人助手报个平安，告诉对方我已经安全到达。",
+      "toolNames": []
+    }
+  ],
+  "fullDelegationRecording": "in progress; existing movie not replaced"
+}

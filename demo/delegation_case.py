@@ -13,6 +13,7 @@ def record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save):
     b=cfg['accounts']['b'];base=cfg['base'];home=Path(cfg['folder'])/'client-b'
     last_turn=['']
     proof['flow']='nail-original';proof['userTurns']=[]
+    if cfg.get('onboarding'):proof['executionPath']='generic-primitives'
     def view():return box.http.get(base+'/api/workbench',headers={'Authorization':'Bearer '+box.token}).raise_for_status().json()
     def turn(kind,text):
         last_turn[0]=text
@@ -45,7 +46,7 @@ def record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save):
         raise TimeoutError('Jiuwen did not request '+label)
     assert not view()['orders'],'Use a fresh participant stack'
     turn('request',NEED);shot('need','assistant')
-    prompt(('确认授权','委托授权','是否授权'),'delegation-authorization')
+    prompt(('确认授权','委托授权','是否授权','是否同意','请确认'),'delegation-authorization')
     assert not view()['orders'] and not local('scopes'),'No paid proposal or implicit authorization before user consent'
     shot('authorization','assistant');turn('authorization',AUTHORIZE)
     wait(lambda d:any(e['op']=='discovery.search' for e in d['events']),'discovery');shot('discovery','a2x')

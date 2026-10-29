@@ -46,33 +46,38 @@ def test_trial_administrator_password_is_generated_not_default(tmp_path):
         for transport in pf.transports:transport.close()
 
 
-def test_skill_discovery_setup_preserves_other_config_and_original_backup(tmp_path):
-    import yaml
+def test_install_never_changes_host_config_or_owner_instructions(tmp_path):
+    import zipfile
     path=Path(__file__).resolve().parents[1]/'deploy/configure_assistant.py'
-    spec=importlib.util.spec_from_file_location('assistant_config_discovery',path);mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+    spec=importlib.util.spec_from_file_location('assistant_config_pure',path);mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+    root=tmp_path/'app';(root/'dist').mkdir(parents=True)
+    with zipfile.ZipFile(root/'dist/ioalab-skill.zip','w') as z:z.writestr('ioalab-delegate/SKILL.md','skill')
+    swarm=tmp_path/'swarm';config=swarm/'config/config.yaml';config.parent.mkdir(parents=True)
+    agent=swarm/'agent/workspace/AGENT.md';agent.parent.mkdir(parents=True)
+    config.write_bytes(b'react:\n  skill_mode: auto_list\nprogressive_tool_enabled: true\n')
+    agent.write_bytes(b'# Owner instructions\nDo not change.\n')
+    before=(config.read_bytes(),agent.read_bytes())
+    values={k:'test-only' for k in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_HOME')}
+    mod.install_skill(root,swarm,values)
+    assert before==(config.read_bytes(),agent.read_bytes())
+    assert not config.with_name('config.before-ioa-discovery.yaml').exists()
+
+
+def test_override_removal_preserves_owner_changes_and_is_idempotent(tmp_path):
+    import yaml
+    source=Path(__file__).resolve().parents[1]/'deploy/restore_swarm_overrides.py'
+    spec=importlib.util.spec_from_file_location('restore_overrides',source);mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
     config=tmp_path/'config/config.yaml';config.parent.mkdir()
-    original='react:\n  skill_mode: all\n  agent_name: preserved-agent\nprogressive_tool_enabled: true\nunchanged_setting: keep-me\n'
-    config.write_text(original,encoding='utf-8')
-    mod.configure_skill_discovery(tmp_path)
-    changed=yaml.safe_load(config.read_text(encoding='utf-8'))
-    assert changed['react']=={'skill_mode':'all','agent_name':'preserved-agent'}
-    assert changed['progressive_tool_enabled'] is False and changed['unchanged_setting']=='keep-me'
+    config.write_text('react:\n  skill_mode: all\n  owner: keep\nprogressive_tool_enabled: false\nother: new-owner-value\n',encoding='utf-8')
     backup=config.with_name('config.before-ioa-discovery.yaml')
-    assert backup.read_text(encoding='utf-8')==original
-    after=config.read_bytes();mod.configure_skill_discovery(tmp_path)
-    assert config.read_bytes()==after and backup.read_text(encoding='utf-8')==original
-
-
-def test_personal_instruction_block_preserves_owner_content_and_backup(tmp_path):
-    source=Path(__file__).resolve().parents[1]/'deploy/configure_assistant.py'
-    spec=importlib.util.spec_from_file_location('assistant_config_instructions',source);mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
-    configure_ioa_instructions=mod.configure_ioa_instructions
-    path=tmp_path/'agent/workspace/AGENT.md';path.parent.mkdir(parents=True)
-    path.write_text('# Owner instructions\nKeep this setting.\n',encoding='utf-8')
-    configure_ioa_instructions(tmp_path)
-    first=path.read_text(encoding='utf-8')
-    assert 'Keep this setting.' in first and first.count('<!-- ioalab:begin -->')==1
-    assert 'skill_tool' in first and 'SKILL.md' in first
-    assert path.with_name('AGENT.before-ioa.md').read_text(encoding='utf-8')=='# Owner instructions\nKeep this setting.\n'
-    configure_ioa_instructions(tmp_path)
-    assert path.read_text(encoding='utf-8')==first
+    backup.write_text('react:\n  skill_mode: auto_list\nprogressive_tool_enabled: true\nother: old\n',encoding='utf-8')
+    agent=tmp_path/'agent/workspace/AGENT.md';agent.parent.mkdir(parents=True)
+    agent.write_text('Owner before\n<!-- ioalab:begin -->old instruction<!-- ioalab:end -->\nOwner after\n',encoding='utf-8')
+    assert mod.restore(tmp_path)['restartRequired']
+    now=yaml.safe_load(config.read_text(encoding='utf-8'))
+    assert now['react']=={'skill_mode':'auto_list','owner':'keep'} and now['progressive_tool_enabled'] is True
+    assert now['other']=='new-owner-value' and backup.exists()
+    assert agent.read_text(encoding='utf-8')=='Owner before\n\nOwner after\n'
+    before=(config.read_bytes(),agent.read_bytes())
+    assert not mod.restore(tmp_path)['restartRequired']
+    assert before==(config.read_bytes(),agent.read_bytes())

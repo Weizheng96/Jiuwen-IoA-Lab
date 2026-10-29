@@ -18,5 +18,10 @@
     "不提供微信小程序",
     "不包含顾客自助取消"
   ],
-  "proposalFeeLimit": 3
+  "proposalFeeLimit": 3,
+  "ranking": [
+    "script",
+    "coverage",
+    "price"
+  ]
 }

@@ -9,7 +9,7 @@ from .messaging import MailboxClient
 
 def main(argv=None):
     parser=argparse.ArgumentParser()
-    parser.add_argument('command',choices=['interfaces','publish','send','sync','messages','message'])
+    parser.add_argument('command',choices=['interfaces','publish','send','sync','messages','message','claim','complete'])
     parser.add_argument('--args',default='{}')
     parser.add_argument('--args-file',type=Path)
     args=parser.parse_args(argv);client=None

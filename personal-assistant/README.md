@@ -49,8 +49,6 @@ AgentMail提供收信箱，但本轮只接入通知发信，不额外授权九�
 
 参考：[Outlook SMTP OAuth](https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth)、[Microsoft Services登录错误](https://learn.microsoft.com/en-us/troubleshoot/entra/entra-id/app-integration/error-code-aadsts50020-user-account-identity-provider-does-not-exist)、[应用注册前提](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app)。
 
-九问技能自动发现：本仓配置器使用锁定宿主的原生react.skill_mode=all和完整工具schema（progressive_tool_enabled=false），避免模型把技能条目误当成可直接执行的工具。只修改本部署的config/config.yaml，首次保留原配置备份；不改九问源码。技能目录更新可通过宿主配置接口刷新缓存；工具可见性开关在进程初始化时建立，改变该开关后须重启本部署的九问实例。用户首条请求只写业务需求；不能用附加技能路径或命令掩盖安装/发现失败。
+纯skill接入：用户导入技能、填写平台地址和账号，在九问原生菜单选择IoA个人助手即可。主skill按需求读取委托交易或私人交互的通用流程，逐项调用SDK；不写宿主AGENT.md，不改技能可见性或工具开关，不改上游源码。未预选的自动识别仍受模型影响。
 
-配置器同时在九问原生AGENT.md中幂等维护IoA路由指引，只更新ioalab标记区块并首次备份原件。通用用户导入技能后，可在自己的AGENT.md加入：专业服务且预算为虚拟币时，先调用skill_tool，参数为`{"skill_name":"ioalab-delegate"}`，再按技能执行；技能名称不是可调用工具，不在线搜索替代。四处确认仍由用户决定。
-
-可靠使用：配置账号后，在九问原生技能菜单预选ioalab-delegate，再输入业务需求和预算；宿主会预载完整技能。当前模型对未预选的自动发现仍不稳定，不能把“已导入”当作“已加载”。无需输入SDK命令或额外流程描述。
+旧版配置覆写的撤回入口与技能使用说明见[connector](../connector/README.md)。管理员通知扩展与常驻收件器是部署方显式选择的独立能力；普通用户安装skill不自动获得后台轮询或邮箱授权。本人日程/通知设置与消息协议分离。

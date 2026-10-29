@@ -15,7 +15,7 @@ def amount(value):
 
 
 class DelegationScopes:
-    def authorize(self, purpose: str, budget, proposal_fee_limit=3, valid_days=7, *, confirmed=False):
+    def authorize(self, purpose: str, budget, proposal_fee_limit=0, valid_days=7, *, confirmed=False):
         self.require_confirmation(confirmed)
         if not isinstance(purpose, str) or not 1 <= len(purpose) <= 2000:
             raise ValueError('A bounded delegation purpose is required')

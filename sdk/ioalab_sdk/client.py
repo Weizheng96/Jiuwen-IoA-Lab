@@ -197,18 +197,25 @@ class LabClient(DelegationScopes):
         if limit is not None and Decimal(str(self.client.card(cd)["derived"]["total"]))>Decimal(limit):
             raise ValueError("Contract exceeds the authorized budget")
 
-    def draft(self, template_digest: str, spec: dict, *, materials=None, budget=100, sign1="user", sign7="user"):
+    def draft(self, template_digest: str, spec: dict, *, materials=None, budget=100, scope_id=None, sign1="user", sign7="user"):
         template = self.resolve_template(template_digest)
         spec, notices = self.clean_spec(template,spec)
+        scope_terms={'budget':str(budget)}
+        if scope_id:
+            scope=self.live_scope(scope_id)
+            if __import__('decimal').Decimal(str(budget))!=__import__('decimal').Decimal(scope['budget']):
+                raise ValueError('Use the authorized total budget')
+            scope_terms={k:scope[k] for k in ('scopeId','purpose','budget','proposalFeeLimit','expiresAt')}
         draft = self.client.draft_card(template, card_id=uuid.uuid4().hex, spec=spec, materials=materials or {},
                                       signers={"slot1": sign1, "slot7": sign7},
-                                      delegation_scope_digest=object_digest({"budget": str(budget)}))
+                                      delegation_scope_digest=object_digest(scope_terms))
         from decimal import Decimal
         if Decimal(str(draft.card["derived"]["total"])) > Decimal(str(budget)):
             self.store.delete("cards", card_digest(draft.card))
             raise ValueError("Contract exceeds the authorized budget")
         cd = card_digest(draft.card)
         self.store.put("budgets",cd,str(budget))
+        if scope_id:self.store.put('card_scopes',cd,scope_id)
         self.observe("order.drafted", cd)
         return {"cardDigest": cd, "derived": draft.card["derived"], "notices": draft.notices+notices}
 
@@ -221,6 +228,7 @@ class LabClient(DelegationScopes):
         self.require_workflow_dispatch(cd)
         self.require_confirmation(confirmed)
         self.check_budget(cd)
+        self.check_scope_selection(cd)
         card = self.client.card(cd)
         if card["signatures"].get("1") is None:
             card = self.client.sign(card)
@@ -280,6 +288,7 @@ class LabClient(DelegationScopes):
         self.require_workflow_dispatch(cd)
         self.require_confirmation(confirmed)
         self.check_budget(cd)
+        self.check_scope_selection(cd)
         rec = self.store.get("cards", cd)
         if rec.get("state") != "started":
             result = self.client.start(self.client.card(cd))
@@ -342,8 +351,10 @@ class LabClient(DelegationScopes):
         self.require_workflow_dispatch(cd)
         result = self.client.verify(cd, period)
         self.observe("order.verified", cd, period=period, status=result.status)
-        return {"status": result.status, "notBefore": str(result.not_before) if result.not_before else None,
-                "errors": result.errors, "checks": [r.outcome.checks for r in result.runs]}
+        report={"status":result.status,"notBefore":str(result.not_before) if result.not_before else None,
+                "errors":result.errors,"checks":[r.outcome.checks for r in result.runs]}
+        self.store.put('verification_reports',cd+':'+str(period),report)
+        return report
 
     def accept(self, cd: str, period: int, *, confirmed=False):
         self.require_workflow_dispatch(cd)

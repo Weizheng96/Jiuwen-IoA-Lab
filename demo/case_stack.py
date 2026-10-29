@@ -49,6 +49,7 @@ def main():
         },
         "outside": {"username": "outside_demo", "password": secrets.token_urlsafe(24)},
     }
+    if a.scenario=='delegation':accounts['b'].update(username='xiaomei@outlook.com',password='123456')
     admin = secrets.token_urlsafe(24)
     env = {
         **os.environ,
@@ -82,6 +83,8 @@ def main():
         "provider": provider,
         "accounts": accounts,
         "fixtures": [],
+        "onboarding": a.scenario=='delegation',
+        "preloadIoASkill": True,
         "swarm": "ws://127.0.0.1:19000/ws?user_id=ioa-admin",
         "swarmWeb": "http://127.0.0.1:5173",
         "swarmModelId": "mdl_ioa_qwen_plus",
@@ -123,24 +126,18 @@ def main():
         core = launch("core", [sys.executable, "-m", "ioalab", "serve"], env)
         ready(base + "/api/config", core)
         for key in ("a", "b", "outside"):
+            if key=='b' and config['onboarding']:continue  # Registration must happen visibly in the browser.
             httpx.post(
                 base + "/api/auth/register", json=accounts[key], trust_env=False
             ).raise_for_status()
-        # Explicit normal admin operation prepares test-only virtual credits; not real money.
-        with httpx.Client(base_url=base, trust_env=False) as http:
-            http.post("/api/admin/login", json={"password": admin}).raise_for_status()
-            users = http.get("/api/admin/users").raise_for_status().json()
-            uid = next(
-                u["id"] for u in users if u["username"] == accounts["b"]["username"]
-            )
-            http.post(
-                "/api/admin/wallet",
-                json={
-                    "user_id": uid,
-                    "delta": "1000",
-                    "note": "两段正式演示的虚拟体验额度",
-                },
-            ).raise_for_status()
+        # Isolated demo only: this admin credential stays in the ignored run config.
+        config['demoAdminPassword']=admin
+        if not config['onboarding']:
+            with httpx.Client(base_url=base,trust_env=False) as http:
+                http.post('/api/admin/login',json={'password':admin}).raise_for_status()
+                users=http.get('/api/admin/users').raise_for_status().json()
+                uid=next(u['id'] for u in users if u['username']==accounts['b']['username'])
+                http.post('/api/admin/wallet',json={'user_id':uid,'delta':'1000','note':'显式演示虚拟额度'}).raise_for_status()
         services = launch(
             "providers",
             [
@@ -206,17 +203,18 @@ def main():
             "\n".join(k + "=" + json.dumps(v) for k, v in receiver.items()) + "\n",
             encoding="utf-8",
         )
-        receiver_proc = launch(
-            "receiver",
-            [
-                sys.executable,
-                str(ROOT / "personal-assistant/assistant.py"),
-                "run",
-                "--env",
-                str(receiver_file),
-            ],
-            env,
-        )
+        if a.scenario=='messaging':
+            receiver_proc = launch(
+                "receiver",
+                [
+                    sys.executable,
+                    str(ROOT / "personal-assistant/assistant.py"),
+                    "run",
+                    "--env",
+                    str(receiver_file),
+                ],
+                env,
+            )
         values = {
             "IOALAB_BASE_URL": base,
             "IOALAB_USERNAME": accounts["b"]["username"],
@@ -229,7 +227,7 @@ def main():
         if settings.exists():
             shutil = __import__("shutil")
             shutil.copyfile(settings, folder / "previous-skill-settings.json")
-        settings.write_text(json.dumps(values, indent=2) + "\n", encoding="utf-8")
+        if not config['onboarding']:settings.write_text(json.dumps(values, indent=2) + "\n", encoding="utf-8")
         # Installation preparation only: --help builds the isolated SDK without logging in or creating a contract.
         with (folder/'skill-bootstrap.log').open('w',encoding='utf-8') as bootstrap_log:
             subprocess.run([sys.executable,str(skill/'scripts/ioalab.py'),'--help'],cwd=ROOT,
@@ -238,6 +236,12 @@ def main():
         (folder / "run.json").write_text(
             json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+        if config['onboarding']:
+            # No b login/identity/config before its visible registration and configuration scene.
+            print('FORMAL CASE STACK READY; b must register in recorded UI. Config:',folder/'run.json',flush=True)
+            while True:
+                if any(proc.poll() is not None for proc in processes):raise RuntimeError('Owned participant exited')
+                time.sleep(1)
         b = MailboxClient(
             base,
             accounts["b"]["username"],
