@@ -3,6 +3,7 @@ from decimal import Decimal
 import json
 from pathlib import Path
 import uuid
+import time
 import httpx
 from a2c.errors import A2CError
 
@@ -147,11 +148,11 @@ class Workflow:
             else:self.c.sign(cd,confirmed=True)
             self.c.start(cd,confirmed=True)
             task['gate']='working';self.save(task)
-            return self.poll(task,kwargs.get('timeout',60))
+            return self.await_boundary(task,kwargs.get('timeout',240))
         if gate=='step':
             self.c.answer_step(task['cardDigest'],True,confirmed=True)
             task['gate']='working';self.save(task)
-            return self.poll(task,kwargs.get('timeout',60))
+            return self.await_boundary(task,kwargs.get('timeout',240))
         if gate=='acceptance':
             result=self.c.accept(task['cardDigest'],task['period'],confirmed=True)
             task['payment']=result
@@ -189,6 +190,12 @@ class Workflow:
         task['cardDigest']=chosen['cardDigest'];task['gate']='contract'
         self.c.compare([q['providerUrl'] for q in task['quotes']],selected=chosen['providerUrl'],reason=task['recommended']['reason'],cd=chosen['cardDigest'])
         return self.save(task)
+
+    def await_boundary(self, task, timeout):
+        until=time.monotonic()+min(240,max(1,float(timeout)))
+        while True:
+            result=self.poll(task,min(60,max(1,until-time.monotonic())))
+            if task['gate']!='working' or time.monotonic()>=until:return result
 
     def poll(self, task, timeout):
         record=self.c.store.get('cards',task['cardDigest'])

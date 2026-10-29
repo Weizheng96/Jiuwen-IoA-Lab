@@ -114,9 +114,13 @@ def main():
                 nine.get_by_text("qwen-flash", exact=True).last.wait_for(timeout=8000)
             except PlaywrightTimeoutError:
                 pass  # The previously selected model may already be the configured alias.
-            if nine.get_by_text("qwen-flash", exact=True).count():
-                nine.get_by_text("qwen-flash", exact=True).last.click()
-                nine.get_by_text(cfg["swarmModelAlias"], exact=False).last.click()
+            desired=cfg['swarmModelAlias']
+            for current in ('qwen-flash','IoA演示模型'):
+                selector=nine.get_by_text(current,exact=True)
+                if current!=desired and selector.count() and selector.last.is_visible():
+                    selector.last.click()
+                    nine.get_by_text(desired,exact=True).last.click()
+                    break
 
             def shot(key, node=None, seconds=18, action=None):
                 if node:

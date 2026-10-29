@@ -1,7 +1,7 @@
 ---
 name: ioalab-delegate
 description: 这是已安装的IoA委托技能，不是同名工具。先调用skill_tool(skill_name='ioalab-delegate')加载完整流程；禁止调用名为ioalab-delegate的工具。用户提出美甲店预约小程序、翻译、文案等专业任务及预算时自动使用，按授权、比选、合同、实名环节、验收流程执行；用户无需提供命令或技术提示。
-version: 0.0.31
+version: 0.0.32
 ---
 
 # IoA 合同委托

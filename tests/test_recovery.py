@@ -100,7 +100,7 @@ def test_swarm_machine_mode_and_result_validation(tmp_path):
     engine.model_catalog=lambda:{'current_selection':'test#0','models':[{'selection_key':'test#0'}]}
     engine.check()
     with pytest.raises(RuntimeError,match='failed'):
-        engine.run({'id':'job'}, {},tmp_path,'http://localhost/task','test-token')
+        engine.run({'id':'job','kind':'deliver'}, {},tmp_path,'http://localhost/task','test-token')
     fake.write_text('print("incompatible CLI")')
     with pytest.raises(RuntimeError,match='machine mode'): engine.check()
 

@@ -6,6 +6,8 @@ import os
 import shutil
 import subprocess
 import threading
+import time
+import httpx
 from pathlib import Path
 
 def assemble_text(data, fields):
@@ -63,7 +65,9 @@ class SwarmEngine:
         from ioalab_sdk.provider_capability import ProviderJob
         skill=(Path(__file__).parent/'skills/ioalab-provider/SKILL.md').read_text(encoding='utf-8')
         tools=[{'name':'ioa_inspect','description':'Read the authorized current job and service definition','input_schema':{'type':'object','properties':{},'additionalProperties':False}}]
-        for name in ('quote','selftest','deliver'):
+        kind=job.get('kind')
+        if kind not in ('quote','deliver'):raise ValueError('Unknown service job kind')
+        for name in (('quote',) if kind=='quote' else ('selftest','deliver')):
             schema={'type':'object','properties':{'price':{'type':'number','minimum':0}},'required':['price'],'additionalProperties':False} if name=='quote' else {'type':'object','properties':{'data':{'type':'object'}},'required':['data'],'additionalProperties':False}
             if name=='selftest':
                 schema['properties']['text_fields']={'type':'array','maxItems':32,'items':{'type':'object','properties':{'path':{'type':'array','items':{'type':'string'},'minItems':1,'maxItems':8},'lines':{'type':'array','items':{'type':'string'},'maxItems':4000}},'required':['path','lines'],'additionalProperties':False}}
@@ -74,13 +78,14 @@ class SwarmEngine:
                  'agent':{'name':'ioa_service','instructions':skill,'tools':[t['name'] for t in tools]},
                  'host_tools':tools,'workspace':{'cwd':str(workspace),'project_dir':str(workspace)},'timeout_seconds':300,'max_turns':16}
         if os.getenv('IOALAB_SERVICE_MODEL'):request['model']=os.environ['IOALAB_SERVICE_MODEL']
+        request['input']='当前唯一任务类型为'+kind+'。'+request['input']
         capability=ProviderJob(url,token)
         async def execute():
             from jiuwenswarm_sdk import Client
             loop=asyncio.get_running_loop();cancel=asyncio.Event()
             with self.lock:self.runs.add((loop,cancel))
             client=Client(command=self.command,cwd=workspace,env={**os.environ,'PYTHONUTF8':'1'})
-            passed=[None]
+            passed=[None];submitted=[False];unknown=[False];usage={}
             async def tool_call(record):
                 payload=record['payload'];name=payload['name'];arguments=payload['arguments']
                 if name not in {t['name'] for t in tools}:raise ValueError('Tool is outside the current job capability')
@@ -91,7 +96,13 @@ class SwarmEngine:
                 elif operation=='deliver' and 'data' not in arguments:
                     if passed[0] is None:raise ValueError('No passed selftest candidate in this run')
                     body=copy.deepcopy(passed[0])
-                result=await asyncio.to_thread(capability.call,operation,body)
+                if operation in ('quote','deliver') and unknown[0]:raise RuntimeError('Submission outcome unknown; reconcile before another write')
+                try:
+                    result=await asyncio.to_thread(capability.call,operation,body)
+                except httpx.RequestError:
+                    if operation in ('quote','deliver'):unknown[0]=True
+                    raise
+                if result.get('status') in ('quoted','delivered') or result.get('alreadyDelivered'):submitted[0]=True
                 if operation=='selftest' and result.get('status')=='pass':passed[0]=copy.deepcopy(body)
                 return result
             events=Path(workspace)/'swarm-events.jsonl'
@@ -99,9 +110,23 @@ class SwarmEngine:
                 # Current-job tool traffic only; host capability tokens never enter records.
                 with events.open('a',encoding='utf-8') as stream:stream.write(json.dumps(record,ensure_ascii=False)+'\n')
             try:
-                result=await client.run(request,on_event=event,on_tool_call=tool_call,cancel=cancel,deadline_seconds=330)
+                until=time.monotonic()+300
+                current=dict(request)
+                for attempt in range(3):
+                    remaining=until-time.monotonic()
+                    if remaining<=0:raise RuntimeError('Service execution deadline exceeded')
+                    current['timeout_seconds']=min(remaining,150)
+                    result=await client.run(current,on_event=event,on_tool_call=tool_call,cancel=cancel,deadline_seconds=current['timeout_seconds']+15)
+                    (Path(workspace)/f'swarm-result-{attempt+1:02}.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+                    for key,value in result.get('usage',{}).items():
+                        usage[key]=usage.get(key,0)+value if isinstance(value,(int,float)) and not isinstance(value,bool) else value
+                    if submitted[0] or result.get('status')!='completed' or unknown[0]:break
+                    if not result.get('session_id'):break
+                    current={**request,'session_id':result['session_id'],'request_id':job['id']+f'-continue-{attempt+1}',
+                        'input':'本单尚未通过SDK提交，前一轮只是说明而非完成。继续同一单，不改合同。'+('请立即ioa_quote提交定数报价。' if kind=='quote' else '请现在调用ioa_selftest生成实际数据及text_fields，通过后ioa_deliver空参数提交。不要仅描述将要执行，也不要报价。')}
                 (Path(workspace)/'swarm-result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
-                return result
+                if result.get('status')=='completed' and not submitted[0]:raise RuntimeError('Swarm completed without confirmed SDK submission')
+                return {**result,'usage':usage}
             finally:
                 with self.lock:self.runs.discard((loop,cancel))
         try:result=asyncio.run(execute())

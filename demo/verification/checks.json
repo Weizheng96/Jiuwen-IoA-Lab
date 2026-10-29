@@ -1,7 +1,7 @@
 {
   "date": "2026-10-29",
   "pytest": {
-    "passed": 119,
+    "passed": 122,
     "failed": 0
   },
   "selfcheck": "passed: versions, screenplays/movie hashes, documentation links, service definitions, three-process smoke, A2C wheel, runtime boundary, wording and signed evidence",
@@ -60,5 +60,6 @@
   },
   "sdkBootstrap": "passed: final bundled SDK clean installation, independence and cached reuse",
   "templateRenewal": "passed: rolling 30-day lifetime, renew below 7 days, startup/60-second maintenance, market endorsement/index and old contract references",
-  "delegationFlow": "passed: local HTTP integration with seven named services, three actual proposals, authorization/contract/step/acceptance gates, idempotent fetch, WASM behavior checks and payment; native Jiuwen recording in progress"
+  "delegationFlow": "passed: local HTTP integration with seven named services, three actual proposals, authorization/contract/step/acceptance gates, idempotent fetch, WASM behavior checks and payment; native Jiuwen recording in progress",
+  "serviceExecution": "passed: kind-scoped tools, same-session continuation bounded to three runs/300 seconds, unknown write stops automatic resend; 240-second local delegation boundary wait"
 }
