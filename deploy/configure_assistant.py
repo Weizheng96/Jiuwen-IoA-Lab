@@ -48,6 +48,7 @@ def install_skill(root,swarm,values,*,configure_account=True):
     if configure_account and not config.exists():
         settings={k:values[k] for k in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_HOME')}
         if values.get('IOALAB_SCHEDULE_FILE'):settings['IOALAB_SCHEDULE_FILE']=values['IOALAB_SCHEDULE_FILE']
+        if values.get('IOALAB_MIN_QUOTES'):settings['IOALAB_MIN_QUOTES']=int(values['IOALAB_MIN_QUOTES'])
         config.write_text(json.dumps(settings,indent=2)+'\n',encoding='utf-8')
         try:os.chmod(config,0o600)
         except OSError:pass

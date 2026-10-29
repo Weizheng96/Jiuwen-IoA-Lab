@@ -2,5 +2,6 @@
   "IOALAB_BASE_URL": "http://127.0.0.1:8750",
   "IOALAB_USERNAME": "change-me-account",
   "IOALAB_PASSWORD": "change-me-password",
-  "IOALAB_SCHEDULE_FILE": ""
+  "IOALAB_SCHEDULE_FILE": "",
+  "IOALAB_MIN_QUOTES": 1
 }

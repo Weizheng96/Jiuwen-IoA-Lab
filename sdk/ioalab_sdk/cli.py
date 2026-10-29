@@ -18,7 +18,7 @@ def main(argv=None):
         from .message_cli import main as mail_main
         return mail_main(argv[1:])
     parser = argparse.ArgumentParser(prog="ioalab-client")
-    parser.add_argument("command", choices=["me", "delegate", "authorize", "scope", "inspect", "reputation", "search", "templates", "compare", "draft", "sign", "request", "adopt", "start",
+    parser.add_argument("command", choices=["me", "delegate", "authorize", "scope", "quote-progress", "inspect", "reputation", "search", "templates", "compare", "draft", "sign", "request", "adopt", "start",
                                            "poll", "watch", "fetch", "verify", "accept", "pay", "answer-step", "terminate", "arbitrate"])
     parser.add_argument("--args", default="{}", help="JSON parameters")
     parser.add_argument('--args-file',type=Path,help='UTF-8 JSON parameters; avoids shell quoting problems')
@@ -33,6 +33,7 @@ def main(argv=None):
         params = json.loads(args.args_file.read_text(encoding='utf-8-sig') if args.args_file else args.args)
         if args.command == "me":
             out = client.api("GET", "/me")
+            out['delegationPolicy']=client.delegation_policy()
         else:
             method = getattr(client, args.command.replace("-", "_"))
             if args.command in ("delegate", "authorize", "sign", "request", "adopt", "start", "accept", "pay", "answer-step", "terminate", "arbitrate"):

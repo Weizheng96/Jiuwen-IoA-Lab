@@ -20,7 +20,7 @@ def test_scope_requires_explicit_confirmation_and_bounded_values(local_client):
     with pytest.raises(ValueError,match='expired'): c.live_scope(s['scopeId'])
 
 
-def test_named_flow_three_proposals_four_gates_and_real_acceptance(platform,local_client,tmp_path):
+def test_named_flow_three_proposals_four_gates_and_real_acceptance(platform,local_client,tmp_path,monkeypatch):
     import uvicorn
     from serve import ServiceHost,create_app
     from scenario import nail_services
@@ -38,8 +38,10 @@ def test_named_flow_three_proposals_four_gates_and_real_acceptance(platform,loca
         defs=dict((d['id'],d) for _,d in nail_services())
         assert {d['name'] for d in defs.values()}=={'微页通','极速APP工坊','云构工作室','尊享定制','灵犀小程序','快搭建站','码上飞'}
         assert c.reputation(base+'/a2a/providers/svc-nail-mashangfei')['completed']==0
+        monkeypatch.setenv('IOALAB_MIN_QUOTES','3')
         scope=c.authorize('小美美甲预约，最多2人并可取消',500,3,confirmed=True)
         sid=scope['scopeId'];quotes=[]
+        assert scope['minimumQuotes']==3
         for key in ('lingxi','kuaida','mashangfei'):
             url=base+'/a2a/providers/svc-nail-'+key
             template=c.templates(url)[0]
@@ -51,7 +53,14 @@ def test_named_flow_three_proposals_four_gates_and_real_acceptance(platform,loca
             changed={**args,'spec':{'booking':{**d['sample_spec'],'shop':'不同店铺'}}}
             with pytest.raises(ValueError,match='different terms'):c.request(**changed,confirmed=True)
             quotes.append(result)
+            assert result['quoteProgress']['receivedQuotes']==len(quotes)
+            assert result['quoteProgress']['readyForConfirmation']==(len(quotes)==3)
+            if len(quotes)<3:
+                with pytest.raises(ValueError,match='Comparison policy'):c.adopt(result['cardDigest'],confirmed=True)
+                assert not c.client.card(result['cardDigest'])['signatures']['1']
         assert [q['derived']['total'] for q in quotes]==[239,259,299]
+        cached=c.request(**args,confirmed=True)
+        assert cached['quoteProgress']['receivedQuotes']==3 and cached['quoteProgress']['readyForConfirmation']
         assert sum(Decimal(r['fee']) for r in c.scope(sid)['requests'].values())==3
         cd=quotes[-1]['cardDigest']
         with pytest.raises(ValueError,match='confirmation'):c.adopt(cd)

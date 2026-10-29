@@ -11,3 +11,5 @@
 主skill按需读取委托交易/私人交互通用流程，再逐项调用SDK原语。`delegate`只保留给旧受管理任务恢复和显式外部计划；受管理合同仍从原taskId继续，不绕过既有确认保护。任务、授权与卡分别持久化；重复取件核已签清单并恢复缓存，不重复签收。完整边界见[接入设计](../设计/接入.md)，美甲计划单独放在[示例](../examples/nail-booking/README.md)，不随通用skill分发。
 
 服务发现回执的hits[].id是注册中心标识，templates/reputation的provider参数须使用hits[].card.url；SDK会在向服务端点发请求前给出明确的URL参数诊断。可选AssistantHandlers的会议邀请收件人必须由调用者显式配置；SDK不预置个人邮箱，缺少收件人不会发送邀请。该处理器不是消息中心的必备路由，任意私人接口仍用MailboxClient/CLI的结构化投递与租约回执。
+
+可选`IOALAB_MIN_QUOTES`是账号的最低比选数量（默认1，范围1—8），授权scope固化本次策略。`request/draft`返回`quoteProgress`，`quote-progress {scope_id}`可恢复进度；未达下限或拟卡费结果不明时不允许选定合同。同一服务端点多张卡只计一次，旧scope保持原策略；这不是A2C协议字段，也不会代替模型做业务推荐。技能配置可加入该项，示例账号的三份偏好独立放在examples中。

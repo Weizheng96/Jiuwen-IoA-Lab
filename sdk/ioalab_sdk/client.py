@@ -211,6 +211,7 @@ class LabClient(DelegationScopes):
             raise ValueError("Contract exceeds the authorized budget")
 
     def draft(self, template_digest: str, spec: dict, *, materials=None, budget=100, scope_id=None, sign1="user", sign7="user"):
+        self.require_scope_for_policy(scope_id)
         template = self.resolve_template(template_digest)
         spec, notices = self.clean_spec(template,spec)
         scope_terms={'budget':str(budget)}
@@ -218,7 +219,7 @@ class LabClient(DelegationScopes):
             scope=self.live_scope(scope_id)
             if __import__('decimal').Decimal(str(budget))!=__import__('decimal').Decimal(scope['budget']):
                 raise ValueError('Use the authorized total budget')
-            scope_terms={k:scope[k] for k in ('scopeId','purpose','budget','proposalFeeLimit','expiresAt')}
+            scope_terms={k:scope[k] for k in ('scopeId','purpose','budget','proposalFeeLimit','expiresAt','minimumQuotes') if k in scope}
         draft = self.client.draft_card(template, card_id=uuid.uuid4().hex, spec=spec, materials=materials or {},
                                       signers={"slot1": sign1, "slot7": sign7},
                                       delegation_scope_digest=object_digest(scope_terms))
@@ -230,7 +231,7 @@ class LabClient(DelegationScopes):
         self.store.put("budgets",cd,str(budget))
         if scope_id:self.store.put('card_scopes',cd,scope_id)
         self.observe("order.drafted", cd)
-        return {"cardDigest": cd, "derived": draft.card["derived"], "notices": draft.notices+notices}
+        return self.with_quote_progress({"cardDigest":cd,"derived":draft.card["derived"],"notices":draft.notices+notices},scope_id)
 
     @staticmethod
     def require_confirmation(confirmed):
@@ -255,13 +256,14 @@ class LabClient(DelegationScopes):
 
     def request(self, template_digest: str, spec: dict, *, materials=None, budget=100, scope_id=None, confirmed=False):
         self.require_confirmation(confirmed)
+        self.require_scope_for_policy(scope_id)
         managed=self.store.get('workflow_scopes',scope_id) if scope_id else None
         if managed and not getattr(self,'_workflow_dispatch',False):
             raise ValueError('Use delegate with task_id='+managed+' to resume this authorized proposal collection')
         t = self.resolve_template(template_digest)
         spec, _ = self.clean_spec(t,spec)
         scope_terms=self.live_scope(scope_id) if scope_id else {'budget':str(budget)}
-        if scope_id: scope_terms={k:scope_terms[k] for k in ('scopeId','purpose','budget','proposalFeeLimit','expiresAt')}
+        if scope_id: scope_terms={k:scope_terms[k] for k in ('scopeId','purpose','budget','proposalFeeLimit','expiresAt','minimumQuotes') if k in scope_terms}
         req = self.client.draft_request(t, request_id=uuid.uuid4().hex, spec=spec, materials=materials or {},
                                         signers={"slot1": "user", "slot7": "user"},
                                         delegation_scope_digest=object_digest(scope_terms))
@@ -271,21 +273,21 @@ class LabClient(DelegationScopes):
             if __import__('decimal').Decimal(str(budget))!=__import__('decimal').Decimal(scope['budget']):
                 raise ValueError('Use the authorized total budget')
             scope,key,cached=self.reserve_proposal(scope_id,t,object_digest({'spec':req['spec'],'inputs':req['inputs']}))
-            if cached is not None: return cached
+            if cached is not None: return self.with_quote_progress(cached,scope_id)
         card = self.client.submit_request(req)
         if isinstance(card, str):
             result={'returned':card}
             if scope_id: self.settle_proposal(scope,key,result)
-            return result
+            return self.with_quote_progress(result,scope_id)
         self.store.put("budgets",card_digest(card),str(budget))
         if scope_id: self.settle_proposal(scope,key,{'cardDigest':card_digest(card),'derived':card['derived']})
         from decimal import Decimal
         if Decimal(str(card["derived"]["total"])) > Decimal(str(budget)):
-            return {"overBudget": True, "cardDigest": card_digest(card), "derived": card["derived"]}
+            return self.with_quote_progress({"overBudget":True,"cardDigest":card_digest(card),"derived":card["derived"]},scope_id)
         cd = card_digest(card)
         result={"cardDigest":cd,"derived":card['derived']}
         self.observe("order.proposed", cd)
-        return result
+        return self.with_quote_progress(result,scope_id)
 
     def adopt(self, cd: str, *, confirmed=False):
         self.require_workflow_dispatch(cd)

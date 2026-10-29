@@ -149,6 +149,10 @@ def test_local_onboarding_writes_only_declared_skill_configuration(tmp_path):
     assert all(saved[k]==v for k,v in values.items())
     with pytest.raises(ValueError):write_settings(cfg,{**values,'OTHER_SECRET':'unrelated'})
     with pytest.raises(ValueError):write_settings({**cfg,'onboarding':False},values)
+    policy_cfg={**cfg,'delegationPolicy':{'IOALAB_MIN_QUOTES':3}}
+    with pytest.raises(ValueError):write_settings(policy_cfg,values)
+    assert write_settings(policy_cfg,{**values,'IOALAB_MIN_QUOTES':3})['verified']
+    assert json.loads((skill/'settings.local.json').read_text(encoding='utf-8'))['IOALAB_MIN_QUOTES']==3
 
 
 def test_new_generic_film_requires_actual_onboarding(delegation):

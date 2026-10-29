@@ -85,6 +85,7 @@ def main():
         "fixtures": [],
         "onboarding": a.scenario=='delegation',
         "preloadIoASkill": True,
+        "delegationPolicy": json.loads((ROOT/'examples/nail-booking/account-policy.json').read_text(encoding='utf-8')) if a.scenario=='delegation' else {},
         "swarm": "ws://127.0.0.1:19000/ws?user_id=ioa-admin",
         "swarmWeb": "http://127.0.0.1:5173",
         "swarmUserId": 'ioa-demo-'+secrets.token_hex(6) if a.scenario=='delegation' else 'ioa-demo-b',
@@ -222,6 +223,7 @@ def main():
             "IOALAB_PASSWORD": accounts["b"]["password"],
             "IOALAB_HOME": str(folder / "client-b"),
         }
+        values.update(config['delegationPolicy'])
         install_skill(ROOT, ROOT / ".swarm-runtime", values,configure_account=not config["onboarding"])
         skill = ROOT / ".swarm-runtime/agent/workspace/skills/ioalab-delegate"
         settings = skill / "settings.local.json"
@@ -232,7 +234,7 @@ def main():
         # Installation preparation only: --help builds the isolated SDK without logging in or creating a contract.
         with (folder/'skill-bootstrap.log').open('w',encoding='utf-8') as bootstrap_log:
             subprocess.run([sys.executable,str(skill/'scripts/ioalab.py'),'--help'],cwd=ROOT,
-                           env={**env,**values},stdout=bootstrap_log,stderr=bootstrap_log,check=True)
+                           env={**env,**{k:str(v) for k,v in values.items()}},stdout=bootstrap_log,stderr=bootstrap_log,check=True)
         config["skillDirectory"] = str(skill)
         (folder / "run.json").write_text(
             json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"

@@ -264,9 +264,11 @@ def main():
                 lab.locator('#configuration').wait_for()
                 def configure():
                     values={'IOALAB_BASE_URL':cfg['base'],'IOALAB_USERNAME':b['username'],'IOALAB_PASSWORD':b['password']}
+                    values.update(cfg.get('delegationPolicy',{}))
                     lab.locator('#configuration').fill(json.dumps(values,ensure_ascii=False,indent=2))
                     page.wait_for_timeout(1800);lab.locator('#save').click();lab.locator('#status').filter(has_text='已保存').wait_for()
                     proof['onboarding']['configuration']='actual skill file saved and reread'
+                    proof['onboarding']['delegationPolicy']=cfg.get('delegationPolicy',{})
                 shot('configuration',action=configure)
                 box=MailboxClient(cfg['base'],b['username'],b['password'],Path(cfg['folder'])/'client-b')
                 page.locator('#right').evaluate('(e,url)=>e.src=url',cfg['base']);lab.locator('#workspace').wait_for(state='visible')

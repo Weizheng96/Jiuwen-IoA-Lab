@@ -4,9 +4,10 @@
 
 | 顺序 | 命令与主要参数 |
 |---|---|
-| 0 | `authorize {purpose,budget,proposal_fee_limit,valid_days:7}`，用户确认后加`--confirmed`；恢复用`scope {scope_id}`；`inspect {cd}`读取真实合同与模板；`reputation {provider}`读取并验签市场信誉 |
+| 0 | `authorize {purpose,budget,proposal_fee_limit,valid_days:7,minimum_quotes?}`，用户确认后加`--confirmed`；恢复用`scope {scope_id}`；`inspect {cd}`读取真实合同与模板；`reputation {provider}`读取并验签市场信誉 |
 | 1 | `me`；`search {query,top_k}`：发现服务 |
 | 2 | `templates {provider}`：获取完整已验签模板。依次读交付件、材料要求、报价、验收与期限、样件；剔除后不读后续节 |
+| 2p | `quote-progress {scope_id}`：恢复最低比选数量、已取得的不同服务报价及未确定费用；readyForConfirmation为真才能请求确认具体合同 |
 | 2a | `compare {providers,selected,reason,cd?}`：重新读取2—8项真实候选的完整验签模板，记录筛选理由，标reported；cd存在时中选方必须与合同一致。不能用过程上报代替签名或付款证据 |
 | 3 | `draft {template_digest,spec,budget,scope_id?,materials?}`；材料 `{name:{path,declared}}` 是本地文件；提案型用 `request {template_digest,spec,budget,scope_id}` |
 | 4 | 向用户说明服务方、成果、定数金额、期数与判据，得到同意后 `sign {cd}`；提案型 `adopt {cd}`；再 `start {cd}` |
