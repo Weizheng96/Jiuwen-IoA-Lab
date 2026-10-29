@@ -21,7 +21,7 @@ version: 0.0.35
 
 将宿主返回的skill_directory绝对路径记为S。调用`python "<S>/scripts/ioalab.py" <命令> --args-file "<UTF-8参数文件绝对路径>"`。调用顺序必须是：先用write_file把实际JSON参数写入独立UTF-8文件，确认文件写入成功，再用bash/PowerShell执行命令。禁止直接引用尚未创建的参数文件或把占位路径当真实路径。命令没有业务位置参数。Windows使用PowerShell，直接运行python，不嵌套shell；长轮询设置足够工具超时。路径含空格保留引号；不得猜测技能路径或修改SDK源码。
 
-用户只需将settings.example.json复制为settings.local.json并填写平台地址、账号与密码。也支持同名环境变量。首次运行自动准备锁定的本地SDK/A2C隔离环境；模型沿用用户九问配置。配置不存在时请用户完成配置，不编造地址或凭据；已有配置时直接调用，不读取或输出密码及私钥，不将本地配置交给模型。
+用户只需将settings.example.json复制为settings.local.json并填写平台地址、账号与密码。也支持同名环境变量。首次运行自动准备锁定的本地SDK/A2C隔离环境；模型沿用用户九问配置。如需核对账号配置，直接调用脚本me，由SDK读取配置并返回账号信息；禁止用read_file/glob检查settings.local.json，也不输出密码或私钥。me报告配置缺失时请用户完成配置，不编造地址或凭据；配置内容不应交给模型。
 
 ## 共同边界
 

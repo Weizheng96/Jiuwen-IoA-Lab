@@ -91,7 +91,20 @@ class LabClient(DelegationScopes):
         return {'card':card,'template':self.client.template(card['templateDigest']),
                 'scopeId':self.store.get('card_scopes',cd)}
 
+    @staticmethod
+    def provider_endpoint(provider):
+        from urllib.parse import urlsplit
+        hint="provider must be an HTTP(S) service endpoint URL, for example search.hits[i].card.url. Do not pass hits[i].id (ext-...) or the display name; re-read the search result and use its exact card.url."
+        if not isinstance(provider,str):raise ValueError(hint)
+        try:
+            parsed=urlsplit(provider)
+            valid=parsed.scheme in ('http','https') and bool(parsed.hostname)
+        except ValueError:valid=False
+        if not valid:raise ValueError(hint)
+        return provider
+
     def reputation(self, provider):
+        provider=self.provider_endpoint(provider)
         result=self.api('GET','/providers/reputation?provider='+__import__('urllib.parse',fromlist=['quote']).quote(provider,safe=''))
         from a2c.jws import verify
         from a2c.objects import object_digest
@@ -138,7 +151,7 @@ class LabClient(DelegationScopes):
         return self.api("POST", "/search", {"query": query, "top_k": top_k})
 
     def templates(self, provider: str):
-        return self.client.get_templates(provider)
+        return self.client.get_templates(self.provider_endpoint(provider))
 
     def compare(self, providers: list[str], reason: str, selected: str, cd: str | None = None):
         """Read complete signed templates; record the assistant's choice as reported."""

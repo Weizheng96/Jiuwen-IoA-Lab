@@ -65,6 +65,13 @@ def validate_real_case(proof, *, preview=None):
     case = proof.get("case")
     if case == "delegation":
         require(not preview, "Delegation is published only after the full contract loop")
+        if proof.get('executionPath')=='generic-primitives':
+            onboarding=proof.get('onboarding',{})
+            require(onboarding.get('account')=='xiaomei@outlook.com' and onboarding.get('registration')=='actual UI registration',
+                    'Actual recorded registration of the declared demo account is required')
+            require(onboarding.get('configuration')=='actual skill file saved and reread' and onboarding.get('skillSelection')=='native skill menu' and bool(proof.get('nativeSkillPreload')),
+                    'Actual configuration save and native skill selection are required')
+
         require(proof.get("providerExecution") == "swarm", "Real Swarm production is required")
         order = proof["delegation"]
         digest = proof["cardDigest"]

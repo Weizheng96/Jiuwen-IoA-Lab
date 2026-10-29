@@ -28,7 +28,7 @@ def test_invitation_smtp_and_no_duplicate_effect(platform,tmp_path):
     capture=Capture(tmp_path/'mail').start();calendar=CalendarFixture()
     try:
         notify=SMTPNotification('127.0.0.1',capture.port,'notification@example.test',test=True)
-        handler=AssistantHandlers(receiver,calendar=calendar,notification=notify)
+        handler=AssistantHandlers(receiver,calendar=calendar,notification=notify,recipient='owner@example.test')
         handler.publish([b['username']]);message=sender.send(a['username'],'meeting.request',appointment())
         receiver.sync();receiver.process(handler)
         result=sender.get(message['id'])['result']
@@ -36,7 +36,7 @@ def test_invitation_smtp_and_no_duplicate_effect(platform,tmp_path):
         assert len(capture.messages)==1
         email=capture.messages[0]['message'];ics=next(p for p in email.walk() if p.get_content_type()=='text/calendar').get_content()
         assert 'METHOD:REQUEST' in ics and 'ORGANIZER:mailto:notification@example.test' in ics
-        assert 'ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:mailto:zhengw.cc@outlook.com' in ics
+        assert 'ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:mailto:owner@example.test' in ics
         assert 'UID:ioa-'+message['id'] in ics
         # Handler recovery returns the persisted send receipt without another SMTP attempt.
         assert handler.meeting(message)==result
@@ -54,7 +54,7 @@ def test_calendar_conflicts_authorization_and_unknown_send(platform,tmp_path):
         def send(self,*args): self.calls+=1;raise TimeoutError('Delivery may have occurred')
     mail=BrokenMail();calendar=CalendarFixture(True)
     try:
-        handler=AssistantHandlers(receiver,calendar=calendar,notification=mail);handler.publish()
+        handler=AssistantHandlers(receiver,calendar=calendar,notification=mail,recipient='owner@example.test');handler.publish()
         m=sender.send(a['username'],'meeting.request',appointment());receiver.sync();receiver.process(handler)
         result=sender.get(m['id'])['result'];assert result.get('reason')=='calendar_conflict' and mail.calls==0,result
         calendar.value=False
@@ -63,17 +63,17 @@ def test_calendar_conflicts_authorization_and_unknown_send(platform,tmp_path):
         assert handler.meeting(m)['status']=='unknown' and mail.calls==1
         # Auth missing is not interpreted as an empty calendar.
         with pytest.raises(RuntimeError,match='authorization missing'):
-            GraphCalendar('configured-app',tmp_path/'missing-token.json','zhengw.cc@outlook.com').busy(datetime.now(timezone.utc),datetime.now(timezone.utc)+timedelta(hours=1))
+            GraphCalendar('configured-app',tmp_path/'missing-token.json','owner@example.test').busy(datetime.now(timezone.utc),datetime.now(timezone.utc)+timedelta(hours=1))
     finally:receiver.close();sender.close()
 
 def test_graph_calendar_view_personal_account_pagination(tmp_path):
     requests=[]
     def reply(req):
         requests.append(req)
-        if req.url.path.endswith('/me'): return httpx.Response(200,json={'mail':'zhengw.cc@outlook.com'})
+        if req.url.path.endswith('/me'): return httpx.Response(200,json={'mail':'owner@example.test'})
         if req.url.params.get('page')=='2': return httpx.Response(200,json={'value':[{'showAs':'busy','start':{'dateTime':'2026-10-27T02:00:00.0000000','timeZone':'UTC'},'end':{'dateTime':'2026-10-27T03:00:00.0000000','timeZone':'UTC'}}]})
         return httpx.Response(200,json={'value':[{'showAs':'free'}],'@odata.nextLink':'https://graph.microsoft.com/v1.0/me/calendarView?page=2'})
-    calendar=GraphCalendar('app',tmp_path/'token.json','zhengw.cc@outlook.com',http=httpx.Client(transport=httpx.MockTransport(reply)))
+    calendar=GraphCalendar('app',tmp_path/'token.json','owner@example.test',http=httpx.Client(transport=httpx.MockTransport(reply)))
     calendar.save({'access_token':'test-only','expires_at':9999999999})
     assert calendar.busy(datetime(2026,10,27,2,30,tzinfo=timezone.utc),datetime(2026,10,27,3,30,tzinfo=timezone.utc))
     assert any('calendarView' in r.url.path for r in requests)
@@ -94,3 +94,11 @@ def test_receiver_restart_keeps_revoked_interface_policy(platform,tmp_path):
         saved=next(i for i in box.interfaces() if i['name']==name)
         assert saved['enabled'] is False and saved['allowedSenders']==[]
     finally:box.close()
+
+
+def test_optional_meeting_handler_requires_explicit_recipient():
+    from types import SimpleNamespace
+    mailbox=SimpleNamespace(store=None)
+    handler=AssistantHandlers(mailbox,calendar=object(),notification=object())
+    assert handler.recipient is None
+    assert handler.meeting({'payload':{}})=={'status':'failed','error':'Calendar, notification mailbox or explicit recipient is not configured'}

@@ -20,7 +20,7 @@
 
 用户已在本轮明确同意的对象、用途和金额范围内，直接将该授权通过`--confirmed`传给相应命令，不重复询问。若漏加该参数导致“User confirmation is required”，先检查已有授权；已有明确授权时补参数重试，新增对象/用途或超额仍需询问。提案型服务须实际执行`request --confirmed`取得返回的cardDigest与derived，不能把模板参考价或自然语言推荐说成已获得签名提案。用户要求暂不签约或暂不接受时，严格停在对应边界。
 
-`spec`按模板deliverables的name分组，例如模板交付件name为`table`，字段为medicines和days时，参数为`{"template_digest":"真实摘要","spec":{"table":{"medicines":["维生素C"],"days":7}},"budget":100}`。字段、值域和交付件name均以真实模板为准；不要把数组直接当作交付件对象。单交付件也保留这一层名称。
+`spec`按模板deliverables的name分组，例如交付件名为document、字段为language和pages时：`{"template_digest":"真实摘要","spec":{"document":{"language":"中文","pages":2}},"budget":100}`。名称、字段和值域以真实模板为准；本示例只说明对象形状，不假定任何服务存在。单交付件也保留名称这一层，不将不受支持的数组或嵌套JSON藏入字符串。
 
 保留本地身份目录以恢复合同；不能清空密钥后用同一账号自动换身份。断线后继续poll；观察上报失败会本地重试，不等于协议动作失败。
 

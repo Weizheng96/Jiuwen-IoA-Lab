@@ -19,7 +19,7 @@ def main():
     config=json.loads(Path(args.config).read_text(encoding='utf-8'))
     a=config['accounts']['a'];box=MailboxClient(config['base'],a['username'],a['password'],Path(config['folder'])/'assistant',connect_identity=True)
     bridge=SwarmWebBridge(config['swarm'],box.store) if config.get('swarm') else None
-    handler=AssistantHandlers(box,bridge=bridge,calendar=CalendarFixture(args.calendar_fixture),notification=SMTPNotification('127.0.0.1',config['smtpPort'],'ioa-notification@example.test',test=True))
+    handler=AssistantHandlers(box,bridge=bridge,calendar=CalendarFixture(args.calendar_fixture),notification=SMTPNotification('127.0.0.1',config['smtpPort'],'ioa-notification@example.test',test=True),recipient=config.get('recipient','owner@example.test'))
     handler.publish([config['accounts']['b']['username']]);print('Ready: independent receiver; CALENDAR FIXTURE + SMTP CAPTURE; Jiuwen '+('real' if bridge else 'not configured'),flush=True)
     try:
         while True:

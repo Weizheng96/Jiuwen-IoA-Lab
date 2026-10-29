@@ -149,3 +149,12 @@ def test_local_onboarding_writes_only_declared_skill_configuration(tmp_path):
     assert all(saved[k]==v for k,v in values.items())
     with pytest.raises(ValueError):write_settings(cfg,{**values,'OTHER_SECRET':'unrelated'})
     with pytest.raises(ValueError):write_settings({**cfg,'onboarding':False},values)
+
+
+def test_new_generic_film_requires_actual_onboarding(delegation):
+    proof=copy.deepcopy(delegation);proof['executionPath']='generic-primitives'
+    with pytest.raises(ValueError,match='registration'):validate_real_case(proof)
+    proof['onboarding']={'account':'xiaomei@outlook.com','registration':'actual UI registration','configuration':'actual skill file saved and reread','skillSelection':'native skill menu'}
+    with pytest.raises(ValueError,match='configuration'):validate_real_case(proof)
+    proof['nativeSkillPreload']='selected visibly'
+    validate_real_case(proof)

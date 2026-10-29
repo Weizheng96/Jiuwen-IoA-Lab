@@ -1,6 +1,6 @@
 """Record real pages in side-by-side iframes; editing is driven by saved raw timestamps."""
 
-import argparse, json, socket, sys, threading, time, secrets
+import argparse, json, socket, sys, threading, time, secrets, hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -42,6 +42,15 @@ def main():
         "providerExecution": "swarm",
         "browserErrors": [],
     }
+    if cfg.get('onboarding'):
+        skill=Path(cfg['skillDirectory'])
+        proof['skillAudit']={
+            'mainSha256':hashlib.sha256((skill/'SKILL.md').read_bytes()).hexdigest(),
+            'delegationSha256':hashlib.sha256((skill/'references/delegation.md').read_bytes()).hexdigest(),
+            'privateInteractionSha256':hashlib.sha256((skill/'references/private-interaction.md').read_bytes()).hexdigest(),
+            'legacyExampleFilesPresent':any((skill/'references'/n).exists() for n in ('nail-booking.md','nail-booking-plan.json')),
+        }
+        if proof['skillAudit']['legacyExampleFilesPresent']:raise ValueError('Migrate obsolete installed scenario references before recording a generic skill')
     segments = []
     html = """<!doctype html><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0;background:#080f1b;color:#e7f5ff;font:18px "Microsoft YaHei"}header{height:42px;display:flex;justify-content:space-between;padding:10px 28px;background:#101f31}#panels{display:grid;grid-template-columns:1fr 1fr;height:928px;gap:3px}iframe{width:100%;height:100%;border:0;background:#0b1421}#cover{position:fixed;inset:42px 0 110px;z-index:20;background:radial-gradient(ellipse at center,#17374b,#0b1424 70%);display:grid;place-content:center;text-align:center}h1{font-size:68px;margin:0 0 26px;color:#c9fff4}h2{font-size:34px;color:#9fced9;font-weight:400}#bottom{height:110px;border-top:2px solid #79daca}body.full #panels{grid-template-columns:0 1fr}body.full #left{visibility:hidden}#tag{position:fixed;bottom:118px;right:20px;font-size:14px;color:#94aabd;background:#09121cdd;padding:6px 10px}</style><header><b id="leftlabel">九问 Swarm</b><span>九问IoA实验平台 · 实际界面录屏</span><b id="rightlabel">我的个人助手</b></header><div id="panels"><iframe id="left"></iframe><iframe id="right"></iframe></div><div id="bottom"></div><div id="tag">真实九问与协议 · 虚拟币 · 长等待将在剪辑中缩短</div><div id="cover"><h1>CASE_TITLE</h1><h2>九问IoA实验平台 · Jiuwen IoA Lab</h2></div><script>left.src=NINE_URL;right.src=LAB_URL;</script>"""
     html = (
@@ -264,6 +273,7 @@ def main():
                 page.locator('body').evaluate('(e)=>e.classList.remove("full")')
                 def select():
                     editor=nine.locator('[contenteditable=true]').last;editor.fill('/')
+                    nine.get_by_text('ioalab-delegate',exact=True).last.wait_for();page.wait_for_timeout(1700)
                     nine.get_by_text('ioalab-delegate',exact=True).last.click()
                     proof['nativeSkillPreload']='selected visibly in the native Jiuwen menu before the business request'
                     proof['onboarding']['skillSelection']='native skill menu'

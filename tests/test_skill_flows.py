@@ -85,3 +85,12 @@ def test_compatibility_workflow_does_not_complete_after_first_period():
     task.update(gate='acceptance',period=2)
     second=w.run('advance',task_id='two-period',confirmed=True)
     assert second['gate']=='completed' and set(second['payments'])=={'1','2'}
+
+
+def test_registry_identifiers_are_not_provider_urls(providers,local_client):
+    c=local_client;d=providers.selected[0]
+    for bad in ('ext-registry-id',d['name'],None,'localhost:1234'):
+        with pytest.raises(ValueError,match='card.url'):c.templates(bad)
+        with pytest.raises(ValueError,match='card.url'):c.reputation(bad)
+    actual=providers.public_url+'/a2a/providers/svc-'+d['id']
+    assert c.templates(actual)[0]['provider']==actual

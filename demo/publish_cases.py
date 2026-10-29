@@ -40,7 +40,7 @@ def publish(folder, case):
             "delegation",
         )
         evidence = {k: proof[k] for k in keys}
-        for key in ('providerRetake','production','verification','nativeSkillPreload','flow','userTurns','confirmationGates','authorization','registration','onboarding','executionPath','nativeConfirmations'):
+        for key in ('providerRetake','production','verification','nativeSkillPreload','flow','userTurns','confirmationGates','authorization','registration','onboarding','executionPath','nativeConfirmations','skillAudit'):
             if key in proof: evidence[key]=proof[key]
         evidence["bookingDemo"] = {
             "booked": True,

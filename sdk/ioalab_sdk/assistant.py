@@ -10,7 +10,7 @@ FORWARD_SCHEMA={'type':'object','properties':{'text':{'type':'string','minLength
 MEETING_SCHEMA={'type':'object','properties':{'title':{'type':'string','minLength':1,'maxLength':200},'start':{'type':'string','format':'date-time'},'end':{'type':'string','format':'date-time'},'timeZone':{'type':'string','maxLength':64}},'required':['title','start','end','timeZone'],'additionalProperties':False}
 
 class AssistantHandlers:
-    def __init__(self,mailbox,*,bridge=None,calendar=None,notification=None,recipient='zhengw.cc@outlook.com',rules=None):
+    def __init__(self,mailbox,*,bridge=None,calendar=None,notification=None,recipient=None,rules=None):
         self.mailbox,self.store=mailbox,mailbox.store
         self.bridge,self.calendar,self.notification=bridge,calendar,notification
         self.recipient=recipient
@@ -35,7 +35,7 @@ class AssistantHandlers:
         return {'status':'failed','error':'No local handler is configured for this interface'}
 
     def meeting(self,message):
-        if not self.calendar or not self.notification: return {'status':'failed','error':'Calendar authorization or notification mailbox is not configured'}
+        if not self.calendar or not self.notification or not self.recipient: return {'status':'failed','error':'Calendar, notification mailbox or explicit recipient is not configured'}
         session=self.calendar.session() if hasattr(self.calendar,'session') else nullcontext(self.calendar)
         try:
             with session as calendar:

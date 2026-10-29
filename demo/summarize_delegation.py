@@ -36,6 +36,7 @@ def summarize(config, recording):
     path=folder/'client-b/contracts.sqlite'
     with sqlite3.connect('file:'+path.as_posix()+'?mode=ro',uri=True) as db:
         if proof.get('executionPath')=='generic-primitives':
+            require(db.execute("SELECT count(*) FROM documents WHERE tbl='delegations'").fetchone()[0]==0,'Generic skill recording must not use a scenario workflow')
             row=db.execute("SELECT v FROM documents WHERE tbl='verification_reports' AND k=?",(digest+':1',)).fetchone()
             require(row is not None,'Actual primitive verifier report is missing')
             report=json.loads(row[0])

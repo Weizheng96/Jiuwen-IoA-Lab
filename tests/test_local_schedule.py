@@ -63,7 +63,7 @@ def test_local_rules_busy_time_and_pending_invitation_end_to_end(platform,tmp_pa
         document=state['document']
         document['events']=[{'id':'busy','title':'PRIVATE-SCHEDULE-TITLE','start':payload['start'],'end':payload['end']}]
         state=calendar.replace(document,state['revision'])
-        handler=AssistantHandlers(receiver,calendar=calendar,notification=SMTPNotification('127.0.0.1',capture.port,'notice@example.test',test=True))
+        handler=AssistantHandlers(receiver,calendar=calendar,notification=SMTPNotification('127.0.0.1',capture.port,'notice@example.test',test=True),recipient='owner@example.test')
         handler.publish([b['username']])
         def request():
             message=sender.send(a['username'],'meeting.request',payload)
