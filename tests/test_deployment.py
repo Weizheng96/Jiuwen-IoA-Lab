@@ -20,6 +20,11 @@ def test_administrator_skill_install_preserves_local_account_and_rejects_travers
     with zipfile.ZipFile(bundle,'w') as z:z.writestr('ioalab-delegate/../../escape.txt','unsafe')
     with pytest.raises(ValueError):mod.install_skill(root,swarm,values)
     assert not (swarm/'agent/workspace/escape.txt').exists()
+    # A user-led onboarding install may leave credentials entirely unconfigured.
+    with zipfile.ZipFile(bundle,'w') as z:z.writestr('ioalab-delegate/SKILL.md','skill')
+    other=tmp_path/'fresh-swarm'
+    mod.install_skill(root,other,values,configure_account=False)
+    assert not (other/'agent/workspace/skills/ioalab-delegate/settings.local.json').exists()
 
 def test_environment_parser_preserves_windows_paths_and_json(tmp_path):
     path=Path(__file__).resolve().parents[1]/'deploy/configure_assistant.py'
@@ -81,3 +86,18 @@ def test_override_removal_preserves_owner_changes_and_is_idempotent(tmp_path):
     before=(config.read_bytes(),agent.read_bytes())
     assert not mod.restore(tmp_path)['restartRequired']
     assert before==(config.read_bytes(),agent.read_bytes())
+
+
+def test_old_product_examples_are_preserved_outside_the_skill_library(tmp_path):
+    source=Path(__file__).resolve().parents[1]/'deploy/configure_assistant.py'
+    spec=importlib.util.spec_from_file_location('legacy_product_cleanup',source);mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+    library=tmp_path/'skills';refs=library/'ioalab-delegate/references';refs.mkdir(parents=True)
+    for name in ('nail-booking.md','nail-booking-plan.json'):(refs/name).write_text('owner-preserved '+name,encoding='utf-8')
+    (refs/'owner-notes.md').write_text('keep',encoding='utf-8')
+    mod.archive_legacy_examples(library)
+    assert sorted(p.name for p in refs.iterdir())==['owner-notes.md']
+    backups=list((tmp_path/'.ioa-example-backups').rglob('*.*'))
+    assert len(backups)==2
+    assert {p.read_text(encoding='utf-8') for p in backups}=={'owner-preserved nail-booking.md','owner-preserved nail-booking-plan.json'}
+    mod.archive_legacy_examples(library)
+    assert (refs/'owner-notes.md').read_text()=='keep'

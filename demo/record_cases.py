@@ -53,7 +53,7 @@ def main():
                 else "个人助手 · 留言与预约"
             ),
         )
-        .replace("NINE_URL", json.dumps(cfg["swarmWeb"] + "/?user_id=ioa-demo-b"))
+        .replace("NINE_URL", json.dumps(cfg["swarmWeb"] + "/?user_id="+cfg.get("swarmUserId","ioa-demo-b")))
         .replace("LAB_URL", json.dumps(cfg["base"]))
     )
 
@@ -151,6 +151,14 @@ def main():
 
             def send(text):
                 editor = nine.locator("[contenteditable=true]").last
+                if not editor.count() or not editor.is_visible():
+                    confirm=nine.get_by_role('button',name='确定',exact=True)
+                    if confirm.count() and confirm.last.is_visible():
+                        # The scripted demo user consents to the question actually visible in native Jiuwen.
+                        confirm.last.click()
+                        proof.setdefault('nativeConfirmations',[]).append({'semanticReply':text,'action':'clicked native 确定'})
+                        save();print('Confirmed visible native Jiuwen question',flush=True);return
+                    raise RuntimeError('Expected a visible native composer or confirmation control')
                 if cfg.get('preloadIoASkill') and not proof.get('nativeSkillPreload'):
                     editor.fill('/')
                     nine.get_by_text('ioalab-delegate',exact=True).last.click()
@@ -232,6 +240,7 @@ def main():
                 page.locator('body').evaluate('(e)=>e.classList.add("full")')
                 def register():
                     lab.locator('#name').fill(b['username']);lab.locator('#password').fill(b['password'])
+                    page.wait_for_timeout(4000)
                     lab.locator('#register').click();lab.locator('#workspace').wait_for(state='visible')
                     proof['onboarding']={'account':b['username'],'registration':'actual UI registration','configuration':'pending','skillSelection':'pending'}
                 shot('account',action=register)

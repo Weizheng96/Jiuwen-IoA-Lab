@@ -87,6 +87,7 @@ def main():
         "preloadIoASkill": True,
         "swarm": "ws://127.0.0.1:19000/ws?user_id=ioa-admin",
         "swarmWeb": "http://127.0.0.1:5173",
+        "swarmUserId": 'ioa-demo-'+secrets.token_hex(6) if a.scenario=='delegation' else 'ioa-demo-b',
         "swarmModelId": "mdl_ioa_qwen_plus",
         "swarmModelAlias": "IoA演示模型",
         "providerAccount": {"username": "ISP_008", "password": "008"},
@@ -221,7 +222,7 @@ def main():
             "IOALAB_PASSWORD": accounts["b"]["password"],
             "IOALAB_HOME": str(folder / "client-b"),
         }
-        install_skill(ROOT, ROOT / ".swarm-runtime", values)
+        install_skill(ROOT, ROOT / ".swarm-runtime", values,configure_account=not config["onboarding"])
         skill = ROOT / ".swarm-runtime/agent/workspace/skills/ioalab-delegate"
         settings = skill / "settings.local.json"
         if settings.exists():

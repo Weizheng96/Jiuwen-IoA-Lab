@@ -14,7 +14,23 @@ def read_env(path):
             result[k.strip()]=v
     return result
 
-def install_skill(root,swarm,values):
+def archive_legacy_examples(library):
+    """Move only our two obsolete product examples outside the skill library; retain bytes."""
+    import hashlib
+    library=Path(library).resolve();workspace=library.parent
+    for name in ('nail-booking.md','nail-booking-plan.json'):
+        source=(library/'ioalab-delegate/references'/name).resolve()
+        if not source.is_relative_to(library):raise ValueError('Invalid legacy skill path')
+        if not source.is_file():continue
+        blob=source.read_bytes();digest=hashlib.sha256(blob).hexdigest()
+        dest=(workspace/'.ioa-example-backups'/digest/name).resolve()
+        if not dest.is_relative_to(workspace):raise ValueError('Invalid backup path')
+        if dest.exists() and dest.read_bytes()!=blob:raise ValueError('Legacy example backup conflicts')
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        source.replace(dest)
+
+
+def install_skill(root,swarm,values,*,configure_account=True):
     bundle=root/'dist/ioalab-skill.zip'
     if not bundle.is_file(): raise RuntimeError('Run tools/build_connector.py before administrator configuration')
     library=(swarm/'agent/workspace/skills').resolve()
@@ -26,9 +42,10 @@ def install_skill(root,swarm,values):
             if not relative.parts or relative.parts[0]!='ioalab-delegate' or not target.is_relative_to(library): raise ValueError('Invalid skill bundle path')
             if target.name=='settings.local.json': raise ValueError('Skill bundle must not contain local credentials')
             target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(archive.read(member))
+    archive_legacy_examples(library)
     config=library/'ioalab-delegate/settings.local.json'
     # Preserve a deliberately configured existing skill account during upgrades.
-    if not config.exists():
+    if configure_account and not config.exists():
         settings={k:values[k] for k in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_HOME')}
         if values.get('IOALAB_SCHEDULE_FILE'):settings['IOALAB_SCHEDULE_FILE']=values['IOALAB_SCHEDULE_FILE']
         config.write_text(json.dumps(settings,indent=2)+'\n',encoding='utf-8')
