@@ -35,7 +35,11 @@ def record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save):
             bubbles=nine.locator('[data-testid="chat-panel-message-bubble"][data-variant="assistant"][data-state="final"]')
             text=bubbles.last.inner_text() if bubbles.count() else ''
             idle=nine.locator('[data-testid="chat-panel-input-send"][data-variant="stop"]').count()==0
-            if idle and any(word in text for word in words):
+            native=nine.locator('[data-testid="chat-panel-inline-question-item-body"]:visible')
+            if native.count() and nine.locator('textarea:visible').count():text=native.last.inner_text()
+            # A planning statement containing '授权' is not the actual consent question.
+            question=('？' in text[-1200:] or '?' in text[-1200:]) and any(word in text[-1200:] for word in words)
+            if idle and question:
                 proof.setdefault('visibleQuestions',[]).append({'gate':label,'text':text})
                 save()
                 page.wait_for_timeout(7000)

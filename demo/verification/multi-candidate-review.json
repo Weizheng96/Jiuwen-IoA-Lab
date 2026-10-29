@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-29",
+  "purpose": "模板资格与通用skill多候选检查，不是新片完成证明",
+  "skillAudit": {
+    "mainSha256": "e030b05177760a738734cd5a3b179760d3a536f6d148180c1022ec5ea729f509",
+    "delegationSha256": "68ef6f55d47893b455f294ac2246491a8c71fa8a01716e28f54ca2c850e072c4",
+    "privateInteractionSha256": "cea9f8bb6c48b3aa6fccfa151edd22ac5b8ef5ffc3f69743137fc96ed3691041",
+    "legacyExampleFilesPresent": false
+  },
+  "observation": {
+    "source": "real native Jiuwen browser recording; read-only snapshot before engineering confirmation messages",
+    "traceSha256": "df3c6c8ad729b49348b284dd5e0f40eb16936de325756f390b81f5893428d7c1",
+    "assistantAssessment": "三家均支持每时段最多两人及顾客取消；未把另外两家判为不合格",
+    "eligibleServices": [
+      "灵犀小程序",
+      "快搭建站",
+      "码上飞"
+    ],
+    "proposalFeeEach": 1,
+    "authorizedProposalFeeLimit": 50,
+    "actualSignedProposals": 1,
+    "actualProposedPrice": 299,
+    "observedFailure": "先基于验收覆盖偏好选择码上飞，只征集一份正式提案即询问合同采纳",
+    "minimumQuotePreference": "not configured"
+  },
+  "conclusion": "本次不是模板资格排除了其他两家；通用skill允许多候选，但征集完成边界不够明确。",
+  "change": "候选资格、正式报价、横向推荐三阶段；不设固定三份偏好复测。",
+  "status": "new full recording pending"
+}

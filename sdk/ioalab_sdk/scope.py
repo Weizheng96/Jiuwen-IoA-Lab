@@ -43,7 +43,7 @@ class DelegationScopes:
         ready=len(offers)>=required and not unresolved
         next_action='reconcile' if unresolved else ('compare' if ready else 'collect')
         instruction=('先核实未确定的拟卡费，不重复付费或请求合同确认。' if unresolved else
-                     ('最低比选数量已达到；比较真实合同和总费用后，请用户确认具体合同。' if ready else
+                     ('最低数量已达到，但不代表本轮合格候选已全部征集。按委托流程处理尚未报价的合格候选，征集完成后比较真实合同和总费用，再请求用户确认。' if ready else
                       f'还需{required-len(offers)}个不同服务端点的有效候选；在授权费用内继续征集，不请求用户确认合同。'))
         return {'scopeId':scope_id,'minimumQuotes':required,'receivedQuotes':len(offers),
                 'proposalFees':str(fees),'pendingRequests':unresolved,'readyForConfirmation':ready,

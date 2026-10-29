@@ -1,7 +1,7 @@
 {
   "date": "2026-10-29",
   "pytest": {
-    "passed": 125,
+    "passed": 139,
     "failed": 0
   },
   "selfcheck": "passed: versions, screenplays/movie hashes, documentation links, service definitions, three-process smoke, A2C wheel, runtime boundary, wording and signed evidence",
@@ -74,5 +74,6 @@
     "acceptancePresentation": "narrated",
     "presentationScope": "platform-message-flow",
     "outlookFootageIncluded": false
-  }
+  },
+  "multiCandidateReview": "multi-candidate-review.json"
 }

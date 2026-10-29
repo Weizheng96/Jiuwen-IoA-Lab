@@ -85,7 +85,7 @@ def main():
         "fixtures": [],
         "onboarding": a.scenario=='delegation',
         "preloadIoASkill": True,
-        "delegationPolicy": json.loads((ROOT/'examples/nail-booking/account-policy.json').read_text(encoding='utf-8')) if a.scenario=='delegation' else {},
+        "delegationPolicy": {},  # Use actual eligible candidates, not a fixed quote-count preference.
         "swarm": "ws://127.0.0.1:19000/ws?user_id=ioa-admin",
         "swarmWeb": "http://127.0.0.1:5173",
         "swarmUserId": 'ioa-demo-'+secrets.token_hex(6) if a.scenario=='delegation' else 'ioa-demo-b',

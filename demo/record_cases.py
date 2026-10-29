@@ -163,10 +163,16 @@ def main():
                 if not editor.count() or not editor.is_visible():
                     confirm=nine.get_by_role('button',name='确定',exact=True)
                     if confirm.count() and confirm.last.is_visible():
-                        # The scripted demo user consents to the question actually visible in native Jiuwen.
+                        # A blank native submission is not a user answer. Fill the actual answer control.
+                        answer=nine.locator('textarea:visible')
+                        if answer.count()!=1 or not answer.last.is_enabled():
+                            raise RuntimeError('Expected one editable native question answer field; will not submit empty consent')
+                        answer.last.fill(text)
+                        page.wait_for_timeout(1000)
+                        if answer.last.input_value()!=text:raise RuntimeError('Native answer readback mismatch')
                         confirm.last.click()
-                        proof.setdefault('nativeConfirmations',[]).append({'semanticReply':text,'action':'clicked native 确定'})
-                        save();print('Confirmed visible native Jiuwen question',flush=True);return
+                        proof.setdefault('nativeConfirmations',[]).append({'semanticReply':text,'action':'filled and reread native answer before clicking 确定'})
+                        save();print('Submitted answer to visible native Jiuwen question',flush=True);return
                     raise RuntimeError('Expected a visible native composer or confirmation control')
                 if cfg.get('preloadIoASkill') and not proof.get('nativeSkillPreload'):
                     editor.fill('/')
