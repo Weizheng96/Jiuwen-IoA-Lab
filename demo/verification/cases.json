@@ -129,21 +129,26 @@
       "browserErrors": [],
       "quotes": [
         {
-          "cardDigest": "sha256:99c0a2f1925bf59fdc4d9ac2b95d44c49fe305b5fe109875f970d26730a7a75e",
-          "total": "299",
-          "provider": "美甲预约工具·可靠版"
+          "cardDigest": "sha256:a0388e2e67333a2149d36babf31fd5496d667ec8b91c58b5f2b127e75e998857",
+          "total": "239",
+          "provider": "灵犀小程序"
         },
         {
-          "cardDigest": "sha256:5ef7b75d006508e323c9a4a8402c8001b378681f6392fa76d1bde87e290eb131",
+          "cardDigest": "sha256:509179851ad5b34f2b063963d4b0d2542c94fabf5a1e72083c2300d531fa49df",
           "total": "259",
-          "provider": "美甲预约工具·基础版"
+          "provider": "快搭建站"
+        },
+        {
+          "cardDigest": "sha256:90a3ad33dc3c1a6eea14f504cfb11072577fadde20b09f6cc5f0e701c6efe346",
+          "total": "299",
+          "provider": "码上飞"
         }
       ],
-      "focusedCardDigest": "sha256:99c0a2f1925bf59fdc4d9ac2b95d44c49fe305b5fe109875f970d26730a7a75e",
-      "cardDigest": "sha256:99c0a2f1925bf59fdc4d9ac2b95d44c49fe305b5fe109875f970d26730a7a75e",
+      "focusedCardDigest": "sha256:90a3ad33dc3c1a6eea14f504cfb11072577fadde20b09f6cc5f0e701c6efe346",
+      "cardDigest": "sha256:90a3ad33dc3c1a6eea14f504cfb11072577fadde20b09f6cc5f0e701c6efe346",
       "delegation": {
         "state": "completed",
-        "cardDigest": "sha256:99c0a2f1925bf59fdc4d9ac2b95d44c49fe305b5fe109875f970d26730a7a75e",
+        "cardDigest": "sha256:90a3ad33dc3c1a6eea14f504cfb11072577fadde20b09f6cc5f0e701c6efe346",
         "signatures": {
           "2": true,
           "5": [
@@ -163,20 +168,89 @@
         },
         "paid": "299.00"
       },
+      "providerRetake": {
+        "source": "provider-final.webm",
+        "sameContract": "sha256:90a3ad33dc3c1a6eea14f504cfb11072577fadde20b09f6cc5f0e701c6efe346",
+        "reason": "Independent navigation/content scrolling keeps service title visible",
+        "browserErrors": [],
+        "titleVisible": true
+      },
+      "production": {
+        "source": "actual provider job events",
+        "processStatus": "completed",
+        "toolCounts": {
+          "ioa_inspect": 1,
+          "ioa_selftest": 2,
+          "ioa_deliver": 1
+        },
+        "selftestStatuses": [
+          "fail",
+          "pass"
+        ],
+        "submission": "delivered",
+        "processRuns": 1
+      },
+      "verification": {
+        "source": "personal assistant local WASM",
+        "status": "pass",
+        "checkCount": 10,
+        "allPassed": true
+      },
+      "nativeSkillPreload": "selected in the native Jiuwen skill menu before the first business request",
+      "flow": "nail-original",
+      "userTurns": [
+        {
+          "kind": "request",
+          "text": "我是小美美甲店店主，帮我做个预约微信小程序，每个时段最多接两人，顾客还能自己取消预约。预算上限500虚拟币。"
+        },
+        {
+          "kind": "authorization",
+          "text": "确认授权，委托合同和验收都由我确认。"
+        },
+        {
+          "kind": "contract",
+          "text": "确认这份码上飞的合同，按你列出的范围提供资料。"
+        },
+        {
+          "kind": "registration",
+          "text": "授权实名注册。"
+        },
+        {
+          "kind": "acceptance",
+          "text": "确认验收。"
+        }
+      ],
+      "confirmationGates": [
+        "authorization",
+        "contract",
+        "registration",
+        "acceptance"
+      ],
+      "authorization": {
+        "budget": "500",
+        "proposalFeeLimit": "3",
+        "expiresAt": 1793852885.2331572,
+        "proposalFees": 3.0
+      },
+      "registration": {
+        "step": "realname_registration",
+        "beforeDelivery": true,
+        "mode": "authorization-only; no real identity submission"
+      },
       "bookingDemo": {
         "booked": true,
         "cancelled": true,
         "configuration": "actual accepted delivery"
       },
       "movie": "out/02-delegation.mp4",
-      "sha256": "cecfe29f51b02e451876380dacb8e53ae7a79ce4131a9c2c55127a01f299b3f2",
-      "bytes": 9337272,
+      "sha256": "c1a2194cbec30d6b9d273da6e5b12ca0349b4f13b48df0e934bb9f885721d642",
+      "bytes": 10878742,
       "qa": {
         "result": "passed",
         "dimensions": "1920x1080",
-        "meanVolumeDb": -20.0,
-        "narrationClips": 13,
-        "duration": 97.49,
+        "meanVolumeDb": -19.9,
+        "narrationClips": 15,
+        "duration": 128.11,
         "frames": [
           "review-1.png",
           "review-2.png",
@@ -185,17 +259,22 @@
         "fixtures": [],
         "outlook": null,
         "preview": false,
-        "videoSha256": "cecfe29f51b02e451876380dacb8e53ae7a79ce4131a9c2c55127a01f299b3f2"
+        "videoSha256": "c1a2194cbec30d6b9d273da6e5b12ca0349b4f13b48df0e934bb9f885721d642"
       },
       "allShots": [
         {
           "id": "cover",
-          "meanVolumeDb": -19.4,
+          "meanVolumeDb": -19.5,
           "narrationWithinShot": true
         },
         {
           "id": "need",
-          "meanVolumeDb": -18.8,
+          "meanVolumeDb": -20.4,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "authorization",
+          "meanVolumeDb": -19.0,
           "narrationWithinShot": true
         },
         {
@@ -205,7 +284,7 @@
         },
         {
           "id": "quotes",
-          "meanVolumeDb": -20.6,
+          "meanVolumeDb": -20.2,
           "narrationWithinShot": true
         },
         {
@@ -215,46 +294,51 @@
         },
         {
           "id": "contract",
-          "meanVolumeDb": -19.4,
+          "meanVolumeDb": -19.8,
+          "narrationWithinShot": true
+        },
+        {
+          "id": "registration",
+          "meanVolumeDb": -18.1,
           "narrationWithinShot": true
         },
         {
           "id": "production",
-          "meanVolumeDb": -19.1,
+          "meanVolumeDb": -19.6,
           "narrationWithinShot": true
         },
         {
           "id": "delivery",
-          "meanVolumeDb": -19.4,
-          "narrationWithinShot": true
-        },
-        {
-          "id": "verification",
           "meanVolumeDb": -19.1,
           "narrationWithinShot": true
         },
         {
+          "id": "verification",
+          "meanVolumeDb": -19.5,
+          "narrationWithinShot": true
+        },
+        {
           "id": "payment",
-          "meanVolumeDb": -19.0,
+          "meanVolumeDb": -19.8,
           "narrationWithinShot": true
         },
         {
           "id": "provider",
-          "meanVolumeDb": -22.1,
+          "meanVolumeDb": -20.2,
           "narrationWithinShot": true
         },
         {
           "id": "tool",
-          "meanVolumeDb": -19.9,
+          "meanVolumeDb": -19.3,
           "narrationWithinShot": true
         },
         {
           "id": "close",
-          "meanVolumeDb": -19.4,
+          "meanVolumeDb": -19.7,
           "narrationWithinShot": true
         }
       ]
     }
   },
-  "checkedAt": "2026-10-28"
+  "checkedAt": "2026-10-29"
 }

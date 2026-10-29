@@ -1,93 +1,107 @@
 [
   {
     "id": "cover",
-    "rawStart": 1.985,
+    "rawStart": 2.359,
     "rawSource": "screen.webm",
     "finalStart": 0,
-    "duration": 6.21
+    "duration": 7.46
   },
   {
     "id": "need",
-    "rawStart": 20.657,
+    "rawStart": 21.343,
     "rawSource": "screen.webm",
-    "finalStart": 6.21,
-    "duration": 6.74
+    "finalStart": 7.46,
+    "duration": 9.96
+  },
+  {
+    "id": "authorization",
+    "rawStart": 69.687,
+    "rawSource": "screen.webm",
+    "finalStart": 17.42,
+    "duration": 10.1
   },
   {
     "id": "discovery",
-    "rawStart": 114.829,
+    "rawStart": 148.531,
     "rawSource": "screen.webm",
-    "finalStart": 12.95,
-    "duration": 7.51
+    "finalStart": 27.52,
+    "duration": 7.63
   },
   {
     "id": "quotes",
-    "rawStart": 200.61,
+    "rawStart": 208.312,
     "rawSource": "screen.webm",
-    "finalStart": 20.46,
-    "duration": 7.61
+    "finalStart": 35.15,
+    "duration": 10.87
   },
   {
     "id": "choice",
-    "rawStart": 226.969,
+    "rawStart": 233.734,
     "rawSource": "screen.webm",
-    "finalStart": 28.07,
-    "duration": 6.84
+    "finalStart": 46.02,
+    "duration": 12.33
   },
   {
     "id": "contract",
-    "rawStart": 252.344,
+    "rawStart": 268.187,
     "rawSource": "screen.webm",
-    "finalStart": 34.91,
-    "duration": 6.57
+    "finalStart": 58.35,
+    "duration": 7.73
+  },
+  {
+    "id": "registration",
+    "rawStart": 293.593,
+    "rawSource": "screen.webm",
+    "finalStart": 66.08,
+    "duration": 9.62
   },
   {
     "id": "production",
-    "rawStart": 270.61,
+    "rawStart": 311.843,
     "rawSource": "screen.webm",
-    "finalStart": 41.48,
-    "duration": 7.61
+    "finalStart": 75.7,
+    "duration": 7.77
   },
   {
     "id": "delivery",
-    "rawStart": 292.954,
+    "rawStart": 445.515,
     "rawSource": "screen.webm",
-    "finalStart": 49.09,
-    "duration": 7.08
+    "finalStart": 83.47,
+    "duration": 6.89
   },
   {
     "id": "verification",
-    "rawStart": 312.266,
+    "rawStart": 470.953,
     "rawSource": "screen.webm",
-    "finalStart": 56.17,
-    "duration": 8.09
+    "finalStart": 90.36,
+    "duration": 7.77
   },
   {
     "id": "payment",
-    "rawStart": 342.735,
+    "rawStart": 502.375,
     "rawSource": "screen.webm",
-    "finalStart": 64.26,
-    "duration": 6.84
+    "finalStart": 98.13,
+    "duration": 7.05
   },
   {
     "id": "provider",
-    "rawStart": 361.36,
-    "rawSource": "screen.webm",
-    "finalStart": 71.1,
-    "duration": 8.04
+    "rawStart": 3.265,
+    "rawSource": "provider-final.webm",
+    "finalStart": 105.18,
+    "duration": 7.03
   },
   {
     "id": "tool",
-    "rawStart": 379.657,
+    "rawStart": 539.437,
     "rawSource": "screen.webm",
-    "finalStart": 79.14,
-    "duration": 8.13
+    "finalStart": 112.21,
+    "duration": 8.85
   },
   {
     "id": "close",
-    "rawStart": 398.235,
+    "rawStart": 560.609,
     "rawSource": "screen.webm",
-    "finalStart": 87.27,
-    "duration": 10.22
+    "finalStart": 121.06,
+    "duration": 7.05
   }
 ]

@@ -136,6 +136,8 @@ def main():
                 assert page.locator('#provider-view').get_by_text('服务运营台',exact=True).is_visible()
                 page.locator('[data-service="owned-1"]').click()
                 assert '快搭建站' in page.locator('.provider-hero').inner_text()
+                assert page.locator('.provider-hero').bounding_box()['y']>=page.locator('.provider-layout').bounding_box()['y']-1
+                assert page.locator('#provider-view h1').is_visible()
                 page.evaluate('render()')
                 assert page.locator('[data-service="owned-1"]').get_attribute('class').endswith('active')
                 assert page.locator('#provider-view').evaluate('e=>e.scrollWidth<=e.clientWidth+1')

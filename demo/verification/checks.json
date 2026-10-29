@@ -12,7 +12,7 @@
     "passed": 3,
     "source": "script_documents.py --check"
   },
-  "encodedReviews": "passed: 20 global shots and 7 transition frames; existing 13 delegation and 9 messaging shots unchanged; video SHA256 and audio verified",
+  "encodedReviews": "passed: 20 global shots/7 transition frames, 15 new delegation shots, existing 9 messaging preview shots; exact video hashes and audio windows checked",
   "a2cSkillChecks": {
     "skillValidation": "passed",
     "demoSelfchecks": {
@@ -33,7 +33,8 @@
   "limits": [
     "Messaging preview ends with a real invitation awaiting owner acceptance; current Outlook acceptance/calendar footage remains unavailable.",
     "Earlier user-confirmed Outlook acceptance establishes transport compatibility, not acceptance of this recording invitation.",
-    "Linux deployment has config/syntax checks but no real-server acceptance."
+    "Linux deployment has config/syntax checks but no real-server acceptance.",
+    "Automatic skill discovery without native session preselection remains model-dependent and unaccepted."
   ],
   "globalMixedActivity": {
     "result": "passed",
@@ -60,6 +61,12 @@
   },
   "sdkBootstrap": "passed: final bundled SDK clean installation, independence and cached reuse",
   "templateRenewal": "passed: rolling 30-day lifetime, renew below 7 days, startup/60-second maintenance, market endorsement/index and old contract references",
-  "delegationFlow": "passed: local HTTP integration with seven named services, three actual proposals, authorization/contract/step/acceptance gates, idempotent fetch, WASM behavior checks and payment; native Jiuwen recording in progress",
-  "serviceExecution": "passed: kind-scoped tools, same-session continuation bounded to three runs/300 seconds, unknown write stops automatic resend; 240-second local delegation boundary wait"
+  "delegationFlow": "passed: native skill preselection, one natural request/four confirmations, seven services/three signed proposals, actual Swarm selftest repair and delivery, ten local WASM checks, signatures 1-7, payment 299 plus proposal fees 3, real booking/cancellation",
+  "serviceExecution": "passed: kind-scoped tools, same-session continuation bounded to three runs/300 seconds, unknown write stops automatic resend; 240-second local delegation boundary wait",
+  "delegationMovie": {
+    "seconds": 128.11,
+    "sha256": "c1a2194cbec30d6b9d273da6e5b12ca0349b4f13b48df0e934bb9f885721d642",
+    "nativeSkillPreload": true,
+    "providerRetake": "same completed contract, independent source and time origin"
+  }
 }

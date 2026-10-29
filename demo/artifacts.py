@@ -80,6 +80,11 @@ def validate_real_case(proof, *, preview=None):
         require(len(quotes)==count and len({q['cardDigest'] for q in quotes})==count,
                 'Distinct signed proposals are required')
         if original:
+            require(not any(a.get('kind')=='message' for a in proof.get('operatorActions',[])),'Do not rescue a formal flow with extra user prompts')
+            report=proof.get('verification',{})
+            require(report.get('status')=='pass' and report.get('checkCount')==10 and report.get('allPassed') is True,'Ten actual local WASM checks are required')
+            production=proof.get('production',{})
+            require(production.get('submission')=='delivered' and production.get('selftestStatuses',[])[-1:] == ['pass'],'Actual provider SDK submission is required')
             require({q['provider'] for q in quotes}=={'灵犀小程序','快搭建站','码上飞'},'Use the authored service identities')
             require(proof.get('confirmationGates')==['authorization','contract','registration','acceptance'],'Four separate confirmation gates are required')
             turns=proof.get('userTurns',[])

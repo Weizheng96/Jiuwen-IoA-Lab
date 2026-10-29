@@ -73,7 +73,9 @@ python demo/record_cases.py --config data/<新交互参与方目录>/run.json --
 
 `case_stack.py`关闭样例替身：服务由真实Swarm生产，独立A客户端读取本地日程并使用部署方真实通知邮箱。账号、密钥和配置只落本机忽略目录。启动不发信；消息用例改约会向配置收件人提交一封邀请。邮箱形式B账号只是平台账号字符串，不代表企业邮箱认证。
 
-网页模型资源ID不能充当Process选择键。服务启动先查询`model.list`，配置其`selection_key`；网页选对应资源别名。安装阶段确认宿主已索引技能并准备SDK；用户首句仅保留业务需求，不附加技能路径或技术提示。签字、验收和付款由九问调用用户侧SDK完成，录制器不替用户执行成功业务。
+网页模型资源ID不能充当Process选择键。服务启动先查询`model.list`，配置其`selection_key`；网页选对应资源别名。安装阶段确认宿主已索引技能并准备SDK，新会话通过原生菜单预选IoA技能；用户首句仅保留业务需求，不附加技能路径或技术提示。签字、验收和付款由九问调用用户侧SDK完成，录制器不替用户执行成功业务。
+
+委托录制完成后执行`python demo/summarize_delegation.py --config data/<本轮参与方>/run.json --recording recordings/<本轮>`，从实际服务任务和本地WASM报告附加脱敏摘要，再进入剪辑。需要补录服务运营台时，使用`record_provider_view.py`的同一配置与录像参数；它核对已结案合同，保留独立source，不重新生产或付款。
 
 ## 配音、剪辑与核对
 
@@ -93,8 +95,8 @@ python demo/review_cases.py --recording recordings/<本轮>
 | `global_story.py` / `case_story.py` | 场景字幕与旁白；准备配音输入，不读凭据 |
 | `script_documents.py` | 生成逐场景剧本，核对已发布素材 |
 | `case_stack.py` | 准备本轮独立参与方环境，配置仅保留本地 |
-| `record_cases.py` / `message_case.py` | 记录真实界面、实际调用及分镜时间点 |
-| `artifacts.py` | 共用文件读写、目录边界与真实用例证据判定 |
+| `record_cases.py` / `message_case.py` / `record_provider_view.py` | 真实界面及同单补录，保留独立时间原点 |
+| `artifacts.py` / `summarize_delegation.py` | 共用证据判定；从实际任务和本地报告生成脱敏摘要 |
 | `edit_cases.py` / `assemble.py` | 按实测配音裁切、标识等待剪辑与讲解叠层、合成 |
 | `check_recording.py` / `review_cases.py` | 业务准入、最终编码及逐镜头声画检查 |
 | `publish_cases.py` | 仅发布已核对成片、配音、抽帧和脱敏摘要 |

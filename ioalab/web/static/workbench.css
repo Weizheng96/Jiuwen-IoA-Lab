@@ -610,3 +610,16 @@ dialog.assistant-detail pre { font-size:13px; white-space:pre-wrap; overflow-wra
 
 .public-service.related{opacity:1;background:#1a3447;color:#c0e9ef;border-color:#4d8b9e}
 .provider-summary{grid-template-columns:1.4fr repeat(3,minmax(0,1fr))}
+
+
+/* Keep the selected service title visible when the long catalogue scrolls. */
+#provider-view{display:flex;flex-direction:column;overflow:hidden}
+#provider-view>.heading,#provider-metrics{flex:0 0 auto}
+.provider-layout{display:grid;flex:1;min-height:0;overflow:hidden;align-items:stretch}
+.provider-nav{position:static;min-height:0;overflow:auto;scrollbar-gutter:stable}
+#services{min-height:0;overflow:auto;scrollbar-gutter:stable}
+.provider-hero{padding:16px 20px}.provider-hero h2{margin:4px 0 7px}
+.provider-hero p{margin:6px 0;line-height:1.5}
+.provider-summary{margin:12px 0}.provider-summary>div{padding:12px 16px}
+.provider-section{padding:14px 18px;margin:12px 0}
+.provider-empty{padding:10px}.provider-empty span{font-size:20px}.provider-empty p{margin:6px}

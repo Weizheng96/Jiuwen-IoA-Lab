@@ -14,7 +14,7 @@ window.ProviderWorkbench=(()=>{
     const visible=services.filter(s=>!category||s.category===category);
     if(!visible.some(s=>s.id===selected))selected=visible[0]?.id||null;
     document.getElementById('provider-services').innerHTML=visible.map(s=>`<button class="provider-service ${selected===s.id?'active':''}" data-service="${e(s.id)}"><span><b>${e(s.name)}</b><small>${e(label(s.status))} · ${s.orders.filter(o=>!ended.has(o.state)).length} 笔待办</small></span><strong>${e(s.earned)}<small>虚拟币收入</small></strong></button>`).join('')||'<p class="hint">该领域尚未登记服务</p>';
-    document.querySelectorAll('[data-service]').forEach(b=>b.onclick=()=>{selected=b.dataset.service;render(last);});
+    document.querySelectorAll('[data-service]').forEach(b=>b.onclick=()=>{selected=b.dataset.service;render(last);document.getElementById('services').scrollTop=0;});
     const service=visible.find(s=>s.id===selected),root=document.getElementById('services');
     if(!service){root.innerHTML='<section class="provider-welcome"><h2>接入专业服务，参与智能体互联网</h2><p>通过服务方SDK登记端点、公示合同模板，即可在这里管理服务与履约。</p><a class="btn" href="/downloads/ioalab-skill.zip">下载接入技能</a></section>';return;}
     const proposals=service.orders.filter(o=>proposalStates.has(o.state)),current=service.orders.filter(o=>!ended.has(o.state)&&!proposalStates.has(o.state)),history=service.orders.filter(o=>ended.has(o.state));

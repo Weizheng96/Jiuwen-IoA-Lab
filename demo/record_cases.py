@@ -140,7 +140,13 @@ def main():
 
             def send(text):
                 editor = nine.locator("[contenteditable=true]").last
-                editor.fill(text)
+                if cfg.get('preloadIoASkill') and not proof.get('nativeSkillPreload'):
+                    editor.fill('/')
+                    nine.get_by_text('ioalab-delegate',exact=True).last.click()
+                    editor.press('End')
+                    editor.type(' '+text)
+                    proof['nativeSkillPreload']='selected in the native Jiuwen skill menu before the first business request'
+                else:editor.fill(text)
                 editor.press("Enter")
                 print("Submitted visible Jiuwen turn", flush=True)
 
