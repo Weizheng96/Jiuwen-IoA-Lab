@@ -185,7 +185,7 @@ def record(cfg, out, page, nine, lab, box, proof, shot, send, wait, save):
     }
     save()
     print(
-        "REAL INVITATION SUBMITTED; Outlook acceptance capture is still required:",
+        "REAL INVITATION SUBMITTED; acceptance remains unverified; choose recorded or narrated presentation when editing:",
         json.dumps(proof["outlook"], ensure_ascii=False),
         flush=True,
     )

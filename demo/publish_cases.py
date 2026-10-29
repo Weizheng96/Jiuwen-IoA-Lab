@@ -62,6 +62,8 @@ def publish(folder, case):
             )
         }
         evidence["preview"] = preview
+        for key in ('acceptancePresentation','presentationScope','outlookFootageIncluded'):
+            if key in proof:evidence[key]=proof[key]
         if proof.get("interfaceRetake"):
             evidence["interfaceRetake"] = {
                 k: proof["interfaceRetake"][k]

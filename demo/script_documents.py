@@ -75,7 +75,7 @@ ACTIONS = {
         "forward": "切入王经理真实九问通知会话，显示赵专员的留言；右侧显示投递与处理回执。",
         "busy": "回到赵专员，展开11:00预约的真实冲突回执；不自动修改安排。",
         "reschedule": "赵专员明确授权改约14:00；高亮消息中心，王经理的接收客户端按规则再次检查。",
-        "invitation": "展开真实AgentMail邀请提交回执，明确收件人与等待接受状态。",
+        "invitation": "展示真实邀请提交回执；旁白收尾版叠加“提交邀请→本人接受→进入日历”的流程说明，不声称本轮已送达、已接受或已入历。",
         "outlook": "真实Outlook打开本轮邀请，收件人接受，再在日历查看对应会议；预览尚无此镜头。",
         "close": "返回消息中心与本人工作台，回顾交互接口、范围、离线收取和处理回执。",
     },
@@ -123,6 +123,8 @@ def render(case, timing=None):
     voices = read_json(voice_path)
     by_id = {v["id"]: v for v in voices}
     preview = proof.get("preview", False)
+    narrated=case=='messaging' and proof.get('acceptancePresentation')=='narrated'
+    if narrated:scene=[s for s in scene if s['id']!='outlook']
     lines = [
         f"# {title}剧本",
         "",
@@ -132,7 +134,7 @@ def render(case, timing=None):
         "|---|---|",
         f"| 场景源 | [{source}](../{source}) |",
         f"| 当前视频 | [{movie.name}](../out/{movie.name}) |",
-        f"| 发布状态 | {'预览；Outlook接受与入历待补录' if preview else '正式成片'} |",
+        f"| 发布状态 | {'正式平台演示；Outlook接受入历为旁白说明' if narrated else ('预览；Outlook接受与入历待补录' if preview else '正式成片')} |",
         f"| 当前时长 | {proof['qa']['duration']:.2f}秒 |",
         f"| 角色与视角 | {roles} |",
         "| 声画要求 | 完整片头；52px高对比短字幕；按实测音长剪辑；A2C念A to C |",
@@ -176,6 +178,7 @@ def render(case, timing=None):
                 )
             else:
                 status = "已录；实际执行与回执"
+                if narrated and shot['id']=='invitation':status='邀请提交为实际回执；本人接受入历为标注的旁白说明'
                 if case == "messaging" and shot["id"] in proof.get(
                     "interfaceRetake", {}
                 ).get("shots", []):
@@ -220,6 +223,7 @@ def render(case, timing=None):
         ]
     else:
         lines += [
+            "本版本按用户选择用旁白说明后续接受入历，不编排Outlook操作镜头。invite_submitted、异步发件和待接受状态保留，说明图不作为本轮真实接受或日历证据。" if narrated else
             "白名单仅对指定平台账号授权，邮箱形式不代表企业邮箱认证，接口不公示到服务市场。冲突依据助手本地可编辑日程；邀请提交、邮件送达、用户接受与入历分别核验，不读取私人Outlook。当前预览跳过outlook镜头，后续补录会重排收尾时间；旧邀请确认不能代替本轮。"
         ]
     return "\n".join(lines) + "\n"

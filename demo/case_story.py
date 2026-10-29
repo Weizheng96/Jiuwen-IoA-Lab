@@ -120,8 +120,8 @@ STORIES = {
         ),
         (
             "invitation",
-            "邀请交王经理审批，等待本人接受",
-            "会议邀请发送到王经理的Outlook邮箱，等待王经理审批。助手代办预约，最终是否接受，仍由王经理决定。",
+            "邀请已提交，本人接受后入历",
+            "会议邀请已经提交。接下来，由王经理在Outlook中决定是否接受；接受后，会议才会进入他的个人日历。",
         ),
         (
             "outlook",
@@ -141,10 +141,12 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--case", choices=STORIES, required=True)
     p.add_argument("--prepare", type=Path)
+    p.add_argument('--acceptance-presentation',choices=('recorded','narrated'),default='recorded')
     a = p.parse_args()
+    if a.acceptance_presentation=='narrated' and a.case!='messaging':p.error('Narrated acceptance applies to messaging')
     lines = [
         {"id": i, "text": t, "voice": v, "at": n * 45}
-        for n, (i, t, v) in enumerate(STORIES[a.case])
+        for n, (i, t, v) in enumerate(s for s in STORIES[a.case] if not (a.acceptance_presentation=='narrated' and s[0]=='outlook'))
     ]
     if a.prepare:
         a.prepare.mkdir(parents=True, exist_ok=False)

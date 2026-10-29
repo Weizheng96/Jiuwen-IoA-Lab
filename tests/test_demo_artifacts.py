@@ -60,7 +60,7 @@ def test_formal_contract_rejects_missing_evidence(delegation):
         validate_real_case(bad)
 
 
-def test_invitation_submission_is_only_a_preview():
+def test_recorded_acceptance_mode_rejects_submission_only():
     proof = {
         "case": "messaging",
         "screens": "real browser pages",
@@ -99,3 +99,36 @@ def test_changed_movie_cannot_reuse_old_reviews(tmp_path):
     movie.write_bytes(b"different-content-after-review")
     with pytest.raises(ValueError, match="changed after review"):
         validate_reviews({}, review, review, movie)
+
+
+def narrated_message():
+    return {'case':'messaging','screens':'real browser pages','fixtures':[],'browserErrors':[],
+        'preview':False,'acceptancePresentation':'narrated','presentationScope':'platform-message-flow','outlookFootageIncluded':False,
+        'accessControl':{'directSendStatus':403},'forward':{'status':'delivered','transport':'jiuwen-web'},
+        'busy':{'status':'no_time','reason':'calendar_conflict'},
+        'meeting':{'status':'invite_submitted','transport':'agentmail-calendar','delivery':'pending_provider_send'},
+        'outlook':{'status':'awaiting_actual_acceptance'}}
+
+
+def test_narrated_platform_scope_keeps_actual_pending_states():
+    proof=narrated_message();before=copy.deepcopy(proof)
+    validate_real_case(proof);validate_recording(proof)
+    assert proof==before and proof['meeting']['delivery']=='pending_provider_send'
+    proof.pop('acceptancePresentation')
+    with pytest.raises(ValueError,match='Outlook'):validate_real_case(proof)
+
+
+def test_narrated_scope_cannot_claim_acceptance_or_silently_change_scope():
+    for field,value in [('presentationScope','full-email-acceptance'),('outlookFootageIncluded',True),('acceptancePresentation','unknown')]:
+        proof=narrated_message();proof[field]=value
+        with pytest.raises(ValueError):validate_real_case(proof)
+    proof=narrated_message();proof['outlook']['status']='accepted_and_visible'
+    with pytest.raises(ValueError,match='cannot claim'):validate_real_case(proof)
+
+
+def test_encoded_review_is_bound_to_acceptance_presentation(tmp_path):
+    movie=tmp_path/'demo.mp4';movie.write_bytes(b'checked-movie')
+    proof=narrated_message();review={'result':'passed','preview':False,'videoSha256':media_digest(movie),'acceptancePresentation':'narrated'}
+    validate_reviews(proof,review,review,movie)
+    changed={**review,'acceptancePresentation':'recorded'}
+    with pytest.raises(ValueError,match='presentation changed'):validate_reviews(proof,changed,review,movie)

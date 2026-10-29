@@ -63,6 +63,9 @@ def main():
         "outlook": proof.get("outlook"),
         "preview": proof.get("preview", False),
     }
+    if proof.get('acceptancePresentation'):
+        qa['acceptancePresentation']=proof['acceptancePresentation']
+        qa['presentationScope']=proof['presentationScope']
     qa["videoSha256"] = media_digest(video)
     write_json(folder / "qa.json", qa)
     print(json.dumps(qa, ensure_ascii=False))

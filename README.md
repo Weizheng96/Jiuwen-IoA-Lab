@@ -53,6 +53,6 @@ python -m pytest -q tests
 |---|---|
 | [全局视角](demo/out/01-global.mp4) · [循环播放](demo/全局视角/播放.html) | 片头、接入、赠币、发现、合同履约、支付信誉、助手消息与平台价值；随机错峰讲解动画切入单一全屏真实监控 |
 | [美甲委托](demo/out/02-delegation.mp4) | 原生预选IoA技能后一句需求，七家筛选与三份真实提案，四处确认、Swarm交付、十项本地WASM验收、299付款、服务方记录及实际预约/取消 |
-| [助手交互（预览）](demo/out/03-messaging-preview.mp4) | 真实九问留言、账号白名单、冲突拒绝与改约邀请；Outlook接受入历镜头待补录 |
+| [助手交互](demo/out/03-messaging.mp4) | 真实九问留言、账号白名单、冲突拒绝与改约邀请；本人接受后入历以旁白和流程图说明 |
 
 剧本和复现入口见[录屏说明](demo/README.md)，成片证据与交互正式片剩余事项见[验证记录](demo/verification/README.md)。

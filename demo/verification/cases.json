@@ -27,7 +27,10 @@
         "end": "2026-10-30T14:30:00+08:00",
         "timeZone": "Asia/Shanghai"
       },
-      "preview": true,
+      "preview": false,
+      "acceptancePresentation": "narrated",
+      "presentationScope": "platform-message-flow",
+      "outlookFootageIncluded": false,
       "interfaceRetake": {
         "source": "interface-retake.webm",
         "reason": "Unchanged real interface configuration revisited with heading, exact scope and schema visible; no messages resent or business history reset",
@@ -49,15 +52,15 @@
         "transport": "agentmail-calendar",
         "delivery": "pending_provider_send"
       },
-      "movie": "out/03-messaging-preview.mp4",
-      "sha256": "14b7b9f1b6168c17a29b3c4f79687e3dcfa71d9392046cdbbdb7d3e6730db8e3",
-      "bytes": 7434667,
+      "movie": "out/03-messaging.mp4",
+      "sha256": "8f14c64cf30cee984edc24c33cb5118c7abecc577f2504faa6fcaa320fb66c46",
+      "bytes": 7340447,
       "qa": {
-        "result": "preview-passed",
+        "result": "passed",
         "dimensions": "1920x1080",
-        "meanVolumeDb": -19.9,
+        "meanVolumeDb": -20.2,
         "narrationClips": 9,
-        "duration": 82.76,
+        "duration": 82.0,
         "frames": [
           "review-1.png",
           "review-2.png",
@@ -71,8 +74,10 @@
           "end": "2026-10-30T14:30:00+08:00",
           "recipient": "zhengw.cc@outlook.com"
         },
-        "preview": true,
-        "videoSha256": "14b7b9f1b6168c17a29b3c4f79687e3dcfa71d9392046cdbbdb7d3e6730db8e3"
+        "preview": false,
+        "acceptancePresentation": "narrated",
+        "presentationScope": "platform-message-flow",
+        "videoSha256": "8f14c64cf30cee984edc24c33cb5118c7abecc577f2504faa6fcaa320fb66c46"
       },
       "allShots": [
         {
@@ -112,7 +117,7 @@
         },
         {
           "id": "invitation",
-          "meanVolumeDb": -17.2,
+          "meanVolumeDb": -20.0,
           "narrationWithinShot": true
         },
         {

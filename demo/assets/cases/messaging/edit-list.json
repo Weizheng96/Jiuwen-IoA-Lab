@@ -53,13 +53,13 @@
     "rawStart": 257.125,
     "rawSource": "screen.webm",
     "finalStart": 65.94,
-    "duration": 7.29
+    "duration": 6.53
   },
   {
     "id": "close",
     "rawStart": 275.421,
     "rawSource": "screen.webm",
-    "finalStart": 73.23,
+    "finalStart": 72.47,
     "duration": 9.53
   }
 ]

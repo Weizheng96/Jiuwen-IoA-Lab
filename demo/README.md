@@ -10,14 +10,14 @@
 |---|---|---|
 | 全局视角 | [剧本.md](全局视角/剧本.md) | [正式片](out/01-global.mp4) |
 | 美甲委托 | [剧本.md](美甲委托/剧本.md) | [正式片](out/02-delegation.mp4) |
-| 助手交互 | [剧本.md](助手交互/剧本.md) | [预览，Outlook镜头待补录](out/03-messaging-preview.mp4) |
+| 助手交互 | [剧本.md](助手交互/剧本.md) | [平台演示正式片，旁白收尾](out/03-messaging.mp4) |
 
 ```powershell
 python demo/script_documents.py          # 生成全部场景的剧本.md
 python demo/script_documents.py --check  # 核对剧本、镜头覆盖与已发布视频哈希
 ```
 
-剧本由场景源、配音时间轴、画面操作说明和脱敏证据共同生成，不手改。预览未包含的Outlook镜头仍保留为待补录计划，不编造片中时间。原散放剧本与重复镜头方案已移至[历史备份](../历史备份/README.md)。
+剧本由场景源、配音时间轴、画面操作说明和脱敏证据共同生成，不手改。当前交互片按用户选择用条件式旁白说明本人接受入历，不编排Outlook操作镜头；完整邮箱实录模式仍要求本轮实际画面。原散放剧本与重复镜头方案已移至[历史备份](../历史备份/README.md)。
 
 ## 全局视角
 
@@ -86,7 +86,7 @@ python demo/edit_cases.py --recording recordings/<本轮> --voice-timing data/<�
 python demo/review_cases.py --recording recordings/<本轮>
 ```
 
-交互配音将case改为`messaging`。全景配音使用同一`build_voice.py`参数后，把voice.json传回`record_global.py`。`edit_cases.py`调用`assemble.py`和`check_recording.py`；`review_cases.py`核对每个编码镜头及配音窗口。输出包含剪辑清单、SRT、配音索引、证据、检查与MP4。
+交互配音将case改为`messaging`，当前旁白收尾版在`case_story.py`和`edit_cases.py`命令中增加`--acceptance-presentation narrated`。全景配音使用同一`build_voice.py`参数后，把voice.json传回`record_global.py`。`edit_cases.py`调用`assemble.py`和`check_recording.py`；`review_cases.py`核对每个编码镜头及配音窗口。输出包含剪辑清单、SRT、配音索引、证据、检查与MP4。
 
 `qa.json`与`shot-review.json`均记录实际视频的SHA256；发布前必须同时匹配当前视频。影片重新合成后须重新运行这两项检查，不能沿用旧结果。
 
@@ -101,7 +101,7 @@ python demo/review_cases.py --recording recordings/<本轮>
 | `check_recording.py` / `review_cases.py` | 业务准入、最终编码及逐镜头声画检查 |
 | `publish_cases.py` | 仅发布已核对成片、配音、抽帧和脱敏摘要 |
 
-完整交互片须加入本轮真实Outlook接受及日历画面，剪辑清单记录独立source与时间原点。证据`outlook.status=accepted_and_visible`只能在实际界面核验后填写；不得以邀请受理、旧邀请或模型文字代替。缺此镜头时只能传`--preview`：省略未发生的接受入历旁白，持续显示待补录标识；正式编辑会拒绝缺证输入。浏览器URL/权限受限时停止该浏览器操作，不复制认证状态绕过。
+当前交互片采用`--acceptance-presentation narrated`：平台消息链路为实录，邀请提交后的本人接受入历为标注的流程说明，实际状态仍为待接受。配音准备时也传该参数，仅生成九段旁白。完整邮箱实录使用默认recorded模式，仍要求本轮真实Outlook接受及日历画面，缺证时只能显式预览。`outlook.status=accepted_and_visible`仅在实际核验后填写；浏览器受限不复制认证状态绕过。
 
 `record_case_tail.py`仅供同一已完成合同的工具与收尾补录：先核签7、已付和摘要，不重造合同结果；独立source与原因写入证据。失败拍摄保留。
 

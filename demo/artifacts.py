@@ -44,6 +44,14 @@ def waiting_was_cut(previous, current):
     )
 
 
+def acceptance_presentation(proof):
+    mode=proof.get('acceptancePresentation','recorded')
+    require(mode in ('recorded','narrated'),'Unknown acceptance presentation')
+    if mode=='narrated':
+        require(proof.get('case')=='messaging' and proof.get('presentationScope')=='platform-message-flow','Narrated acceptance requires an explicit platform-message-flow scope')
+    return mode
+
+
 def validate_real_case(proof, *, preview=None):
     """Check business evidence; this does not replace visual inspection of recorded footage."""
     preview = proof.get("preview", False) if preview is None else preview
@@ -127,7 +135,11 @@ def validate_real_case(proof, *, preview=None):
             and proof["meeting"]["transport"] == "agentmail-calendar",
             "Actual AgentMail invitation submission is missing",
         )
-        if not preview:
+        mode=acceptance_presentation(proof)
+        if mode=='narrated':
+            require(not preview,'Narrated platform film must declare its scope rather than use the incomplete preview mode')
+            require(proof.get('outlook',{}).get('status') in ('awaiting_actual_acceptance','not_recorded') and proof.get('outlookFootageIncluded') is False,'Narrated acceptance cannot claim actual Outlook acceptance or footage')
+        elif not preview:
             require(
                 proof.get("outlook", {}).get("status") == "accepted_and_visible",
                 "Actual Outlook acceptance and calendar footage are required",
@@ -140,6 +152,8 @@ def validate_reviews(proof, qa, shots, video):
     """Bind both encoded reviews to the exact movie bytes being published."""
     preview = proof.get("preview", False)
     digest = media_digest(video)
+    mode=acceptance_presentation(proof)
+    require(qa.get('acceptancePresentation','recorded')==shots.get('acceptancePresentation','recorded')==mode,'Acceptance presentation changed after review')
     require(
         qa["result"] == ("preview-passed" if preview else "passed")
         and qa.get("preview", False) == preview

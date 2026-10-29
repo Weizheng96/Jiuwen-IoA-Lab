@@ -1,7 +1,7 @@
 {
   "date": "2026-10-29",
   "pytest": {
-    "passed": 122,
+    "passed": 125,
     "failed": 0
   },
   "selfcheck": "passed: versions, screenplays/movie hashes, documentation links, service definitions, three-process smoke, A2C wheel, runtime boundary, wording and signed evidence",
@@ -12,7 +12,7 @@
     "passed": 3,
     "source": "script_documents.py --check"
   },
-  "encodedReviews": "passed: 20 global shots/7 transition frames, 15 new delegation shots, existing 9 messaging preview shots; exact video hashes and audio windows checked",
+  "encodedReviews": "passed: 20 global shots/7 transition frames, 15 delegation shots and 9 narrated messaging shots; exact video hashes and audio windows checked",
   "a2cSkillChecks": {
     "skillValidation": "passed",
     "demoSelfchecks": {
@@ -31,10 +31,9 @@
     "localSchedule": "local-schedule.json"
   },
   "limits": [
-    "Messaging preview ends with a real invitation awaiting owner acceptance; current Outlook acceptance/calendar footage remains unavailable.",
-    "Earlier user-confirmed Outlook acceptance establishes transport compatibility, not acceptance of this recording invitation.",
     "Linux deployment has config/syntax checks but no real-server acceptance.",
-    "Automatic skill discovery without native session preselection remains model-dependent and unaccepted."
+    "Automatic skill discovery without native session preselection remains model-dependent and unaccepted.",
+    "Messaging film narrates recipient acceptance without claiming current Outlook delivery, acceptance or calendar visibility; full email acceptance remains a separate verification."
   ],
   "globalMixedActivity": {
     "result": "passed",
@@ -68,5 +67,12 @@
     "sha256": "c1a2194cbec30d6b9d273da6e5b12ca0349b4f13b48df0e934bb9f885721d642",
     "nativeSkillPreload": true,
     "providerRetake": "same completed contract, independent source and time origin"
+  },
+  "messagingMovie": {
+    "seconds": 82.0,
+    "sha256": "8f14c64cf30cee984edc24c33cb5118c7abecc577f2504faa6fcaa320fb66c46",
+    "acceptancePresentation": "narrated",
+    "presentationScope": "platform-message-flow",
+    "outlookFootageIncluded": false
   }
 }

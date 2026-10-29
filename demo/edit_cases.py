@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 from case_story import STORIES
 from assemble import ffpath
-from artifacts import inside, read_json, require, validate_real_case, waiting_was_cut, write_json
+from artifacts import inside, read_json, require, validate_real_case, waiting_was_cut, acceptance_presentation, write_json
 
 
 def main():
@@ -21,6 +21,7 @@ def main():
         action="store_true",
         help="Explicitly omit an unavailable Outlook shot; never publish as a complete formal film",
     )
+    p.add_argument('--acceptance-presentation',choices=('recorded','narrated'),default='recorded',help='Narrated platform scope explains Outlook acceptance without claiming it was recorded')
     a = p.parse_args()
     import imageio_ffmpeg
 
@@ -30,11 +31,15 @@ def main():
     segments = read_json(out / "segments.json")
     prepared = {v["id"]: v for v in read_json(a.voice_timing)}
     raw = {s["id"]: s for s in segments}
+    if a.acceptance_presentation=='narrated':
+        require(proof['case']=='messaging' and not a.preview,'Narrated acceptance is an explicit messaging film scope')
+        proof.update(acceptancePresentation='narrated',presentationScope='platform-message-flow',outlookFootageIncluded=False)
+    require(acceptance_presentation(proof)==a.acceptance_presentation,'Select the declared acceptance presentation explicitly')
     validate_real_case(proof, preview=a.preview)
-    if proof["case"] == "messaging" and not a.preview:
+    if proof["case"] == "messaging" and not a.preview and a.acceptance_presentation=='recorded':
         require("outlook" in raw, "Actual Outlook acceptance footage is required")
     proof["preview"] = a.preview
-    story = [s for s in STORIES[proof["case"]] if not (a.preview and s[0] == "outlook")]
+    story = [s for s in STORIES[proof["case"]] if not ((a.preview or a.acceptance_presentation=="narrated") and s[0] == "outlook")]
     clips = out / "clips"
     clips.mkdir(exist_ok=True)
     voices = []
@@ -92,6 +97,10 @@ def main():
             canvas.save(overlay)
             # movie source is fixed and escaped; filter output is still real recorded footage plus labelled explanation.
             filters.append("movie='" + ffpath(overlay) + "'[q];[0:v][q]overlay=30:380")
+        if proof['case']=='messaging' and a.acceptance_presentation=='narrated' and key=='invitation':
+            from message_acceptance_overlay import render
+            overlay=clips/'acceptance-explained.png';render(overlay)
+            filters.append("movie='"+ffpath(overlay)+"'[ex];[0:v][ex]overlay=160:330:enable='gte(t,1.5)'")
         previous = raw[story[i - 1][0]] if i else None
         if waiting_was_cut(previous, entry):
             filters.append(
@@ -135,7 +144,7 @@ def main():
         audio = (a.voice_timing.parent / voice["file"]).resolve()
         target = out / "voice" / audio.name
         target.parent.mkdir(exist_ok=True)
-        shutil.copyfile(audio, target)
+        if audio!=target.resolve():shutil.copyfile(audio, target)
         voices.append({**voice, "at": round(at, 3), "file": str(target.relative_to(out))})
         captions.append({"id": key, "at": round(at, 3), "text": text, "voice": spoken})
         edl.append(

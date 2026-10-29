@@ -93,6 +93,7 @@ def main():
             "shots": report,
             "result": "passed",
             "preview": proof.get("preview", False),
+            "acceptancePresentation":proof.get('acceptancePresentation','recorded'),
             "videoSha256": media_digest(folder / "demo.mp4"),
         },
     )
