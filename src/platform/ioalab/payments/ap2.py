@@ -195,3 +195,12 @@ class SimPaymentProvider(PaymentProvider):
             raise LabError('forbidden','Payment is unavailable',status=404)
         return {'paymentId':row['payment_id'],'ref':row['ref'],'purpose':row['purpose'],'period':row['period'] or None,
                 'amount':row['amount'],'currency':row['currency'],**json.loads(row['reply'])}
+
+    def require_payments_in(self,conn,*,ref,currency,payer,payee,amounts):
+        """Closing consumes actual payment records, never the observation projection."""
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Payment evidence needs the owned application transaction')
+        for purpose,period,amount in amounts:
+            if Decimal(str(amount))<=0:continue
+            row=conn.execute('SELECT * FROM payment_records WHERE ref=? AND purpose=? AND period=?',(ref,purpose,period or 0)).fetchone()
+            if not row or (row['payer_id'],row['payee_id'],row['currency'])!=(payer,payee,currency) or Decimal(row['amount'])!=Decimal(str(amount)):
+                raise LabError('not_ready','Actual required contract payment is missing; do not release its admission',status=409,recovery='reconcile_original')

@@ -91,6 +91,22 @@ class MarketService:
         if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Market snapshot requires the owned application transaction')
         self.market.store.put('snapshots',key,snapshot)
 
+    def prepare_contract(self,template,op,card):
+        """Use the original Market in an unpublished store; no I/O in commit."""
+        from a2c.market import Market
+        from a2c.common import Store
+        staged=Market(self.signer,keys=self.keys,fetch=self.market.fetch,clock=self.now,store=Store(),
+                      recognized_services=self.market.recognized_services,models=self.market.models)
+        staged.store.put('snapshots',template['templateDigest'],{'template':template})
+        reply=getattr(staged,'op_'+op.replace('.','_'))({'card':card},{},None)
+        return reply.body,{table:staged.store.all(table) for table in ('cards','ledger')}
+
+    def commit_contract_in(self,conn,changes):
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Market facts require the owned application transaction')
+        for table,values in changes.items():
+            if table not in ('cards','ledger'):raise RuntimeError('Unexpected market store namespace')
+            for key,value in values.items():self.market.store.put(table,key,value)
+
     def certify(self, agent_id: str, jwk: Mapping[str, Any], name: str) -> dict:
         """认主体身份，发一条认证记录（市场签名的独立文书，A2C 不消费）；公钥入 Directory。"""
         self.keys.add(agent_id, {"keys": [dict(jwk)]})

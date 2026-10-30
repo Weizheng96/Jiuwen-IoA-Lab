@@ -354,9 +354,13 @@ def test_committed_admission_and_relation_survive_ordinary_message_retention(pla
     with online(client,local,service) as (sender,receiver):
         configure(receiver);binding=opened(sender,receiver,value);held=receiver.call('admission.reserve',binding)
         sender.call('ap2.pay',{'admissionId':held['admissionId'],'ap2':fee_body(local,service[1],template,value)})
-        with monkeypatch.context() as patch:
-            patch.setattr(platform.messaging.delivery,'clock',lambda:time.time()+90*86400)
-            platform.messaging.delivery.cleanup()
+    # Retention is the subject here. Advancing the SAME clock while a live WS
+    # worker validates leases also (correctly) expires that connection, so test
+    # recovery on a fresh connection rather than racing a temporary clock jump.
+    with monkeypatch.context() as patch:
+        patch.setattr(platform.messaging.delivery,'clock',lambda:time.time()+90*86400)
+        platform.messaging.delivery.cleanup()
+    with online(client,local,service) as (sender,receiver):
         assert receiver.call('admission.status',{'admissionId':held['admissionId']})['state']=='committed'
         relation=client.get('/api/v1/interactions',headers={'Authorization':'Bearer '+local.token},params={'agentId':sender.actor,'originMessageId':value['messageId']}).json()
         assert relation['state']=='open' and relation['interactionId']==binding['interactionId']

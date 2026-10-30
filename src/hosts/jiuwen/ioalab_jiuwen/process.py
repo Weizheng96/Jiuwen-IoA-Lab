@@ -1,5 +1,6 @@
 """Scoped host rounds over public Jiuwen interfaces; no business rules here."""
 import asyncio
+import copy
 from datetime import datetime,timezone
 from pathlib import Path
 import os
@@ -67,7 +68,7 @@ class ProcessHost:
         originals=[tool.name for tool in turn.definition.tools]
         if len(set(originals))!=len(originals) or any(not isinstance(name,str) or not 1<=len(name)<=128 for name in originals):
             raise RuntimeFault('invalid_input','Local tool names must be distinct bounded strings')
-        aliases={};declarations=[]
+        aliases={};declarations=[];metadata=set()
         reserved=set(originals)|{'ask_user'}
         for tool in turn.definition.tools:
             name=tool.name
@@ -76,7 +77,11 @@ class ProcessHost:
                 while name in reserved:name='ioa_tool_'+uuid.uuid5(uuid.NAMESPACE_URL,name).hex
                 reserved.add(name)
             aliases[name]=tool.name
-            declarations.append({**tool.declaration(),'name':name,'description':tool.description if name==tool.name else '[Local tool '+tool.name+'] '+tool.description})
+            schema=copy.deepcopy(tool.input_schema)
+            if 'call_goal' not in schema.get('properties',{}):
+                schema.setdefault('properties',{})['call_goal']={'type':'string','maxLength':2048,'description':'原版宿主用于展示的调用目的；不参与业务输入或权限。'}
+                metadata.add(name)
+            declarations.append({**tool.declaration(),'input_schema':schema,'name':name,'description':tool.description if name==tool.name else '[Local tool '+tool.name+'] '+tool.description})
         names=list(aliases)
         workspace=Path(turn.workspace)
         workspace.mkdir(parents=True,exist_ok=True)
@@ -121,7 +126,9 @@ class ProcessHost:
                 payload=record['payload']
                 if not bound[0] or payload['name'] not in names or turn.on_tool is None:
                     raise RuntimeFault('forbidden','Host tool call has no matching local execution context')
-                return await asyncio.to_thread(turn.on_tool,aliases[payload['name']],payload['arguments'],payload['call_id'])
+                arguments=payload['arguments']
+                if payload['name'] in metadata and isinstance(arguments,dict):arguments={key:value for key,value in arguments.items() if key!='call_goal'}
+                return await asyncio.to_thread(turn.on_tool,aliases[payload['name']],arguments,payload['call_id'])
             async def interaction(record):
                 await session(record)
                 if turn.on_interaction is None:raise RuntimeFault('not_ready','Real user interaction is required','wait_for_user')

@@ -245,7 +245,8 @@ class Admissions:
         conn.execute("UPDATE delegation_admissions SET state='committed',committed=? WHERE id=?",(self.clock(),row['id']))
         return self.receipt(self.admission(conn,row['id']))
 
-    def payment_in(self,conn,owner,actor,identifier,payment):
+    def payment_in(self,conn,owner,actor,identifier,payment,*,original=None):
+        if payment.purpose!='proposal-fee':return self.contracts.payment_in(conn,owner,actor,identifier,payment,original=original)
         row=self.admission(conn,identifier)
         if row['client']!=actor or self.identities.agent(actor)['owner_id']!=owner:raise LabError('forbidden','Payment admission belongs to another client',status=403)
         old=conn.execute('SELECT * FROM admission_payments WHERE payment_id=?',(payment.payment_id,)).fetchone()
@@ -342,3 +343,8 @@ class Admissions:
     def record_offer_in(self,conn,identifier,fingerprint,result):
         identifier=self.admission(conn,identifier)['id']
         conn.execute('INSERT INTO delegation_offers VALUES(?,?,?)',(identifier,fingerprint,encode(result)))
+
+    def finish_in(self,conn,identifier):
+        row=self.admission(conn,identifier)
+        conn.execute("UPDATE delegation_admissions SET state='released' WHERE id=?",(row['id'],))
+        conn.execute('UPDATE delegation_intents SET closed=1 WHERE origin=?',(row['origin'],))

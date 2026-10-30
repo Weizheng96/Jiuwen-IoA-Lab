@@ -151,15 +151,19 @@ class Platform:
         from .operations import PaymentOperations,MarketOperations
         self.admissions=Admissions(self.db,self.identities,self.publications,self.scopes,self.payment_provider)
         self.admissions.active=self.messaging.delivery.active_in
+        from .delegation.contracts import ContractAuthority
+        self.contracts=ContractAuthority(self.db,self.identities,self.admissions,self.scopes,self.market)
+        self.admissions.contracts=self.contracts
         self.payment_operations=PaymentOperations(self.db,self.identities,self.psp,self.admissions,self.scopes)
-        self.market_operations=MarketOperations(self.db,self.identities,self.admissions,self.market)
+        self.market_operations=MarketOperations(self.db,self.identities,self.admissions,self.market,contracts=self.contracts,psp=self.psp,
+            close=self.messaging.delivery.contract_closed_in)
         self.messaging.delivery.admissions=self.admissions
         self.messaging.delivery.payment_operations=self.payment_operations
         self.messaging.delivery.market_operations=self.market_operations
         self.psp.requires_admission=self.identities.bound_service
         self.market.market.requires_admission=self.identities.bound_service
         from .delegation.relay import ProtocolRelay
-        self.messaging.delivery.protocol=ProtocolRelay(self.db,self.identities,self.admissions,self.scopes,self.files,clock=self.messaging.delivery.clock)
+        self.messaging.delivery.protocol=ProtocolRelay(self.db,self.identities,self.admissions,self.scopes,self.files,clock=self.messaging.delivery.clock,contracts=self.contracts)
 
     def _agent_of_provider(self, provider_id):
         return next((r for r in self.db.rows("SELECT * FROM agents WHERE role='service'")

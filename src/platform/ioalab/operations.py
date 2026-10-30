@@ -23,6 +23,7 @@ class PreparedExecution:
     fingerprint:str
     admission:str
     payment:object=None
+    original:str|None=None
 
 
 class PaymentOperations:
@@ -53,7 +54,7 @@ class PaymentOperations:
         except (A2CError,KeyError,TypeError,ValueError):
             raise LabError('invalid_input','AP2 request failed original protocol validation') from None
         if payment.payer!=owner:raise LabError('forbidden','Payment belongs to another account',status=403)
-        return PreparedExecution(operation,fingerprint,payload['admissionId'],payment)
+        return PreparedExecution(operation,fingerprint,payload['admissionId'],payment,json.dumps(payload['ap2']))
 
     def apply_in(self,conn,owner,actor,prepared):
         if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Payment execution requires the owned application transaction')
@@ -64,7 +65,7 @@ class PaymentOperations:
             return json.loads(old['result']),False
         payment=prepared.payment
         if payment is None:raise LabError('unknown_result','The original operation receipt needs reconciliation',status=409)
-        created=self.admissions.payment_in(conn,owner,actor,prepared.admission,payment)
+        created=self.admissions.payment_in(conn,owner,actor,prepared.admission,payment,original=json.loads(prepared.original) if prepared.original else None)
         try:reply,transferred=self.psp.commit(conn,payment)
         except A2CError as exc:
             raise LabError('forbidden','Payment changed or expired before transaction commit',status=403) from exc
@@ -82,12 +83,14 @@ class PreparedEndorsement:
     payload:str
     result:str|None=None
     snapshot:str|None=None
+    changes:str|None=None
 
 
 class MarketOperations:
     """Publish original slot 3 only with the current service/admission transaction."""
-    def __init__(self,db,identities,admissions,market):
+    def __init__(self,db,identities,admissions,market,*,contracts=None,psp=None,close=None):
         self.db,self.identities,self.admissions,self.market=db,identities,admissions,market
+        self.contracts,self.psp,self.close=contracts,psp,close
         with db.lock:db.conn.execute('''CREATE TABLE IF NOT EXISTS delegation_market_operations(
              owner TEXT NOT NULL,actor TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
              PRIMARY KEY(actor,id))''')
@@ -100,6 +103,7 @@ class MarketOperations:
 
     def prepare(self,owner,actor,operation,payload):
         self.identities.owned(owner,actor)
+        if payload.get('op') in ('delivery.anchor','card.close'):return self.prepare_contract(owner,actor,operation,payload)
         if not isinstance(operation,str) or not 1<=len(operation)<=128 or set(payload)!={'admissionId','op','body','request'} or payload['op']!='card.endorse' or not isinstance(payload['body'],dict) or set(payload['body'])!={'card'}:
             raise LabError('invalid_input','Use original card.endorse with its admission and signed request')
         fingerprint=digest(payload)
@@ -125,6 +129,7 @@ class MarketOperations:
             if old['owner']!=owner or old['fingerprint']!=prepared.fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
             return json.loads(old['result'])
         payload=json.loads(prepared.payload)
+        if payload['op']!='card.endorse':return self.apply_contract_in(conn,owner,actor,prepared,payload)
         result=self.admissions.issued_offer_in(conn,owner,actor,payload['admissionId'],prepared.fingerprint)
         if result is None:
             self.admissions.proposal_eligible_in(conn,owner,actor,payload['admissionId'],payload['request'],payload['body']['card'])
@@ -133,6 +138,38 @@ class MarketOperations:
             from a2c.card import card_digest
             self.market.commit_snapshot_in(conn,card_digest(result['card']),json.loads(prepared.snapshot))
             self.admissions.record_offer_in(conn,payload['admissionId'],prepared.fingerprint,result)
+        conn.execute('INSERT INTO delegation_market_operations VALUES(?,?,?,?,?)',(owner,actor,prepared.operation,prepared.fingerprint,json.dumps(result)))
+        return result
+
+    def prepare_contract(self,owner,actor,operation,payload):
+        if not self.contracts or not isinstance(operation,str) or not 1<=len(operation)<=128 or set(payload)!={'admissionId','op','body'} or not isinstance(payload['body'],dict) or set(payload['body'])!={'card'}:
+            raise LabError('invalid_input','Use the original contract market method and saved operation')
+        fingerprint=digest(payload)
+        old=self.db.one('SELECT * FROM delegation_market_operations WHERE actor=? AND id=?',actor,operation)
+        if old:
+            if old['owner']!=owner or old['fingerprint']!=fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
+            return PreparedEndorsement(operation,fingerprint,json.dumps(payload),old['result'])
+        with self.db.tx() as conn:_,template=self.contracts.market_in(conn,owner,actor,payload)
+        try:result,changes=self.market.prepare_contract(template,payload['op'],payload['body']['card'])
+        except (A2CError,KeyError,TypeError,ValueError) as exc:raise LabError('invalid_input','Original market rejected contract evidence: '+str(exc)) from None
+        return PreparedEndorsement(operation,fingerprint,json.dumps(payload),json.dumps(result),changes=json.dumps(changes))
+
+    def apply_contract_in(self,conn,owner,actor,prepared,payload):
+        row,template=self.contracts.market_in(conn,owner,actor,payload)
+        if prepared.changes is None:raise LabError('unknown_result','Restore the original contract market effect',status=409)
+        if payload['op']=='card.close':
+            from decimal import Decimal
+            from a2c.card import card_digest
+            card=payload['body']['card'];accepted=len(card['signatures']['7'])
+            amounts=[('deposit',None,card['derived']['deposit']),*[('installment',i+1,period['amount']) for i,period in enumerate(card['derived']['periods'][:accepted])]]
+            term=card['fulfillment'].get('termination',{})
+            if term.get('quote'):amounts.append(('termination',None,max(Decimal(0),Decimal(str(term['quote']['fee']))-Decimal(str(card['derived']['deposit'])))))
+            self.psp.require_payments_in(conn,ref=card_digest(card),currency=template['pricing']['currency'],payer=self.identities.agent(row['client'])['owner_id'],payee=owner,amounts=amounts)
+        self.market.commit_contract_in(conn,json.loads(prepared.changes))
+        if payload['op']=='card.close':
+            self.admissions.finish_in(conn,row['id'])
+            self.close(conn,row['interaction'])
+        result=json.loads(prepared.result)
         conn.execute('INSERT INTO delegation_market_operations VALUES(?,?,?,?,?)',(owner,actor,prepared.operation,prepared.fingerprint,json.dumps(result)))
         return result
 

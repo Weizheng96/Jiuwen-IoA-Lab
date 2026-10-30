@@ -8,6 +8,7 @@ from a2c.binding import A2ATransport
 from a2c.common import Directory
 from a2c.codec import parse_time
 from a2c.provider import Provider
+from a2c.errors import A2CError
 from a2c.slots import verify_template
 from ..adapters import ProtocolStore,SessionTransport
 from ..adapters.endpoint import EndpointSession
@@ -35,11 +36,14 @@ class ProviderExecution:
         self.public=A2ATransport(http=lambda:httpx.AsyncClient(timeout=20,trust_env=False))
         self.published={};self.refresh=set(self.configs)
         self.errors={}
+        from .production import Production
+        self.production=Production(self)
 
     def bind(self):
         if not self.role.identities:return {}
         return {'jobs':{'provider.a2c':JobHandler(self.run,'provider-a2c-v1',True,self.model_available),
-                        'provider.control':JobHandler(self.run,'provider-control-v1',False,control=True)},'profiles':list(self.configs)}
+                        'provider.control':JobHandler(self.run,'provider-control-v1',False,control=True),
+                        'provider.production':JobHandler(self.production.run,'provider-production-v1',True,self.model_available)},'profiles':list(self.configs)}
 
     def model_available(self):return bool(self.host and self.host.capabilities().get('available'))
 
@@ -116,6 +120,9 @@ class ProviderExecution:
                     if kind=='delegation.intent' and exc.code in ('capacity_full','expired','closed','forbidden'):
                         self.reject(identity,value,exc.code)
                 except httpx.HTTPError:self.errors[value['messageId']]={'code':'platform_unavailable'}
+        for endpoint in list(self.contexts.values()):
+            try:self.production.advance(endpoint)
+            except (RuntimeFault,A2CError,httpx.HTTPError) as exc:self.errors[endpoint.interaction]={'code':getattr(exc,'code','platform_unavailable')}
 
     def intent(self,identity,message):
         namespace='provider-inbox:'+identity.agent_id;mid=message['messageId']

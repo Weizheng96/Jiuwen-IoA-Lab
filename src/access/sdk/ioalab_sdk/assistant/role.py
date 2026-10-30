@@ -20,6 +20,7 @@ from .rules import Rules
 from .delegation import DelegationTasks
 from .trading import Trading
 from .contracts import Contracts
+from .fulfillment import Fulfillment
 
 
 def stable(*values):return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(list(values))))
@@ -44,13 +45,17 @@ class AssistantRole:
         self.delegation=DelegationTasks(runtime,self.identity)
         self.trading=Trading(self)
         self.contracts=Contracts(self.trading)
+        self.fulfillment=Fulfillment(self)
         names=('rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
                'messaging.interfaces','messaging.send','messaging.status','messaging.close',
                'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search','delegation.confirm')
+        names=(*names,*('delegation.'+name for name in ('start','answer_step','fetch','verify','accept','pay')))
         return {'operations':{'assistant.'+name:self._operation(name) for name in names},
                 'jobs':{'assistant.message':JobHandler(self._process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available'))),
                         'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False),
-                        'assistant.contract':JobHandler(self.contracts.run,'assistant-contract-v1',False)},
+                        'assistant.contract':JobHandler(self.contracts.run,'assistant-contract-v1',False),
+                        'assistant.fulfillment':JobHandler(self.fulfillment.run,'assistant-fulfillment-v1',False),
+                        'assistant.receipt':JobHandler(self.fulfillment.reconcile_receipt,'assistant-receipt-v1',False,control=True)},
                 'profiles':[self.identity.profile] if self.host else []}
 
     @staticmethod
@@ -73,6 +78,7 @@ class AssistantRole:
         return execute
 
     def _call(self,name,operation,args):
+        if name in ('delegation.start','delegation.answer_step','delegation.fetch','delegation.verify','delegation.accept','delegation.pay'):return self.fulfillment.call(name.split('.')[1],operation,args)
         if name=='delegation.request':return self.trading.request(operation,args)
         elif name=='delegation.confirm':return self.contracts.confirm(operation,args)
         elif name=='delegation.inspect':
@@ -83,7 +89,10 @@ class AssistantRole:
             self.delegation.task(args['taskRef'])
             return {'status':'completed','data':self.runtime.account.api('POST','/search',{'query':args['query'],'top_k':args.get('topK',8)})}
         elif name=='delegation.status' and set(args)=={'quoteRef'}:return self.trading.status(args['quoteRef'])
-        elif name=='delegation.status' and set(args)=={'contractRef'}:return self.contracts.status(args['contractRef'])
+        elif name=='delegation.status' and 'contractRef' in args:
+            self.fields(args,('contractRef',),('operationId',))
+            if self.contracts.record(args['contractRef']).get('result',{}).get('formed'):return self.fulfillment.status(args['contractRef'],args.get('operationId'))
+            return self.contracts.status(args['contractRef'])
         if name=='delegation.intent':
             self.fields(args,('taskRef','service'),('request','card','ttlSeconds'))
             return self.delegation.intent(operation,args)
@@ -276,7 +285,7 @@ class AssistantRole:
             self._wake.clear()
             try:
                 if self.runtime.connection.connected and self.trading:
-                    self.trading.recover();self.contracts.recover()
+                    self.trading.recover();self.contracts.recover();self.fulfillment.recover()
                 if self.runtime.connection.connected and self.host and self.host.capabilities().get('available'):
                     self._schedule_received()
             except (RuntimeFault,httpx.HTTPError):pass

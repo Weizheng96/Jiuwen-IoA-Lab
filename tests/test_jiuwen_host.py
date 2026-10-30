@@ -16,8 +16,9 @@ def test_local_tool_alias_is_scoped_and_actual_session_saved_before_dispatch(tmp
             requests.append(request)
             name=request['host_tools'][0]['name']
             assert name==request['agent']['tools'][0] and '.' not in name
+            assert 'call_goal' in request['host_tools'][0]['input_schema']['properties']
             await callbacks['on_event']({'session_id':'real-public-session'})
-            result=await callbacks['on_tool_call']({'session_id':'real-public-session','payload':{'name':name,'arguments':{'text':'hello'},'call_id':'native-call'}})
+            result=await callbacks['on_tool_call']({'session_id':'real-public-session','payload':{'name':name,'arguments':{'text':'hello','call_goal':'native display-only intent'},'call_id':'native-call'}})
             assert result=={'ok':True}
             return {'status':'completed','session_id':'real-public-session','usage':{'tokens':1}}
     host=ProcessHost(['original-process'],tmp_path)
@@ -38,6 +39,22 @@ def test_local_tool_alias_is_scoped_and_actual_session_saved_before_dispatch(tmp
     assert events[1]==('tool','local.notice',{'text':'hello'},'native-call')
     assert requests[0]['request_id']!=requests[1]['request_id'] and requests[1]['session_id']=='real-public-session'
     assert 'Local tool aliases' in requests[0]['agent']['instructions']
+    assert definition.tools[0].input_schema=={'type':'object'}
+
+
+def test_explicit_business_call_goal_is_preserved_instead_of_silently_stripped(tmp_path,monkeypatch):
+    class Process:
+        async def run(self,request,**callbacks):
+            await callbacks['on_event']({'session_id':'original-session'})
+            result=await callbacks['on_tool_call']({'session_id':'original-session','payload':{'name':'business','arguments':{'call_goal':'business value'},'call_id':'original-call'}})
+            assert result=={'call_goal':'business value'}
+            return {'status':'completed','session_id':'original-session'}
+    host=ProcessHost(['original-process'],tmp_path);host._capabilities={'available':True}
+    monkeypatch.setattr(host,'_client',lambda **kwargs:Process())
+    schema={'type':'object','properties':{'call_goal':{'type':'string'}},'required':['call_goal'],'additionalProperties':False}
+    definition=AgentDefinition('business','Use the explicit business parameter',(ToolBinding('business','Business input',schema,lambda *_:None),))
+    result=host.run(HostTurn('op','actor','iid',definition,'data',str(tmp_path/'work'),on_tool=lambda name,args,call:args))
+    assert result.status=='completed' and definition.tools[0].input_schema==schema
 
 
 def test_lost_native_result_preserves_actual_session_and_never_retries(tmp_path,monkeypatch):

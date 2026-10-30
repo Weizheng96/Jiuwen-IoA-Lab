@@ -47,7 +47,8 @@ class Contracts:
                      'stage':'delegation.contract','action':'card.confirm','preview':{'title':'确认具体委托合同','service':quote['service'],
                         'formation':quote['template']['formation'],'card':card,'materialsForReview':{name:card['inputs'][name] for name in card['inputs']
                         if any(item['name']==name and item.get('reviewBeforeSigning') for item in quote['template'].get('inputs',[]))},
-                        'notice':'本次确认只允许签署本合同及所示预审材料；实名环节和验收另行确认'}}
+                        'materials':{name:{**value,'sendAt':'before-signing' if any(item['name']==name and item.get('reviewBeforeSigning') for item in quote['template'].get('inputs',[])) else 'work.start'} for name,value in card['inputs'].items()},
+                        'notice':'本次确认允许签署本合同及按所示阶段发送这些材料；实名环节和验收另行确认'}}
             record={'quoteRef':args['quoteRef'],'taskRef':quote['taskRef'],'service':quote['service'],'template':quote['template'],'subject':copy.deepcopy(card),
                     'initial':quote['initial'],'binding':binding,'ttl':min(900,until-time.time()),'phase':'prepared','jobInteraction':quote['result'].get('interactionId',ref),
                     **{key:quote['result'][key] for key in ('interactionId','admissionId') if key in quote['result']}}

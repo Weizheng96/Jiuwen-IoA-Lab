@@ -15,8 +15,9 @@ SCHEMA='''CREATE TABLE IF NOT EXISTS delegation_protocol_calls(
 
 
 class ProtocolRelay:
-    def __init__(self,db,identities,admissions,scopes,files,*,clock):
+    def __init__(self,db,identities,admissions,scopes,files,*,clock,contracts=None):
         self.db,self.identities,self.admissions,self.scopes,self.files,self.clock=db,identities,admissions,scopes,files,clock
+        self.contracts=contracts
         with db.lock:db.conn.executescript(SCHEMA)
         self._migrate_calls()
 
@@ -47,7 +48,10 @@ class ProtocolRelay:
         payload=value['body']
         if set(payload)-{'op','body','files','admissionId','taskId'} or not {'op','body','files','admissionId'}.issubset(payload) or not isinstance(payload['op'],str) or not isinstance(payload['body'],dict):
             raise LabError('invalid_input','Use an original A2C body, method, files and admission context')
-        row,original=self.admissions.initial_protocol_in(conn,value['sender'],payload['admissionId'],payload['op'],payload['body'])
+        initial=payload['op'] in ('request.submit','card.countersign') or payload['op']=='ap2.checkout' and payload['body'].get('purpose')=='proposal-fee'
+        if initial:row,original=self.admissions.initial_protocol_in(conn,value['sender'],payload['admissionId'],payload['op'],payload['body'])
+        elif self.contracts:row,original=self.contracts.check_in(conn,value)
+        else:raise LabError('not_ready','Established contract authority is unavailable',status=409)
         if (row['service'],row['interaction'])!=(value['recipient'],value.get('interactionId')):
             raise LabError('forbidden','Protocol envelope changed its original receiver or interaction',status=403)
         self._files(conn,value,original)
@@ -59,21 +63,22 @@ class ProtocolRelay:
         if not references:return
         if payload['op']=='ap2.checkout':raise LabError('invalid_input','A checkout request does not contain materials')
         subject=payload['body'].get('request') or payload['body'].get('card')
-        review={item['name'] for item in original['template'].get('inputs',[]) if item.get('reviewBeforeSigning')}
-        if not set(references).issubset(review):raise LabError('forbidden','Only authorized pre-signing review material may be attached at this stage',status=403)
+        work=payload['op']=='work.start'
+        review={item['name'] for item in original['template'].get('inputs',[]) if bool(item.get('reviewBeforeSigning'))!=work}
+        if payload['op'] not in ('request.submit','card.countersign','work.start') or not set(references).issubset(review):raise LabError('forbidden','Only explicitly authorized material for this stage may be attached',status=403)
         for name,reference in references.items():
             if not isinstance(reference,dict) or subject.get('inputs',{}).get(name,{}).get('digest')!=reference.get('digest'):
                 raise LabError('forbidden','Material file digest differs from the signed original object',status=403)
         owner=self.identities.agent(value['sender'])['owner_id']
-        authority=self.scopes.authority_in(conn,owner,value['sender'],original['body']['scopeDigest'])
+        authority=self.scopes.contract_in(conn,owner,value['sender'],original['body']['scopeDigest'],subject)['user'] if work else self.scopes.authority_in(conn,owner,value['sender'],original['body']['scopeDigest'])
         auth=payload['body'].get('informationAuthorization')
         try:
             objects.verify_signed(auth,authority['jwk'],signer=authority['id'])
             check_fresh(header_of(auth['signature']),datetime.fromtimestamp(self.clock(),timezone.utc))
             inline={key:item for key,item in authority['jwk'].items() if key!='kid'}
             if auth.get('kind')!='information-authorization' or auth.get('jwk')!=inline or set(auth.get('inputs',[]))!=set(references):raise ValueError()
-            key='requestDigest' if original['body']['formation']=='proposal' else 'cardDigest'
-            if auth.get(key)!=original['body']['bindingDigest']:raise ValueError()
+            key='requestDigest' if not work and original['body']['formation']=='proposal' else 'cardDigest'
+            if auth.get(key)!=(self.contracts.facts(conn,payload['admissionId'])['digest'] if work else original['body']['bindingDigest']):raise ValueError()
         except (A2CError,KeyError,TypeError,ValueError):raise LabError('forbidden','Original material authorization is required before granting access',status=403) from None
 
     def request_in(self,conn,value):
@@ -83,6 +88,7 @@ class ProtocolRelay:
         self.files.grant_in(conn,value['sender'],value['recipient'],value['body']['files'])
         if value['body']['op']=='request.submit':
             self.admissions.signed_request_in(conn,value['body']['admissionId'],value['messageId'],value['body']['body']['request'])
+        if self.contracts and value['body']['op'] not in ('request.submit','card.countersign'):self.contracts.accepted_in(conn,value)
         conn.execute("INSERT INTO delegation_protocol_calls(message,interaction,admission,op,state) VALUES(?,?,?,?,'pending')",
                      (value['messageId'],value['interactionId'],value['body']['admissionId'],value['body']['op']))
 
@@ -90,6 +96,7 @@ class ProtocolRelay:
         self.check_request_in(conn,value)
         if value['body']['op']=='request.submit':
             self.admissions.signed_request_in(conn,value['body']['admissionId'],value['messageId'],value['body']['body']['request'],started=True)
+        if self.contracts:self.contracts.started_in(conn,value)
         conn.execute("UPDATE delegation_protocol_calls SET state='processing' WHERE message=?",(value['messageId'],))
 
     def result_in(self,conn,value,original):
@@ -113,7 +120,8 @@ class ProtocolRelay:
         if task is not None and (not isinstance(task,str) or not 1<=len(task)<=256):raise LabError('invalid_input','Use the original A2C task ID')
         snapshot=reply.get('task')
         if snapshot is not None:
-            if not isinstance(snapshot,dict) or set(snapshot)!={'id','op','state','artifacts','status'} or (snapshot['id'],snapshot['op'],snapshot['state'])!=(task,call['op'],state) or not isinstance(snapshot['artifacts'],list) or (snapshot['status'] is not None and not isinstance(snapshot['status'],dict)):
+            creation='work.start' if call['op']=='step.authorize' else call['op']
+            if not isinstance(snapshot,dict) or set(snapshot)!={'id','op','state','artifacts','status'} or (snapshot['id'],snapshot['op'],snapshot['state'])!=(task,creation,state) or not isinstance(snapshot['artifacts'],list) or (snapshot['status'] is not None and not isinstance(snapshot['status'],dict)):
                 raise LabError('invalid_input','Task snapshot must preserve the original reply identity, method and state')
         elif payload.get('taskFiles'):raise LabError('invalid_input','Task files require the original task snapshot')
         if call['task'] and task!=call['task']:raise LabError('id_conflict','A2C progress changed its original task ID',status=409)
@@ -124,6 +132,8 @@ class ProtocolRelay:
         if call['op']=='card.countersign' and 'card' in reply['body']:
             request=json.loads(original['envelope'])['body']['body']['card']
             self.admissions.countersign_result_in(conn,call['admission'],reply['body']['card'],request['signatures']['1'])
+        if self.contracts and call['op'] in ('work.start','step.authorize'):
+            self.contracts.result_in(conn,self.admissions.admission(conn,call['admission']),reply)
         self.files.grant_in(conn,value['sender'],value['recipient'],payload['files'])
         self.files.grant_in(conn,value['sender'],value['recipient'],payload.get('taskFiles',{}))
         conn.execute('UPDATE delegation_protocol_calls SET state=?,last_result=?,last_hash=?,task=? WHERE message=?',

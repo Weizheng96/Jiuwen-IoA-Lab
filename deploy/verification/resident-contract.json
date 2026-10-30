@@ -1,58 +1,60 @@
 {
   "date": "2026-10-31",
   "command": "pytest tests/test_resident_contracts.py -k test_real_original_jiuwen_and_trusted_user (explicit original Jiuwen/model environment)",
-  "result": "2 passed, 8 deselected, 2 existing Windows private-temp cleanup warnings in 84.66 seconds",
+  "result": "2 passed, 9 deselected, 2 existing Windows private-temp cleanup warnings in 82.16 seconds",
+  "scope": "Original Jiuwen with expanded stable tool definition and host-only call_goal normalization; actual contract formation, scripted trusted users; not production, native web UI or video acceptance",
   "cases": {
-    "proposal": {
-      "date": "2026-10-31",
-      "scope": "Original Jiuwen, resident HTTP/WS, A2C/AP2 and scripted trusted browser user; contract formation only, not native web visibility, work start, delivery, payment or video acceptance",
-      "model": "qwen-flash#0",
-      "interactionId": "f02eeab7-bfa8-42d5-9d53-30e2f391c586",
-      "sessionId": "process_cli_1a18eb4d58b_73d4a495d9d5",
-      "cardDigest": "sha256:11b560b7ecc0fc63af7204b8800546052840f1e94c2a4aa0856333fda71de2fb",
-      "userSignature": {
-        "protected": "eyJhMmMtc2lnbmVyIjoidXJuOmlvYWxhYjphc3Npc3RhbnQ6Nzc3MDAwZTUtYjk0Ny00YzQ4LWEzZjctY2I1OTNjZTI0ZjFlOnVzZXIiLCJhMmMtc2xvdCI6IjEiLCJhMmMtdHMiOiIyMDI2LTEwLTMwVDIxOjI2OjM1WiIsImFsZyI6IkVkMjU1MTkiLCJjcml0IjpbImEyYy1zaWduZXIiLCJhMmMtc2xvdCIsImEyYy10cyJdfQ",
-        "signature": "cBnY-nn04Kk7td-VToaerW6o2DtaOiyYmGno17bLUc0aaKnkMnVhf7OZUJrQ5mdoyYdeyd4z6FPCY9tBMU5gAA"
-      },
-      "providerSignature": {
-        "protected": "eyJhMmMtc2lnbmVyIjoiaHR0cDovLzEyNy4wLjAuMTo1OTg0MC9hMmEvYWdlbnRzL3N2Yy1jMTIwODhhNy00Zjk3LTQwZjYtOTIyZC1iMjJiMDlkY2JiZWYiLCJhMmMtc2xvdCI6IjIiLCJhMmMtdHMiOiIyMDI2LTEwLTMwVDIxOjI2OjMwWiIsImFsZyI6IkVkMjU1MTkiLCJjcml0IjpbImEyYy1zaWduZXIiLCJhMmMtc2xvdCIsImEyYy10cyJdLCJraWQiOiJhZ2VudDEifQ",
-        "signature": "sGfm3XPrjNHx12J5OBKHBiiWQXCj3-0taaKD_5ug61wD0F5g_HiIoWxjzOsusIR_kdmqqRGY9pPJQjRVlMMGDw"
-      },
-      "marketSignature": {
-        "protected": "eyJhMmMtc2lnbmVyIjoiaHR0cDovLzEyNy4wLjAuMTo1OTg0MC9hMmEvbWFya2V0IiwiYTJjLXNsb3QiOiIzIiwiYTJjLXRzIjoiMjAyNi0xMC0zMFQyMToyNjozMFoiLCJhbGciOiJFZDI1NTE5IiwiY3JpdCI6WyJhMmMtc2lnbmVyIiwiYTJjLXNsb3QiLCJhMmMtdHMiXSwia2lkIjoibTEifQ",
-        "signature": "YhxCoPrvUwwN6wzyNLTF2iZTrJnPxFuje-D4sggxRTm9qRVdvezU8cBrmvM2VE9PAvvs6LU31GuuMOhJcrW0Aw"
-      },
-      "proposalFeeTransfers": 1,
-      "reservedContractValue": "9.00",
-      "formed": true,
-      "started": false
-    },
     "countersign": {
       "date": "2026-10-31",
       "scope": "Original Jiuwen, resident HTTP/WS, A2C/AP2 and scripted trusted browser user; contract formation only, not native web visibility, work start, delivery, payment or video acceptance",
       "model": "qwen-flash#0",
-      "interactionId": "389d48d5-9e80-42ac-bd6f-07063a26720d",
-      "sessionId": "process_cli_1a18eb58010_58382997938d",
-      "cardDigest": "sha256:0cebc3889f50b9f461e28ea2a6e292a68e53126ad2ad202238f647e1e904a88a",
+      "interactionId": "6c8f9cf3-c2db-4aee-852f-bae8efba6039",
+      "sessionId": "process_cli_1a18f198e38_65004e6870c0",
+      "cardDigest": "sha256:0f47c5b63bce3cf3ab85151c9e6f2ac262d295b0b230dd2228f6f54022bc1828",
       "userSignature": {
-        "protected": "eyJhMmMtc2lnbmVyIjoidXJuOmlvYWxhYjphc3Npc3RhbnQ6ODIwMDUwNGUtMzM4Ni00NzI0LWI2ZTEtNzIzZTQzNTVkODUwOnVzZXIiLCJhMmMtc2xvdCI6IjEiLCJhMmMtdHMiOiIyMDI2LTEwLTMwVDIxOjI2OjUyWiIsImFsZyI6IkVkMjU1MTkiLCJjcml0IjpbImEyYy1zaWduZXIiLCJhMmMtc2xvdCIsImEyYy10cyJdfQ",
-        "signature": "bmCNSRuchhsdYDun-4FFhiHrAkCb_cLtbXDt1FEnMFK7gcH-NT4QkavPVv1xGGfHhotSquAZIDC2xtoo_TS9BA"
+        "protected": "eyJhMmMtc2lnbmVyIjoidXJuOmlvYWxhYjphc3Npc3RhbnQ6YTEwMGMyZjYtYzIxNS00NjEyLTgwZjktZTVmMjc4MGU1YTVhOnVzZXIiLCJhMmMtc2xvdCI6IjEiLCJhMmMtdHMiOiIyMDI2LTEwLTMwVDIzOjE2OjA4WiIsImFsZyI6IkVkMjU1MTkiLCJjcml0IjpbImEyYy1zaWduZXIiLCJhMmMtc2xvdCIsImEyYy10cyJdfQ",
+        "signature": "Gbw5CmuTOpHvfYOA0sfhNHqWMyx1WtEWhXTUDrduPne2pgKz8SNCM9MME8koHJB-YvDLU32FGcuajbWnbUz4AA"
       },
       "providerSignature": {
-        "protected": "eyJhMmMtc2lnbmVyIjoiaHR0cDovLzEyNy4wLjAuMTo1OTg0MC9hMmEvYWdlbnRzL3N2Yy0zOGZlZWMxYS0zZjM3LTQyZTItYWRkZC0wMjdmNTE1OGFhZTQiLCJhMmMtc2xvdCI6IjIiLCJhMmMtdHMiOiIyMDI2LTEwLTMwVDIxOjI3OjEwWiIsImFsZyI6IkVkMjU1MTkiLCJjcml0IjpbImEyYy1zaWduZXIiLCJhMmMtc2xvdCIsImEyYy10cyJdLCJraWQiOiJhZ2VudDEifQ",
-        "signature": "aExGowtwr_ktkt0QB4gei4zUoIg-0pZzztKhivn0oWyQrPBHV8AylpIeN-sw9A-tgjTICBMo3FMRifSqFlPlCQ"
+        "protected": "eyJhMmMtc2lnbmVyIjoiaHR0cDovLzEyNy4wLjAuMTo2MDEwNC9hMmEvYWdlbnRzL3N2Yy0yODU1Mzc0YS0zZjk2LTRmMDMtOGY5MS1mYzViZDQ4Yzk1NWUiLCJhMmMtc2xvdCI6IjIiLCJhMmMtdHMiOiIyMDI2LTEwLTMwVDIzOjE2OjI2WiIsImFsZyI6IkVkMjU1MTkiLCJjcml0IjpbImEyYy1zaWduZXIiLCJhMmMtc2xvdCIsImEyYy10cyJdLCJraWQiOiJhZ2VudDEifQ",
+        "signature": "bhXt9NaYxgTwUQDZ2nhw-QIMOKtc7dMYCCqPDu-d-O4Z1xrkTh84J3NgIR3wAwO_6V23AWU5es8l5dXfv9oGAQ"
       },
       "marketSignature": null,
       "proposalFeeTransfers": 0,
       "reservedContractValue": "9.00",
       "formed": true,
       "started": false
+    },
+    "proposal": {
+      "date": "2026-10-31",
+      "scope": "Original Jiuwen, resident HTTP/WS, A2C/AP2 and scripted trusted browser user; contract formation only, not native web visibility, work start, delivery, payment or video acceptance",
+      "model": "qwen-flash#0",
+      "interactionId": "1f4d8f31-72a3-4c14-8a9c-e81bbeb68333",
+      "sessionId": "process_cli_1a18f18f98d_4b8feedc3a9a",
+      "cardDigest": "sha256:80c592ec9d34da9f63fb47994e4d9ee7836a95d2c6a9bc26efbbf7662d9439a6",
+      "userSignature": {
+        "protected": "eyJhMmMtc2lnbmVyIjoidXJuOmlvYWxhYjphc3Npc3RhbnQ6MDNlZTBjNzMtZDhmNy00OWU2LTlhNDUtYTRlOWI1N2U2ZDc1OnVzZXIiLCJhMmMtc2xvdCI6IjEiLCJhMmMtdHMiOiIyMDI2LTEwLTMwVDIzOjE1OjUyWiIsImFsZyI6IkVkMjU1MTkiLCJjcml0IjpbImEyYy1zaWduZXIiLCJhMmMtc2xvdCIsImEyYy10cyJdfQ",
+        "signature": "5FXbQL1O-FOikl3jhIamhJoqyijG-GadScbnVkNz8WEFVrM1hMkUyung8CTLxbDRgbBVrhwdFLsZKyqMJRxMCw"
+      },
+      "providerSignature": {
+        "protected": "eyJhMmMtc2lnbmVyIjoiaHR0cDovLzEyNy4wLjAuMTo2MDEwNC9hMmEvYWdlbnRzL3N2Yy1iMTc2NTU3YS0yMTc0LTQyMDYtODhlZC1kM2UwMjlkYTZkZDciLCJhMmMtc2xvdCI6IjIiLCJhMmMtdHMiOiIyMDI2LTEwLTMwVDIzOjE1OjQ5WiIsImFsZyI6IkVkMjU1MTkiLCJjcml0IjpbImEyYy1zaWduZXIiLCJhMmMtc2xvdCIsImEyYy10cyJdLCJraWQiOiJhZ2VudDEifQ",
+        "signature": "kgS6w3h5860p69wdlKBZNo_gAkxSQjL6UuWQWXS3mI0cO1AxA6p_dMz8uHKfKgEaMMjyKH_5mxGaVEzrFAY7CA"
+      },
+      "marketSignature": {
+        "protected": "eyJhMmMtc2lnbmVyIjoiaHR0cDovLzEyNy4wLjAuMTo2MDEwNC9hMmEvbWFya2V0IiwiYTJjLXNsb3QiOiIzIiwiYTJjLXRzIjoiMjAyNi0xMC0zMFQyMzoxNTo0OVoiLCJhbGciOiJFZDI1NTE5IiwiY3JpdCI6WyJhMmMtc2lnbmVyIiwiYTJjLXNsb3QiLCJhMmMtdHMiXSwia2lkIjoibTEifQ",
+        "signature": "3la_1pQuL_zMtDEKH_DV6xMITGAtjbrmVsnLhimTbuWAQ6PWrRDhmC68auDSEnf6540OMaPPsMURBxBEUMP5Ag"
+      },
+      "proposalFeeTransfers": 1,
+      "reservedContractValue": "9.00",
+      "formed": true,
+      "started": false
     }
   },
   "sourceSha256": {
-    "src/access/sdk/ioalab_sdk/assistant/contracts.py": "32fe10aa5e3cb131a789dea2017ecf95e231bad64555b64875682a170f580d64",
+    "src/access/sdk/ioalab_sdk/assistant/contracts.py": "7420f24af6af22b12aa31d7e5ba25453b3a8a14390a88a5b093018ec80a16c26",
     "src/access/sdk/ioalab_sdk/assistant/trading.py": "630bb3b967b5e5052d10166f465d19fed17fadbcf6c3f11e3eae9687333f8f4c",
-    "src/access/sdk/ioalab_sdk/provider/policy.py": "9b71ab1ef76f622b41cd0551c2c3a7ddf9f81f2444bc10a50f9e6e9ff4596747",
-    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "c15f0398124e9e2d2308c85a2413578ceedc91cd52ceb3edb8c838e429d2621d"
+    "src/access/sdk/ioalab_sdk/provider/policy.py": "e57c23169c8b871272bf1bdefbd14857e9f7eb2bb5bf0cda330e7a810aa19167",
+    "src/access/sdk/ioalab_sdk/provider/production.py": "aed56d02cc9920f6b45e559574aa1345d1aa2bc457f5d13d8c10d9ed39e9a7d8",
+    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "5a6e389964aa708b0a02adb13d78bda92af7c601578d9db9be6891c2ae662c7d"
   }
 }

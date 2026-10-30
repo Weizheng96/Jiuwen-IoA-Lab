@@ -271,3 +271,11 @@ class ScopeLedger:
         row=self._get(owner,actor,scope,conn)
         self._live(row)
         return json.loads(row['context'])['user']
+
+    def contract_in(self,conn,owner,actor,scope,card):
+        """Already-selected contract authority survives expiry of NEW permissions."""
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Contract authority requires the owned application transaction')
+        row=self._get(owner,actor,scope,conn);context=json.loads(row['context'])
+        if row['contract']!=card_digest(card) or card.get('delegationScopeDigest')!=scope or card.get('client',{}).get('id')!=actor or not self.identities.matches_party(owner,card.get('client')) or Decimal(str(card['derived']['total']))!=Decimal(row['total']):
+            raise LabError('forbidden','Use the original selected whole-value contract',status=403)
+        return {**self._public(row),'user':context['user']}

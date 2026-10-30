@@ -48,7 +48,7 @@ class QuoteHost:
 
 
 @contextmanager
-def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None):
+def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None):
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
@@ -58,7 +58,8 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
     assistant=ResidentRuntime(RuntimeConfig.load(aconfig),modules=(arole,)).start()
     try:
         wait_for(lambda:provider.connection.connected and assistant.connection.connected)
-        uploaded=LocalClient(provider.config.home).call('provider.verifier.publish',{'profile':'service','verifierId':'resident_result@1.0','source':"def verify(ctx):\n    return {'pass': True}\n"})
+        source=verifier_source or "def verify(ctx):\n    return {'status': 'pass'}\n"
+        uploaded=LocalClient(provider.config.home).call('provider.verifier.publish',{'profile':'service','verifierId':'resident_result@1.0','source':source})
         assert uploaded['status']=='completed',uploaded
         host.verifier=uploaded['data']
         resources={'outputVerifier':host.verifier,'quoteAmount':9,'acceptWithin':'PT10M'}
@@ -66,7 +67,7 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
         prole.execution.configs['service'].update(resources=resources,instructions=instructions)
         value['provider']['services']['service'].update(resources=resources,instructions=instructions);private_json(pconfig,value)
         definition={'formation':formation,'deliverable':{'name':'result'},'pricing':{'proposalFee':fee,'price':'9'},
-                    'verifier':{'id':'resident_result@1.0','source':"def verify(ctx):\n    return {'pass': True}\n"}}
+                    'verifier':{'id':'resident_result@1.0','source':source}}
         from types import SimpleNamespace
         def upload(**args):return host.verifier
         template=template_from_definition(definition,packages=SimpleNamespace(put=upload),payment_provider=platform.payment_provider)
