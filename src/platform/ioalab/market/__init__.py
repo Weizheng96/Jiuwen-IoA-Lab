@@ -35,6 +35,10 @@ class MarketService:
     def id(self) -> str:
         return self.signer.id
 
+    def certificates(self):
+        from ..store import jload
+        return [jload(row['record']) for row in self.db.rows('SELECT record FROM certifications')]
+
     # ── 服务认证（协议外）────────────────────────────────────────────
     def certify(self, agent_id: str, jwk: Mapping[str, Any], name: str) -> dict:
         """认主体身份，发一条认证记录（市场签名的独立文书，A2C 不消费）；公钥入 Directory。"""

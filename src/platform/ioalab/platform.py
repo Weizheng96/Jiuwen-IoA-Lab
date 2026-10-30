@@ -91,6 +91,8 @@ class Platform:
         self.db = DB(settings.data / "ioalab.sqlite")
         self.bus = EventBus(self.db, settings.data / "runs")
         self.wallets, self.auth = Wallets(self.db), Auth(self.db, settings)
+        from .operations import AccountOperations
+        self.accounts=AccountOperations(self.db,self.auth,self.wallets,settings,self.bus.emit)
         from .identity import IdentityDirectory
         self.identities=IdentityDirectory(self.db,self.auth,settings)
         self.packages = PackageStore(settings.data / "packages")
@@ -110,6 +112,13 @@ class Platform:
                                    llm_configured=settings.a2x_configured(), embed_fn=self.llm.embed if self.llm.enabled else None)
         self.market = MarketService(self.market_signer, keys=self.keys, fetch=self.packages.fetch,
                                     store=SqliteStore(self.db, "market"), db=self.db, discovery=self.discovery, models=self.llm.model_ports())
+        from .identity.enrollment import EnrollmentRegistry
+        saved_keys,protocol_owners=self.identities.saved_keys()
+        certificates=[(protocol_owners[record['subject']],record['jwkThumbprint']) for record in self.market.certificates()
+                      if record.get('subject') in protocol_owners]
+        self.identities.enrollment=EnrollmentRegistry(self.db,settings,legacy_keys=saved_keys,legacy_certificates=certificates)
+        from .web.identity import public_service_app
+        self.router.apps['agents']=public_service_app(self.identities.enrollment)
         trace_endpoint(self.market.market, self.bus, self.market_id)
         self.psp = SimPaymentProvider(self.pay_signer, keys=self.keys, ap2_key=self.pay_ec, payee_keys=self._payee_key,
                                       wallets=self.wallets, payee_of=self._payee_of, client_matches=self.identities.matches_party, db=self.db,
@@ -216,16 +225,8 @@ class Platform:
         return u
 
 
-    def login(self, username: str, password: str, *, ip: str = "") -> dict:
-        """登录：核密码 → token；每次成功认证赠 IOALAB_LOGIN_CREDIT。"""
-        u = self.auth.login(username, password, ip=ip)
-        u["credited"] = self.grant_login_credit(u['id'])
-        return u
-
-    def grant_login_credit(self,user_id: str) -> bool:
-        """Only successful authentication or registration creates a login credit."""
-        self.grant(user_id,self.s.login_credit,by='platform',note='登录赠送',kind='login')
-        return True
+    def login(self,username,password,*,ip='',operation_id=None,audience='browser'):
+        return self.accounts.login(username,password,ip=ip,operation_id=operation_id,audience=audience)
 
 
     def grant(self, user_id: str, delta: Any, *, by: str, note: str, kind: str = "grant") -> str:
@@ -265,7 +266,7 @@ class Platform:
             fail(CARD_INVALID, "缺 name")
         if not (isinstance(ap2_jwk, Mapping) and ap2_jwk.get("kty") == "EC"):
             fail(CARD_INVALID, "ap2_jwk 须是 ES256 公钥（kty EC）——收款用")
-        from .participants import public_key
+        from .identity.keys import public_key
         public_key(dict(ap2_jwk), ec=True)
         existing = self._agent_of_provider(url)
         if existing:
@@ -284,13 +285,14 @@ class Platform:
         if not okp:
             fail(CARD_INVALID, "服务方 JWKS 里没有 Ed25519 公钥")
         public_key(okp[0])
+        self.identities.enrollment.claim(owner_id,[okp[0],dict(ap2_jwk)])
         self.market.certify(url, okp[0], name)                     # 公钥入 Directory（市场签认它的模板要用），认证记录
         import hashlib
         aid = "ext-" + hashlib.sha1(url.encode()).hexdigest()[:10]
         d = {"id": aid, "name": name, "description": description or name, "tags": list(tags or []), "runnable": True,
              "formation": "preapproval", "category": category, "external": True, "url": url, "deliverable": {"name": "deliverable"}}
         self.db.run("INSERT INTO agents (id, owner_id, role, name, definition, status, created, meta) VALUES (?,?,?,?,?,?,?,?)",
-                    aid, owner_id, "service", name, jdump(d), "listed", now(), jdump({"url": url, "ap2_jwk": dict(ap2_jwk), "external": True}))
+                    aid, owner_id, "service", name, jdump(d), "listed", now(), jdump({"url": url, "ap2_jwk": dict(ap2_jwk), "providerJwk":okp[0], "external": True}))
         card = {"name": name, "description": d["description"], "url": url, "version": "1",
                 "skills": [{"id": f"ext-{i}", "name": tag, "description": tag, "tags": [tag]} for i, tag in enumerate(d["tags"])],
                 "a2c": {"templates": [], "paymentProvider": self.pay_id}, "status": "listed"}

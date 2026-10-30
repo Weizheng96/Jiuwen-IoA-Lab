@@ -10,7 +10,9 @@ def test_admin_api(platform,providers,client):
     assert client.post('/api/admin/wallet',json={'user_id':u['id'],'delta':'-40','note':'test'}).json()['balance']=='60.00'
     assert client.post('/api/admin/wallet',json={'user_id':u['id'],'delta':'-1000'}).status_code==400
     reg=client.get('/api/admin/registry').json()
-    assert reg['services'] and all(s['url'].startswith(providers.public_url) for s in reg['services'])
+    # Other users may already have independently bound services in this session.
+    # Every published fixture service must remain visible with its real endpoint.
+    assert {agent.url for agent in providers.agents.values()} <= {s['url'] for s in reg['services']}
     assert 'signature' not in reg['services'][0]['reputation']
     assert platform.bus.run_id in client.get('/api/admin/runs').json()
     assert client.get('/api/admin/replay/'+platform.bus.run_id).json()

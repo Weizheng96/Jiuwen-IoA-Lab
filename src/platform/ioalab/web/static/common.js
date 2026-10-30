@@ -13,7 +13,7 @@ async function api(path, body, method) {
   const r = await fetch(path, opt);
   let data = null;
   try { data = await r.json(); } catch (e) { data = null; }
-  if (!r.ok) { const err = new Error((data && (data.error || data.detail)) || `HTTP ${r.status}`); err.status = r.status; throw err; }
+  if (!r.ok) { const problem=data&&(data.error||data.detail); const err = new Error((problem&&problem.message)||problem||`HTTP ${r.status}`); err.status = r.status; throw err; }
   return data;
 }
 

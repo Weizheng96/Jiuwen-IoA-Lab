@@ -109,19 +109,17 @@ def create_app(platform: Platform) -> FastAPI:
     async def register(request: Request):
         """用户名密码注册（external）；自动建立首次登录并赠送登录虚拟币。"""
         b = await body(request)
-        u = await asyncio.to_thread(platform.register_user, b.get("username", ""), b.get("password", ""),
-                                    display_name=b.get("display_name", ""), invite=b.get("invite", ""), ip=ip(request))
-        u["credited"] = await asyncio.to_thread(platform.grant_login_credit, u["id"])
-        u["token"] = platform.auth.bearer(u["id"])
+        u = await asyncio.to_thread(platform.accounts.register,b.get('username',''),b.get('password',''),
+                                    display_name=b.get('display_name',''),invite=b.get('invite',''),ip=ip(request),operation_id=b.get('operationId'))
         resp = JSONResponse(u)
-        set_cookie(resp, platform.auth.token(u["id"]))
+        set_cookie(resp,u['token'])
         return resp
 
     @app.post("/api/auth/login")
     async def login(request: Request):
         b = await body(request)
-        u = await asyncio.to_thread(platform.login, b.get("username", ""), b.get("password", ""), ip=ip(request))
-        resp = JSONResponse({**u, "token": platform.auth.bearer(u["id"])})
+        u = await asyncio.to_thread(platform.login,b.get('username',''),b.get('password',''),ip=ip(request),operation_id=b.get('operationId'))
+        resp = JSONResponse(u)
         set_cookie(resp, u["token"])
         return resp
 

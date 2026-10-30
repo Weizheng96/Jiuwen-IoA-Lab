@@ -2,6 +2,7 @@
 import json
 import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from a2c.common import Store
 
@@ -14,6 +15,18 @@ class LocalStore(Store):
         self.db = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("CREATE TABLE IF NOT EXISTS documents (tbl TEXT,k TEXT,v TEXT,PRIMARY KEY(tbl,k))")
+
+    @contextmanager
+    def transaction(self):
+        """Short bootstrap/cache updates shared by threads and processes, never network calls."""
+        with self.lock:
+            self.db.execute('BEGIN IMMEDIATE')
+            try:
+                yield self
+                self.db.execute('COMMIT')
+            except BaseException:
+                self.db.execute('ROLLBACK')
+                raise
 
     def put(self, table, key, value):
         with self.lock:

@@ -15,22 +15,34 @@ def build_router(platform, current_user):
 
     @router.post("/token")
     def token(body: dict, request: Request):
-        user = platform.login(body.get("username", ""), body.get("password", ""), ip=request.client.host)
-        return {**user, "token": platform.auth.bearer(user["id"],restricted=True)}
+        return platform.login(body.get('username',''),body.get('password',''),ip=request.client.host,
+                              operation_id=body.get('operationId'),audience='sdk')
+
+    @router.post('/token/refresh')
+    def refresh(request:Request):
+        uid=platform.identities.bearer(request.headers.get('authorization',''))
+        from datetime import datetime,timezone
+        import time
+        until=int(time.time())+30*86400
+        return {'id':uid,'token':platform.auth.token('assistant:'+uid,expires_at=until),
+                'expiresAt':datetime.fromtimestamp(until,timezone.utc).isoformat().replace('+00:00','Z'),'credited':False}
 
     @router.get("/me")
     def me(uid=Depends(current_user)):
         user = platform.db.one("SELECT id,username,display_name,kind FROM users WHERE id=?", uid)
         return {**user, "wallet": str(platform.wallets.balance(uid)),
-                "roles":platform.auth.roles(uid), "identities": platform.db.rows("SELECT id,role,name,status FROM agents WHERE owner_id=?", uid)}
+                "roles":platform.auth.roles(uid), "identities":platform.identities.list_owned(uid)}
 
-    @router.get("/identity/challenge")
-    def challenge(uid=Depends(current_user)):
-        return participants.challenge(platform, uid)
+    def sdk_user(request:Request):
+        return platform.identities.bearer(request.headers.get('authorization',''))
+
+    @router.post('/identity/challenge')
+    def challenge(body:dict,uid=Depends(sdk_user)):
+        return platform.identities.enrollment.issue(uid,body)
 
     @router.post("/identity")
-    def identity(body: dict, uid=Depends(current_user)):
-        return participants.bind(platform, uid, body)
+    def identity(body:dict,uid=Depends(sdk_user)):
+        return platform.accounts.bind_identity(platform.identities.enrollment,uid,body)
 
     @router.post("/search")
     def search(body: dict, uid=Depends(current_user)):

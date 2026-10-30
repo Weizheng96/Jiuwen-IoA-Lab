@@ -20,29 +20,29 @@ from a2c.provider import DefaultPolicy, Proposal, Provider
 from a2c.payment.ap2 import EcKey
 from a2c.verifier.acceptance import run_target
 from a2c.template import acceptance_of
-from .client import LabClient
+from .runtime.session import AccountSession
 from .store import LocalStore
 from .templates import template_from_definition, DEFAULT_DEADLINES, TEMPLATE_RENEW_BEFORE
 
 
 class ServiceAccount:
-    fetch_package = LabClient.fetch_package
-
-    def __init__(self, base, username, password):
+    def __init__(self, base, username, password, home):
         self.base = base.rstrip("/")
-        self.http = httpx.Client(timeout=120, trust_env=False)
-        self.token = ""
-        self.config = self.http.get(self.base + "/api/config").raise_for_status().json()
-        self.user = self.api("POST", "/token", {"username":username,"password":password})
-        self.token = self.user["token"]
+        self.session=AccountSession(self.base,username,password,home)
+        self.http,self.config,self.user=self.session.http,self.session.config,self.session.account
 
-    api = LabClient.api
+    @property
+    def token(self):return self.session.token
+
+    def api(self,method,path,body=None):return self.session.api(method,path,body)
+
+    def fetch_package(self,uri):return self.session.fetch_package(uri)
 
     def put(self, *, verifier_id, source, reads, kind="script"):
         return self.api("POST", "/provider/packages", {"verifierId":verifier_id,"source":source,"reads":reads,"kind":kind})
 
     def close(self):
-        self.http.close()
+        self.session.close()
 
 
 def service_keys(home: Path, url):

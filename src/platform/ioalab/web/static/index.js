@@ -44,7 +44,7 @@ async function api(path, body, method) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const d = await r.json();
-  if (!r.ok) throw Error(d.error || d.detail || "请求失败");
+  if (!r.ok) { const problem=d.error||d.detail; const error=Error((problem&&problem.message)||problem||"请求失败"); error.status=r.status; throw error; }
   return d;
 }
 const badge = (s) =>
@@ -169,13 +169,26 @@ async function refresh() {
   $("logout").hidden = false;
   render();
 }
+let pendingAuth = null;
 async function auth(action) {
   try {
-    await api("/api/auth/" + action, {
-      username: $("name").value,
+    const fields = {
+      username: $("name").value.trim(),
       password: $("password").value,
       invite: $("invite").value,
-    });
+    };
+    const fingerprint=JSON.stringify([action,fields]);
+    if (!pendingAuth || pendingAuth.fingerprint!==fingerprint) {
+      let saved=null;
+      try { saved=JSON.parse(sessionStorage.getItem('ioa-auth-operation')); } catch (_) {}
+      const operationId=saved&&saved.action===action&&saved.username===fields.username?saved.operationId:
+        (crypto.randomUUID?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''));
+      pendingAuth={fingerprint,operationId};
+      sessionStorage.setItem('ioa-auth-operation',JSON.stringify({action,username:fields.username,operationId}));
+    }
+    await api("/api/auth/" + action, {...fields,operationId:pendingAuth.operationId});
+    pendingAuth=null;
+    sessionStorage.removeItem('ioa-auth-operation');
     $("password").value = "";
     notice("账号连接成功");
     await refresh();
@@ -187,6 +200,7 @@ async function auth(action) {
       )
       .join("");
   } catch (e) {
+    if (e.status>=400 && e.status<500) { pendingAuth=null; sessionStorage.removeItem('ioa-auth-operation'); }
     notice(e.message);
   }
 }

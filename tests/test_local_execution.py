@@ -13,7 +13,10 @@ from traffic import run_order
 
 def test_core_has_no_participant_runtime(platform,client):
     assert not hasattr(platform,'assistants') and not hasattr(platform,'services')
-    assert set(platform.router.apps)=={'market','pay'}
+    assert set(platform.router.apps)=={'market','pay','agents'}
+    # The new agents mount publishes keys and gates unpublished service calls;
+    # it is a transport/identity gateway, not a participant executor in the core.
+    assert client.post('/a2a/agents/unpublished',json={}).json()['error']['code']=='not_ready'
     assert not hasattr(platform,'register_assistant')
     for path in ['/api/assistant','/api/needs','/api/v1/delegations','/api/v1/cards/sign','/api/admin/traffic']:
         assert client.post(path,json={}).status_code in (404,405)
@@ -49,14 +52,19 @@ def test_confirmation_required(local_client):
 
 def test_enrollment_challenge_and_public_keys(local_client,platform):
     c=local_client
-    nonce=c.api('GET','/identity/challenge')['challenge']
-    body={'challenge':nonce,'owner':c.account['id'],'platform':c.base,'clientId':c.signer.id,
-          'clientJwk':c.signer.jwk,'userJwk':c.user.jwk,'payerJwk':c.payer.jwk,'source':'experiment'}
+    operation=uuid.uuid4().hex
+    nonce=c.api('POST','/identity/challenge',{'operationId':operation,'role':'assistant','agentId':c.signer.id})['challenge']
+    body={'operationId':operation,'challenge':nonce,'owner':c.account['id'],'platform':c.base,'agentId':c.signer.id,
+          'role':'assistant','name':'实验客户端','keys':{'agent':c.signer.jwk,'user':c.user.jwk,'payer':c.payer.jwk},'source':'experiment'}
     body['proof']=sign(object_digest(body),c.signer,'client',utcnow())
     assert c.api('POST','/identity',body)['id']==c.signer.id
-    with pytest.raises(httpx.HTTPStatusError): c.api('POST','/identity',body)
-    nonce=c.api('GET','/identity/challenge')['challenge']
-    body['challenge']=nonce;body['payerJwk']={**c.payer.jwk,'d':'private'}
+    assert c.api('POST','/identity',body)['id']==c.signer.id
+    invalid={**body,'operationId':uuid.uuid4().hex}
+    with pytest.raises(httpx.HTTPStatusError): c.api('POST','/identity',invalid)
+    operation=uuid.uuid4().hex
+    nonce=c.api('POST','/identity/challenge',{'operationId':operation,'role':'assistant','agentId':c.signer.id})['challenge']
+    body.update(operationId=operation,challenge=nonce)
+    body['keys']={**body['keys'],'payer':{**c.payer.jwk,'d':'private'}}
     body.pop('proof');body['proof']=sign(object_digest(body),c.signer,'client',utcnow())
     with pytest.raises(httpx.HTTPStatusError): c.api('POST','/identity',body)
 

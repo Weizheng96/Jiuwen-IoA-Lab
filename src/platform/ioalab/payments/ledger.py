@@ -29,6 +29,12 @@ class Wallets:
         row = self.db.one("SELECT balance FROM wallets WHERE user_id=?", user_id)
         return money(row["balance"]) if row else Decimal("0.00")
 
+    def bind_payer_in(self,conn,owner,thumbprint):
+        if conn is not self.db.conn or not conn.in_transaction:
+            raise RuntimeError('Payer registration requires the owned application transaction')
+        conn.execute("INSERT OR IGNORE INTO wallets(user_id,balance) VALUES(?,'0')",(owner,))
+        conn.execute('UPDATE wallets SET payer_thumbprint=? WHERE user_id=?',(thumbprint,owner))
+
     def by_thumbprint(self, tp: str) -> str | None:
         row = self.db.one("SELECT user_id FROM wallets WHERE payer_thumbprint=?", tp)
         return row["user_id"] if row else None
@@ -40,15 +46,18 @@ class Wallets:
 
     def adjust(self, user_id: str, delta: Decimal, *, by: str, note: str, kind: str = "grant") -> Decimal:
         """管理员发放 / 扣减（kind grant）或注册赠送（kind welcome）：只追加记录，不是交易。"""
-        delta = money(delta)
         with self.lock, self.db.tx() as c:
-            c.execute("INSERT OR IGNORE INTO wallets (user_id, balance) VALUES (?, '0')", (user_id,))
-            cur = c.execute("UPDATE wallets SET balance = printf('%.2f', balance + ?) WHERE user_id=? AND CAST(balance AS REAL) + CAST(? AS REAL) >= 0",
-                            (str(delta), user_id, str(delta)))
-            if cur.rowcount != 1:
-                fail(CARD_INVALID, "余量不足")
-            self._log(c, user_id, delta, kind, "", by, note)
-        return self.balance(user_id)
+            return self.adjust_in(c,user_id,delta,by=by,note=note,kind=kind)
+
+    def adjust_in(self,c,user_id,delta,*,by,note,kind='grant',ref=''):
+        if c is not self.db.conn or not c.in_transaction:
+            raise RuntimeError('Ledger changes require the owned platform transaction')
+        delta=money(delta)
+        c.execute("INSERT OR IGNORE INTO wallets(user_id,balance) VALUES(?,'0')",(user_id,))
+        changed=c.execute("UPDATE wallets SET balance=printf('%.2f',balance+?) WHERE user_id=? AND CAST(balance AS REAL)+CAST(? AS REAL)>=0",(str(delta),user_id,str(delta)))
+        if changed.rowcount!=1:fail(CARD_INVALID,'余量不足')
+        self._log(c,user_id,delta,kind,ref,by,note)
+        return money(c.execute('SELECT balance FROM wallets WHERE user_id=?',(user_id,)).fetchone()[0])
 
     def transfer(self,payer_id,payee_id,amount,*,purpose,ref,payment_id='',by=''):
         with self.lock,self.db.tx() as conn:

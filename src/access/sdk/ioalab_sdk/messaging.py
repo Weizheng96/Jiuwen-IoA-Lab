@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 import httpx
 from .store import LocalStore
+from .runtime.session import AccountSession
 
 class RetryLater(Exception):
     """No external effect happened; leave the message pending for a later lease."""
@@ -14,16 +15,11 @@ class MailboxClient:
     def __init__(self,base,username,password,home,*,connect_identity=False):
         self.base,self.username,self.password=base.rstrip('/'),username,password
         self.home=Path(home);self.store=LocalStore(self.home/'mailbox.sqlite')
-        self.http=httpx.Client(timeout=40,trust_env=False);self.token=''
         try:
-            self.account=self.store.get('auth',self.base+'|'+username)
-            if self.account: self.token=self.account['token']
-            try: self.api('GET','/me')
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code!=401: raise
-                self.account=self.api('POST','/token',{'username':username,'password':password})
-                self.token=self.account['token']
-                self.store.put('auth',self.base+'|'+username,self.account)
+            key=self.base+'|'+username
+            self.session=AccountSession(self.base,username,password,self.home,legacy=self.store.get('auth',key))
+            self.http,self.account=self.session.http,self.session.account
+            self.store.delete('auth',key)
             if connect_identity and not any(r['role']=='assistant' for r in self.api('GET','/me')['identities']):
                 from .client import LabClient
                 identity=LabClient(base,username,password,self.home)
@@ -33,8 +29,10 @@ class MailboxClient:
             self.close();raise
 
     def api(self,method,path,body=None):
-        result=self.http.request(method,self.base+'/api/v1'+path,json=body,headers={'Authorization':'Bearer '+self.token} if self.token else {})
-        result.raise_for_status();return result.json()
+        return self.session.api(method,path,body)
+
+    @property
+    def token(self):return self.session.token
 
     def publish(self,name,definition):
         # Directory routing identity is read-only and is never part of a declaration.
@@ -124,4 +122,5 @@ class MailboxClient:
         return processed
 
     def close(self):
-        self.http.close();self.store.close()
+        if getattr(self,'session',None):self.session.close()
+        self.store.close()

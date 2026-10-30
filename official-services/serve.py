@@ -62,7 +62,7 @@ class ServiceHost:
             self.engine.check()
         for username,d in self.definitions:
             if username not in self.accounts:
-                self.accounts[username]=ServiceAccount(self.platform,username,username.split("_")[-1])
+                self.accounts[username]=ServiceAccount(self.platform,username,username.split("_")[-1],self.data/'accounts'/username)
             account=self.accounts[username]
             sid="svc-"+d["id"]
             url=self.public_url+"/a2a/providers/"+sid

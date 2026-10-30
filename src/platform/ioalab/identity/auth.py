@@ -95,8 +95,10 @@ class Auth:
         return self.token("admin")
 
     # ── 注册与登录 ────────────────────────────────────────────────────
-    def register(self, username: str, password: str = "", *, kind: str = "external", display_name: str = "", note: str = "",
+    def prepare_registration(self, username: str, password: str = "", *, kind: str = "external", display_name: str = "", note: str = "",
                  invite: str = "", ip: str = "") -> dict:
+        if not all(isinstance(value,str) for value in (username,password,display_name,note,invite)):
+            fail(CARD_INVALID,'账号字段必须是字符串')
         username = (username or "").strip()
         if not USERNAME.match(username):
             fail(CARD_INVALID, "用户名须为 3–128 位字母、数字或 _ . @ + -")
@@ -118,14 +120,31 @@ class Auth:
             fail(CARD_INVALID, "邀请码无效")
         uid = "u-" + uuid.uuid4().hex[:10]
         display = (display_name or "").strip() or username
-        with self.db.tx() as c:
-            c.execute("INSERT INTO users (id, username, pw_hash, kind, display_name, created, note) VALUES (?,?,?,?,?,?,?)",
-                      (uid, username, _pbkdf2(password) if password else None, kind, display, now(), note))
-            if need_invite:
-                c.execute("UPDATE invites SET used_by=? WHERE code=?", (uid, invite))
-        return {"id": uid, "username": username, "kind": kind, "display_name": display}
+        return {'id':uid,'username':username,'pw_hash':_pbkdf2(password) if password else None,
+                'kind':kind,'display_name':display,'created':now(),'note':note,'invite':invite,'need_invite':need_invite}
 
-    def login(self, username: str, password: str, *, ip: str = "") -> dict:
+    @staticmethod
+    def public_user(row):
+        return {key:row[key] for key in ('id','username','kind','display_name')}
+
+    def register_in(self,c,prepared):
+        if c.execute('SELECT 1 FROM users WHERE username=?',(prepared['username'],)).fetchone():
+            fail(CARD_INVALID,'用户名已被占用')
+        if prepared['need_invite']:
+            changed=c.execute('UPDATE invites SET used_by=? WHERE code=? AND used_by IS NULL',(prepared['id'],prepared['invite']))
+            if changed.rowcount!=1:fail(CARD_INVALID,'邀请码无效')
+        c.execute('INSERT INTO users(id,username,pw_hash,kind,display_name,created,note) VALUES(?,?,?,?,?,?,?)',
+                  tuple(prepared[key] for key in ('id','username','pw_hash','kind','display_name','created','note')))
+        return self.public_user(prepared)
+
+    def register(self,username,password='',**kwargs):
+        prepared=self.prepare_registration(username,password,**kwargs)
+        with self.db.tx() as c:
+            return self.register_in(c,prepared)
+
+    def authenticate(self, username: str, password: str, *, ip: str = "") -> dict:
+        if not isinstance(username,str) or not isinstance(password,str):
+            fail(CARD_INVALID,'账号字段必须是字符串')
         row = self.db.one("SELECT * FROM users WHERE username=?", (username or "").strip())
         if not row:
             fail(CARD_INVALID, "账号不存在")
@@ -133,9 +152,20 @@ class Auth:
             self.rate.check(ip)
         if not _check_pw(password, row["pw_hash"]):
             fail(CARD_INVALID, "密码错误")
-        self.db.run("UPDATE users SET last_login=? WHERE id=?", now(), row["id"])
-        return {"id": row["id"], "username": row["username"], "kind": row["kind"], "display_name": row["display_name"],
-                "token": self.token(row["id"])}
+        return row
+
+    def login_in(self,conn,verified):
+        current=conn.execute('SELECT pw_hash FROM users WHERE id=?',(verified['id'],)).fetchone()
+        if not current or current['pw_hash']!=verified['pw_hash']:
+            fail(CARD_INVALID,'账号凭据已变更，请重新登录')
+        conn.execute('UPDATE users SET last_login=? WHERE id=?',(now(),verified['id']))
+        return self.public_user(verified)
+
+    def login(self,username,password,*,ip=''):
+        verified=self.authenticate(username,password,ip=ip)
+        with self.db.tx() as conn:
+            user=self.login_in(conn,verified)
+        return {**user,'token':self.token(user['id'])}
 
     def new_invite(self) -> str:
         code = secrets.token_urlsafe(8)
@@ -143,8 +173,8 @@ class Auth:
         return code
 
     # ── 会话 token（HMAC） ───────────────────────────────────────────
-    def token(self, subject: str, ttl: int = 7 * 86400) -> str:
-        exp = int(time.time()) + ttl
+    def token(self, subject: str, ttl: int = 7 * 86400, *, expires_at=None) -> str:
+        exp = int(expires_at) if expires_at is not None else int(time.time()) + ttl
         msg = f"{subject}|{exp}"
         sig = hmac.new(self.secret, msg.encode(), hashlib.sha256).hexdigest()
         return base64.urlsafe_b64encode(f"{msg}|{sig}".encode()).decode()
@@ -159,10 +189,9 @@ class Auth:
             return None
         try:
             subject, exp, sig = base64.urlsafe_b64decode(token.encode()).decode().split("|")
-        except Exception:  # noqa: BLE001
-            return None
-        want = hmac.new(self.secret, f"{subject}|{exp}".encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig, want) or int(exp) < time.time():
+            want = hmac.new(self.secret, f"{subject}|{exp}".encode(), hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(sig,want) or int(exp)<time.time():return None
+        except (ValueError,TypeError,UnicodeError):
             return None
         return subject
 

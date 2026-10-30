@@ -42,6 +42,23 @@ class IdentityDirectory:
         row=self.db.one('SELECT owner_id,meta FROM agents WHERE id=?',party['id'])
         return bool(row and row['owner_id']==owner and json.loads(row['meta']).get('clientJwk')==party.get('jwk'))
 
+    def saved_keys(self):
+        keys,owners=[],{}
+        for row in self.db.rows('SELECT id,owner_id,meta FROM agents'):
+            meta=json.loads(row['meta'])
+            owners[row['id']]=row['owner_id']
+            if meta.get('url'):owners[meta['url']]=row['owner_id']
+            for name in ('clientJwk','userJwk','payerJwk','providerJwk','ap2_jwk'):
+                if isinstance(meta.get(name),dict):keys.append((row['owner_id'],meta[name]))
+        return keys,owners
+
+    def list_owned(self,owner):
+        result=[]
+        for row in self.db.rows('SELECT id,role,name,status,meta FROM agents WHERE owner_id=?',owner):
+            meta=json.loads(row.pop('meta'))
+            result.append({**row,'protocolId':meta.get('protocolId',meta.get('url',row['id']))})
+        return result
+
     def bearer(self,authorization):
         if not isinstance(authorization,str) or not authorization.startswith('Bearer '):
             raise LabError('forbidden','SDK Bearer authentication is required',status=401)

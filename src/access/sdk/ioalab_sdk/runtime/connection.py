@@ -21,7 +21,8 @@ class AgentConnection:
         self.actors, self.store = list(actors), store
         if set(self.actors)!=set(store.cursors()):
             raise ValueError('Connection identities must match the local instance')
-        self.http = httpx.Client(base_url=self.base, headers={'Authorization':'Bearer '+token}, timeout=10, trust_env=False)
+        self._token=token if callable(token) else lambda:token
+        self.http = httpx.Client(base_url=self.base, timeout=10, trust_env=False)
         self._stop = threading.Event()
         self._changed = threading.Condition()
         self._thread = None
@@ -78,7 +79,7 @@ class AgentConnection:
                 self._changed.wait(min(remaining,.25))
 
     def recover_interaction(self, actor, origin):
-        response = self.http.get('/api/v1/interactions',params={'agentId':actor,'originMessageId':origin})
+        response = self.http.get('/api/v1/interactions',params={'agentId':actor,'originMessageId':origin},headers={'Authorization':'Bearer '+self._token()})
         response.raise_for_status()
         return self.store.recover_link(actor,response.json())
 
@@ -116,7 +117,7 @@ class AgentConnection:
             self._stop.wait(min(15,.2*2**min(attempt,6))*random.uniform(.7,1.3))
 
     def _session(self):
-        response = self.http.post('/api/v1/connections/ticket',json={'agentIds':self.actors})
+        response = self.http.post('/api/v1/connections/ticket',json={'agentIds':self.actors},headers={'Authorization':'Bearer '+self._token()})
         if response.status_code in (429,500,502,503,504):
             raise OSError('Ticket endpoint is temporarily unavailable')
         if response.status_code!=200:

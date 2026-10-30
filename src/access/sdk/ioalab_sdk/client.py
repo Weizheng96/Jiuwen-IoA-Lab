@@ -20,6 +20,8 @@ from a2c.payment.ap2 import AP2Payment
 from .store import LocalStore
 from .transport import TaskPollingTransport
 from .lease import Lease
+from .runtime.session import AccountSession
+from .runtime.identity import IdentityClient
 
 
 from .scope import DelegationScopes
@@ -40,28 +42,18 @@ class LabClient(DelegationScopes):
             raise
 
     def _connect(self, username, password):
-        self.http = httpx.Client(timeout=120, trust_env=False)
-        self.token = ""
         self.transport = TaskPollingTransport(http=lambda: httpx.AsyncClient(timeout=120, trust_env=False))
         self.signer, self.user, self.payer = load_identity(self.home)
         self.store = LocalStore(self.home / "contracts.sqlite")
         self.outbox = LocalStore(self.home / "outbox.sqlite")
         self.client = None
-        self.config = self.http.get(self.base + "/api/config").raise_for_status().json()
         cache_key=self.base+'|'+username
-        self.account=self.store.get('auth',cache_key)
-        if self.account: self.token=self.account['token']
-        try: self.api('GET','/me')
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code!=401: raise
-            self.account=self.api('POST','/token',{'username':username,'password':password})
-            self.token=self.account['token']
-            self.store.put('auth',cache_key,self.account)
-        challenge = self.api("GET", "/identity/challenge")
-        payload = {"challenge": challenge["challenge"], "owner": self.account["id"], "platform": self.base,
-                   "clientId": self.signer.id, "clientJwk": self.signer.jwk, "userJwk": self.user.jwk,
-                   "payerJwk": self.payer.jwk, "source": self.source}
-        self.api("POST", "/identity", {**payload, "proof": sign(object_digest(payload), self.signer, "client", utcnow())})
+        self.session=AccountSession(self.base,username,password,self.home,legacy=self.store.get('auth',cache_key))
+        self.http,self.config,self.account=self.session.http,self.session.config,self.session.account
+        self.store.delete('auth',cache_key)
+        IdentityClient(self.session).enroll('assistant',self.signer.id,self.signer,
+            {'agent':self.signer.jwk,'user':self.user.jwk,'payer':self.payer.jwk},
+            name='九问 Swarm' if self.source=='client' else '实验客户端',source=self.source)
         self.client = Client(self.signer, keys=Directory(fetch=self.transport.jwks), transport=self.transport,
                              fetch=self.fetch_package, store=self.store, user=self.user,
                              payment_provider={"id": self.config["pay"], "jwksUri": self.config["pay"] + "/.well-known/jwks.json"},
@@ -115,22 +107,14 @@ class LabClient(DelegationScopes):
         return result
 
     def api(self, method: str, path: str, body=None):
-        headers = {"Authorization": "Bearer " + self.token} if self.token else {}
-        r = self.http.request(method, self.base + "/api/v1" + path, json=body, headers=headers)
-        r.raise_for_status()
-        return r.json()
+        return self.session.api(method,path,body)
+
+    @property
+    def token(self):
+        return self.session.token
 
     def fetch_package(self, uri: str) -> bytes:
-        prefix = "ioalab://pkg/sha256:"
-        if not uri.startswith(prefix):
-            raise ValueError("Only IoA content-addressed verifier packages are supported")
-        digest = uri[len(prefix):]
-        if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
-            raise ValueError("Invalid package digest")
-        blob = self.http.get(self.base + "/api/v1/packages/sha256:" + digest).raise_for_status().content
-        if digest_bytes(blob) != "sha256:" + digest:
-            raise ValueError("Verifier package digest mismatch")
-        return blob
+        return self.session.fetch_package(uri)
 
     def observe(self, op: str, cd: str | None = None, **detail):
         event = {"id": uuid.uuid4().hex, "source": self.source, "actor": self.signer.id, "op": op, "detail": detail}
@@ -431,6 +415,6 @@ class LabClient(DelegationScopes):
                         "files": {k: base64.b64encode(v).decode() for k, v in files.items()}, "ground": "acceptance-failed"})
 
     def close(self):
-        for name in ('transport','http','store','outbox','lease'):
+        for name in ('transport','session','store','outbox','lease'):
             resource=getattr(self,name,None)
             if resource: resource.close()

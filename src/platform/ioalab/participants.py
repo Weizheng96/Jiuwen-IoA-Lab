@@ -1,78 +1,8 @@
-"""Public identity enrollment and read-only contract projections."""
-import json
-import secrets
-import time
-
+"""Participant observations and verified contract projections."""
 from a2c.card import card_digest
-from a2c.codec import utcnow
 from a2c.errors import CARD_INVALID, fail
-from a2c.jws import check_fresh, key_from_jwk, verify, header_of
-from a2c.objects import object_digest
 from a2c.slots import verify_card
-from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
-
-from .identity.keys import thumbprint
 from .store import jdump, jload, now
-
-
-def public_key(value, *, ec=False):
-    if not isinstance(value, dict) or "d" in value or "k" in value:
-        fail(CARD_INVALID, "Only public keys are accepted")
-    if ec:
-        if value.get("kty") != "EC" or value.get("crv") != "P-256":
-            fail(CARD_INVALID, "Expected ES256 public key")
-        from a2c.codec import b64url_decode
-        from cryptography.hazmat.primitives.asymmetric.ec import SECP256R1, EllipticCurvePublicNumbers
-        EllipticCurvePublicNumbers(int.from_bytes(b64url_decode(value["x"]), "big"),
-                                 int.from_bytes(b64url_decode(value["y"]), "big"), SECP256R1()).public_key()
-    else:
-        key_from_jwk(value)
-    return value
-
-
-def challenge(platform, uid):
-    nonce = secrets.token_urlsafe(32)
-    platform.db.run("INSERT OR REPLACE INTO enrollment (owner_id, nonce, expires) VALUES (?,?,?)", uid, nonce, now() + 120)
-    return {"challenge": nonce, "expiresIn": 120}
-
-
-def bind(platform, uid, body):
-    payload = {k: v for k, v in body.items() if k != "proof"}
-    if payload.get("owner") != uid or payload.get("platform") != platform.s.public_url:
-        fail(CARD_INVALID, "Enrollment owner or platform mismatch")
-    cid = payload.get("clientId", "")
-    if not cid.startswith("urn:") or len(cid) > 200 or payload.get("source") not in ("client", "experiment"):
-        fail(CARD_INVALID, "Invalid client identity")
-    for k in ("clientJwk", "userJwk"):
-        public_key(payload[k])
-    payer = public_key(payload["payerJwk"], ec=True)
-    h = verify(body["proof"], object_digest(payload), payload["clientJwk"], slot="client", signer=cid, expect_kid=False)
-    check_fresh(h, utcnow())
-    # Validation and nonce consumption share the transaction; a failed enrollment leaves no binding.
-    with platform.db.tx() as conn:
-        row = conn.execute("SELECT * FROM enrollment WHERE owner_id=?", (uid,)).fetchone()
-        if not row or row["nonce"] != payload.get("challenge") or row["expires"] < now():
-            fail(CARD_INVALID, "Enrollment challenge expired or already used")
-        existing = conn.execute("SELECT * FROM agents WHERE id=?", (cid,)).fetchone()
-        own = conn.execute("SELECT id FROM agents WHERE owner_id=? AND role='assistant' AND meta LIKE '%clientJwk%'", (uid,)).fetchone()
-        if own and own["id"] != cid:
-            fail(CARD_INVALID, "This account already has a local identity; migrate its local data explicitly")
-        if existing:
-            meta = jload(existing["meta"])
-            if existing["owner_id"] != uid or any(meta.get(k) != payload[k] for k in ("clientJwk", "userJwk", "payerJwk")):
-                fail(CARD_INVALID, "Identity or keys already bound")
-        conflict = conn.execute("SELECT user_id FROM wallets WHERE payer_thumbprint=? AND user_id!=?", (thumbprint(payer), uid)).fetchone()
-        if conflict:
-            fail(CARD_INVALID, "Payment key already belongs to another account")
-        meta = {k: payload[k] for k in ("clientJwk", "userJwk", "payerJwk", "source")}
-        meta.update(last_driver="external", lastSeen=now())
-        conn.execute("INSERT OR REPLACE INTO agents (id,owner_id,role,name,definition,status,created,meta) VALUES (?,?,?,?,?,?,?,?)",
-                     (cid, uid, "assistant", "九问 Swarm" if payload["source"] == "client" else "实验客户端", "{}", "registered", now(), jdump(meta)))
-        conn.execute("UPDATE wallets SET payer_thumbprint=? WHERE user_id=?", (thumbprint(payer), uid))
-        conn.execute("DELETE FROM enrollment WHERE owner_id=?", (uid,))
-    platform.bus.emit("platform", "assistant.register", sender=uid, receiver=cid,
-                      detail={"source": payload["source"], "trust": "verified"})
-    return {"id": cid, "owner": uid}
 
 
 def party(platform, uid, card):
