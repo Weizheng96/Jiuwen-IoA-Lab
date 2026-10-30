@@ -39,7 +39,7 @@ class AssistantRole:
         self.delegation=DelegationTasks(runtime,self.identity)
         names=('rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
                'messaging.interfaces','messaging.send','messaging.status','messaging.close',
-               'delegation.create','delegation.authorize','delegation.renew','delegation.status','delegation.close')
+               'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status')
         return {'operations':{'assistant.'+name:self._operation(name) for name in names},
                 'jobs':{'assistant.message':JobHandler(self._process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available')))},
                 'profiles':[self.identity.profile] if self.host else []}
@@ -63,9 +63,15 @@ class AssistantRole:
         return execute
 
     def _call(self,name,operation,args):
-        if name=='delegation.create':
+        if name=='delegation.intent':
+            self.fields(args,('taskRef','service'),('request','card','ttlSeconds'))
+            return self.delegation.intent(operation,args)
+        elif name=='delegation.intent_status':
+            self.fields(args,('messageRef',))
+            return self.delegation.intent_status(args['messageRef'])
+        elif name=='delegation.prepare':
             self.fields(args,('purpose','budget','proposalFeeLimit'),('categoryIds','validDays'))
-            return self.delegation.create(operation,args)
+            return self.delegation.prepare(operation,args)
         elif name in ('delegation.authorize','delegation.renew'):
             self.fields(args,('taskRef',),('validDays','confirmationRef'))
             return self.delegation.authorize(operation,args,renew=name.endswith('.renew'))

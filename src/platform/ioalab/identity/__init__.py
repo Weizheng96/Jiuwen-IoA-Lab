@@ -43,6 +43,11 @@ class IdentityDirectory:
         if not isinstance(key,dict):raise LabError('not_ready','The original user signing key is not bound',status=409)
         return key
 
+    def bound_service(self,protocol):
+        """Stable enrolled services use the unified admission path, including before publication."""
+        row=self.db.one("SELECT meta FROM agents WHERE role='service' AND json_extract(meta,'$.protocolId')=?",protocol)
+        return bool(row)
+
     def matches_party(self,owner,party):
         """Historical payment ownership; disabling new execution does not erase a binding."""
         if not isinstance(party,dict) or not isinstance(party.get('id'),str):

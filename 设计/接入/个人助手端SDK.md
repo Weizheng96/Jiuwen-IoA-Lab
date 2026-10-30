@@ -10,10 +10,14 @@
 
 下表的业务引用由 SDK 创建并持久保存。跨多家候选的用户需求使用一个本地任务引用；需要联系服务方时，各候选分别建立交互、预留与 A2C 任务。待批准候选在比较阶段仅本地算价，不提前占用接单容量；不能混用合同或授权对象。
 
+prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 categoryIds、validDays；默认许可时长为7天，实际签署的 grant 截止在用户确认时展示。taskRef 与范围摘要一经建立即保存，调整许可时长不改原预算或任务身份。
+
 | 操作 | 输入 | 结果与调用边界 |
 |---|---|---|
 | `assistant.delegation.prepare` | 用户需求、预算、类别、材料引用及比选策略 | 本地任务、待补信息、可读授权摘要；不付款、不签约 |
 | `assistant.delegation.authorize` | 任务引用、可信确认引用 | 本地 scope 及有效授权范围；复核用途、总预算、拟卡费限额与有效期 |
+| `assistant.delegation.intent` | taskRef、目标 service agentId、原未签 request 或 card；可选 ttlSeconds | 保存原消息与操作后提交委托意向，返回 messageRef 和投递回执；不付款、不签约 |
+| `assistant.delegation.intent_status` | 原 messageRef | 恢复原交互 UUID、意向结果及预留引用；不能用其他任务或账号的引用 |
 | `assistant.delegation.renew` | 原任务引用、许可时长、可信确认引用 | 用户明确续期或重新授权原范围；按最新平台授权修订加1，不改预算或卡载摘要、不重置支出；旧许可不能自动复权 |
 | `assistant.delegation.close` | 原任务引用 | 关闭该任务的后续授权许可；保留合同与证据，不表示解除或结清合同，合同解除仍走 terminate |
 | `assistant.delegation.search` | 任务引用、分类与查询条件 | A2X 候选列表，不将检索排序当作中选结论 |

@@ -1,5 +1,8 @@
 """Application use cases: coordinate public component methods in one short transaction."""
 import logging
+import json
+from dataclasses import dataclass
+from a2c.codec import digest
 
 from a2c.errors import A2CError
 from .identity.sessions import AccountSessions
@@ -8,6 +11,68 @@ from .errors import LabError
 
 
 log=logging.getLogger(__name__)
+
+PAYMENT_OPERATIONS_SCHEMA='''CREATE TABLE IF NOT EXISTS delegation_payment_operations(
+ owner TEXT NOT NULL,actor TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
+ PRIMARY KEY(actor,id));'''
+
+
+@dataclass(frozen=True)
+class PreparedExecution:
+    operation:str
+    fingerprint:str
+    admission:str
+    payment:object=None
+
+
+class PaymentOperations:
+    """Application transaction for AP2, capacity and authorization budget."""
+    def __init__(self,db,identities,psp,admissions,scopes):
+        self.db,self.identities,self.psp,self.admissions,self.scopes=db,identities,psp,admissions,scopes
+        with db.lock:db.conn.executescript(PAYMENT_OPERATIONS_SCHEMA)
+
+    def project(self,prepared):
+        if prepared.payment:self.psp.project(prepared.payment)
+
+    def operation(self,owner,actor,operation):
+        self.identities.owned(owner,actor)
+        row=self.db.one('SELECT * FROM delegation_payment_operations WHERE actor=? AND id=?',actor,operation)
+        if not row or row['owner']!=owner:raise LabError('not_ready','Original payment operation is unavailable',status=404,recovery='retry_original')
+        return json.loads(row['result'])
+
+    def prepare(self,owner,actor,operation,payload):
+        self.identities.owned(owner,actor)
+        if not isinstance(operation,str) or not 1<=len(operation)<=128 or set(payload)!={'admissionId','ap2'} or not isinstance(payload['admissionId'],str) or not isinstance(payload['ap2'],dict):
+            raise LabError('invalid_input','Use the original AP2 request and admissionId')
+        fingerprint=digest(payload)
+        old=self.db.one('SELECT * FROM delegation_payment_operations WHERE actor=? AND id=?',actor,operation)
+        if old:
+            if old['owner']!=owner or old['fingerprint']!=fingerprint:raise LabError('id_conflict','Original payment operation changed',status=409)
+            return PreparedExecution(operation,fingerprint,payload['admissionId'])
+        try:payment=self.psp.prepare(payload['ap2'])
+        except (A2CError,KeyError,TypeError,ValueError):
+            raise LabError('invalid_input','AP2 request failed original protocol validation') from None
+        if payment.payer!=owner:raise LabError('forbidden','Payment belongs to another account',status=403)
+        return PreparedExecution(operation,fingerprint,payload['admissionId'],payment)
+
+    def apply_in(self,conn,owner,actor,prepared):
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Payment execution requires the owned application transaction')
+        self.identities.owned(owner,actor)
+        old=conn.execute('SELECT * FROM delegation_payment_operations WHERE actor=? AND id=?',(actor,prepared.operation)).fetchone()
+        if old:
+            if old['owner']!=owner or old['fingerprint']!=prepared.fingerprint:raise LabError('id_conflict','Original payment operation changed',status=409)
+            return json.loads(old['result']),False
+        payment=prepared.payment
+        if payment is None:raise LabError('unknown_result','The original operation receipt needs reconciliation',status=409)
+        created=self.admissions.payment_in(conn,owner,actor,prepared.admission,payment)
+        try:reply,transferred=self.psp.commit(conn,payment)
+        except A2CError as exc:
+            raise LabError('forbidden','Payment changed or expired before transaction commit',status=403) from exc
+        if created:self.scopes.record_payment_in(conn,owner,actor,payment.scope_digest,payment)
+        if created!=transferred:raise LabError('unknown_result','Capacity and original payment facts disagree; reconcile before retrying',status=409)
+        result=reply.body
+        conn.execute('INSERT INTO delegation_payment_operations VALUES(?,?,?,?,?)',(owner,actor,prepared.operation,prepared.fingerprint,json.dumps(result,ensure_ascii=False)))
+        return result,transferred
 
 
 class ServiceOperations:

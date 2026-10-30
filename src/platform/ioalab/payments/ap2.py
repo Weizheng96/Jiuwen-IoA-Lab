@@ -66,6 +66,7 @@ class SimPaymentProvider(PaymentProvider):
         # payee_keys/payee_of are local identity-directory reads, with no network I/O.
         self.db,self.wallets,self.payee_of,self.on_transfer = db,wallets,payee_of,on_transfer
         self.client_matches = client_matches
+        self.requires_admission=lambda provider:False
         self.paid = _PaidView(db)
         with db.lock:
             db.conn.executescript(SCHEMA)
@@ -179,6 +180,8 @@ class SimPaymentProvider(PaymentProvider):
 
     def op_ap2_pay(self,body,files,task_id):
         prepared = self.prepare(body,files)
+        if self.requires_admission(prepared.provider):
+            fail(OUT_OF_ORDER,'Enrolled services require the current IoA execution connection and admission context')
         with self.db.tx() as conn:
             reply,created = self.commit(conn,prepared)
         if created:

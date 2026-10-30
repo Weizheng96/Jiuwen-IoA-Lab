@@ -8,7 +8,7 @@ class RegistryView:
     def __init__(self,db):self.db=db
 
     def category_in(self,conn,provider):
-        row=conn.execute("SELECT definition FROM agents WHERE role='service' AND status='online' AND json_extract(meta,'$.url')=?",(provider,)).fetchone()
+        row=conn.execute("SELECT definition FROM agents WHERE role='service' AND status!='disabled' AND json_extract(meta,'$.url')=?",(provider,)).fetchone()
         if not row:raise LabError('not_ready','The service is not registered',status=409)
         definition=json.loads(row['definition'] or '{}')
         category=definition.get('category')

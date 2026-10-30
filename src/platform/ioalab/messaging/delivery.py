@@ -55,6 +55,7 @@ class DeliveryBroker:
         self.interfaces=PublicInterfaces(db,identities)
         self.scopes=None
         self.publications=None
+        self.admissions=self.payment_operations=None
         self._listeners={}
         self._listener_lock=threading.RLock()
         with db.lock:db.conn.executescript(SCHEMA)
@@ -109,6 +110,11 @@ class DeliveryBroker:
                 self.lease(conn,owner,actor,connection,generations[actor])
                 conn.execute('UPDATE delivery_leases SET expires=? WHERE actor=?',(self.clock()+self.s.ws_lease_seconds,actor))
 
+    def active_in(self,conn,actor):
+        self.identities.agent(actor)
+        row=conn.execute('SELECT expires FROM delivery_leases WHERE actor=?',(actor,)).fetchone()
+        return bool(row and row['expires']>self.clock())
+
     def disconnect(self,connection):
         self.db.run('UPDATE delivery_leases SET expires=? WHERE connection=?',self.clock(),connection)
         self.unlisten(connection)
@@ -141,6 +147,8 @@ class DeliveryBroker:
             raise LabError('invalid_input','Operation type and identity must be strings')
         if kind.startswith('scope.') and self.scopes:return self.scopes.operation(owner,actor,kind,operation)
         if kind=='service.publish' and self.publications:return self.publications.operation(owner,actor,operation)
+        if kind.startswith('admission.') and self.admissions:return self.admissions.operation(owner,actor,kind,operation)
+        if kind=='ap2.pay' and self.payment_operations:return self.payment_operations.operation(owner,actor,operation)
         row=self.db.one('SELECT result FROM delivery_operations WHERE actor=? AND kind=? AND id=?',actor,kind,operation)
         if not row:raise LabError('not_ready','Operation has no accepted result',status=404,recovery='retry_original')
         return json.loads(row['result'])
@@ -156,6 +164,11 @@ class DeliveryBroker:
         # inside the delivery lease/operation transaction. The owner and lease
         # are rechecked below before committing the prepared immutable action.
         prepared=None
+        payment=None
+        if kind=='ap2.pay':
+            if not self.payment_operations:raise LabError('not_ready','Payment application is unavailable',status=409)
+            with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
+            payment=self.payment_operations.prepare(owner,actor,frame.get('operationId'),payload)
         if kind.startswith('scope.'):
             if not self.scopes:raise LabError('not_ready','Scope authorization is not configured',status=409)
             with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
@@ -163,12 +176,18 @@ class DeliveryBroker:
         handlers={'message.send':self._send,'message.ack':self._ack,'request.start':self._start,'interaction.close':self._close}
         self.cleanup()
         inserted=False
+        transferred=False
         with self.db.tx() as conn:
             self.lease(conn,owner,actor,connection,generations[actor])
             if kind=='operation.get':
                 result=self.operation(owner,actor,payload.get('operation'),payload.get('operationId'))
             elif prepared is not None:
                 result=self.scopes.apply_in(conn,owner,frame.get('operationId'),prepared)
+            elif payment is not None:
+                result,transferred=self.payment_operations.apply_in(conn,owner,actor,payment)
+            elif kind.startswith('admission.'):
+                if not self.admissions:raise LabError('not_ready','Admission authority is unavailable',status=409)
+                result=self.admissions.apply_in(conn,owner,actor,kind,frame.get('operationId'),payload)
             elif kind in handlers:
                 prior=conn.execute('SELECT 1 FROM delivery_messages WHERE id=?',(payload.get('messageId') if isinstance(payload.get('messageId'),str) else None,)).fetchone() if kind=='message.send' else None
                 result=self._operation(conn,actor,kind,frame.get('operationId'),payload,
@@ -177,6 +196,7 @@ class DeliveryBroker:
             else:raise LabError('protocol_error','Unsupported control operation')
             conn.execute('UPDATE delivery_leases SET expires=? WHERE actor=?',(self.clock()+self.s.ws_lease_seconds,actor))
         self.notify()
+        if transferred:self.payment_operations.project(payment)
         if inserted and self.emit:
             message=self.db.one('SELECT recipient,kind,interaction FROM delivery_messages WHERE id=?',result['messageId'])
             if message:
@@ -206,7 +226,7 @@ class DeliveryBroker:
                         delivery_state,request_state,interaction,origin,in_reply) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (mid,envelope['sender'],recipient,seq,envelope['kind'],encode(value),hashlib.sha256(encode(envelope).encode()).hexdigest(),
                       now,timestamp(envelope['expiresAt']),now+self.s.message_retention_days*86400,'queued',
-                      'pending' if envelope['kind']=='message.request' else 'none',envelope.get('interactionId'),
+                      'pending' if envelope['kind'] in ('message.request','delegation.intent') else 'none',envelope.get('interactionId'),
                       envelope.get('originMessageId'),envelope.get('inReplyTo')))
         return self._receipt(self._row(conn,mid))
 
@@ -234,22 +254,30 @@ class DeliveryBroker:
         if len(encode(value['body']).encode())>32768:raise LabError('invalid_input','Message body exceeds 32 KiB')
         kind=value.get('kind')
         if kind=='message.request':self._request(conn,value)
+        elif kind=='delegation.intent':
+            if not self.admissions:raise LabError('not_ready','Delegation admission is unavailable',status=409)
+            if any(key in value for key in ('interactionId','originMessageId','inReplyTo')):raise LabError('invalid_input','A delegation starts with a new original intent')
+            self._quota(conn,value)
+            self.admissions.intent_in(conn,actor,value['recipient'],mid,value['body'],expires)
         elif kind=='interaction.opened':
             previous=self._opened(conn,value)
             if previous:return self._receipt(previous)
         elif kind=='message.result':
             previous=self._result(conn,value)
             if previous:return self._receipt(previous)
+        elif kind=='delegation.result':
+            previous=self._delegation_result(conn,value)
+            if previous:return self._receipt(previous)
         else:raise LabError('not_ready','This business message type is not enabled',status=409)
         result=self._enqueue(conn,value)
-        if kind=='message.result':
-            outcome=value['body']['outcome']
+        if kind in ('message.result','delegation.result'):
+            outcome='completed' if value['body']['outcome']=='reserved' else value['body']['outcome']
             request=self._row(conn,value['inReplyTo'])
             conn.execute('UPDATE delivery_messages SET request_state=?,result=?,result_id=?,result_hash=? WHERE id=?',
                          (outcome,encode(value['body']),mid,hashlib.sha256(encode(value['body']).encode()).hexdigest(),request['id']))
             if outcome in TERMINAL:
                 self._retain(conn,request['interaction'],request['id'],request['sender'],request['recipient'])
-            if outcome in TERMINAL and request['interaction']:
+            if kind=='message.result' and outcome in TERMINAL and request['interaction']:
                 interaction=conn.execute('SELECT * FROM delivery_interactions WHERE id=?',(request['interaction'],)).fetchone()
                 pending=conn.execute("SELECT 1 FROM delivery_messages WHERE interaction=? AND kind='message.request' AND request_state NOT IN ('completed','rejected','failed','expired') LIMIT 1",(interaction['id'],)).fetchone()
                 if interaction['requests']>=interaction['max_requests'] and not pending:
@@ -276,38 +304,49 @@ class DeliveryBroker:
         if 'inReplyTo' in value or 'originMessageId' in value:raise LabError('invalid_input','New requests cannot impersonate replies')
         definition=self.interfaces.version(conn,value['recipient'],body['interfaceName'],revision)
         self.interfaces.check(definition['inputSchema'],body['input'])
+        self._quota(conn,value)
+
+    def _quota(self,conn,value):
         owner=self.identities.agent(value['recipient'])['owner_id']
-        queued=conn.execute("SELECT COUNT(*) FROM delivery_messages m JOIN agents a ON m.recipient=a.id WHERE a.owner_id=? AND m.kind='message.request' AND m.request_state NOT IN ('completed','rejected','failed','expired')",(owner,)).fetchone()[0]
+        queued=conn.execute("SELECT COUNT(*) FROM delivery_messages m JOIN agents a ON m.recipient=a.id WHERE a.owner_id=? AND m.kind IN ('message.request','delegation.intent') AND m.request_state NOT IN ('completed','rejected','failed','expired')",(owner,)).fetchone()[0]
         if queued>=self.s.message_pending_limit:raise LabError('quota_exceeded','Recipient queue is full',status=429)
         source_owner=self.identities.agent(value['sender'])['owner_id']
-        recent=conn.execute('SELECT COUNT(*) FROM delivery_messages m JOIN agents a ON m.sender=a.id WHERE a.owner_id=? AND m.created>? AND m.kind=?',(source_owner,self.clock()-60,'message.request')).fetchone()[0]
-        pair=conn.execute("SELECT COUNT(*) FROM delivery_messages WHERE sender=? AND recipient=? AND created>? AND kind='message.request'",(value['sender'],value['recipient'],self.clock()-60)).fetchone()[0]
+        recent=conn.execute("SELECT COUNT(*) FROM delivery_messages m JOIN agents a ON m.sender=a.id WHERE a.owner_id=? AND m.created>? AND m.kind IN ('message.request','delegation.intent')",(source_owner,self.clock()-60)).fetchone()[0]
+        pair=conn.execute("SELECT COUNT(*) FROM delivery_messages WHERE sender=? AND recipient=? AND created>? AND kind IN ('message.request','delegation.intent')",(value['sender'],value['recipient'],self.clock()-60)).fetchone()[0]
         if recent>=self.s.message_rate or pair>=min(20,self.s.message_rate):raise LabError('quota_exceeded','Message rate exceeded',status=429)
 
     def _opened(self,conn,value):
         origin=self._row(conn,value.get('originMessageId'))
         body=value['body']
-        if origin['kind']!='message.request' or (value['sender'],value['recipient'])!=(origin['recipient'],origin['sender']):
+        if origin['kind'] not in ('message.request','delegation.intent') or (value['sender'],value['recipient'])!=(origin['recipient'],origin['sender']):
             raise LabError('forbidden','Only the original recipient can establish the interaction',status=403)
         if origin['expires']<=self.clock() or conn.execute('SELECT 1 FROM delivery_closed_origins WHERE origin=?',(origin['id'],)).fetchone():
             raise LabError('closed','Original request can no longer establish an interaction',status=409)
         original=json.loads(origin['envelope'])['body']
-        if body.get('interactionType')!='messaging' or body.get('interfaceName')!=original['interfaceName'] or body.get('revision')!=original['revision']:
-            raise LabError('id_conflict','Interaction must preserve the original interface',status=409)
+        kind='delegation' if origin['kind']=='delegation.intent' else 'messaging'
+        if kind=='messaging':
+            if body.get('interactionType')!=kind or body.get('interfaceName')!=original['interfaceName'] or body.get('revision')!=original['revision']:
+                raise LabError('id_conflict','Interaction must preserve the original interface',status=409)
+            interface,revision=original['interfaceName'],original['revision']
+        else:
+            if set(body)!={'interactionType','bindingDigest','deadline'} or body.get('interactionType')!=kind or body.get('bindingDigest')!=original['bindingDigest']:
+                raise LabError('id_conflict','Interaction must preserve the original delegation binding',status=409)
+            interface,revision='',0
         iid=identifier(value.get('interactionId'),'interactionId')
         value['interactionId']=iid
         deadline=timestamp(body.get('deadline'))
-        maximum=body.get('maxRequests')
+        maximum=body.get('maxRequests') if kind=='messaging' else 1
         if not isinstance(maximum,int) or isinstance(maximum,bool) or not 1<=maximum<=8 or not self.clock()<deadline<=origin['expires']:
             raise LabError('invalid_input','Invalid interaction deadline or request limit')
         old=conn.execute('SELECT * FROM delivery_interactions WHERE id=? OR origin=?',(iid,origin['id'])).fetchone()
         if old:
-            if (old['id'],old['origin'],old['sender'],old['recipient'],old['interface'],old['revision'],old['deadline'],old['max_requests'])!=(iid,origin['id'],origin['sender'],origin['recipient'],original['interfaceName'],original['revision'],deadline,maximum):
+            if (old['id'],old['origin'],old['sender'],old['recipient'],old['kind'],old['interface'],old['revision'],old['deadline'],old['max_requests'])!=(iid,origin['id'],origin['sender'],origin['recipient'],kind,interface,revision,deadline,maximum):
                 raise LabError('id_conflict','Interaction identity conflicts',status=409)
         else:
             conn.execute('INSERT INTO delivery_interactions VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-                         (iid,origin['id'],origin['sender'],origin['recipient'],'messaging',original['interfaceName'],original['revision'],deadline,maximum,1,'open',None))
+                         (iid,origin['id'],origin['sender'],origin['recipient'],kind,interface,revision,deadline,maximum,1,'open',None))
             conn.execute('UPDATE delivery_messages SET interaction=? WHERE id=?',(iid,origin['id']))
+        if kind=='delegation':self.admissions.link_in(conn,value['sender'],origin['id'],iid,original['bindingDigest'])
         if old:
             self._open(old)
         if origin['request_state'] in TERMINAL:
@@ -327,7 +366,7 @@ class DeliveryBroker:
 
     def _start(self,conn,actor,payload,generation):
         request=self._row(conn,payload.get('messageId'))
-        if request['recipient']!=actor or request['kind']!='message.request':raise LabError('forbidden','Only the recipient can begin this request',status=403)
+        if request['recipient']!=actor or request['kind'] not in ('message.request','delegation.intent'):raise LabError('forbidden','Only the recipient can begin this request',status=403)
         if request['interaction']!=payload.get('interactionId'):raise LabError('id_conflict','Request interaction does not match',status=409)
         interaction=self._interaction(conn,request['interaction'])
         if request['started'] is not None:
@@ -335,7 +374,8 @@ class DeliveryBroker:
         self._open(interaction)
         if request['expires']<=self.clock():raise LabError('expired','Request expired before processing',status=409)
         if request['request_state'] in TERMINAL:raise LabError('closed','Request already has a final result',status=409)
-        self.interfaces.current(conn,actor,request['sender'],interaction['interface'])
+        if request['kind']=='message.request':self.interfaces.current(conn,actor,request['sender'],interaction['interface'])
+        else:self.admissions.start_in(conn,actor,request['id'])
         conn.execute("UPDATE delivery_messages SET started=?,start_generation=?,request_state='processing' WHERE id=?",(self.clock(),generation,request['id']))
         return {'messageId':request['id'],'startedAt':stamp(self.clock()),'resumed':False,'requestState':'processing'}
 
@@ -363,6 +403,32 @@ class DeliveryBroker:
             definition=self.interfaces.version(conn,request['recipient'],original['interfaceName'],original['revision'])
             self.interfaces.check(definition['outputSchema'],body.get('output'))
         elif not isinstance(body.get('error'),dict):raise LabError('invalid_input','Non-success outcome needs a structured error')
+
+    def _delegation_result(self,conn,value):
+        request=self._row(conn,value.get('inReplyTo'))
+        if request['kind']!='delegation.intent' or (value['sender'],value['recipient'])!=(request['recipient'],request['sender']):
+            raise LabError('forbidden','A delegation result returns only to its original requester',status=403)
+        body=value['body'];outcome=body.get('outcome')
+        if outcome not in ('reserved','rejected','failed','unknown'):raise LabError('invalid_input','Invalid delegation outcome')
+        if request['interaction']:
+            if value.get('interactionId')!=request['interaction']:raise LabError('id_conflict','Delegation result changed its interaction',status=409)
+        elif value.get('originMessageId')!=request['id'] or outcome not in ('rejected','failed'):
+            raise LabError('forbidden','An unestablished intent may only be rejected or failed',status=403)
+        fingerprint=hashlib.sha256(encode(body).encode()).hexdigest()
+        if request['request_state'] in TERMINAL and request['result_id']:
+            if fingerprint==request['result_hash'] or outcome=='unknown':return self._row(conn,request['result_id'])
+            raise LabError('id_conflict','Intent already has an immutable terminal result',status=409)
+        if request['request_state']=='unknown' and outcome=='unknown':
+            if fingerprint==request['result_hash']:return self._row(conn,request['result_id'])
+            raise LabError('id_conflict','Recover the original unknown outcome',status=409)
+        if outcome in ('reserved','unknown') and request['started'] is None:raise LabError('forbidden','Delegation result requires its original start permit',status=403)
+        if outcome=='reserved':
+            row=self.admissions.admission(conn,body.get('admissionId'))
+            if row['state']=='released' or (row['state']=='held' and row['hold_until']<=self.clock()):raise LabError('expired','The admission can no longer be reported as reserved',status=409)
+            receipt=self.admissions.receipt(row)
+            if any(body.get(key)!=receipt[key] for key in ('admissionId','bindingDigest','holdUntil')) or row['interaction']!=request['interaction'] or row['origin']!=request['id']:
+                raise LabError('forbidden','Result differs from the platform admission receipt',status=403)
+        elif not isinstance(body.get('error'),dict):raise LabError('invalid_input','A failed delegation needs a structured error')
 
     def _ack(self,conn,actor,payload,generation):
         message=self._row(conn,payload.get('messageId'))
@@ -400,10 +466,12 @@ class DeliveryBroker:
         if payload.get('interactionId'):
             interaction=self._interaction(conn,payload['interactionId'])
             if actor not in (interaction['sender'],interaction['recipient']):raise LabError('forbidden','Interaction belongs to other agents',status=403)
+            if interaction['kind']=='delegation':self.admissions.close_in(conn,interaction['origin'])
             self._end(conn,interaction,payload.get('reason','closed'))
             return {'interactionId':interaction['id'],'state':'closed'}
         request=self._row(conn,payload.get('originMessageId'))
-        if request['kind']!='message.request' or actor not in (request['sender'],request['recipient']):raise LabError('forbidden','Original request belongs to other agents',status=403)
+        if request['kind'] not in ('message.request','delegation.intent') or actor not in (request['sender'],request['recipient']):raise LabError('forbidden','Original request belongs to other agents',status=403)
+        if request['kind']=='delegation.intent':self.admissions.close_in(conn,request['id'])
         if request['interaction']:
             self._end(conn,self._interaction(conn,request['interaction']),payload.get('reason','closed'))
         elif not conn.execute('SELECT 1 FROM delivery_closed_origins WHERE origin=?',(request['id'],)).fetchone():
@@ -419,9 +487,12 @@ class DeliveryBroker:
         row=self.db.one('SELECT * FROM delivery_interactions WHERE '+('id=?' if iid else 'origin=?'),iid or origin)
         if row:
             if actor not in (row['sender'],row['recipient']):raise LabError('forbidden','Interaction is unavailable',status=404)
-            return {'interactionId':row['id'],'originMessageId':row['origin'],'state':'closed' if row['deadline']<=self.clock() else row['state'],
+            result={'interactionId':row['id'],'originMessageId':row['origin'],'state':row['state'],
                     'sender':row['sender'],'recipient':row['recipient'],'interfaceName':row['interface'],'revision':row['revision'],
-                    'deadline':stamp(row['deadline']),'maxRequests':row['max_requests'],'requests':row['requests']}
+                    'deadline':stamp(row['deadline']),'maxRequests':row['max_requests'],'requests':row['requests'],'interactionType':row['kind']}
+            if row['kind']=='delegation':
+                with self.db.lock:result['bindingDigest']=self.admissions.relation(self.db.conn,row['id'])['binding']
+            return result
         request=self.db.one('SELECT * FROM delivery_messages WHERE id=?',origin)
         if not request or actor not in (request['sender'],request['recipient']):raise LabError('forbidden','Interaction is unavailable',status=404)
         closed=self.db.one('SELECT 1 FROM delivery_closed_origins WHERE origin=?',origin)
@@ -446,10 +517,13 @@ class DeliveryBroker:
     def cleanup(self):
         now=self.clock()
         with self.db.tx() as conn:
-            conn.execute("UPDATE delivery_messages SET request_state='expired',retain_until=MAX(retain_until,?) WHERE kind='message.request' AND started IS NULL AND expires<=? AND request_state='pending'",
+            conn.execute("UPDATE delivery_messages SET request_state='expired',retain_until=MAX(retain_until,?) WHERE kind IN ('message.request','delegation.intent') AND started IS NULL AND expires<=? AND request_state='pending'",
                          (now+self.s.message_retention_days*86400,now))
             conn.execute("UPDATE delivery_messages SET delivery_state='expired' WHERE expires<=? AND delivery_state='queued'",(now,))
             for interaction in conn.execute("SELECT * FROM delivery_interactions WHERE state='open' AND deadline<=?",(now,)).fetchall():
+                if interaction['kind']=='delegation':
+                    if not self.admissions.can_close_in(conn,interaction['origin']):continue
+                    self.admissions.close_in(conn,interaction['origin'])
                 self._end(conn,interaction,'deadline')
             protected="COALESCE(interaction IN (SELECT id FROM delivery_interactions WHERE state='open'),0) OR COALESCE(interaction IN (SELECT interaction FROM delivery_messages WHERE kind='message.request' AND request_state IN ('processing','unknown')),0) OR (kind='message.request' AND request_state IN ('processing','unknown'))"
             conn.execute(f'UPDATE delivery_messages SET envelope=NULL,result=NULL WHERE retain_until<=? AND NOT ({protected})',(now,))

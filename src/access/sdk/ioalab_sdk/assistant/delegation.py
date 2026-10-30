@@ -9,6 +9,8 @@ import uuid
 
 from a2c.codec import digest,fmt_time,parse_time
 from a2c.jws import sign
+from a2c.card import request_digest,card_digest
+from ..runtime.protocol import stamp
 import httpx
 
 from ..runtime.protocol import RuntimeFault,encode
@@ -34,14 +36,14 @@ class DelegationTasks:
         if type(value) not in (int,float) or not 1/86400<=value<=7:raise RuntimeFault('invalid_input','Authorization validity must be between one second and seven days')
         return value
 
-    def create(self,operation,args):
+    def prepare(self,operation,args):
         purpose=args['purpose'];categories=args.get('categoryIds')
         if not isinstance(purpose,str) or not 1<=len(purpose)<=2000:raise RuntimeFault('invalid_input','Provide the delegation purpose')
         if categories is not None and (not isinstance(categories,list) or len(categories)>32 or any(not isinstance(item,str) or not 1<=len(item)<=128 for item in categories) or len(set(categories))!=len(categories)):
             raise RuntimeFault('invalid_input','Use exact category IDs, null or an empty list')
         budget,fees=money(args['budget']),money(args['proposalFeeLimit'])
         if Decimal(fees)>Decimal(budget):raise RuntimeFault('invalid_input','Proposal fees are part of the total budget')
-        days=self._days(args.get('validDays',1))
+        days=self._days(args.get('validDays',7))
         fingerprint=digest(args)
         reference=str(uuid.uuid5(uuid.NAMESPACE_URL,encode(['ioa-delegation',self.identity.agent_id,operation])))
         key='task:'+reference
@@ -138,3 +140,33 @@ class DelegationTasks:
         context=self.task(args['taskRef'])['context'];scope=digest(context)
         receipt=self.account.api('POST','/scopes/'+quote(scope,safe='')+'/close',{'actor':self.identity.agent_id,'operationId':operation})
         return {'status':'completed','data':{'taskRef':args['taskRef'],'authorizationReceipt':receipt,'authorization':self._status(scope)}}
+
+    def intent(self,operation,args):
+        task=self.task(args['taskRef']);scope=digest(task['context'])
+        reference=str(uuid.uuid5(uuid.NAMESPACE_URL,'ioa-intent:'+self.identity.agent_id+':'+operation))
+        fingerprint=digest(args)
+        with self.lock:
+            record=self.store.checkpoint(self.namespace,'intent:'+reference)
+            if record and record['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original intent parameters changed')
+            if not record:
+                if ('request' in args)==('card' in args):raise RuntimeFault('invalid_input','Provide exactly one unsigned request or card')
+                subject=args.get('request',args.get('card'))
+                if not isinstance(subject,dict) or subject.get('delegationScopeDigest')!=scope or subject.get('client',{}).get('id')!=self.identity.agent_id:
+                    raise RuntimeFault('forbidden','Intent must use this task and assistant identity')
+                seconds=args.get('ttlSeconds',3600)
+                if type(seconds) is not int or not 1<=seconds<=86400*7:raise RuntimeFault('invalid_input','Intent TTL must be between one second and seven days')
+                name='request' if 'request' in args else 'card'
+                body={'formation':'proposal' if name=='request' else 'countersign','templateDigest':subject.get('templateDigest'),
+                      'scopeDigest':scope,'bindingDigest':request_digest(subject) if name=='request' else card_digest(subject),name:subject}
+                payload={'messageId':reference,'kind':'delegation.intent','recipient':args['service'],'expiresAt':stamp(time.time()+seconds),'body':body}
+                record={'fingerprint':fingerprint,'payload':payload,'taskRef':args['taskRef'],'operationId':operation}
+                self.store.checkpoint_set(self.namespace,'intent:'+reference,record)
+        accepted=self.runtime.connection.call(self.identity.agent_id,'message.send',record['payload'],operation_id=record['operationId'])
+        return {'status':'completed','data':{'messageRef':reference,'taskRef':record['taskRef'],'deliveryReceipt':accepted}}
+
+    def intent_status(self,reference):
+        record=self.store.checkpoint(self.namespace,'intent:'+reference)
+        if not record:raise RuntimeFault('not_ready','This instance has no original delegation intent')
+        relation=self.runtime.connection.recover_interaction(self.identity.agent_id,reference)
+        message=self.account.api('GET','/messages/'+quote(reference,safe='')+'?agentId='+quote(self.identity.agent_id,safe=''))
+        return {'status':'completed','data':{'messageRef':reference,'taskRef':record['taskRef'],'interaction':relation,'result':message['result'],'requestState':message['requestState']}}

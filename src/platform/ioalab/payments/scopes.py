@@ -242,3 +242,25 @@ class ScopeLedger:
         conn.execute('UPDATE delegation_scopes SET fees=?,paid=? WHERE digest=?',(str(fees),str(contract_paid),scope))
         conn.execute('INSERT INTO delegation_scope_payments VALUES(?,?,?,?,?,?,?)',(payment.payment_id,scope,payment.fingerprint,payment.ref,payment.purpose,str(paid),payment.period or 0))
         return self._public(self._get(owner,actor,scope,conn))
+
+    def eligibility_in(self,conn,owner,actor,scope,subject,provider,currency,*,selected=False):
+        """Public authorization view for admission; does not reserve funds or sign."""
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Eligibility requires the application transaction')
+        self._scope_digest(scope)
+        row=self._get(owner,actor,scope,conn)
+        self._live(row);context=json.loads(row['context'])
+        if subject.get('delegationScopeDigest')!=scope or subject.get('client',{}).get('id')!=actor or not self.identities.matches_party(owner,subject.get('client')):
+            raise LabError('forbidden','Intent client does not match the original authorization',status=403)
+        if subject.get('user') and subject['user']!=context['user']:
+            raise LabError('forbidden','Intent user differs from the original authorization',status=403)
+        if currency!=context['currency']:
+            raise LabError('forbidden','Intent currency is outside the user authorization',status=403)
+        category=self.category(conn,provider)
+        if context['categoryIds'] is not None and category not in context['categoryIds']:
+            raise LabError('forbidden','Service category is outside the user authorization',status=403)
+        if selected:
+            if row['contract']!=card_digest(subject):raise LabError('forbidden','Select and confirm this specific card first',status=403)
+        elif row['contract']:
+            raise LabError('closed','A selected scope does not request additional proposals',status=409)
+        self._live(row)
+        return self._public(row)

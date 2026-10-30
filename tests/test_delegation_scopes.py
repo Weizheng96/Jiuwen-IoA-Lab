@@ -289,7 +289,7 @@ def test_real_ap2_commit_and_scope_write_roll_back_in_the_same_transaction(platf
 
 def test_resident_authorization_needs_browser_and_recovers_lost_response_without_new_grant(platform,tmp_path,monkeypatch):
     with runtime_at(platform,tmp_path/'resident') as (runtime,client,module,user):
-        task=client.call('assistant.delegation.create',{'purpose':'制作业务成果','budget':'500','proposalFeeLimit':'5','categoryIds':['cat_dev']})
+        task=client.call('assistant.delegation.prepare',{'purpose':'制作业务成果','budget':'500','proposalFeeLimit':'5','categoryIds':['cat_dev']})
         assert task['status']=='completed'
         reference=task['data']['taskRef'];operation=uid();args={'taskRef':reference}
         assert client.call('assistant.delegation.authorize',{**args,'confirmed':True},operation_id=operation)['status']=='rejected'

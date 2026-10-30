@@ -173,10 +173,16 @@ class RuntimeStore:
         if not original or original['recipient']!=message.get('sender'):
             raise RuntimeFault('protocol_error', 'Interaction is not bound to an original outbound request')
         body = original['body']
-        if (message['body']['interfaceName'],message['body']['revision'])!=(body['interfaceName'],body['revision']):
-            raise RuntimeFault('protocol_error', 'Interaction changed the requested interface')
+        if original.get('kind')=='delegation.intent':
+            if message['body'].get('interactionType')!='delegation' or message['body'].get('bindingDigest')!=body['bindingDigest']:
+                raise RuntimeFault('protocol_error','Interaction changed the requested delegation binding')
+            name,revision='delegation',0
+        else:
+            if (message['body']['interfaceName'],message['body']['revision'])!=(body['interfaceName'],body['revision']):
+                raise RuntimeFault('protocol_error', 'Interaction changed the requested interface')
+            name,revision=body['interfaceName'],body['revision']
         conn.execute('INSERT INTO runtime_interactions VALUES(?,?,?,?,?,?,?,?,NULL)',
-                     (origin,message['interactionId'],actor,message['sender'],'outbound',body['interfaceName'],body['revision'],encode(message['body'])))
+                     (origin,message['interactionId'],actor,message['sender'],'outbound',name,revision,encode(message['body'])))
 
     def prepare_open(self, actor, origin, *, deadline=None, max_requests=8):
         """Create the receiver UUID and its original outbox operation in one transaction."""
@@ -185,7 +191,7 @@ class RuntimeStore:
             if not row:
                 raise RuntimeFault('not_ready', 'Original request has not been durably received')
             request = json.loads(row['frame'])['message']
-            if request.get('kind')!='message.request':
+            if request.get('kind') not in ('message.request','delegation.intent'):
                 raise RuntimeFault('invalid_input', 'Only an inbound business request opens an interaction')
             old = conn.execute('SELECT * FROM runtime_interactions WHERE origin=?',(origin,)).fetchone()
             if old:
@@ -199,13 +205,18 @@ class RuntimeStore:
             if not time.time()<instant(until)<=instant(request['expiresAt']):
                 raise RuntimeFault('invalid_input', 'Interaction deadline must fit the original request')
             iid, mid, operation = (str(uuid.uuid4()) for _ in range(3))
-            body = {'interactionType':'messaging','interfaceName':request['body']['interfaceName'],
-                    'revision':request['body']['revision'],'deadline':until,'maxRequests':max_requests}
+            if request['kind']=='delegation.intent':
+                body={'interactionType':'delegation','bindingDigest':request['body']['bindingDigest'],'deadline':until}
+                name,revision='delegation',0
+            else:
+                body = {'interactionType':'messaging','interfaceName':request['body']['interfaceName'],
+                        'revision':request['body']['revision'],'deadline':until,'maxRequests':max_requests}
+                name,revision=request['body']['interfaceName'],request['body']['revision']
             opened = {'messageId':mid,'kind':'interaction.opened','recipient':request['sender'],
                       'interactionId':iid,'originMessageId':origin,'expiresAt':stamp(time.time()+86400),'body':body}
             details = {**body,'openOperationId':operation}
             conn.execute('INSERT INTO runtime_interactions VALUES(?,?,?,?,?,?,?,?,NULL)',
-                         (origin,iid,actor,request['sender'],'inbound',body['interfaceName'],body['revision'],encode(details)))
+                         (origin,iid,actor,request['sender'],'inbound',name,revision,encode(details)))
             self._prepare(conn,actor,'message.send',opened,operation)
             return {'interactionId':iid,'operationId':operation}
 
@@ -230,9 +241,9 @@ class RuntimeStore:
             with self.transaction() as conn:
                 if relation.get('sender')!=actor:
                     raise RuntimeFault('forbidden','Only original outbound relations can be recovered here')
+                body={'interactionType':'delegation','bindingDigest':relation['bindingDigest'],'deadline':relation['deadline']} if relation.get('interactionType')=='delegation' else {'interfaceName':relation['interfaceName'],'revision':relation['revision'],'deadline':relation['deadline'],'maxRequests':relation['maxRequests']}
                 self._link(conn,actor,{'originMessageId':relation['originMessageId'],'interactionId':relation['interactionId'],
-                                     'sender':relation['recipient'],'body':{'interfaceName':relation['interfaceName'],
-                                     'revision':relation['revision'],'deadline':relation['deadline'],'maxRequests':relation['maxRequests']}})
+                                     'sender':relation['recipient'],'body':body})
         return relation
 
     def messages(self, actor):
