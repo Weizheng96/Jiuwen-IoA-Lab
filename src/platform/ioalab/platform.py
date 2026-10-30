@@ -95,6 +95,8 @@ class Platform:
         self.accounts=AccountOperations(self.db,self.auth,self.wallets,settings,self.bus.emit)
         from .identity import IdentityDirectory
         self.identities=IdentityDirectory(self.db,self.auth,settings)
+        from .registry import RegistryView
+        self.registry=RegistryView(self.db)
         self.packages = PackageStore(settings.data / "packages")
         self.llm = LLM(settings)  # discovery only
         self.router = A2ARouter()
@@ -112,6 +114,9 @@ class Platform:
                                    llm_configured=settings.a2x_configured(), embed_fn=self.llm.embed if self.llm.enabled else None)
         self.market = MarketService(self.market_signer, keys=self.keys, fetch=self.packages.fetch,
                                     store=SqliteStore(self.db, "market"), db=self.db, discovery=self.discovery, models=self.llm.model_ports())
+        from .payments.scopes import ScopeLedger
+        self.scopes=ScopeLedger(self.db,self.identities,settings.base_url,keys=self.keys,
+                                template=self.market.market._template,category=self.registry.category_in)
         from .identity.enrollment import EnrollmentRegistry
         saved_keys,protocol_owners=self.identities.saved_keys()
         certificates=[(protocol_owners[record['subject']],record['jwkThumbprint']) for record in self.market.certificates()
@@ -134,6 +139,7 @@ class Platform:
         self.messaging=MessageCenter(self)
         from .messaging.delivery import DeliveryBroker
         self.messaging.delivery=DeliveryBroker(self.db,self.identities,settings,emit=self.bus.emit)
+        self.messaging.delivery.scopes=self.scopes
 
     def _agent_of_provider(self, provider_id):
         return next((r for r in self.db.rows("SELECT * FROM agents WHERE role='service'")
@@ -290,13 +296,14 @@ class Platform:
         import hashlib
         aid = "ext-" + hashlib.sha1(url.encode()).hexdigest()[:10]
         d = {"id": aid, "name": name, "description": description or name, "tags": list(tags or []), "runnable": True,
-             "formation": "preapproval", "category": category, "external": True, "url": url, "deliverable": {"name": "deliverable"}}
+             "formation": "preapproval", "category": None, "external": True, "url": url, "deliverable": {"name": "deliverable"}}
         self.db.run("INSERT INTO agents (id, owner_id, role, name, definition, status, created, meta) VALUES (?,?,?,?,?,?,?,?)",
                     aid, owner_id, "service", name, jdump(d), "listed", now(), jdump({"url": url, "ap2_jwk": dict(ap2_jwk), "providerJwk":okp[0], "external": True}))
         card = {"name": name, "description": d["description"], "url": url, "version": "1",
                 "skills": [{"id": f"ext-{i}", "name": tag, "description": tag, "tags": [tag]} for i, tag in enumerate(d["tags"])],
                 "a2c": {"templates": [], "paymentProvider": self.pay_id}, "status": "listed"}
-        self.discovery.register_one(aid, card, category=category)
+        d['category']=self.discovery.register_one(aid, card, category=category)
+        self.db.run('UPDATE agents SET definition=? WHERE id=?',jdump(d),aid)
         status = self.refresh_external_provider(aid, quiet=True)
         self.bus.emit("platform", "service.register", sender=owner_id, receiver=url, outcome=status,
                       detail={"name": name, "category": category, "external": True})

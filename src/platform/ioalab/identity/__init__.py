@@ -35,6 +35,14 @@ class IdentityDirectory:
         if not row:raise LabError('not_ready','Connect a personal assistant identity first',status=409)
         return row['id']
 
+    def user_key(self,owner,actor):
+        """Public ownership view used by user-signed IoA authorization records."""
+        row=self.owned(owner,actor)
+        if row['role']!='assistant':raise LabError('forbidden','User authorization requires a personal assistant identity',status=403)
+        key=json.loads(row['meta']).get('userJwk')
+        if not isinstance(key,dict):raise LabError('not_ready','The original user signing key is not bound',status=409)
+        return key
+
     def matches_party(self,owner,party):
         """Historical payment ownership; disabling new execution does not erase a binding."""
         if not isinstance(party,dict) or not isinstance(party.get('id'),str):

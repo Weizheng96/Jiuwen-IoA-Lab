@@ -47,6 +47,7 @@ class PreparedPayment:
     expires: float
     deposit_paid: bool
     client: str
+    scope_digest: str|None=None
 
 
 class _PaidView:
@@ -127,7 +128,7 @@ class SimPaymentProvider(PaymentProvider):
         _,receipt = jwt_decode(candidate.body['paymentReceipt'])
         return PreparedPayment(fingerprint,payer,payee,provider,payer_key,thumbprint(payee_jwk),ref,purpose,period,
                                money(amount),template['pricing']['currency'],receipt['payment_id'],
-                               json.dumps(candidate.body,ensure_ascii=False,separators=(',',':')),expires,deposit_paid,json.dumps(subject['client']))
+                               json.dumps(candidate.body,ensure_ascii=False,separators=(',',':')),expires,deposit_paid,json.dumps(subject['client']),subject.get('delegationScopeDigest'))
 
     def commit(self,conn,prepared):
         """No network or model work; admission can participate in this same transaction."""

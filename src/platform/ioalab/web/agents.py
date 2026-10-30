@@ -36,6 +36,24 @@ def build_router(platform,current_user):
     def operation(operationId:str,agentId:str,operation:str,uid=Depends(current_user)):
         return broker.operation(uid,agentId,operation,operationId)
 
+    @router.post('/api/v1/scopes')
+    def register_scope(body:dict,uid=Depends(sdk_user)):
+        payload={key:value for key,value in body.items() if key!='operationId'}
+        actor=(payload.get('context') or {}).get('actor') if isinstance(payload.get('context'),dict) else None
+        prepared=platform.scopes.prepare(uid,actor,'scope.register',payload)
+        with platform.db.tx() as conn:return platform.scopes.apply_in(conn,uid,body.get('operationId'),prepared)
+
+    @router.get('/api/v1/scopes/{scopeDigest}')
+    def scope_status(scopeDigest:str,actor:str,uid=Depends(sdk_user)):
+        prepared=platform.scopes.prepare(uid,actor,'scope.status',{'scopeDigest':scopeDigest})
+        with platform.db.tx() as conn:return platform.scopes.apply_in(conn,uid,'read',prepared)
+
+    @router.post('/api/v1/scopes/{scopeDigest}/close')
+    def close_scope(scopeDigest:str,body:dict,uid=Depends(sdk_user)):
+        if set(body)!={'actor','operationId'}:raise LabError('invalid_input','Use actor and operationId')
+        prepared=platform.scopes.prepare(uid,body['actor'],'scope.close',{'scopeDigest':scopeDigest})
+        with platform.db.tx() as conn:return platform.scopes.apply_in(conn,uid,body['operationId'],prepared)
+
     @router.websocket('/ws/agents')
     async def agents(websocket:WebSocket):
         origin=websocket.headers.get('origin')

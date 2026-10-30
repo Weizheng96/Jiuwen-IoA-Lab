@@ -53,6 +53,7 @@ class DeliveryBroker:
     def __init__(self,db,identities,settings,*,emit=None,clock=time.time):
         self.db,self.identities,self.s,self.emit,self.clock=db,identities,settings,emit,clock
         self.interfaces=PublicInterfaces(db,identities)
+        self.scopes=None
         self._listeners={}
         self._listener_lock=threading.RLock()
         with db.lock:db.conn.executescript(SCHEMA)
@@ -137,6 +138,7 @@ class DeliveryBroker:
         self.identities.owned(owner,actor)
         if not isinstance(kind,str) or not isinstance(operation,str):
             raise LabError('invalid_input','Operation type and identity must be strings')
+        if kind.startswith('scope.') and self.scopes:return self.scopes.operation(owner,actor,kind,operation)
         row=self.db.one('SELECT result FROM delivery_operations WHERE actor=? AND kind=? AND id=?',actor,kind,operation)
         if not row:raise LabError('not_ready','Operation has no accepted result',status=404,recovery='retry_original')
         return json.loads(row['result'])
@@ -148,6 +150,14 @@ class DeliveryBroker:
             raise LabError('stale_generation','Invalid connection identity or generation',status=409,recovery='stop_executor')
         payload=frame.get('payload',{})
         if not isinstance(payload,dict):raise LabError('invalid_input','Control payload must be an object')
+        # Signature/card/key preparation can fetch public material; never do it
+        # inside the delivery lease/operation transaction. The owner and lease
+        # are rechecked below before committing the prepared immutable action.
+        prepared=None
+        if kind.startswith('scope.'):
+            if not self.scopes:raise LabError('not_ready','Scope authorization is not configured',status=409)
+            with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
+            prepared=self.scopes.prepare(owner,actor,kind,payload)
         handlers={'message.send':self._send,'message.ack':self._ack,'request.start':self._start,'interaction.close':self._close}
         self.cleanup()
         inserted=False
@@ -155,6 +165,8 @@ class DeliveryBroker:
             self.lease(conn,owner,actor,connection,generations[actor])
             if kind=='operation.get':
                 result=self.operation(owner,actor,payload.get('operation'),payload.get('operationId'))
+            elif prepared is not None:
+                result=self.scopes.apply_in(conn,owner,frame.get('operationId'),prepared)
             elif kind in handlers:
                 prior=conn.execute('SELECT 1 FROM delivery_messages WHERE id=?',(payload.get('messageId') if isinstance(payload.get('messageId'),str) else None,)).fetchone() if kind=='message.send' else None
                 result=self._operation(conn,actor,kind,frame.get('operationId'),payload,

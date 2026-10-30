@@ -55,14 +55,14 @@ class Discovery:
                    for sid, card in cards]
         self.svc.register_batch(entries, DATASET)
 
-    def register_one(self, service_id: str, card: Mapping[str, Any], *, category: str | None = None) -> None:
+    def register_one(self, service_id: str, card: Mapping[str, Any], *, category: str | None = None) -> str | None:
         """运行期注册：写入注册表，再按声明的领域确定性加进分类树叶类（没有树时只靠向量退路检索到）。"""
         from a2x_registry.register.models import AgentCard, RegisterA2ARequest
         self.ensure_dataset()
         self.svc.register_a2a(RegisterA2ARequest(service_id=service_id, dataset=DATASET, agent_card=AgentCard(**dict(card))))
         self._vectors.pop(service_id, None)
         self._bigram_vectors.pop(service_id, None)
-        self.assign(service_id, category)
+        return self.assign(service_id, category)
 
     def update_card(self, service_id: str, card: Mapping[str, Any]) -> None:
         """只改 a2c / status 等索引字段（不动 name / description，不触发树失效）。"""

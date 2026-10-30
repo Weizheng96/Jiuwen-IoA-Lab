@@ -35,6 +35,20 @@ start 复用已运行实例；启动仍在进行时报告 waiting，不重新创
 
 本机用户页确认后，重复原发布调用即可完成发布。模型不能通过 RPC 批准；修改摘要或内容必须重新确认。发布冻结本地 Markdown、工具权限及修订，平台只接收接口声明。入站只运行对应已确认规则与工具；同一交互固定实际 Session。等待原生用户问题时保留原进程、释放模型名额；回答后重新申请名额。未知外部效果阻止该交互继续执行，须核实原操作。当前可选宿主入口不自动装配日程、邮件等业务工具。
 
+## 委托授权入口
+
+同一常驻调用格式已支持以下操作；这是初始授权及恢复入口，后续发现、接单、签约和付款仍待新角色链路切换，不回退旧命令绕过门禁。
+
+| 操作 | 参数及真实结果 |
+|---|---|
+| `assistant.delegation.create` | purpose、budget、proposalFeeLimit；可选 categoryIds、validDays；返回本地 taskRef，尚未授权 |
+| `assistant.delegation.authorize` | taskRef，可选 validDays；返回待确认摘要；本机用户页批准后重复原调用，才签发并登记授权 |
+| `assistant.delegation.renew` | 原 taskRef，可选 validDays；再次由用户确认同一范围的有效期，不重置预算和原合同 |
+| `assistant.delegation.status` | taskRef；分别返回授权真实状态及预算记录 |
+| `assistant.delegation.close` | taskRef；关闭后续许可，保留既有合同与付款，不能当作解除合同 |
+
+金额可以输入整数或两位小数，SDK 规范化后供用户检查；分类 null 表示不限、空数组表示不允许新候选。context 的摘要稳定，grant 修订独立。签名请求发送前持久保存；响应丢失从原操作恢复，不重新签发或延长时间。数据中 authorizationReceipt 是原接受记录，authorization 才是平台当前状态。具体契约见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
+
 ## 迁移中的原业务入口
 
 个人助手使用 `ioalab-client <command> --args '<JSON>'`；命令清单见 `python -m ioalab_sdk.cli --help`。配置 `IOALAB_BASE_URL`、`IOALAB_USERNAME`、`IOALAB_PASSWORD`；身份与合同存入本地 `IOALAB_HOME`。需确认的命令显式传 `--confirmed`，技能必须先取得用户同意。

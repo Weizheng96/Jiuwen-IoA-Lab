@@ -15,6 +15,7 @@ from ..runtime.host import AgentDefinition,HostTurn,ToolBinding
 from ..runtime.protocol import RuntimeFault,encode,instant,stamp
 from ..runtime.scheduling import JobHandler,JobOutcome
 from .rules import Rules
+from .delegation import DelegationTasks
 
 
 def stable(*values):return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(list(values))))
@@ -35,8 +36,10 @@ class AssistantRole:
         self.store=runtime.store
         self.namespace='assistant:'+self.identity.agent_id
         self.rules=Rules(runtime,self.identity,self.tools)
+        self.delegation=DelegationTasks(runtime,self.identity)
         names=('rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
-               'messaging.interfaces','messaging.send','messaging.status','messaging.close')
+               'messaging.interfaces','messaging.send','messaging.status','messaging.close',
+               'delegation.create','delegation.authorize','delegation.renew','delegation.status','delegation.close')
         return {'operations':{'assistant.'+name:self._operation(name) for name in names},
                 'jobs':{'assistant.message':JobHandler(self._process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available')))},
                 'profiles':[self.identity.profile] if self.host else []}
@@ -60,7 +63,19 @@ class AssistantRole:
         return execute
 
     def _call(self,name,operation,args):
-        if name=='rules.draft':
+        if name=='delegation.create':
+            self.fields(args,('purpose','budget','proposalFeeLimit'),('categoryIds','validDays'))
+            return self.delegation.create(operation,args)
+        elif name in ('delegation.authorize','delegation.renew'):
+            self.fields(args,('taskRef',),('validDays','confirmationRef'))
+            return self.delegation.authorize(operation,args,renew=name.endswith('.renew'))
+        elif name=='delegation.status':
+            self.fields(args,('taskRef',))
+            return self.delegation.status(args['taskRef'])
+        elif name=='delegation.close':
+            self.fields(args,('taskRef',))
+            return self.delegation.close(operation,args)
+        elif name=='rules.draft':
             self.fields(args,('declaration','instructions'))
             data=self.rules.draft(operation,args['declaration'],args['instructions'])
         elif name in ('rules.validate','rules.preview'):
