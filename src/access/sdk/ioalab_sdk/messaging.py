@@ -36,7 +36,10 @@ class MailboxClient:
         result=self.http.request(method,self.base+'/api/v1'+path,json=body,headers={'Authorization':'Bearer '+self.token} if self.token else {})
         result.raise_for_status();return result.json()
 
-    def publish(self,name,definition): return self.api('PUT','/messaging/interfaces/'+name,definition)
+    def publish(self,name,definition):
+        # Directory routing identity is read-only and is never part of a declaration.
+        writable={key:value for key,value in definition.items() if key!='agentId'}
+        return self.api('PUT','/messaging/interfaces/'+name,writable)
     def interfaces(self,account=None):
         from urllib.parse import quote
         return self.api('GET','/messaging/accounts/'+quote(account,safe='')+'/interfaces' if account else '/messaging/interfaces')

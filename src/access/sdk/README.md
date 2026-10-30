@@ -2,6 +2,8 @@
 
 安装：先安装仓库 `vendor/wheels/` 中锁定的 A2C wheel，再 `pip install ./src/access/sdk`。SDK 不依赖平台 Python 包，不在本地安装 A2X 或九问运行时。
 
+`ioalab_sdk.runtime` 已提供 `RuntimeStore` 与 `AgentConnection`：持久收件、连续游标、待发操作、WebSocket 连接恢复和交互 UUID 关联。它们仅构成共用传输基础，尚未替换下述旧 CLI/业务入口；常驻进程 IPC、角色调度与九问宿主适配仍按[开发计划](../../../docs/开发计划.md)推进，不能据此宣称两个角色已完成长连接接入。
+
 个人助手使用 `ioalab-client <command> --args '<JSON>'`；命令清单见 `python -m ioalab_sdk.cli --help`。配置 `IOALAB_BASE_URL`、`IOALAB_USERNAME`、`IOALAB_PASSWORD`；身份与合同存入本地 `IOALAB_HOME`。需确认的命令显式传 `--confirmed`，技能必须先取得用户同意。
 
 `LabClient` 封装发现、身份绑定、观察上报，并直接使用 A2C Client 执行合同。验收在调用进程的 WASM 沙箱中完成。付款发送结果不明时报告 requires-reconciliation，不自动再次付款。未发送观察在本地 outbox 保存，下次调用重发。

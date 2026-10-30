@@ -9,7 +9,7 @@ import time
 import uuid
 from fastapi import HTTPException
 from jsonschema import Draft202012Validator,FormatChecker
-from .store import jdump,jload
+from ..store import jdump,jload
 
 SCHEMA='''
 CREATE TABLE IF NOT EXISTS message_interfaces(owner TEXT,name TEXT,revision INTEGER,definition TEXT,enabled INTEGER,updated REAL,PRIMARY KEY(owner,name));
@@ -96,7 +96,8 @@ class MessageCenter:
 
     def interfaces(self,owner,viewer):
         rows=self.db.rows('SELECT * FROM message_interfaces WHERE owner=? ORDER BY name',owner)
-        return [{'name':r['name'],'revision':r['revision'],**{k:v for k,v in jload(r['definition']).items() if k not in ('allowedIds','allowedSenders') or owner==viewer},
+        actor=self.db.one("SELECT id FROM agents WHERE owner_id=? AND role='assistant' AND status!='disabled'",owner)
+        return [{'name':r['name'],'revision':r['revision'],'agentId':actor['id'] if actor else None,**{k:v for k,v in jload(r['definition']).items() if k not in ('allowedIds','allowedSenders') or owner==viewer},
                  'enabled':bool(r['enabled'])} for r in rows if owner==viewer or self.permitted(r,viewer)]
 
     def cleanup(self):

@@ -43,6 +43,9 @@ class Settings:
     data: Path = field(default_factory=lambda: Path(_env("IOALAB_DATA", "data")).expanduser().resolve())
     seed_file: Path | None = field(default_factory=lambda: Path(_env("IOALAB_SEED_FILE")).expanduser().resolve() if _env("IOALAB_SEED_FILE") else None)
     bundles_dir: Path = field(default_factory=lambda: Path(_env('IOALAB_BUNDLES_DIR','dist')).expanduser().resolve())
+    connection_ticket_seconds: int = field(default_factory=lambda:int(_env('IOALAB_CONNECTION_TICKET_SECONDS','60')))
+    ws_heartbeat_seconds: int = field(default_factory=lambda:int(_env('IOALAB_WS_HEARTBEAT_SECONDS','15')))
+    ws_lease_seconds: int = field(default_factory=lambda:int(_env('IOALAB_WS_LEASE_SECONDS','45')))
     stub: bool = field(default_factory=_stub)
     llm: dict = field(default_factory=_llm)
     agent_model: str = field(default_factory=lambda: _env("IOALAB_LLM_MODEL", "qwen3.7-flash"))       # 助手与服务方
@@ -158,6 +161,8 @@ class Settings:
             problems.append('消息有效期、正文保留期、元数据保留期必须正数且依次不减')
         if min(self.message_rate,self.message_pending_limit)<1:
             problems.append('消息速率与容量必须大于0')
+        if not 1<=self.connection_ticket_seconds<=300 or self.ws_heartbeat_seconds<1 or self.ws_lease_seconds<3*self.ws_heartbeat_seconds:
+            problems.append('Invalid connection ticket, heartbeat or execution lease durations')
         return problems
 
 

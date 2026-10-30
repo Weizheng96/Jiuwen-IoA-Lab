@@ -90,6 +90,8 @@ class Platform:
         self.db = DB(settings.data / "ioalab.sqlite")
         self.bus = EventBus(self.db, settings.data / "runs")
         self.wallets, self.auth = Wallets(self.db), Auth(self.db, settings)
+        from .identity import IdentityDirectory
+        self.identities=IdentityDirectory(self.db,self.auth,settings)
         self.packages = PackageStore(settings.data / "packages")
         self.llm = LLM(settings)  # discovery only
         self.router = A2ARouter()
@@ -120,6 +122,8 @@ class Platform:
         self.background = []
         from .messaging import MessageCenter
         self.messaging=MessageCenter(self)
+        from .messaging.delivery import DeliveryBroker
+        self.messaging.delivery=DeliveryBroker(self.db,self.identities,settings,emit=self.bus.emit)
 
     def _agent_of_provider(self, provider_id):
         return next((r for r in self.db.rows("SELECT * FROM agents WHERE role='service'")
@@ -163,6 +167,7 @@ class Platform:
             await asyncio.sleep(1)
             self.sync_orders()
             self.messaging.cleanup()
+            self.messaging.delivery.cleanup()
 
     def sync_orders(self):
         for row in self.db.rows("SELECT card_digest,state FROM orders"):

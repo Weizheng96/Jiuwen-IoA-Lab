@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from a2c.errors import A2CError
+from ..errors import LabError
 
 from ..platform import Platform
 from ..psp import money
@@ -51,6 +52,10 @@ def create_app(platform: Platform) -> FastAPI:
     @app.exception_handler(A2CError)
     async def _a2c_error(request: Request, exc: A2CError):
         return JSONResponse({"error": str(exc), "code": getattr(exc, "code", "")}, status_code=400)
+
+    @app.exception_handler(LabError)
+    async def lab_error(request,exc):
+        return JSONResponse({'error':exc.public()},status_code=exc.status)
 
     @app.exception_handler(ValueError)
     @app.exception_handler(KeyError)
@@ -177,6 +182,8 @@ def create_app(platform: Platform) -> FastAPI:
     from .workbench import build_router as workbench_router
     from ..messaging import build_router as messaging_router
     app.include_router(messaging_router(platform.messaging,current_user))
+    from .agents import build_router as agents_router
+    app.include_router(agents_router(platform,current_user))
     app.include_router(workbench_router(platform,current_user,require_admin))
 
     # ── 管理员 API ────────────────────────────────────────────────────
