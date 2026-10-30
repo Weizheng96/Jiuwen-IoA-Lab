@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
 NEED='我是小美美甲店店主，帮我做个预约微信小程序，每个时段最多接两人，顾客还能自己取消预约。预算上限500虚拟币。'
-AUTHORIZE='确认授权，委托合同和验收都由我确认。'
+AUTHORIZE='确认授权，委托合同和验收都由我确认。不影响核心需求的设置先采用合理默认值，在合同里列明给我确认。'
 CONTRACT='确认这份码上飞的合同，按你列出的范围提供资料。'
 REGISTER='授权实名注册。'
 ACCEPT='确认验收。'

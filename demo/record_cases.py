@@ -198,7 +198,7 @@ def main():
                     return
                 import re
 
-                item = json.loads(command.read_text(encoding="utf-8"))
+                item = json.loads(command.read_text(encoding="utf-8-sig"))
                 ident = item["id"]
                 if not re.fullmatch("[A-Za-z0-9_-]{1,80}", ident):
                     raise ValueError("Invalid operator marker")
