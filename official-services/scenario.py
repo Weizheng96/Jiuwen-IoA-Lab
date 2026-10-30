@@ -2,6 +2,10 @@
 from copy import deepcopy
 from catalog import definitions, materialize
 
+BASIC_CRITERIA=['店名与容量符合合同', '可以预约并查询', '满额后拒绝新增预约', '取消后释放名额', '小程序源码与预约配置齐全']
+EXTRA_CRITERIA=['重复提交不重复占位', '连续竞争请求不超容量', '相同请求重试返回原预约', '不同时段独立计数', '重复取消不误减名额']
+OBSERVATION_CRITERIA=['模型观察预约逻辑', '模型观察取消逻辑', '模型观察容量控制逻辑']
+
 ENGINE='''class BookingEngine:
     def __init__(self, capacity):
         self.capacity=capacity
@@ -34,9 +38,9 @@ def nail_services():
         d['tags']=['美甲预约','微信小程序','软件开发'];d['pricing']={'proposalFee':1,'range':[price,price]} if formation=='proposal' else {'price':price}
         d['deliverable']['description']='booking.json：预约配置、engineSource（Python BookingEngine类源码）、miniProgram（微信小程序文件映射）。Python仅在WASM中测试，本地使用固定运行器；不声称已微信注册或上线。'
         d['deliverable']['specSchema']['level']={'const':'reliable' if key=='mashangfei' else 'basic'}
-        d['verifier']={'id':'nail_'+key+'@1.0','reads':original['verifier']['reads'],'script':'nail_contract.py'}
+        d['verifier']={'id':'nail_'+key+'@1.0.1','reads':original['verifier']['reads'],'script':'nail_contract.py','criteria':BASIC_CRITERIA+(EXTRA_CRITERIA if key=='mashangfei' else [])}
         d['steps']=[{'name':'realname_registration','description':'授权以本店名义办理小程序实名注册。当前本地演示仅记录授权，不提交真实身份资料，不申请微信账号或审核。'}]
-        d['notCovered']=['微信真实主体认证与上线审核','未经授权的个人资料传输']
+        d['notCovered']=['微信真实主体认证与上线审核','未经授权的个人资料传输','真实多线程压力与网络故障注入']
         d['sample']['shop']='小美美甲店'
         d['sample_spec']['shop']='小美美甲店'
         d['sample']['engineSource']=ENGINE
@@ -57,11 +61,11 @@ def nail_services():
             d['formation']='countersign'
             d['inputs']=[{'name':'architecture','description':'委托方须提供软件架构图，签约前必须审核','required':True,'reviewBeforeSigning':True,'specSchema':{}}]
             d['description']='云构工作室：按委托方提供的软件架构图开发小程序，架构图为签约前必要材料。'
-        if key=='kuaida': d['notCovered']+=['并发抢约压力','重复提交幂等','弱网重试一致性']
+        if key=='kuaida': d['notCovered']+=['重复提交幂等','请求重试一致性','跨时段隔离','重复取消幂等']
         if key=='lingxi':
-            d['verifier'].update(kind='skill',script='nail_skill.py',disputeModels=['qwen-plus'])
+            d['verifier'].update(kind='skill',script='nail_skill.py',disputeModels=['qwen-plus'],criteria=OBSERVATION_CRITERIA)
             d['description']+='采用skill验收，单一仲裁模型qwen-plus；不承诺十项确定性行为测试。'
         elif key in ('kuaida','mashangfei'):
-            d['description']+=('十项行为测试，含抢约容量、重复提交及弱网重试。' if key=='mashangfei' else '五项基础行为测试。')
+            d['description']+=('十项行为测试，含竞争请求容量、重复提交及请求重试；直接调用源码的顺序模拟，不是网络或多线程压力试验。' if key=='mashangfei' else '五项基础行为测试。')
         services.append(('ISP_008',materialize(d,'nail-booking-scenario')))
     return services

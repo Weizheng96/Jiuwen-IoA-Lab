@@ -48,5 +48,38 @@
     "thirdResult": "unknown after native shell timeout=60 seconds",
     "guard": "unknown outcome blocks adoption and duplicate fee; failure retained",
     "newMoviePublished": false
+  },
+  "latestComparison": {
+    "date": "2026-10-30",
+    "model": "qwen3.5-plus",
+    "minimumQuotePreference": 1,
+    "signedProposals": [
+      {
+        "provider": "灵犀小程序",
+        "total": "239"
+      },
+      {
+        "provider": "快搭建站",
+        "total": "259"
+      },
+      {
+        "provider": "码上飞",
+        "total": "299"
+      }
+    ],
+    "inspectCount": 3,
+    "comparisonCall": true,
+    "recommended": "码上飞",
+    "trust": "assistant-reported comparison, not a quality certification",
+    "traceSha256": "5e2350029fe3e6958bb7fae2493911466586595d8b41975f62976a794d4f2d59",
+    "contractConfirmationSent": false,
+    "newMoviePublished": false
+  },
+  "criteriaReview": {
+    "implementation": "L2 observes three source features; basic script runs five checks; reliable script adds five executable behavioral checks",
+    "gap": "previous readable description exposed counts and only a few categories",
+    "fix": "generate signed readable criteria and WASM report names from one declaration",
+    "regression": "same global-capacity fault passes five-check verifier but fails reliable cross-slot checks inside WASM",
+    "limits": "sequential source-level simulation, not actual network fault injection or multithread pressure"
   }
 }

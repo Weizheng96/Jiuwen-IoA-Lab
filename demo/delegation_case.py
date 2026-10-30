@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 NEED='我是小美美甲店店主，帮我做个预约微信小程序，每个时段最多接两人，顾客还能自己取消预约。预算上限500虚拟币。'
 AUTHORIZE='确认授权，委托合同和验收都由我确认。'
-CONTRACT='我选择码上飞299虚拟币的合同，验收覆盖更完整。确认合同，按你列出的范围提供资料。'
+CONTRACT='确认这份码上飞的合同，按你列出的范围提供资料。'
 REGISTER='授权实名注册。'
 ACCEPT='确认验收。'
 
@@ -22,7 +22,7 @@ def record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save):
         path=home/'contracts.sqlite'
         if not path.exists():return {}
         with sqlite3.connect('file:'+path.as_posix()+'?mode=ro',uri=True) as db:
-            return {k:json.loads(v) for k,v in db.execute('SELECT k,v FROM documents WHERE tbl=?',(table,))}
+            return {k:json.loads(v) for k,v in db.execute('SELECT k,v FROM documents WHERE tbl=? ORDER BY rowid',(table,))}
     def prompt(words,label,seconds=600):
         # Do not inject technical rescue prompts. Failure remains a failed recording.
         until=time.monotonic()+seconds;last_snapshot=0
@@ -64,6 +64,9 @@ def record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save):
     lab.locator('[data-order="'+cd+'"]').first.click();lab.locator('#detail').evaluate('(e)=>e.close()')
     shot('quotes','service')
     prompt(('确认合同','签署合同','是否确认','请确认'),'contract')
+    comparison=list(local('comparisons').values())
+    assert comparison and comparison[-1]['selected']==local('cards')[cd]['card']['provider'],'Expected an actual recommendation of the authored service, not a forced user replacement'
+    proof['recommendation']={'provider':chosen['providerName'],'reason':comparison[-1]['reason'],'source':'actual SDK comparison before contract confirmation'}
     shot('choice','contract');turn('contract',CONTRACT)
     wait(lambda d:any(o['card_digest']==cd and o['signatures'].get('1') for o in d['orders']),'signed')
     shot('contract','contract')

@@ -64,6 +64,26 @@ def test_named_flow_three_proposals_four_gates_and_real_acceptance(platform,loca
         cached=c.request(**args,confirmed=True)
         assert cached['quoteProgress']['receivedQuotes']==3 and cached['quoteProgress']['readyForConfirmation']
         assert sum(Decimal(r['fee']) for r in c.scope(sid)['requests'].values())==3
+        # Same faulty implementation: five base checks pass, extra cross-slot checks reject it.
+        from copy import deepcopy
+        faulty=deepcopy(defs['nail-mashangfei']['sample'])
+        needle="sum(x['slot']==slot for x in self.rows.values()) >= self.capacity"
+        assert needle in faulty['engineSource']
+        faulty['engineSource']=faulty['engineSource'].replace(needle,"len(self.rows) >= self.capacity")
+        for index,key in ((1,'kuaida'),(2,'mashangfei')):
+            agent=host.agents['svc-nail-'+key]
+            report=agent.selftest(quotes[index]['cardDigest'],faulty)
+            assert [r['check'] for r in report['checks'][0]]==defs['nail-'+key]['verifier']['criteria']
+            assert report['status']==('pass' if key=='kuaida' else 'fail'),report
+            if key=='mashangfei':assert any(not r['ok'] and r['check']=='不同时段独立计数' for r in report['checks'][0])
+        observer=host.agents['svc-nail-lingxi']
+        observer.provider.model=lambda request,files:{'hasBooking':True,'hasCancellation':True,'hasCapacityControl':True}
+        observation=observer.selftest(quotes[0]['cardDigest'],faulty)
+        assert observation['status']=='pass'  # Declared observation double; no delivery execution by L2.
+        assert [r['check'] for r in observation['checks'][0]]==defs['nail-lingxi']['verifier']['criteria']
+        for key in ('lingxi','kuaida','mashangfei'):
+            template=c.templates(base+'/a2a/providers/svc-nail-'+key)[0]
+            assert all(name in template['deliverables'][0]['description'] for name in defs['nail-'+key]['verifier']['criteria'])
         cd=quotes[-1]['cardDigest']
         with pytest.raises(ValueError,match='confirmation'):c.adopt(cd)
         c.adopt(cd,confirmed=True)
@@ -92,6 +112,7 @@ def test_named_flow_three_proposals_four_gates_and_real_acceptance(platform,loca
         report=c.verify(cd,1)
         assert report['status']=='pass',report
         assert len(report['checks'][0])==10
+        assert [r['check'] for r in report['checks'][0]]==defs['nail-mashangfei']['verifier']['criteria']
         assert not c.client.card(cd)['signatures']['7']
         with pytest.raises(ValueError,match='confirmation'):c.accept(cd,1)
         receipt=c.accept(cd,1,confirmed=True);assert receipt['status']=='pass'

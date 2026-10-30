@@ -55,6 +55,11 @@ def materialize(s: dict, origin: str) -> dict:
         v = {"id": v["id"], "reads": reads, "source": common_source().replace("__RULES__", json.dumps(rules, ensure_ascii=False))}
     elif "script" in v:
         src = (VERIFIERS_DIR / v["script"]).read_text(encoding="utf-8")
+        if "__CRITERIA__" in src:
+            criteria=v.get("criteria")
+            if not isinstance(criteria,list) or not criteria or not all(isinstance(x,str) and x for x in criteria):
+                raise ValueError("Verifier criteria must be nonempty text items")
+            src=src.replace("__CRITERIA__",json.dumps(criteria,ensure_ascii=False))
         v = {**v, "reads": list(v.get("reads", [])), "source": src}
     elif v and "source" not in v:
         raise ValueError(f"{origin}/{s.get('id')}：verifier 须有 checks 或 script")
@@ -71,6 +76,12 @@ def materialize(s: dict, origin: str) -> dict:
         dl=dict(s["deliverable"])
         desc=dl.get("description",dl.get("title",dl["name"]))
         if note not in desc:dl["description"]=desc+" "+note
+        s["deliverable"]=dl
+    criteria=s.get("verifier",{}).get("criteria")
+    if criteria:
+        dl=dict(s["deliverable"])
+        dl["description"]+=" 可复核验收判据："+"；".join(str(i+1)+"."+text for i,text in enumerate(criteria))+"。"
+        dl["description"]+="执行方式："+("模型观察源码中的三类功能，由WASM程序检查布尔观察结果；不运行交付行为测试。" if s["verifier"].get("kind")=="skill" else "在WASM中直接调用交付源码；竞争请求及重试按顺序模拟，不是实际网络故障或多线程压力试验。")
         s["deliverable"]=dl
     s["origin"] = origin
     return s

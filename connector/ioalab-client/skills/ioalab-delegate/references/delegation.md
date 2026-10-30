@@ -19,7 +19,7 @@
 | 5 确定候选集合 | 读完整验签模板的交付、inputs、specSchema、pricing、acceptance、期限；记录每家合格/排除/待补材料及依据 | 验收覆盖偏好用于后续推荐，不能据此让其他满足需求的服务免于询价。材料未备齐先看其他候选；不足再问用户 |
 | 6 准备规格 | 各spec按deliverable name分组，值符合模板；材料用materials={名称:{path,declared}} | 不猜字段或隐藏复杂JSON。用户没给的非关键默认值须在合同确认时说明，关键缺失先补齐 |
 | 7 征集正式报价 | 对**每个合格候选**：proposal类型`request {template_digest,spec,materials?,budget,scope_id}`加--confirmed；其他类型`draft`同参数 | 保存每份cardDigest和derived.total。**proposalFee只收拟卡费，绝不是合同价；不拿它或公示参考价作为正式报价**。有未报价合格候选且授权费用足够，就继续本项；不能要求用户先选一家才拟卡 |
-| 8 比较并问具体合同 | `inspect {cd}`读各份真实卡；多家时`compare {providers,selected,reason,cd}`记录推荐依据，再完整说明推荐合同并等待用户确认 | 比较实际成果/判据/金额/期限及用户偏好；不编星级或绝对质量保证。总费用含所有拟卡费。只有1家合格/用户指定单方/费用不足才说明原因并减少询价，不固定三家 |
+| 8 比较并问具体合同 | `inspect {cd}`读各份真实卡；多家时`compare {providers,selected,reason,cd}`记录推荐依据，再完整说明推荐合同并等待用户确认 | 逐项比较判据覆盖、检查方式、失败条件与未覆盖项，再联系需求/价格/期限；不只数条目，不编星级或声称质量最好。总费用含所有拟卡费。只有1家合格/用户指定单方/费用不足才说明原因并减少询价，不固定三家 |
 | 9 定约开工 | 确认具体合同后，proposal用`adopt {cd}`，其他用`sign {cd}`；然后`start {cd}`，均加--confirmed | 确认内容包含规格/默认值、材料、亲签条款、每期金额、拟卡费合计、期限及未覆盖项；不扩张授权 |
 | 10 等待环节/交付 | `watch {cd,timeout:60}`或`poll {cd}`；实际stepRequest出现才询问，按答复`answer-step {cd,granted}`加--confirmed | 没有环节就继续等，不固定实名。参数按真实卡，不重建任务；确认开工不等于确认环节 |
 | 11 本地验收 | anchored事件给出period后，`fetch {cd,period}`→`verify {cd,period}` | WASM实际报告才算证据；pending等到notBefore，fail/error不签7不付款，讨论修正/仲裁 |
