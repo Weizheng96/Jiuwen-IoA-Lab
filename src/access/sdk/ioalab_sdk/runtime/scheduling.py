@@ -104,11 +104,13 @@ class Scheduler:
     def bind_session(self,job,session):
         if not isinstance(session,str) or not session:raise RuntimeFault('protocol_error','A real host session is required')
         with self.store.transaction() as conn:
-            row=conn.execute('SELECT session,state FROM runtime_jobs WHERE id=?',(job,)).fetchone()
+            row=conn.execute('SELECT session,state,interaction,handler FROM runtime_jobs WHERE id=?',(job,)).fetchone()
             if not row or row['state']!='running':raise RuntimeFault('not_ready','Job is not currently executing')
+            if self.handlers[row['handler']].control:raise RuntimeFault('forbidden','A protocol control handler cannot bind or execute a host session')
             if row['session'] and row['session']!=session:raise RuntimeFault('identity_conflict','Host session changed')
-            conflict=conn.execute("SELECT 1 FROM runtime_jobs WHERE id!=? AND session=? AND state IN ('running','waiting','unknown')",(job,session)).fetchone()
-            if conflict:raise RuntimeFault('not_ready','Another unresolved job owns this host session')
+            conflicts=conn.execute("SELECT handler,interaction FROM runtime_jobs WHERE id!=? AND session=? AND state IN ('running','waiting','unknown')",(job,session)).fetchall()
+            if any(other['interaction']!=row['interaction'] or other['handler'] not in self.handlers or not self.handlers[other['handler']].control for other in conflicts):
+                raise RuntimeFault('not_ready','Another unresolved job owns this host session')
             conn.execute('UPDATE runtime_jobs SET session=? WHERE id=?',(session,job))
 
     @staticmethod
@@ -197,8 +199,6 @@ class Scheduler:
     def _next(self):
         with self.store.transaction() as conn:
             held=conn.execute("SELECT id,interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')").fetchall()
-            interactions={r['interaction'] for r in held}
-            sessions={r['session'] for r in held if r['session']}
             models=sum(self.handlers[r['handler']].uses_model for r in held
                        if r['state']=='running' and not r['model_waiting'] and r['handler'] in self.handlers)
             business_threads=sum(not self.handlers[r['handler']].control for r in held if r['id'] in self._active and r['handler'] in self.handlers)
@@ -208,7 +208,17 @@ class Scheduler:
                     conn.execute("UPDATE runtime_jobs SET state='failed',result=? WHERE id=?",(encode({'error':{'code':'expired'}}),row['id']))
                     continue
                 if not handler or row['revision']!=handler.revision or handler.ready and not handler.ready():continue
-                if row['interaction'] in interactions or (row['session'] and row['session'] in sessions):continue
+                blocked=False
+                for other in held:
+                    if other['interaction']!=row['interaction'] and not (row['session'] and row['session']==other['session']):continue
+                    prior=self.handlers.get(other['handler'])
+                    # Only installed non-model controls for this same interaction
+                    # may receive facts while its business execution is unresolved.
+                    # Controls still serialize with controls; business never bypasses.
+                    if handler.control and prior and not prior.control and other['interaction']==row['interaction']:continue
+                    blocked=True
+                    break
+                if blocked:continue
                 if handler.uses_model and models>=self.max_models:continue
                 if not handler.control and business_threads>=max(1,self.max_workers-2):continue
                 conn.execute("UPDATE runtime_jobs SET state='running' WHERE id=?",(row['id'],))

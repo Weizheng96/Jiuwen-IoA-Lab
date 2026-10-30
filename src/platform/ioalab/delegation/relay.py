@@ -11,14 +11,37 @@ from ..errors import LabError
 
 SCHEMA='''CREATE TABLE IF NOT EXISTS delegation_protocol_calls(
  message TEXT PRIMARY KEY,interaction TEXT NOT NULL,admission TEXT NOT NULL,op TEXT NOT NULL,
- state TEXT NOT NULL,last_result TEXT,last_hash TEXT,task TEXT,
- UNIQUE(interaction,op));'''
+ state TEXT NOT NULL,last_result TEXT,last_hash TEXT,task TEXT);'''
 
 
 class ProtocolRelay:
     def __init__(self,db,identities,admissions,scopes,files,*,clock):
         self.db,self.identities,self.admissions,self.scopes,self.files,self.clock=db,identities,admissions,scopes,files,clock
         with db.lock:db.conn.executescript(SCHEMA)
+        self._migrate_calls()
+
+    def _migrate_calls(self):
+        # Older releases allowed one method per interaction, which loses later
+        # periods. Preserve every original call before replacing that constraint.
+        with self.db.tx() as conn:
+            indexes=conn.execute('PRAGMA index_list(delegation_protocol_calls)').fetchall()
+            obsolete=set()
+            for index in indexes:
+                quoted='"'+index['name'].replace('"','""')+'"'
+                columns=[row['name'] for row in conn.execute('PRAGMA index_info('+quoted+')')]
+                if index['unique'] and columns==['interaction','op']:obsolete.add(index['name'])
+            if not obsolete:return
+            expected=['message','interaction','admission','op','state','last_result','last_hash','task']
+            if [row['name'] for row in conn.execute('PRAGMA table_info(delegation_protocol_calls)')]!=expected:
+                raise LabError('not_ready','Restore or migrate the unknown original call schema before startup',status=409)
+            definitions=[row['sql'] for row in conn.execute("SELECT name,type,sql FROM sqlite_master WHERE tbl_name='delegation_protocol_calls' AND type IN ('index','trigger') AND sql IS NOT NULL") if row['type']!='index' or row['name'] not in obsolete]
+            conn.execute(SCHEMA.replace('IF NOT EXISTS delegation_protocol_calls','delegation_protocol_calls_upgraded'))
+            conn.execute('INSERT INTO delegation_protocol_calls_upgraded SELECT * FROM delegation_protocol_calls')
+            count=conn.execute('SELECT COUNT(*) FROM delegation_protocol_calls').fetchone()[0]
+            if conn.execute('SELECT COUNT(*) FROM delegation_protocol_calls_upgraded').fetchone()[0]!=count:raise RuntimeError('Original call migration did not preserve every row')
+            conn.execute('DROP TABLE delegation_protocol_calls')
+            conn.execute('ALTER TABLE delegation_protocol_calls_upgraded RENAME TO delegation_protocol_calls')
+            for definition in definitions:conn.execute(definition)
 
     def check_request_in(self,conn,value):
         payload=value['body']
@@ -55,7 +78,7 @@ class ProtocolRelay:
 
     def request_in(self,conn,value):
         self.check_request_in(conn,value)
-        if conn.execute('SELECT 1 FROM delegation_protocol_calls WHERE interaction=? AND op=?',(value['interactionId'],value['body']['op'])).fetchone():
+        if value['body']['op'] in ('request.submit','card.countersign') and conn.execute('SELECT 1 FROM delegation_protocol_calls WHERE interaction=? AND op=?',(value['interactionId'],value['body']['op'])).fetchone():
             raise LabError('id_conflict','Resume the original protocol message instead of signing a replacement',status=409)
         self.files.grant_in(conn,value['sender'],value['recipient'],value['body']['files'])
         if value['body']['op']=='request.submit':

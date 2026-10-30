@@ -248,6 +248,48 @@ def test_lost_market_reply_recovers_original_signatures_without_repeating_model_
         finally:fresh_assistant.close();fresh_provider.close()
 
 
+def test_saved_original_result_recovers_without_host_or_current_service_config(platform,tmp_path,monkeypatch):
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        original=provider.connection.call;lost=[]
+        def drop(actor,kind,payload,**kwargs):
+            result=original(actor,kind,payload,**kwargs)
+            if kind=='a2c.market' and not lost:
+                lost.append(copy.deepcopy(result))
+                raise RuntimeFault('unknown_result','test lost the already committed market result')
+            return result
+        with monkeypatch.context() as patch:
+            patch.setattr(provider.connection,'call',drop)
+            patch.setattr(EndpointSession,'recover',lambda *_:None)
+            started,_=request(assistant,provider,template,task);ref=started['data']['quoteRef']
+            wait_for(lambda:terminal(assistant,ref));assert terminal(assistant,ref)['status']=='unknown'
+            assert len(host.turns)==1 and lost
+            actor=provider.identities[0].agent_id
+            session=host.turns[0].session_id or provider.store.interaction(interaction_id=host.turns[0].interaction_id)['session']
+            provider.close()
+        # Keep the identity and frozen contract context; remove only the config
+        # used for accepting NEW work, and do not install a model host.
+        path=tmp_path/'provider'/'config.json'
+        values=read_json(path);values['provider']={'services':{}};private_json(path,values)
+        role=ProviderRole();recovered=ResidentRuntime(RuntimeConfig.load(path),modules=(role,)).start()
+        try:
+            wait_for(lambda:recovered.connection.connected)
+            wait_for(lambda:terminal(assistant,ref) and terminal(assistant,ref)['status']=='completed')
+            result=terminal(assistant,ref)
+            assert result['data']['card']==lost[0]['card']
+            assert recovered.store.interaction(interaction_id=result['data']['interactionId'])['session']==session
+            assert recovered.scheduler.status()['states'].get('unknown',0)==0 and len(host.turns)==1
+            assert 'provider.control' in recovered.scheduler.handlers and not role.ready('service')
+            assert len(platform.db.rows('SELECT * FROM transfers WHERE payee_id=?',recovered.account.account['id']))==1
+            # A fresh intent can be received but cannot start/consume capacity.
+            request(assistant,recovered,template,task)
+            wait_for(lambda:sum(frame['message']['kind']=='delegation.intent' for frame in recovered.store.messages(actor))==2)
+            role.execution.scan()
+            with recovered.store.lock:
+                assert recovered.store.db.execute("SELECT COUNT(*) FROM runtime_jobs WHERE handler='provider.a2c'").fetchone()[0]==1
+            assert len(platform.db.rows('SELECT * FROM delegation_admissions WHERE service=?',actor))==1
+        finally:recovered.close()
+
+
 def test_unknown_host_is_reported_without_faking_failure_or_reexecuting_it(platform,tmp_path,monkeypatch):
     with participants(platform,tmp_path) as (provider,assistant,host,template,task):
         calls=[]

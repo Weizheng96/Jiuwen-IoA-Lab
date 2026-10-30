@@ -37,9 +37,11 @@ class ProviderExecution:
         self.errors={}
 
     def bind(self):
-        if not self.host or not self.configs:return {}
-        return {'jobs':{'provider.a2c':JobHandler(self.run,'provider-a2c-v1',True,lambda:bool(self.host.capabilities().get('available'))),
+        if not self.role.identities:return {}
+        return {'jobs':{'provider.a2c':JobHandler(self.run,'provider-a2c-v1',True,self.model_available),
                         'provider.control':JobHandler(self.run,'provider-control-v1',False,control=True)},'profiles':list(self.configs)}
+
+    def model_available(self):return bool(self.host and self.host.capabilities().get('available'))
 
     def start(self):
         self.thread=threading.Thread(target=self.listen,name='ioa-provider',daemon=True);self.thread.start()
@@ -67,7 +69,7 @@ class ProviderExecution:
         while not self.stop.is_set():
             self.changed.clear()
             try:
-                if self.runtime.connection.connected and self.host and self.host.capabilities().get('available'):
+                if self.runtime.connection.connected:
                     self.scan()
             except (RuntimeFault,httpx.HTTPError):pass
             except Exception as exc:
@@ -101,13 +103,13 @@ class ProviderExecution:
             except Exception as exc:
                 self.published.pop(profile,None)
                 self.errors['profile:'+profile]={'code':getattr(exc,'code','not_ready'),'type':type(exc).__name__}
-        for profile,config in self.configs.items():
-            identity=self.role.identities[profile]
+        for profile,identity in self.role.identities.items():
             for frame in self.runtime.store.messages(identity.agent_id):
                 value=frame['message'];kind=value.get('kind')
                 if value.get('payloadAvailable') is False or kind not in ('delegation.intent','a2c.request'):continue
                 try:
-                    if kind=='delegation.intent':self.intent(identity,value)
+                    if kind=='delegation.intent':
+                        if self.ready(profile):self.intent(identity,value)
                     else:self.schedule(identity,value)
                 except RuntimeFault as exc:
                     self.errors[value['messageId']]={'code':exc.code}
@@ -175,6 +177,7 @@ class ProviderExecution:
             return
         except RuntimeFault as exc:
             if exc.code!='not_ready':raise
+        if message['body']['op'] in ('request.submit','card.countersign') and not self.model_available():return
         if instant(message['expiresAt'])<=time.time():return
         self.runtime.scheduler.submit(identity.agent_id,relation['id'],handler,{'messageId':message['messageId'],'profile':identity.profile},
             operation_id=message['messageId'],session=relation['session'],deadline=instant(message['expiresAt']),admitted=True)
@@ -190,6 +193,7 @@ class ProviderExecution:
             aid=original['admission']['admissionId'];store=ProtocolStore(self.runtime.store,identity.agent_id,relation['id'])
             config=store.get('context','config')
             if config is None:
+                if identity.profile not in self.configs:raise RuntimeFault('not_ready','Restore the original local service configuration')
                 config={key:self.configs[identity.profile].get(key,[] if key=='skills' else {} if key=='resources' else '') for key in ('instructions','skills','resources')};store.put('context','config',config)
             transport=SessionTransport(self.runtime,identity,relation['id'],aid,relation['peer'],public=self.public)
             provider=Provider(identity.signer,market=self.runtime.account.config['market'],keys=Directory(fetch=transport.jwks),transport=transport,

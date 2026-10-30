@@ -65,6 +65,58 @@ def test_parallel_models_exclude_same_interaction_and_real_session_without_block
     finally:gate.set();queue.close()
 
 
+@pytest.mark.parametrize('business_state',['running','waiting','unknown'])
+def test_same_interaction_control_can_progress_without_resuming_or_repeating_business(store,business_state):
+    release=threading.Event();control_release=threading.Event();calls=[]
+    def business(job):
+        calls.append(job['id'])
+        if business_state=='running':assert release.wait(10)
+        return JobOutcome(business_state if business_state!='running' else 'completed',{'business':True},job['session'])
+    def control(job):
+        with pytest.raises(RuntimeFault,match='cannot bind'):queue.bind_session(job['id'],'original-session')
+        if job['payload'].get('wait'):assert control_release.wait(10)
+        return JobOutcome('completed',{'originalReceipt':True},job['session'])
+    queue=Scheduler(store,{'model':JobHandler(business,'v1'),
+        'control':JobHandler(control,'v1',False,control=True)},max_models=1,max_workers=4).start()
+    try:
+        original=submit(queue,'original',session='original-session')
+        wait_for(lambda:queue.get(original)['status']==business_state)
+        first=submit(queue,'original',handler='control',session='original-session',payload={'wait':True})
+        wait_for(lambda:queue.get(first)['status']=='running')
+        second=submit(queue,'original',handler='control',session='original-session')
+        other=submit(queue,'different-interaction',handler='control',session='original-session')
+        business_next=submit(queue,'original',session='original-session')
+        assert all(queue.get(job)['status']=='queued' for job in (second,other,business_next))
+        control_release.set();wait_for(lambda:queue.get(second)['status']=='completed')
+        assert queue.get(original)['status']==business_state and calls==[original]
+        assert queue.get(other)['status']==queue.get(business_next)['status']=='queued'
+        release.set()
+        if business_state=='running':wait_for(lambda:queue.get(original)['status']=='completed')
+    finally:release.set();control_release.set();queue.close()
+
+
+def test_host_session_binding_ignores_only_registered_control_of_its_own_interaction(store):
+    model_started=threading.Event();bind=threading.Event();control_started=threading.Event();release=threading.Event()
+    def model(job):
+        model_started.set();assert bind.wait(10)
+        queue.bind_session(job['id'],'real-session')
+        return JobOutcome('completed',{},'real-session')
+    def control(job):
+        control_started.set();assert release.wait(10)
+        return JobOutcome('completed',{},'real-session')
+    queue=Scheduler(store,{'model':JobHandler(model,'v1'),
+        'control':JobHandler(control,'v1',False,control=True)}).start()
+    try:
+        original=submit(queue,'one')
+        assert model_started.wait(5)
+        inbound=submit(queue,'one',handler='control',session='real-session')
+        assert control_started.wait(5)
+        bind.set();wait_for(lambda:queue.get(original)['status']=='completed')
+        assert queue.get(original)['sessionId']=='real-session'
+        release.set();wait_for(lambda:queue.get(inbound)['status']=='completed')
+    finally:bind.set();release.set();queue.close()
+
+
 def test_waiting_releases_model_slot_and_resumes_only_original_session(store):
     def run(job):
         return JobOutcome('completed' if job['continuation'] else 'waiting',{'real':job['continuation']},job['session'])
