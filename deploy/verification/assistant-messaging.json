@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-30",
+  "scope": "Real original Jiuwen via public Process SDK; real HTTP/WS resident roles; isolated scripted user confirmation through local browser channel; deterministic test tool. No mail/calendar or native web visibility claim.",
+  "command": "pytest tests/test_assistant_role.py::test_real_jiuwen_process_handles_two_incoming_requests_in_one_session (explicit local Jiuwen/model environment)",
+  "model": "qwen-flash#0",
+  "protocol": "0.1",
+  "interactionId": "a1481486-ee0c-4899-b954-0179f1c4420a",
+  "sessionId": "process_cli_1a18d7955bf_56c5abd13e60",
+  "requests": ["bf94a15e-3c29-5193-8ae9-c742ca931783", "4b2741e9-a9ad-5a36-9efe-493e8cf5bbaa"],
+  "results": [{"status": "conflict", "suggested": "second"}, {"status": "reserved", "suggested": ""}],
+  "toolEffects": 2,
+  "jobs": {"completed": 2}
+}

@@ -31,7 +31,7 @@ def current_documents():
     files.extend((ROOT / ".agents/skills").rglob("*.md"))
     files.extend((ROOT / "demo").glob("*/剧本.md"))
     for folder in (
-        "src/platform", "src/access/sdk", "official-services", "personal-assistant", "connector",
+        "src/platform", "src/access/sdk", "src/hosts/jiuwen", "src/official", "official-services", "personal-assistant", "connector",
         "experiments", "demo", "demo/verification",
     ):
         files.append(ROOT / folder / "README.md")

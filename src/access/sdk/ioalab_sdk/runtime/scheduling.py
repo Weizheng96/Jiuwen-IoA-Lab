@@ -1,5 +1,6 @@
 """Durable role jobs, with interaction/session exclusion and a separate model limit."""
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
 import json
@@ -30,6 +31,7 @@ class JobHandler:
     run: Callable
     revision: str
     uses_model: bool=True
+    ready: Callable|None=None
 
 
 class Scheduler:
@@ -51,6 +53,8 @@ class Scheduler:
         self._pool=ThreadPoolExecutor(max_workers=max_workers,thread_name_prefix='ioa-role')
         with store.lock:store.db.executescript(SCHEMA)
         with store.transaction() as conn:
+            if 'model_waiting' not in {row[1] for row in conn.execute('PRAGMA table_info(runtime_jobs)')}:
+                conn.execute('ALTER TABLE runtime_jobs ADD COLUMN model_waiting INTEGER NOT NULL DEFAULT 0')
             # A process boundary is not evidence that an external action failed.
             conn.execute("UPDATE runtime_jobs SET state='unknown',result=? WHERE state='running'",
                          (encode({'error':{'code':'unknown_result','recovery':'reconcile_role'}}),))
@@ -73,7 +77,7 @@ class Scheduler:
         original=encode({'actor':actor,'interaction':interaction,'handler':handler,'revision':revision,
                          'payload':payload,'session':session,'deadline':deadline})
         fingerprint=hashlib.sha256(original.encode()).hexdigest()
-        job=str(uuid.uuid5(uuid.NAMESPACE_URL,encode(['ioa-job',actor,handler,operation_id])))
+        job=self.reference(actor,handler,operation_id)
         with self.store.transaction() as conn:
             row=conn.execute('SELECT * FROM runtime_jobs WHERE id=?',(job,)).fetchone()
             if row:
@@ -84,12 +88,26 @@ class Scheduler:
                 raise RuntimeFault('forbidden','Job identity is outside this instance')
             count=conn.execute("SELECT COUNT(*) FROM runtime_jobs WHERE state IN ('queued','running','waiting','unknown')").fetchone()[0]
             if count>=self.max_pending:raise RuntimeFault('quota_exceeded','Local pending queue is full','wait_for_capacity')
-            conn.execute('INSERT INTO runtime_jobs VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            conn.execute('INSERT INTO runtime_jobs(id,actor,interaction,session,handler,revision,payload,fingerprint,state,created,deadline,result,continuation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
                          (job,actor,interaction,session,handler,revision,encode(payload),fingerprint,
                           'queued',time.time(),deadline,None,None))
             result=self._public(conn.execute('SELECT * FROM runtime_jobs WHERE id=?',(job,)).fetchone())
         with self._condition:self._condition.notify_all()
         return result
+
+    @staticmethod
+    def reference(actor,handler,operation):
+        return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(['ioa-job',actor,handler,operation])))
+
+    def bind_session(self,job,session):
+        if not isinstance(session,str) or not session:raise RuntimeFault('protocol_error','A real host session is required')
+        with self.store.transaction() as conn:
+            row=conn.execute('SELECT session,state FROM runtime_jobs WHERE id=?',(job,)).fetchone()
+            if not row or row['state']!='running':raise RuntimeFault('not_ready','Job is not currently executing')
+            if row['session'] and row['session']!=session:raise RuntimeFault('identity_conflict','Host session changed')
+            conflict=conn.execute("SELECT 1 FROM runtime_jobs WHERE id!=? AND session=? AND state IN ('running','waiting','unknown')",(job,session)).fetchone()
+            if conflict:raise RuntimeFault('not_ready','Another unresolved job owns this host session')
+            conn.execute('UPDATE runtime_jobs SET session=? WHERE id=?',(session,job))
 
     @staticmethod
     def _public(row):
@@ -105,9 +123,39 @@ class Scheduler:
     def status(self):
         with self.store.lock:
             counts=dict(self.store.db.execute('SELECT state,COUNT(*) FROM runtime_jobs GROUP BY state').fetchall())
+            user_waits=self.store.db.execute("SELECT COUNT(*) FROM runtime_jobs WHERE state='running' AND model_waiting=1").fetchone()[0]
         with self._condition:
             return {'states':counts,'active':len(self._active),'draining':self._draining,'maxModelRuns':self.max_models,
-                    'maxPendingRequests':self.max_pending,'error':self.error}
+                    'maxPendingRequests':self.max_pending,'waitingForUser':user_waits,'error':self.error}
+
+    @contextmanager
+    def user_wait(self,job,*,cancelled=lambda:False):
+        """Keep the original child/session alive while yielding only its model slot."""
+        with self._condition,self.store.transaction() as conn:
+            row=conn.execute('SELECT state,model_waiting FROM runtime_jobs WHERE id=?',(job,)).fetchone()
+            if not row or row['state']!='running' or row['model_waiting']:
+                raise RuntimeFault('id_conflict','Only the current running job can await its native user')
+            conn.execute('UPDATE runtime_jobs SET model_waiting=1 WHERE id=?',(job,))
+            self._condition.notify_all()
+        try:yield
+        except BaseException:
+            # The original child is aborting, so there is no model round to resume.
+            # Its executing handler still owns the interaction until its outcome.
+            raise
+        else:
+            # Answering a question does not grant extra model concurrency or a stale lease.
+            with self._condition:
+                while True:
+                    if self._stop.is_set() or self._draining or cancelled():
+                        raise RuntimeFault('closed','Runtime stopped while the original user question was waiting')
+                    with self.store.transaction() as conn:
+                        running=conn.execute("SELECT handler FROM runtime_jobs WHERE state='running' AND model_waiting=0").fetchall()
+                        models=sum(self.handlers[row['handler']].uses_model for row in running if row['handler'] in self.handlers)
+                        if self.can_dispatch() and models<self.max_models:
+                            conn.execute('UPDATE runtime_jobs SET model_waiting=0 WHERE id=?',(job,))
+                            self._condition.notify_all()
+                            break
+                    self._condition.wait(.1)
 
     def resume(self,job,continuation):
         """Only a role/host owner calls this after validating its real continuation."""
@@ -136,24 +184,27 @@ class Scheduler:
         encode(value.data)
 
     def _save_outcome(self,conn,row,outcome):
+        # The real session can be learned by an event callback during this turn.
+        current=conn.execute('SELECT session FROM runtime_jobs WHERE id=?',(row['id'],)).fetchone()
+        row={**dict(row),'session':current['session']}
         if row['session'] and outcome.session and row['session']!=outcome.session:
             raise RuntimeFault('identity_conflict','Execution changed its fixed host session')
-        conn.execute('UPDATE runtime_jobs SET state=?,result=?,session=? WHERE id=?',
+        conn.execute('UPDATE runtime_jobs SET state=?,result=?,session=?,model_waiting=0 WHERE id=?',
                      (outcome.state,encode(outcome.data),outcome.session or row['session'],row['id']))
 
     def _next(self):
         with self.store.transaction() as conn:
-            held=conn.execute("SELECT interaction,session,handler,state FROM runtime_jobs WHERE state IN ('running','unknown')").fetchall()
+            held=conn.execute("SELECT interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')").fetchall()
             interactions={r['interaction'] for r in held}
             sessions={r['session'] for r in held if r['session']}
             models=sum(self.handlers[r['handler']].uses_model for r in held
-                       if r['state']=='running' and r['handler'] in self.handlers)
+                       if r['state']=='running' and not r['model_waiting'] and r['handler'] in self.handlers)
             for row in conn.execute("SELECT * FROM runtime_jobs WHERE state='queued' ORDER BY created,id").fetchall():
                 handler=self.handlers.get(row['handler'])
-                if not handler or row['revision']!=handler.revision:continue
                 if row['deadline'] is not None and row['deadline']<=time.time():
                     conn.execute("UPDATE runtime_jobs SET state='failed',result=? WHERE id=?",(encode({'error':{'code':'expired'}}),row['id']))
                     continue
+                if not handler or row['revision']!=handler.revision or handler.ready and not handler.ready():continue
                 if row['interaction'] in interactions or (row['session'] and row['session'] in sessions):continue
                 if handler.uses_model and models>=self.max_models:continue
                 conn.execute("UPDATE runtime_jobs SET state='running' WHERE id=?",(row['id'],))

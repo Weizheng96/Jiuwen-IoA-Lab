@@ -7,7 +7,7 @@ import pytest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'demo'))
 from smtp_capture import Capture
 from ioalab_sdk.calendar import SMTPNotification,GraphCalendar,invitation
-from ioalab_sdk.assistant import AssistantHandlers
+from ioalab_tools.handlers import AssistantHandlers
 from ioalab_sdk.messaging import MailboxClient
 from _support import PASSWORD,new_user
 

@@ -3,8 +3,8 @@ from datetime import datetime,timezone,timedelta
 from contextlib import nullcontext
 import time
 from zoneinfo import ZoneInfo
-from .lease import Lease
-from .messaging import RetryLater
+from ioalab_sdk.lease import Lease
+from ioalab_sdk.messaging import RetryLater
 
 FORWARD_SCHEMA={'type':'object','properties':{'text':{'type':'string','minLength':1,'maxLength':4000}},'required':['text'],'additionalProperties':False}
 MEETING_SCHEMA={'type':'object','properties':{'title':{'type':'string','minLength':1,'maxLength':200},'start':{'type':'string','format':'date-time'},'end':{'type':'string','format':'date-time'},'timeZone':{'type':'string','maxLength':64}},'required':['title','start','end','timeZone'],'additionalProperties':False}

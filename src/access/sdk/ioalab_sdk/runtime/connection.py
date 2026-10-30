@@ -30,6 +30,7 @@ class AgentConnection:
         self._socket = None
         self._ready = False
         self.error = None
+        self.on_delivery=None
         self._clock,self._lease_until=clock,0
 
     @property
@@ -168,6 +169,7 @@ class AgentConnection:
                 self._error_frame(frame)
                 if frame.get('type')=='message.deliver':
                     self.store.receive(frame)
+                    if self.on_delivery:self.on_delivery()
                 elif frame.get('type')=='operation.result':
                     self.store.complete(frame)
                     if not frame['ok'] and frame['error']['code']=='stale_generation':

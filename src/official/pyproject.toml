@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ioalab-official"
+dynamic = ["version"]
+description = "Optional official participant business tools and resources for IoA Lab"
+requires-python = ">=3.11"
+dependencies = ["ioalab-sdk>=0.0.39"]
+
+[tool.setuptools]
+package-dir = {"" = "tools"}
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.setuptools.packages.find]
+where = ["tools"]
+include = ["ioalab_tools*"]

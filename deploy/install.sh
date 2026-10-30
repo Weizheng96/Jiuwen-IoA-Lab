@@ -43,7 +43,7 @@ if [ ! -x .venv/bin/python ]; then
 fi
 .venv/bin/python -m pip install -q --upgrade pip
 .venv/bin/python -m pip install -q -r requirements.txt
-.venv/bin/python -m pip install -q -e ./src/platform -e ./src/access/sdk
+.venv/bin/python -m pip install -q -e ./src/platform -e ./src/access/sdk -e ./src/official
 .venv/bin/python tools/build_connector.py
 .venv/bin/ioalab --help >/dev/null
 

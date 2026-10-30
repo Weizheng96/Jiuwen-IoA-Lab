@@ -18,7 +18,7 @@ from .protocol import RuntimeFault
 READ_ONLY={'runtime.status','identity.status','operations.get'}
 
 
-def start(config_path,*,timeout=15):
+def start(config_path,*,timeout=15,command=None):
     config=RuntimeConfig.load(config_path)
     prepare_home(config.home)
     client=LocalClient(config.home,timeout=.5)
@@ -42,7 +42,8 @@ def start(config_path,*,timeout=15):
     log_path=config.home/'runtime.log'
     with log_path.open('a',encoding='utf-8') as stream:
         if os.name!='nt':os.chmod(log_path,0o600)
-        child=subprocess.Popen([sys.executable,'-m','ioalab_sdk.runtime','serve','--config',str(Path(config_path).resolve())],
+        entry=command or [sys.executable,'-m','ioalab_sdk.runtime']
+        child=subprocess.Popen([*entry,'serve','--config',str(Path(config_path).resolve())],
                                cwd=Path(config_path).resolve().parent,stdin=subprocess.DEVNULL,stdout=stream,stderr=stream,
                                creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     until=time.monotonic()+timeout
@@ -70,7 +71,8 @@ def main(argv=None):
     try:
         if args.command=='serve':
             from .resident import ResidentRuntime
-            runtime=ResidentRuntime(RuntimeConfig.load(args.config))
+            from ..assistant.role import AssistantRole
+            runtime=ResidentRuntime(RuntimeConfig.load(args.config),modules=(AssistantRole(),))
             runtime.run()
             return 0
         if args.command=='start':result=start(args.config)

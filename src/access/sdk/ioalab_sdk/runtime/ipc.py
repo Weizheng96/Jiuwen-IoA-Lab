@@ -23,16 +23,18 @@ def public_error(exc):
 
 
 class IpcServer:
-    def __init__(self,home,runtime_id,dispatch):
+    def __init__(self,home,runtime_id,dispatch,*,user_ui=None):
         self.home,self.dispatch=Path(home),dispatch
         self.token=secrets.token_urlsafe(32)
         self.boot_id=str(uuid.uuid4())
         self.runtime_id=runtime_id
+        self.user_ui=user_ui
         self.server=ThreadingHTTPServer(('127.0.0.1',0),self._handler())
         self.server.daemon_threads=False
         self.thread=None
         self.descriptor={'schemaVersion':1,'url':f'http://127.0.0.1:{self.server.server_port}',
                          'token':self.token,'pid':os.getpid(),'runtimeId':runtime_id,'bootId':self.boot_id}
+        if user_ui:user_ui.origin=self.descriptor['url']
 
     def _handler(self):
         owner=self
@@ -46,13 +48,14 @@ class IpcServer:
                 super().setup()
                 self.connection.settimeout(3)
 
-            def reply(self,status,value):
+            def reply(self,status,value,*,headers=None):
                 body=encode(value).encode()
                 self.send_response(status)
                 self.send_header('Content-Type','application/json; charset=utf-8')
                 self.send_header('Content-Length',str(len(body)))
                 self.send_header('Cache-Control','no-store')
                 self.send_header('X-Ioa-Instance',owner.boot_id)
+                for name,value in (headers or {}).items():self.send_header(name,value)
                 self.end_headers()
                 try:self.wfile.write(body)
                 except (BrokenPipeError,ConnectionResetError):pass
@@ -61,6 +64,7 @@ class IpcServer:
                 request=None
                 consumed=False
                 try:
+                    if owner.user_ui and owner.user_ui.handle(self):return
                     if self.path!='/v1/call' or self.headers.get('Origin') is not None:
                         raise RuntimeFault('forbidden','Local RPC does not accept browser or cross-origin calls')
                     if self.headers.get('Host')!=f'127.0.0.1:{owner.server.server_port}':
@@ -110,6 +114,7 @@ class IpcServer:
                         'message':'Original operation needs local recovery','recovery':'resume_original'}})
 
             def do_GET(self):
+                if owner.user_ui and owner.user_ui.handle(self):return
                 self.reply(405,{'error':{'code':'forbidden','message':'Use authenticated local RPC','recovery':'use_sdk'}})
         return Handler
 

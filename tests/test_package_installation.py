@@ -26,9 +26,16 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path):
     stale = source/'build/lib/ioalab/psp/obsolete.py'
     stale.parent.mkdir(parents=True)
     stale.write_text("raise RuntimeError('obsolete module must never ship')\n",encoding='utf-8')
-    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(source),str(ROOT/'src/access/sdk')], tmp_path)
+    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(source),str(ROOT/'src/access/sdk'),str(ROOT/'src/hosts/jiuwen'),str(ROOT/'src/official')], tmp_path)
     with zipfile.ZipFile(next(wheels.glob('ioalab-*.whl'))) as archive:
         assert not any(name.startswith('ioalab/psp/') for name in archive.namelist())
+    with zipfile.ZipFile(next(wheels.glob('ioalab_sdk-*.whl'))) as archive:
+        assert 'ioalab_sdk/runtime/web/user.html' in archive.namelist()
+        assert not any(name.startswith('ioalab_jiuwen/') for name in archive.namelist())
+        assert 'ioalab_sdk/assistant.py' not in archive.namelist()
+        assert not any(name.startswith('ioalab_tools/') for name in archive.namelist())
+    with zipfile.ZipFile(next(wheels.glob('ioalab_official-*.whl'))) as archive:
+        assert 'ioalab_tools/handlers.py' in archive.namelist()
     environment = tmp_path/'installed'
     venv.EnvBuilder(with_pip=True).create(environment)
     python = environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
@@ -37,13 +44,18 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path):
 import importlib.metadata as m, importlib.resources as r, json
 from ioalab.config import Settings
 page=r.files('ioalab').joinpath('web/static/index.html').read_text(encoding='utf-8')
-print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),
+print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host':m.version('ioalab-jiuwen'),'official':m.version('ioalab-official'),
                  'resource':bool(page.strip()),'data':str(Settings().data),
+                 'userPage':bool(m.distribution('ioalab-sdk').locate_file('ioalab_sdk/runtime/web/user.html').read_text(encoding='utf-8').strip()),
+                 'hostEntry':{e.name:e.value for e in m.distribution('ioalab-jiuwen').entry_points if e.group=='console_scripts'}.get('ioalab-jiuwen'),
                  'accessEntry':{e.name:e.value for e in m.distribution('ioalab-sdk').entry_points if e.group=='console_scripts'}.get('ioalab-access')}))
 '''], tmp_path)
     result = json.loads(output)
     assert result['core'] == (ROOT/'src/platform/VERSION').read_text().strip().removeprefix('v')
     assert result['sdk'] == (ROOT/'src/access/sdk/VERSION').read_text().strip().removeprefix('v')
-    assert result['resource']
+    assert result['host'] == (ROOT/'src/hosts/jiuwen/VERSION').read_text().strip().removeprefix('v')
+    assert result['official'] == (ROOT/'src/official/VERSION').read_text().strip().removeprefix('v')
+    assert result['resource'] and result['userPage']
+    assert result['hostEntry']=='ioalab_jiuwen.__main__:main'
     assert result['accessEntry']=='ioalab_sdk.runtime.__main__:main'
     assert ROOT.as_posix().lower() not in result['data'].replace('\\','/').lower()

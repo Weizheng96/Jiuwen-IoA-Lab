@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'src/access/sdk'))
 from ioalab_sdk.messaging import MailboxClient
-from ioalab_sdk.assistant import AssistantHandlers
+from ioalab_tools.handlers import AssistantHandlers
 from ioalab_sdk.calendar import SMTPNotification
 from ioalab_sdk.swarm_web import SwarmWebBridge
 

@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-30",
+  "scope": "Real native ask_user in original Jiuwen Process SDK; isolated scripted browser user. This is not a real human or native web UI acceptance.",
+  "command": "pytest tests/test_assistant_role.py::test_real_jiuwen_native_question_uses_same_child_and_browser_answer (explicit local Jiuwen/model environment)",
+  "model": "qwen-flash#0",
+  "sessionId": "process_cli_1a18d7a2469_564182cfd1c6",
+  "nativeRequestId": "ioa-a8d84d24f79b4c49b40a6ab13d8aed05",
+  "nativeInteractionId": "dabca6486cf3470d90ea0257d7987ed9",
+  "questionCount": 1,
+  "userAnswer": "actual-user-marker",
+  "result": {"status": "actual-user-marker"},
+  "effectsBeforeAnswer": 0,
+  "toolEffects": 1,
+  "modelSlotReleased": true
+}

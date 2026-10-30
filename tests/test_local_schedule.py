@@ -8,7 +8,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 import pytest
 from ioalab_sdk.schedule import LocalSchedule, instant
-from ioalab_sdk.assistant import AssistantHandlers
+from ioalab_tools.handlers import AssistantHandlers
 from ioalab_sdk.messaging import MailboxClient
 from ioalab_sdk.calendar import SMTPNotification
 from _support import new_user, PASSWORD

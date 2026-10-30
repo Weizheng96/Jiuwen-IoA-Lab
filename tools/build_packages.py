@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import zipfile
 
 
@@ -28,8 +29,11 @@ def build_wheel(project,output):
         wheel = wheels[0]
         # These projects use regular packages. Verify the complete Python module list,
         # rather than assuming pip/setuptools discarded earlier build directories.
-        packages = [path for path in source.iterdir() if path.is_dir() and (path/'__init__.py').is_file()]
-        expected = {path.relative_to(source).as_posix() for package in packages for path in package.rglob('*.py')}
+        settings=tomllib.loads((source/'pyproject.toml').read_text(encoding='utf-8'))
+        package_root=(source/settings.get('tool',{}).get('setuptools',{}).get('package-dir',{}).get('','')).resolve()
+        if not package_root.is_relative_to(source):raise ValueError('Package source must stay inside the project snapshot')
+        packages = [path for path in package_root.iterdir() if path.is_dir() and (path/'__init__.py').is_file()]
+        expected = {path.relative_to(package_root).as_posix() for package in packages for path in package.rglob('*.py')}
         with zipfile.ZipFile(wheel) as archive:
             actual = {name for name in archive.namelist() if name.endswith('.py') and name.split('/')[0] in {p.name for p in packages}}
         if actual!=expected:

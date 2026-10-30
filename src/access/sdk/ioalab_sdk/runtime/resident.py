@@ -13,19 +13,22 @@ from .protocol import RuntimeFault
 from .scheduling import Scheduler
 from .session import AccountSession
 from .store import RuntimeStore
+from .confirmations import Confirmations
+from .user_ui import UserUi
 
 
 class ResidentRuntime:
-    def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=()):
+    def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=(),modules=()):
         self.config=config
         self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=None
         self.identities=[]
         self.operations=dict(operations or {})
         self.host_status=host_status or (lambda:{'available':False,'reason':'Host adapter is not configured'})
         self.ready_profiles=set(ready_profiles)
+        self.modules=tuple(modules)
         self.stop_requested=threading.Event()
         self._closed=False
-        reserved={'runtime.status','runtime.stop','identity.status','operations.get','operations.resume'}
+        reserved={'runtime.status','runtime.stop','runtime.open_ui','identity.status','operations.get','operations.resume','confirmations.get'}
         if set(self.operations)&reserved or not all(callable(handler) for handler in self.operations.values()):
             raise ValueError('Register explicit non-reserved role operations')
         try:
@@ -40,9 +43,21 @@ class ResidentRuntime:
             actors=[p.agent_id for p in self.identities]
             self.store=RuntimeStore(config.home/'runtime.sqlite',config.platform,actors,owner_id=self.account.account['id'])
             self.connection=AgentConnection(config.platform,self.account.bearer,actors,self.store)
-            self.scheduler=Scheduler(self.store,jobs or {},max_models=config.max_model_runs,max_pending=config.max_pending_requests,
+            self.confirmations=Confirmations(self.store)
+            job_handlers=dict(jobs or {})
+            for module in self.modules:
+                registration=module.bind(self)
+                registered=registration.get('operations',{})
+                if set(registered)&(reserved|set(self.operations)):raise ValueError('Duplicate role operation')
+                if set(registration.get('jobs',{}))&set(job_handlers):raise ValueError('Duplicate role job handler')
+                self.operations.update(registered)
+                job_handlers.update(registration.get('jobs',{}))
+                self.ready_profiles.update(registration.get('profiles',()))
+            self.scheduler=Scheduler(self.store,job_handlers,max_models=config.max_model_runs,max_pending=config.max_pending_requests,
                                      can_dispatch=lambda:self.connection.connected)
-            self.ipc=IpcServer(config.home,self.store.runtime_id,self.call)
+            self.connection.on_delivery=self._wake_roles
+            self.user_ui=UserUi(self.confirmations)
+            self.ipc=IpcServer(config.home,self.store.runtime_id,self.call,user_ui=self.user_ui)
         except BaseException:
             self.close()
             raise
@@ -50,20 +65,32 @@ class ResidentRuntime:
     def start(self):
         self.scheduler.start()
         self.connection.start(wait=False)
+        for module in self.modules:module.start()
         self.ipc.start()
         return self
+
+    def _wake_roles(self):
+        for module in self.modules:module.wake()
 
     def require_execution(self):
         if not self.connection.connected or self.stop_requested.is_set():
             raise RuntimeFault('not_ready','A current execution connection is required','restore_connection')
 
     def status(self):
+        host=self.host_status()
+        scheduler=self.scheduler.status()
+        connected=self.connection.connected
+        available=bool(host.get('available') and connected and not scheduler['error'] and not self.stop_requested.is_set())
+        def role_ready(profile):
+            return all(module.ready(profile) for module in self.modules
+                       if getattr(module,'identity',None) and module.identity.profile==profile and hasattr(module,'ready'))
         return {'runtimeId':self.store.runtime_id,'bootId':self.ipc.boot_id,'pid':os.getpid(),
                 'ipcReady':bool(self.ipc.thread and self.ipc.thread.is_alive()),
-                'account':self.account.status(),'platformConnected':self.connection.connected,
+                'account':self.account.status(),'platformConnected':connected,
                 'connectionError':public_error(self.connection.error) if self.connection.error else None,
-                'identities':[{**p.public(),'executionReady':p.profile in self.ready_profiles} for p in self.identities],
-                'host':self.host_status(),'scheduler':self.scheduler.status(),'delivery':self.store.summary(),
+                'identities':[{**p.public(),'executionReady':available and p.profile in self.ready_profiles and role_ready(p.profile)} for p in self.identities],
+                'host':host,'scheduler':scheduler,'delivery':self.store.summary(),
+                'roleErrors':[module.error for module in self.modules if getattr(module,'error',None)],
                 'stopping':self.stop_requested.is_set()}
 
     def _delivery_operation(self,args):
@@ -94,6 +121,12 @@ class ResidentRuntime:
             elif operation=='identity.status':
                 if args:raise RuntimeFault('invalid_input','Identity status takes no arguments')
                 data=[p.public() for p in self.identities]
+            elif operation=='runtime.open_ui':
+                if args:raise RuntimeFault('invalid_input','Opening the local user page takes no arguments')
+                data={'opened':self.user_ui.open()}
+            elif operation=='confirmations.get':
+                if set(args)!={'reference'} or not isinstance(args['reference'],str):raise RuntimeFault('invalid_input','Original confirmation reference required')
+                data=self.confirmations.get(args['reference'])
             elif operation=='runtime.stop':
                 if args!={'bootId':self.ipc.boot_id}:raise RuntimeFault('id_conflict','Stop must reference the intended running instance')
                 self.scheduler.drain()
@@ -128,6 +161,7 @@ class ResidentRuntime:
         self._closed=True
         # Keep the DB and OS ownership until all actual work/RPC threads stop.
         if self.scheduler:self.scheduler.drain()
+        for module in self.modules:module.close()
         if self.ipc:self.ipc.close()
         if self.scheduler:self.scheduler.close()
         if self.connection:self.connection.close()

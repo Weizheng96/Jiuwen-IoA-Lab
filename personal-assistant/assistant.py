@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src/access/sdk'))
 from ioalab_sdk.messaging import MailboxClient
-from ioalab_sdk.assistant import AssistantHandlers
+from ioalab_tools.handlers import AssistantHandlers
 from ioalab_sdk.calendar import GraphCalendar,SMTPNotification,OutlookSMTPAuth
 
 def graph(home):

@@ -47,13 +47,21 @@ def prepare_home(path):
 
 
 def private_json(path,value):
+    _write_private(path,lambda stream:json.dump(value,stream,ensure_ascii=False,sort_keys=True,allow_nan=False))
+
+
+def private_text(path,value):
+    _write_private(path,lambda stream:stream.write(value))
+
+
+def _write_private(path,write):
     path=Path(path)
     path.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
     fd,name=tempfile.mkstemp(prefix='.'+path.name+'-',dir=path.parent)
     try:
-        with os.fdopen(fd,'w',encoding='utf-8') as stream:
+        with os.fdopen(fd,'w',encoding='utf-8',newline='\n') as stream:
             restrict(name)
-            json.dump(value,stream,ensure_ascii=False,sort_keys=True,allow_nan=False)
+            write(stream)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(name,path)

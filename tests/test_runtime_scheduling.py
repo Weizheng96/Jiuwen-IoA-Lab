@@ -49,13 +49,15 @@ def test_parallel_models_exclude_same_interaction_and_real_session_without_block
 
 def test_waiting_releases_model_slot_and_resumes_only_original_session(store):
     def run(job):
-        return JobOutcome('completed' if job['continuation'] else 'waiting',{'real':job['continuation']},'fixed-session')
+        return JobOutcome('completed' if job['continuation'] else 'waiting',{'real':job['continuation']},job['session'])
     queue=Scheduler(store,{'model':JobHandler(run,'v1')},max_models=1).start()
     try:
         original=submit(queue,'waiting',session='fixed-session')
         wait_for(lambda:queue.get(original)['status']=='waiting')
-        independent=submit(queue,'independent',session='fixed-session')
+        blocked=submit(queue,'another-request',session='fixed-session')
+        independent=submit(queue,'independent',session='independent-session')
         wait_for(lambda:queue.get(independent)['status']=='waiting')
+        assert queue.get(blocked)['status']=='queued'
         wait_for(lambda:queue.idle)
         queue.resume(original,{'answerEvent':'trusted-host-event'})
         wait_for(lambda:queue.get(original)['status']=='completed')
@@ -82,6 +84,32 @@ def test_unknown_effect_blocks_interaction_and_session_until_role_reconciles(sto
         wait_for(lambda:queue.get(blocked)['status']=='completed')
         assert calls.count('first')==1
     finally:queue.close()
+
+
+def test_live_native_wait_yields_model_but_holds_original_session_and_reacquires_limit(store):
+    answer=threading.Event();other_started=threading.Event();release_other=threading.Event();resumed=threading.Event()
+    def run(job):
+        if job['interaction']=='native':
+            with queue.user_wait(job['id']):assert answer.wait(10)
+            resumed.set()
+        elif job['interaction']=='other':
+            other_started.set()
+            assert release_other.wait(10)
+        return JobOutcome('completed',{},job['session'])
+    queue=Scheduler(store,{'model':JobHandler(run,'v1')},max_models=1).start()
+    try:
+        original=submit(queue,'native',session='native-session')
+        wait_for(lambda:queue.status()['waitingForUser']==1)
+        blocked=submit(queue,'same-session',session='native-session')
+        independent=submit(queue,'other',session='other-session')
+        assert other_started.wait(5)
+        assert queue.get(blocked)['status']=='queued'
+        answer.set()
+        assert not resumed.wait(.2)  # The answer does not overbook the model slot.
+        release_other.set()
+        wait_for(lambda:all(queue.get(job)['status']=='completed' for job in (original,blocked,independent)))
+        assert resumed.is_set() and queue.status()['waitingForUser']==0
+    finally:answer.set();release_other.set();queue.close()
 
 
 def test_queue_replay_conflicts_expiry_and_drain(store):

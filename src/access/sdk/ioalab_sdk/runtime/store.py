@@ -76,6 +76,19 @@ class RuntimeStore:
                     'pendingOperations':self.db.execute('SELECT COUNT(*) FROM runtime_operations WHERE response IS NULL').fetchone()[0],
                     'cursors':dict(self.db.execute('SELECT actor,seq FROM runtime_cursors').fetchall())}
 
+    def checkpoint(self,namespace,key):
+        with self.lock:
+            row=self.db.execute('SELECT value FROM runtime_checkpoints WHERE namespace=? AND key=?',(namespace,key)).fetchone()
+            return json.loads(row[0]) if row else None
+
+    def checkpoint_set(self,namespace,key,value):
+        with self.transaction() as conn:
+            conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',(namespace,key,encode(value)))
+
+    def checkpoints(self,namespace):
+        with self.lock:
+            return {row[0]:json.loads(row[1]) for row in self.db.execute('SELECT key,value FROM runtime_checkpoints WHERE namespace=?',(namespace,)).fetchall()}
+
     def _prepare(self, conn, actor, kind, payload, operation_id):
         if not conn.execute('SELECT 1 FROM runtime_cursors WHERE actor=?', (actor,)).fetchone():
             raise RuntimeFault('forbidden', 'Identity is outside this local instance')
@@ -201,6 +214,16 @@ class RuntimeStore:
             row = self.db.execute('SELECT * FROM runtime_interactions WHERE '+('id=?' if interaction_id else 'origin=?'),
                                   (interaction_id or origin,)).fetchone()
             return {**dict(row),'details':json.loads(row['details'])} if row else None
+
+    def bind_session(self,interaction_id,session,definition_digest):
+        with self.transaction() as conn:
+            row=conn.execute('SELECT session,details FROM runtime_interactions WHERE id=?',(interaction_id,)).fetchone()
+            if not row:raise RuntimeFault('not_ready','Local interaction has not been established')
+            details=json.loads(row['details'])
+            if (row['session'] and row['session']!=session) or details.get('definitionDigest',definition_digest)!=definition_digest:
+                raise RuntimeFault('identity_conflict','Interaction changed its host session or definition')
+            details['definitionDigest']=definition_digest
+            conn.execute('UPDATE runtime_interactions SET session=?,details=? WHERE id=?',(session,encode(details),interaction_id))
 
     def recover_link(self, actor, relation):
         if relation.get('interactionId'):
