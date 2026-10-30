@@ -81,5 +81,23 @@
     "fix": "generate signed readable criteria and WASM report names from one declaration",
     "regression": "same global-capacity fault passes five-check verifier but fails reliable cross-slot checks inside WASM",
     "limits": "sequential source-level simulation, not actual network fault injection or multithread pressure"
+  },
+  "latestPreferenceReview": {
+    "date": "2026-10-30",
+    "model": "qwen3.5-plus",
+    "minimumQuotes": 1,
+    "firstBusinessRequest": "same authored business request; subsequent answers and model runs differ",
+    "signedPrices": [
+      239,
+      259,
+      299
+    ],
+    "selected": "快搭建站",
+    "reason": "快搭建站价格适中（259 币），提供五项基础行为测试，验收标准覆盖预约、查询、满额拒绝、取消释放名额、源码交付，性价比高。码上飞价格最高（299 币）但提供十项可靠性测试；灵犀小程序价格最低（239 币）但仅采用模型观察验收，不运行行为测试。",
+    "finding": "Actual comparison exists; model prefers core coverage and price rather than maximum coverage. Earlier runs chose 码上飞; a budget ceiling alone does not guarantee one provider.",
+    "nativeTraceSha256": "bdf0fac11f7b1d9abb898f0b15d1b79468536f13b55369a4a71542ed1ec31700",
+    "contractConfirmed": false,
+    "newMoviePublished": false,
+    "pendingUserChoice": "express reliability preference in business request, user selects 码上飞, or accept actual recommendation"
   }
 }

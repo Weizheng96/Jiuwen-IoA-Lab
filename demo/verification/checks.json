@@ -1,7 +1,7 @@
 {
   "date": "2026-10-30",
   "pytest": {
-    "passed": 140,
+    "passed": 145,
     "failed": 0
   },
   "selfcheck": "passed: versions, screenplays/movie hashes, documentation links, service definitions, three-process smoke, A2C wheel, runtime boundary, wording and signed evidence",
@@ -75,5 +75,18 @@
     "presentationScope": "platform-message-flow",
     "outlookFootageIncluded": false
   },
-  "multiCandidateReview": "multi-candidate-review.json"
+  "multiCandidateReview": "multi-candidate-review.json",
+  "newDelegationFilm": {
+    "published": false,
+    "workingNarrationClips": 20,
+    "onboarding": "actual registration, configuration save and native skill selection verified",
+    "quotes": [
+      239,
+      259,
+      299
+    ],
+    "latestActualRecommendation": "快搭建站",
+    "pending": "User preference for the authored selection; new full delivery, acceptance, payment and encoding remain unaccepted",
+    "nativeAnswerView": "Server acknowledgement required; read-only session restore verified no stale question fields"
+  }
 }

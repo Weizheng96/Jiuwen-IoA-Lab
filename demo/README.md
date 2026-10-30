@@ -122,3 +122,7 @@ python demo/review_cases.py --recording recordings/<本轮>
 同单接续仅用于已录到三份未签约提案的画面中断：`python demo/record_cases.py --config <原run.json> --case delegation --out <原录像目录> --resume-quotes`。入口核对技能摘要、三份合同及未签约状态，使用原生会话URL恢复，保留screen.webm与独立continuation.webm时间原点；不重复注册、授权或拟卡付费，已有接续片时拒绝覆盖。必需材料的业务追问如实入镜，不注入技能路径或SDK命令。
 
 接续还须保留至少3分钟提案响应余量；最终合同确认前再保留2分钟。以真实签3及模板respondWithin计算，不能改写期限。窗口不足拒绝接续；模型收到deadline-passed应停止，重新授权或付费必须有新的用户同意。
+
+实际规格追问可按已编写剧本作一次自然业务答复；本轮答复仅为非关键默认值随合同确认。summarize_delegation核对同一原生会话的实际问题、用户答复、完整轮次和原片时点，再附加settings镜头；其他operator消息仍拒绝正式发布，不把额外业务确认隐藏为全自动。
+
+原生问答提交后，录制器先等待同一会话的新ask_user_answer回执，再刷新同一会话URL，清除已回答却仍显示的旧表单；不修改九问源码、不隐藏业务结果，未收到回执时停止且不自动重发。

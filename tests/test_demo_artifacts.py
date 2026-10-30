@@ -188,3 +188,39 @@ def test_recording_rejects_expired_or_too_short_proposal_window():
     require_offer_window(card,template,now=at+timedelta(minutes=7))
     with pytest.raises(ValueError,match='response time'):require_offer_window(card,template,now=at+timedelta(minutes=8))
     with pytest.raises(ValueError,match='response time'):require_offer_window(card,template,now=at+timedelta(minutes=11))
+
+
+def test_only_recorded_business_answer_can_use_operator_input():
+    from demo.artifacts import BUSINESS_SETTINGS_REPLY, validate_business_operator
+    proof={'operatorActions':[{'id':'technical-rescue','kind':'message'}]}
+    with pytest.raises(ValueError,match='Unapproved'):validate_business_operator(proof)
+    proof['operatorActions'][0]['id']='business-settings-answer'
+    with pytest.raises(ValueError,match='native question'):validate_business_operator(proof)
+    proof['businessSettingsAnswer']={'text':BUSINESS_SETTINGS_REPLY,'question':'现在需要确认规格参数','nativeTraceSha256':'0'*64}
+    validate_business_operator(proof)
+    proof['businessSettingsAnswer']['text']='请运行 SDK request --confirmed'
+    with pytest.raises(ValueError,match='native question'):validate_business_operator(proof)
+
+
+def test_native_answer_evidence_uses_actual_custom_input():
+    from demo.artifacts import native_user_text
+    assert native_user_text({'role':'user','content':'确认合同'})=='确认合同'
+    native={'role':'assistant','event_type':'chat.ask_user_answer','answers':[{'custom_input':'授权本环节'}]}
+    assert native_user_text(native)=='授权本环节'
+    native['answers'][0]['custom_input']=''
+    assert native_user_text(native) is None
+    native['answers'].append({'custom_input':'another answer'})
+    with pytest.raises(ValueError,match='one native answer'):native_user_text(native)
+
+
+def test_native_acknowledgement_must_be_new_and_match_answer(tmp_path):
+    import json
+    from demo.artifacts import native_answer_seen
+    trace=tmp_path/'history.jsonl'
+    def line(text):return json.dumps({'event_type':'chat.ask_user_answer','answers':[{'custom_input':text}]}).encode()+b'\n'
+    trace.write_bytes(line('same answer'));offset=trace.stat().st_size
+    assert not native_answer_seen(trace,offset,'same answer')
+    with trace.open('ab') as stream:stream.write(line('another answer'))
+    assert not native_answer_seen(trace,offset,'same answer')
+    with trace.open('ab') as stream:stream.write(line('same answer'))
+    assert native_answer_seen(trace,offset,'same answer')

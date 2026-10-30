@@ -74,6 +74,38 @@ def acceptance_presentation(proof):
     return mode
 
 
+def native_user_text(event):
+    if event.get('role')=='user':return event.get('content')
+    if event.get('event_type')=='chat.ask_user_answer':
+        answers=event.get('answers',[])
+        require(len(answers)==1,'Expected one native answer per confirmation')
+        text=answers[0].get('custom_input','')
+        return text if isinstance(text,str) and text.strip() else None
+    return None
+
+
+def native_answer_seen(path, offset, text):
+    """Require a new server acknowledgement, never an old answer or partial line."""
+    with Path(path).open('rb') as stream:
+        stream.seek(offset);raw=stream.read().decode('utf-8',errors='ignore')
+    for line in raw.splitlines():
+        try:event=json.loads(line)
+        except json.JSONDecodeError:continue
+        if event.get('event_type')=='chat.ask_user_answer' and native_user_text(event)==text:return True
+    return False
+
+
+BUSINESS_SETTINGS_REPLY='非关键设置按合理默认值拟定，列在合同中由我确认。'
+
+
+def validate_business_operator(proof):
+    messages=[a for a in proof.get('operatorActions',[]) if a.get('kind')=='message']
+    if not messages:return
+    answer=proof.get('businessSettingsAnswer',{})
+    require(len(messages)==1 and messages[0]['id']=='business-settings-answer', 'Unapproved operator prompt in formal recording')
+    require(answer.get('text')==BUSINESS_SETTINGS_REPLY and '规格参数' in answer.get('question','') and len(answer.get('nativeTraceSha256',''))==64, 'Actual authored business answer and native question evidence are required')
+
+
 def validate_real_case(proof, *, preview=None):
     """Check business evidence; this does not replace visual inspection of recorded footage."""
     preview = proof.get("preview", False) if preview is None else preview
@@ -117,7 +149,7 @@ def validate_real_case(proof, *, preview=None):
         require(len(quotes)==count and len({q['cardDigest'] for q in quotes})==count,
                 'Distinct signed proposals are required')
         if original:
-            require(not any(a.get('kind')=='message' for a in proof.get('operatorActions',[])),'Do not rescue a formal flow with extra user prompts')
+            validate_business_operator(proof)
             report=proof.get('verification',{})
             require(report.get('status')=='pass' and report.get('checkCount')==10 and report.get('allPassed') is True,'Ten actual local WASM checks are required')
             production=proof.get('production',{})
@@ -125,9 +157,13 @@ def validate_real_case(proof, *, preview=None):
             require({q['provider'] for q in quotes}=={'灵犀小程序','快搭建站','码上飞'},'Use the authored service identities')
             require(proof.get('confirmationGates')==['authorization','contract','registration','acceptance'],'Four separate confirmation gates are required')
             turns=proof.get('userTurns',[])
-            require([t['kind'] for t in turns] in (['request','authorization','contract','registration','acceptance'], ['request','authorization','clarification','contract','registration','acceptance']),'User turn order is incomplete')
+            kinds=[t['kind'] for t in turns]
+            require([k for k in kinds if k not in ('settings','clarification')]==['request','authorization','contract','registration','acceptance'],'User turn order is incomplete')
+            for optional in ('settings','clarification'):
+                require(kinds.count(optional)<=1 and (optional not in kinds or kinds.index('authorization')<kinds.index(optional)<kinds.index('contract')), 'Business answer belongs before contract confirmation')
+            if 'settings' in kinds:require(turns[kinds.index('settings')]['text']==BUSINESS_SETTINGS_REPLY and proof.get('businessSettingsAnswer',{}).get('text')==BUSINESS_SETTINGS_REPLY,'Only the authored settings answer is allowed')
             if any(t['kind']=='clarification' for t in turns):
-                require(proof.get('materialClarification',{}).get('question') and turns[2]['text']=='本轮不提供架构图，请先比较现有提案的验收标准并推荐，再让我确认具体合同。','Only the authored business-material answer is allowed')
+                require(proof.get('materialClarification',{}).get('question') and turns[kinds.index('clarification')]['text']=='本轮不提供架构图，请先比较现有提案的验收标准并推荐，再让我确认具体合同。','Only the authored business-material answer is allowed')
             require(not any(word in turns[0]['text'] for word in ('SDK','SKILL.md','--confirmed','基础版','可靠版')),'Initial user request must be business-only')
             auth=proof.get('authorization',{})
             require(Decimal(str(auth.get('proposalFees',-1)))==3 and Decimal(str(auth.get('budget',0)))==500,'Actual proposal fees and total scope are required')

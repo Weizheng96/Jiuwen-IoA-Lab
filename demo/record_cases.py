@@ -196,10 +196,21 @@ def main():
                         answer=nine.locator('textarea:visible')
                         if answer.count()!=1 or not answer.last.is_enabled():
                             raise RuntimeError('Expected one editable native question answer field; will not submit empty consent')
+                        from artifacts import native_answer_seen
+                        traces=[p.parent/'history.jsonl' for p in (ROOT/'.swarm-runtime/agent/sessions').glob('*/metadata.json') if json.loads(p.read_text('utf-8')).get('user_id')==cfg['swarmUserId']]
+                        if len(traces)!=1:raise RuntimeError('Expected one native session for answer acknowledgement')
+                        trace=traces[0];offset=trace.stat().st_size
                         answer.last.fill(text)
                         page.wait_for_timeout(1000)
                         if answer.last.input_value()!=text:raise RuntimeError('Native answer readback mismatch')
                         confirm.last.click()
+                        until=time.monotonic()+20
+                        while not native_answer_seen(trace,offset,text):
+                            if time.monotonic()>=until:raise RuntimeError('Native answer not acknowledged; do not resubmit')
+                            page.wait_for_timeout(200)
+                        # Refresh the same session view after acknowledgement if the old questionnaire remains.
+                        native_frame=page.locator('#left').element_handle().content_frame()
+                        native_frame.goto(native_frame.url)
                         proof.setdefault('nativeConfirmations',[]).append({'semanticReply':text,'action':'filled and reread native answer before clicking 确定'})
                         save();print('Submitted answer to visible native Jiuwen question',flush=True);return
                     raise RuntimeError('Expected a visible native composer or confirmation control')
