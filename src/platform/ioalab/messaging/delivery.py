@@ -54,6 +54,7 @@ class DeliveryBroker:
         self.db,self.identities,self.s,self.emit,self.clock=db,identities,settings,emit,clock
         self.interfaces=PublicInterfaces(db,identities)
         self.scopes=None
+        self.publications=None
         self._listeners={}
         self._listener_lock=threading.RLock()
         with db.lock:db.conn.executescript(SCHEMA)
@@ -139,6 +140,7 @@ class DeliveryBroker:
         if not isinstance(kind,str) or not isinstance(operation,str):
             raise LabError('invalid_input','Operation type and identity must be strings')
         if kind.startswith('scope.') and self.scopes:return self.scopes.operation(owner,actor,kind,operation)
+        if kind=='service.publish' and self.publications:return self.publications.operation(owner,actor,operation)
         row=self.db.one('SELECT result FROM delivery_operations WHERE actor=? AND kind=? AND id=?',actor,kind,operation)
         if not row:raise LabError('not_ready','Operation has no accepted result',status=404,recovery='retry_original')
         return json.loads(row['result'])

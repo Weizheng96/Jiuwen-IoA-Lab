@@ -4,7 +4,7 @@
 
 ## 常驻接入入口
 
-共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。默认装配已提供助手收信设置及消息操作；没有宿主时可配置、发送和接收，不调用模型或执行业务工具。可选[九问适配](../../hosts/jiuwen/README.md)装配入站执行。委托与服务方角色尚未切换，差距见[开发计划](../../../docs/开发计划.md)。
+共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。默认装配已提供助手收信设置、消息与服务公示操作；没有宿主时可配置、发送和接收，不调用模型或执行业务工具。可选[九问适配](../../hosts/jiuwen/README.md)装配入站执行。委托及服务方履约主路径尚未切换，差距见[开发计划](../../../docs/开发计划.md)。
 
 复制[配置模板](../../../deploy/access-runtime.json.example)，填写平台和账号，并在本机设置模板引用的密码环境变量；服务方可将 identities 改为 service profile，服务绑定不创建个人助手。数据目录相对配置文件定位，作为 SDK 专用目录；配置及调用参数文件放在其外。每个 profile 的稳定身份及私钥保存在该目录，不能删除重建。旧直接客户端目录须先迁移，不与常驻进程争用。
 
@@ -48,6 +48,19 @@ start 复用已运行实例；启动仍在进行时报告 waiting，不重新创
 | `assistant.delegation.close` | taskRef；关闭后续许可，保留既有合同与付款，不能当作解除合同 |
 
 金额可以输入整数或两位小数，SDK 规范化后供用户检查；分类 null 表示不限、空数组表示不允许新候选。context 的摘要稳定，grant 修订独立。签名请求发送前持久保存；响应丢失从原操作恢复，不重新签发或延长时间。数据中 authorizationReceipt 是原接受记录，authorization 才是平台当前状态。具体契约见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
+
+## 服务公示入口
+
+以下操作同样通过常驻 RPC 调用，服务 profile 必须已配置在 identities 中；不另建账号连接或开放本机端口。
+
+| 操作 | 参数及结果 |
+|---|---|
+| `provider.categories` | 空参数；返回当前可选 A2X 类别 |
+| `provider.preview` | service 配置（profile、name、description、tags、categoryId、templates）；模板为未签 A2C 草稿；返回 contentDigest 和 expectedRevision |
+| `provider.publish` | 相同 service、contentDigest、expectedRevision；本机用户确认后重复原操作；返回原 publicationReceipt 与当前 currentPublication |
+| `provider.status` | profile；分别查看当前修订、索引和有效模板，不代表可接单 |
+
+模板仅允许待批准或提案，并选择配置中的平台支付提供者。稳定签名请求在上传前保存，响应丢失或重启后沿用原操作，不重签、不延期。公开地址由绑定身份导出，平台不抓取用户任意 URL。当前入站接单及履约尚待统一切换，公示成功不视为执行成功。
 
 ## 迁移中的原业务入口
 

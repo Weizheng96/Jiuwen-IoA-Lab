@@ -20,9 +20,9 @@ from a2c.provider import DefaultPolicy, Proposal, Provider
 from a2c.payment.ap2 import EcKey
 from a2c.verifier.acceptance import run_target
 from a2c.template import acceptance_of
-from .runtime.session import AccountSession
-from .store import LocalStore
-from .templates import template_from_definition, DEFAULT_DEADLINES, TEMPLATE_RENEW_BEFORE
+from ..runtime.session import AccountSession
+from ..store import LocalStore
+from ..templates import template_from_definition, DEFAULT_DEADLINES, TEMPLATE_RENEW_BEFORE
 
 
 class ServiceAccount:
@@ -121,7 +121,7 @@ class ProviderAgent:
                                       ap2_key=payee,name=definition["name"])
         import os
         if os.environ.get('IOALAB_VERIFIER_MODEL'):
-            from .observation import model_port
+            from ..observation import model_port
             self.provider.model=model_port(os.environ.get('IOALAB_LLM_BASE_URL'),os.environ.get('IOALAB_LLM_API_KEY'),os.environ['IOALAB_VERIFIER_MODEL'])
         self.provider.restore_tasks()
         self.submit_job=submit_job

@@ -39,6 +39,41 @@ class MarketService:
         from ..store import jload
         return [jload(row['record']) for row in self.db.rows('SELECT record FROM certifications')]
 
+    def endorse_service_templates(self, provider, key, templates, payment_provider):
+        """Original A2C endorsement; reuse a completed snapshot after a lost response."""
+        from a2c.template import validate
+        from a2c.slots import verify_template
+        from a2c.common import Directory
+        from a2c.codec import parse_time
+        from ..errors import LabError
+        keys=Directory()
+        keys.add(provider,{'keys':[key]})
+        checked=[]
+        for template in templates:
+            validate(template,endorsed=False)
+            if template['provider']!=provider or template['formation'] not in ('proposal','countersign'):
+                raise LabError('invalid_input','Ordinary services use their bound identity and proposal or countersign templates')
+            if set(template.get('signatures',{}))!={'provider'}:
+                raise LabError('invalid_input','Upload the original provider-signed template without another endorsement')
+            if template['pricing'].get('paymentProviders')!=[payment_provider]:
+                raise LabError('invalid_input','Template must select this platform payment provider')
+            verify_template(template,keys,endorsed=False)
+            if parse_time(template['validUntil'])<=self.now():
+                raise LabError('expired','Template is no longer valid for new publication',status=409)
+            checked.append(template)
+        self.keys.add(provider,{'keys':[key]})
+        endorsed=[]
+        for template in checked:
+            snapshot=self.market.store.get('snapshots',template['templateDigest'])
+            original=snapshot.get('template') if snapshot else None
+            unsigned_market=lambda t:{**t,'signatures':{k:v for k,v in t['signatures'].items() if k!='market'}}
+            if original and original.get('signatures',{}).get('market') and unsigned_market(original)==template:
+                verify_template(original,self.keys)
+                endorsed.append(original)
+            else:
+                endorsed.append(self.market.op_template_endorse({'template':template},{},None).body['template'])
+        return endorsed
+
     # ── 服务认证（协议外）────────────────────────────────────────────
     def certify(self, agent_id: str, jwk: Mapping[str, Any], name: str) -> dict:
         """认主体身份，发一条认证记录（市场签名的独立文书，A2C 不消费）；公钥入 Directory。"""

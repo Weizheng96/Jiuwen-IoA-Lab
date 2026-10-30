@@ -72,7 +72,8 @@ def main(argv=None):
         if args.command=='serve':
             from .resident import ResidentRuntime
             from ..assistant.role import AssistantRole
-            runtime=ResidentRuntime(RuntimeConfig.load(args.config),modules=(AssistantRole(),))
+            from ..provider import ProviderRole
+            runtime=ResidentRuntime(RuntimeConfig.load(args.config),modules=(AssistantRole(),ProviderRole()))
             runtime.run()
             return 0
         if args.command=='start':result=start(args.config)

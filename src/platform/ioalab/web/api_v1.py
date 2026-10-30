@@ -36,6 +36,18 @@ def build_router(platform, current_user):
     def sdk_user(request:Request):
         return platform.identities.bearer(request.headers.get('authorization',''))
 
+    @router.get('/services/categories')
+    def service_categories(uid=Depends(sdk_user)):
+        return {'categories':platform.discovery.categories()}
+
+    @router.post('/services/{agentId}/publications')
+    def service_publish(agentId:str,body:dict,uid=Depends(sdk_user)):
+        return platform.service_operations.publish(uid,agentId,body)
+
+    @router.get('/services/{agentId}/status')
+    def service_status(agentId:str,uid=Depends(sdk_user)):
+        return platform.publications.status(uid,agentId)
+
     @router.post('/identity/challenge')
     def challenge(body:dict,uid=Depends(sdk_user)):
         return platform.identities.enrollment.issue(uid,body)

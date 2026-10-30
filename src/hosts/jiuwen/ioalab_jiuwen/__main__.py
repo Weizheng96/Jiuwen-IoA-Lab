@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from ioalab_sdk.assistant.role import AssistantRole
+from ioalab_sdk.provider import ProviderRole
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from ioalab_sdk.runtime.__main__ import start
@@ -27,7 +28,7 @@ def main(argv=None):
         config=RuntimeConfig.load(args.config)
         host=ProcessHost.from_config(config.host,base_dir=args.config.resolve().parent)
         module=AssistantRole(host)
-        runtime=ResidentRuntime(config,modules=(module,),host_status=host.capabilities)
+        runtime=ResidentRuntime(config,modules=(module,ProviderRole()),host_status=host.capabilities)
         if not host.probe()['available']:raise RuntimeFault('not_ready','Jiuwen model/capability probe did not pass','configure_host')
         runtime.run()
     except RuntimeFault as exc:

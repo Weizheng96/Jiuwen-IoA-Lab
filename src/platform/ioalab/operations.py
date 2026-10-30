@@ -10,6 +10,44 @@ from .errors import LabError
 log=logging.getLogger(__name__)
 
 
+class ServiceOperations:
+    """Coordinate endorsement, authoritative publication, then a rebuildable index."""
+    def __init__(self,db,publications,market,discovery,payment_provider):
+        import threading
+        self.db,self.publications,self.market,self.discovery=db,publications,market,discovery
+        self.payment_provider=payment_provider
+        self.lock=threading.RLock()
+        self.index_error=None
+
+    def publish(self,owner,actor,body):
+        with self.lock:
+            result=self.publications.restore(owner,actor,body)
+            if result is None:
+                prepared=self.publications.prepare(owner,actor,body)
+                import json
+                original=json.loads(prepared.body)
+                declaration=original['declaration']
+                templates=self.market.endorse_service_templates(declaration['protocolId'],json.loads(prepared.key),
+                                                                 original['templates'],self.payment_provider)
+                with self.db.tx() as conn:
+                    result=self.publications.commit_in(conn,owner,prepared,templates)
+            # An old operation repairs the latest source, never its historical revision.
+            try:self.reindex(actor)
+            except Exception as exc:
+                self.index_error=type(exc).__name__
+                log.warning('Service publication committed; A2X projection needs recovery: %s',actor)
+            return result
+
+    def reindex(self,actor):
+        with self.lock:
+            declaration,card=self.publications.index_document(actor)
+            self.publications.category(declaration['categoryId'])
+            actual=self.discovery.register_one(actor,card,category=declaration['categoryId'])
+            with self.db.tx() as conn:
+                self.publications.indexed_in(conn,actor,declaration,actual)
+            self.index_error=None
+
+
 class AccountOperations:
     def __init__(self,db,auth,wallets,settings,emit):
         self.db,self.auth,self.wallets,self.settings,self.emit=db,auth,wallets,settings,emit

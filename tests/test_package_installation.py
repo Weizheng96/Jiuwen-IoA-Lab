@@ -33,6 +33,8 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path):
         assert 'ioalab_sdk/runtime/web/user.html' in archive.namelist()
         assert not any(name.startswith('ioalab_jiuwen/') for name in archive.namelist())
         assert 'ioalab_sdk/assistant.py' not in archive.namelist()
+        assert 'ioalab_sdk/provider.py' not in archive.namelist()
+        assert 'ioalab_sdk/provider/publication.py' in archive.namelist()
         assert not any(name.startswith('ioalab_tools/') for name in archive.namelist())
     with zipfile.ZipFile(next(wheels.glob('ioalab_official-*.whl'))) as archive:
         assert 'ioalab_tools/handlers.py' in archive.namelist()

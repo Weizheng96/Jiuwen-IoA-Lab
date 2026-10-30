@@ -123,7 +123,11 @@ class Platform:
                       if record.get('subject') in protocol_owners]
         self.identities.enrollment=EnrollmentRegistry(self.db,settings,legacy_keys=saved_keys,legacy_certificates=certificates)
         from .web.identity import public_service_app
-        self.router.apps['agents']=public_service_app(self.identities.enrollment)
+        from .registry.publication import ServicePublications
+        from .operations import ServiceOperations
+        self.publications=ServicePublications(self.db,self.identities,self.discovery.categories)
+        self.service_operations=ServiceOperations(self.db,self.publications,self.market,self.discovery,self.payment_provider)
+        self.router.apps['agents']=public_service_app(self.identities.enrollment,self.publications)
         trace_endpoint(self.market.market, self.bus, self.market_id)
         self.psp = SimPaymentProvider(self.pay_signer, keys=self.keys, ap2_key=self.pay_ec, payee_keys=self._payee_key,
                                       wallets=self.wallets, payee_of=self._payee_of, client_matches=self.identities.matches_party, db=self.db,
@@ -140,6 +144,7 @@ class Platform:
         from .messaging.delivery import DeliveryBroker
         self.messaging.delivery=DeliveryBroker(self.db,self.identities,settings,emit=self.bus.emit)
         self.messaging.delivery.scopes=self.scopes
+        self.messaging.delivery.publications=self.publications
 
     def _agent_of_provider(self, provider_id):
         return next((r for r in self.db.rows("SELECT * FROM agents WHERE role='service'")
