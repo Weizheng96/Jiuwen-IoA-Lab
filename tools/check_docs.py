@@ -28,7 +28,7 @@ def current_documents():
     files.extend(design_documents())
     files.append(ROOT / "设计/变更/README.md")
     files.extend((ROOT / "docs").rglob("*.md"))
-    files.extend((ROOT / ".agents/skills").glob("*/SKILL.md"))
+    files.extend((ROOT / ".agents/skills").rglob("*.md"))
     files.extend((ROOT / "demo").glob("*/剧本.md"))
     for folder in (
         "sdk", "official-services", "personal-assistant", "connector",
