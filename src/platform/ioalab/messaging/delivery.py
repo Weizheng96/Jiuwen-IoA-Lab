@@ -56,6 +56,7 @@ class DeliveryBroker:
         self.scopes=None
         self.publications=None
         self.admissions=self.payment_operations=None
+        self.protocol=None
         self._listeners={}
         self._listener_lock=threading.RLock()
         with db.lock:db.conn.executescript(SCHEMA)
@@ -226,7 +227,7 @@ class DeliveryBroker:
                         delivery_state,request_state,interaction,origin,in_reply) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                      (mid,envelope['sender'],recipient,seq,envelope['kind'],encode(value),hashlib.sha256(encode(envelope).encode()).hexdigest(),
                       now,timestamp(envelope['expiresAt']),now+self.s.message_retention_days*86400,'queued',
-                      'pending' if envelope['kind'] in ('message.request','delegation.intent') else 'none',envelope.get('interactionId'),
+                      'pending' if envelope['kind'] in ('message.request','delegation.intent','a2c.request') else 'none',envelope.get('interactionId'),
                       envelope.get('originMessageId'),envelope.get('inReplyTo')))
         return self._receipt(self._row(conn,mid))
 
@@ -268,8 +269,23 @@ class DeliveryBroker:
         elif kind=='delegation.result':
             previous=self._delegation_result(conn,value)
             if previous:return self._receipt(previous)
+        elif kind=='a2c.request':
+            if not self.protocol:raise LabError('not_ready','A2C relay is not configured',status=409)
+            interaction=self._interaction(conn,value.get('interactionId'))
+            if interaction['kind']!='delegation' or interaction['state']!='open':raise LabError('closed','Delegation no longer accepts protocol requests',status=409)
+            self.protocol.request_in(conn,value)
+        elif kind=='a2c.result':
+            request=self._row(conn,value.get('inReplyTo'))
+            if request['kind']!='a2c.request':raise LabError('forbidden','A2C result needs an original protocol request',status=403)
+            previous=self.protocol.result_in(conn,value,request)
+            if previous:return self._receipt(self._row(conn,previous))
         else:raise LabError('not_ready','This business message type is not enabled',status=409)
         result=self._enqueue(conn,value)
+        if kind=='a2c.result':
+            state=value['body']['reply'].get('state')
+            if state is None:state='completed'
+            conn.execute('UPDATE delivery_messages SET request_state=?,result=? WHERE id=?',
+                         (state,encode(value['body']),value['inReplyTo']))
         if kind in ('message.result','delegation.result'):
             outcome='completed' if value['body']['outcome']=='reserved' else value['body']['outcome']
             request=self._row(conn,value['inReplyTo'])
@@ -366,16 +382,17 @@ class DeliveryBroker:
 
     def _start(self,conn,actor,payload,generation):
         request=self._row(conn,payload.get('messageId'))
-        if request['recipient']!=actor or request['kind'] not in ('message.request','delegation.intent'):raise LabError('forbidden','Only the recipient can begin this request',status=403)
+        if request['recipient']!=actor or request['kind'] not in ('message.request','delegation.intent','a2c.request'):raise LabError('forbidden','Only the recipient can begin this request',status=403)
         if request['interaction']!=payload.get('interactionId'):raise LabError('id_conflict','Request interaction does not match',status=409)
         interaction=self._interaction(conn,request['interaction'])
         if request['started'] is not None:
             return {'messageId':request['id'],'startedAt':stamp(request['started']),'resumed':True,'originalGeneration':request['start_generation'],'requestState':request['request_state']}
-        self._open(interaction)
+        if request['kind']!='a2c.request':self._open(interaction)
         if request['expires']<=self.clock():raise LabError('expired','Request expired before processing',status=409)
         if request['request_state'] in TERMINAL:raise LabError('closed','Request already has a final result',status=409)
         if request['kind']=='message.request':self.interfaces.current(conn,actor,request['sender'],interaction['interface'])
-        else:self.admissions.start_in(conn,actor,request['id'])
+        elif request['kind']=='delegation.intent':self.admissions.start_in(conn,actor,request['id'])
+        else:self.protocol.start_in(conn,json.loads(request['envelope']))
         conn.execute("UPDATE delivery_messages SET started=?,start_generation=?,request_state='processing' WHERE id=?",(self.clock(),generation,request['id']))
         return {'messageId':request['id'],'startedAt':stamp(self.clock()),'resumed':False,'requestState':'processing'}
 

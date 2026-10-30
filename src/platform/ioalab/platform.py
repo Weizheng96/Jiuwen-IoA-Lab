@@ -126,6 +126,8 @@ class Platform:
         from .registry.publication import ServicePublications
         from .operations import ServiceOperations
         self.publications=ServicePublications(self.db,self.identities,self.discovery.categories)
+        from .files import PrivateFiles
+        self.files=PrivateFiles(self.db,self.identities,settings.data/'private-files')
         self.service_operations=ServiceOperations(self.db,self.publications,self.market,self.discovery,self.payment_provider)
         self.router.apps['agents']=public_service_app(self.identities.enrollment,self.publications)
         trace_endpoint(self.market.market, self.bus, self.market_id)
@@ -153,6 +155,9 @@ class Platform:
         self.messaging.delivery.admissions=self.admissions
         self.messaging.delivery.payment_operations=self.payment_operations
         self.psp.requires_admission=self.identities.bound_service
+        self.market.market.requires_admission=self.identities.bound_service
+        from .delegation.relay import ProtocolRelay
+        self.messaging.delivery.protocol=ProtocolRelay(self.db,self.identities,self.admissions,self.scopes,self.files,clock=self.messaging.delivery.clock)
 
     def _agent_of_provider(self, provider_id):
         return next((r for r in self.db.rows("SELECT * FROM agents WHERE role='service'")

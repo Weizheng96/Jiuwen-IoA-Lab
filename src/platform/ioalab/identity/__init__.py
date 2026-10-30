@@ -48,6 +48,14 @@ class IdentityDirectory:
         row=self.db.one("SELECT meta FROM agents WHERE role='service' AND json_extract(meta,'$.protocolId')=?",protocol)
         return bool(row)
 
+    def service_party(self,actor):
+        """Bound public protocol identity, without fetching participant URLs."""
+        row=self.agent(actor)
+        meta=json.loads(row['meta'])
+        if row['role']!='service' or not isinstance(meta.get('providerJwk'),dict) or not meta.get('protocolId'):
+            raise LabError('not_ready','The service public signing identity is not bound',status=409)
+        return {'id':meta['protocolId'],'jwk':meta['providerJwk']}
+
     def matches_party(self,owner,party):
         """Historical payment ownership; disabling new execution does not erase a binding."""
         if not isinstance(party,dict) or not isinstance(party.get('id'),str):

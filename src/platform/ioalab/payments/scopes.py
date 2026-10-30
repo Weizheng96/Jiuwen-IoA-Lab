@@ -264,3 +264,10 @@ class ScopeLedger:
             raise LabError('closed','A selected scope does not request additional proposals',status=409)
         self._live(row)
         return self._public(row)
+
+    def authority_in(self,conn,owner,actor,scope):
+        """Bound public user authority for original A2C material authorizations."""
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Material authority requires the owned application transaction')
+        row=self._get(owner,actor,scope,conn)
+        self._live(row)
+        return json.loads(row['context'])['user']

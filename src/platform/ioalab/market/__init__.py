@@ -12,7 +12,6 @@ from a2c.codec import digest_bytes, fmt_time
 from a2c.common import Clock, Directory
 from a2c.errors import CARD_INVALID, fail
 from a2c.jws import Signer, header_of
-from a2c.market import Market
 from a2c.slots import verify_card
 from a2c.timing import status as timing_status
 
@@ -28,7 +27,8 @@ class MarketService:
         self.db = db
         self.discovery = discovery
         # Unconfigured dispute models are rejected by the A2C snapshot validator.
-        self.market = Market(signer, keys=keys, fetch=fetch, clock=clock, store=store, recognized_services={}, models=models or {})
+        from ..delegation.market import AdmissionMarket
+        self.market = AdmissionMarket(signer, keys=keys, fetch=fetch, clock=clock, store=store, recognized_services={}, models=models or {})
         self.now = self.market.now
 
     @property

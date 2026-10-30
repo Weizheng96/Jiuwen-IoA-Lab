@@ -5,7 +5,7 @@ import json
 import time
 import uuid
 
-from a2c.card import card_digest,request_digest,validate_card,validate_request
+from a2c.card import card_digest,request_digest,validate_card,validate_request,verify_request
 from a2c.codec import digest,parse_time,parse_duration
 from a2c.common import Directory
 from a2c.jws import check_fresh,header_of
@@ -258,3 +258,41 @@ class Admissions:
         conn.execute("UPDATE delegation_admissions SET state='committed',committed=? WHERE id=?",(self.clock(),row['id']))
         conn.execute('INSERT INTO admission_payments VALUES(?,?,?)',(payment.payment_id,payment.fingerprint,identifier))
         return True
+
+    def initial_protocol_in(self,conn,actor,identifier,op,body):
+        row=self.admission(conn,identifier)
+        if row['client']!=actor:raise LabError('forbidden','Protocol request belongs to another delegation client',status=403)
+        if op not in ('request.submit','card.countersign','ap2.checkout'):
+            raise LabError('not_ready','This A2C execution stage is not enabled yet',status=409)
+        if row['state']=='released' or (op=='request.submit' and row['state']!='committed'):
+            raise LabError('not_ready','Commit the original admission before submitting a signed obligation',status=409)
+        original,_=self._held(conn,row) if row['state']=='held' else self._eligible(conn,self.intent(conn,row['origin']))
+        template=original['template'];intent=original['body']
+        try:
+            if op=='ap2.checkout':
+                if intent['formation']!='proposal' or body.get('purpose')!='proposal-fee' or body.get('templateDigest')!=row['template'] or body.get('requestDigest')!=row['binding']:raise ValueError()
+            elif op=='request.submit':
+                request=body['request'];validate_request(template,request)
+                if request_digest(request)!=row['binding']:raise ValueError()
+                check_fresh(verify_request(request),datetime.fromtimestamp(self.clock(),timezone.utc))
+            else:
+                card=body['card'];validate_card(template,card)
+                if card_digest(card)!=row['binding'] or not card['signatures']['1'] or any(item for slot,value in card['signatures'].items() if slot!='1' for item in (value if isinstance(value,list) else [value])):raise ValueError()
+                verify_card(template,card,Directory())
+                check_fresh(header_of(card['signatures']['1']),datetime.fromtimestamp(self.clock(),timezone.utc))
+        except (A2CError,TypeError,KeyError,ValueError):raise LabError('invalid_input','Original A2C request or signature failed validation') from None
+        return row,original
+
+    def countersign_result_in(self,conn,identifier,card,original_slot_one):
+        row=self.admission(conn,identifier)
+        if row['state']!='committed':raise LabError('not_ready','Commit admission after review and before signing slot 2',status=409)
+        template=json.loads(self.intent(conn,row['origin'])['details'])['template']
+        party=self.identities.service_party(row['service'])
+        keys=Directory();keys.add(party['id'],{'keys':[party['jwk']]})
+        try:
+            validate_card(template,card)
+            if template['formation']!='countersign' or card_digest(card)!=row['binding'] or card['provider']!=party['id'] or card['signatures']['1']!=original_slot_one or not card['signatures']['2']:
+                raise ValueError()
+            if any(item for slot,value in card['signatures'].items() if slot not in ('1','2') for item in (value if isinstance(value,list) else [value])):raise ValueError()
+            if verify_card(template,card,keys).effective is None:raise ValueError()
+        except (A2CError,TypeError,KeyError,ValueError):raise LabError('invalid_input','Countersign result changed its bound card or original signature chain') from None

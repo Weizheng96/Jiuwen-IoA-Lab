@@ -36,6 +36,26 @@ def build_router(platform, current_user):
     def sdk_user(request:Request):
         return platform.identities.bearer(request.headers.get('authorization',''))
 
+    @router.post('/files/{agentId}')
+    async def file_upload(agentId:str,operationId:str,name:str,digest:str,request:Request,uid=Depends(sdk_user)):
+        from ..files import MAX_FILE
+        platform.identities.owned(uid,agentId)
+        chunks=[];size=0
+        async for chunk in request.stream():
+            size+=len(chunk)
+            if size>MAX_FILE:
+                from ..errors import LabError
+                raise LabError('invalid_input','A protocol file may contain at most16MiB')
+            chunks.append(chunk)
+        return await asyncio.to_thread(platform.files.put,uid,agentId,operationId,name,digest,b''.join(chunks))
+
+    @router.get('/files/{fileId}')
+    def file_download(fileId:str,agentId:str,uid=Depends(sdk_user)):
+        from urllib.parse import quote
+        descriptor,data=platform.files.get(uid,agentId,fileId)
+        return Response(data,media_type='application/octet-stream',headers={'ETag':'"'+descriptor['digest']+'"','Cache-Control':'private, no-store',
+                        'Content-Disposition':"attachment; filename*=UTF-8''"+quote(descriptor['name'],safe='')})
+
     @router.get('/services/categories')
     def service_categories(uid=Depends(sdk_user)):
         return {'categories':platform.discovery.categories()}
