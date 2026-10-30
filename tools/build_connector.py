@@ -16,7 +16,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def constraints():
-    sdk=tomllib.loads((ROOT/'sdk/pyproject.toml').read_text(encoding='utf-8'))['project']
+    sdk=tomllib.loads((ROOT/'src/access/sdk/pyproject.toml').read_text(encoding='utf-8'))['project']
     pending=[('ioalab-sdk',set())]
     seen={}; versions={}
     while pending:
@@ -27,7 +27,7 @@ def constraints():
         # Editable-install metadata may still describe the previous SDK release.
         # Lock the package we just built, not its previously installed version.
         if key=='ioalab-sdk':
-            versions[sdk['name']]=(ROOT/'sdk/VERSION').read_text().strip().removeprefix('v')
+            versions[sdk['name']]=(ROOT/'src/access/sdk/VERSION').read_text().strip().removeprefix('v')
             requirements=sdk['dependencies']
         else:
             dist=md.distribution(name);versions[dist.metadata['Name']]=dist.version
@@ -44,13 +44,13 @@ def build(output):
         temp=Path(temp);bundle=temp/'ioalab-client'
         shutil.copytree(ROOT/'connector/ioalab-client',bundle,ignore=shutil.ignore_patterns('__pycache__','*.pyc','assets','settings.local.json'))
         assets=bundle/'skills/ioalab-delegate/assets';wheels=assets/'wheels';wheels.mkdir(parents=True)
-        subprocess.run([sys.executable,'-m','pip','wheel','--no-index','--no-deps','--no-build-isolation',str(ROOT/'sdk'),'-w',str(wheels)],check=True)
+        subprocess.run([sys.executable,'-m','pip','wheel','--no-index','--no-deps','--no-build-isolation',str(ROOT/'src/access/sdk'),'-w',str(wheels)],check=True)
         source=json.loads((ROOT/'vendor/wheels/SOURCE.json').read_text(encoding='utf-8'))
         original=ROOT/'vendor/wheels'/source['wheel']
         if hashlib.sha256(original.read_bytes()).hexdigest()!=source['sha256']:
             raise ValueError('A2C source wheel digest mismatch')
         shutil.copy2(original,wheels/original.name)
-        sdk_version=(ROOT/'sdk/VERSION').read_text().strip().removeprefix('v')
+        sdk_version=(ROOT/'src/access/sdk/VERSION').read_text().strip().removeprefix('v')
         lock=constraints()
         manifest={'sdkVersion':sdk_version,'constraintsSha256':hashlib.sha256(lock.encode()).hexdigest(),
                   'wheels':[{'file':p.name,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(wheels.glob('*.whl'))]}

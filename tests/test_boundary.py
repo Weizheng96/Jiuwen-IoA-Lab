@@ -5,7 +5,7 @@ FORBIDDEN=('托管','代收代付','账户余额','清算','结算通道')
 
 def test_no_forbidden_words():
     root=Path(__file__).resolve().parents[1]
-    for p in (root/'ioalab').rglob('*'):
+    for p in (root/'src/platform/ioalab').rglob('*'):
         if p.suffix in ('.py','.md','.html','.js') and '__pycache__' not in p.parts:
             text=p.read_text(encoding='utf-8')
             assert not any(w in text for w in FORBIDDEN),str(p)

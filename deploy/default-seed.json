@@ -1,0 +1,700 @@
+{
+  "source": {
+    "official-services/domains/01-health.json": "3d93d3ca1d41637b35cc04c786336d2c808ab08b10f56416c277e8acca094b7b",
+    "official-services/domains/02-legal.json": "bbbf423777f2c7752b04207f71aec45fb81ae741dd00ef014dd1ac5e7f9002d8",
+    "official-services/domains/03-education.json": "e0c665c08fa43d79c9f166e16a67bbe1c17d48493607f06b66c89b69017717e8",
+    "official-services/domains/04-writing.json": "5da49aa9d95c6900ac8b77b246b4b123c3ecceac0f11df10dc63bfe2fa8a6481",
+    "official-services/domains/05-translate.json": "4a6931ced9d3b73f0b4f54a366653ed4873e474770777a369efbf12e0ee5f179",
+    "official-services/domains/06-travel.json": "c0c3ab2343aa4d757460f8d40d3a2bf6261eddfd7aa3a601c17c0d443fb1adb3",
+    "official-services/domains/07-office.json": "3fc634ebaff6aece78504a1642ad412782a44c4155bca100f857bee09549f4dd",
+    "official-services/domains/08-dev.json": "f10e7564f092d639e0c3bc2f47ba2907d6d40a9deca5134f722cf3f2604f86b4"
+  },
+  "domains": [
+    {
+      "account": "ISP_001",
+      "label": "医疗健康",
+      "category": {
+        "id": "cat_health",
+        "name": "医疗健康",
+        "description": "用药提醒、体检报告解读提纲、健身与饮食周计划、就诊科室建议、康复训练方案等健康生活类文书；只做信息整理与计划编排，不替代诊疗。",
+        "decision_rule": "需求与身体健康、用药、体检、健身、饮食、康复、就诊有关时在此找"
+      },
+      "services": [
+        {
+          "id": "med-reminder",
+          "name": "用药提醒表工坊",
+          "description": "按药名与服药频次排一周用药提醒表：7 天、每天列每种药的服用时间与注意事项；预批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "6"
+          },
+          "category": "cat_health"
+        },
+        {
+          "id": "checkup-brief",
+          "name": "体检报告解读提纲社",
+          "description": "按体检指标名列一份解读提纲：每项指标的含义、常见影响因素与下一步建议，外加一段总体提示；预批准型，8 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "8"
+          },
+          "category": "cat_health"
+        },
+        {
+          "id": "fitness-week",
+          "name": "健身周计划站",
+          "description": "按目标与基础排一周训练计划：7 天、每天一个训练重点与 ≥ 3 个动作（组数 × 次数）；预批准型，7 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "7"
+          },
+          "category": "cat_health"
+        },
+        {
+          "id": "diet-week",
+          "name": "一周减脂食谱屋",
+          "description": "按每日热量目标与忌口排一周三餐：7 天 × 3 餐，每餐菜名与估算热量，忌口食材不出现；预批准型，9 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "9"
+          },
+          "category": "cat_health"
+        },
+        {
+          "id": "triage-advice",
+          "name": "就诊科室建议亭",
+          "description": "按症状描述与年龄建议 1–3 个就诊科室，给出理由与紧急程度，附免责说明；待批准型（服务方先看描述再接单），12 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
+          "runnable": true,
+          "pricing": {
+            "price": "12"
+          },
+          "category": "cat_health"
+        },
+        {
+          "id": "rehab-plan",
+          "name": "康复训练方案所",
+          "description": "按伤病情况与周数定制分周康复训练方案：每周目标与 ≥ 2 个训练动作；提案型（先付 1 虚拟币拟卡费，服务方按周数报价 12–40 虚拟币），30 分钟内交付。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              12,
+              40
+            ]
+          },
+          "category": "cat_health"
+        }
+      ]
+    },
+    {
+      "account": "ISP_002",
+      "label": "法律咨询",
+      "category": {
+        "id": "cat_legal",
+        "name": "法律咨询",
+        "description": "合同风险清单、劳动纠纷问答、租房维权话术、起诉状提纲、合同条款改写、股权方案等法律文书与咨询类服务；给的是信息与文书，不是律师意见。",
+        "decision_rule": "需求涉及合同、劳动、租赁、诉讼、股权等法律事务时在此找"
+      },
+      "services": [
+        {
+          "id": "contract-risks",
+          "name": "合同风险清单所",
+          "description": "按合同类型与关注点列风险清单：≥ 5 条，每条写涉及条款、风险与修改建议；预批准型，10 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "10"
+          },
+          "category": "cat_legal"
+        },
+        {
+          "id": "labor-qa",
+          "name": "劳动纠纷问答亭",
+          "description": "劳动合同、加班、离职补偿类问题书面解答：答案 + 法条依据 + 建议步骤；预批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "6"
+          },
+          "category": "cat_legal"
+        },
+        {
+          "id": "rent-dispute",
+          "name": "租房维权指南社",
+          "description": "押金、提前退租、房东违约类纠纷：出维权步骤、沟通话术与证据清单；预批准型，8 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "8"
+          },
+          "category": "cat_legal"
+        },
+        {
+          "id": "complaint-outline",
+          "name": "起诉状提纲工坊",
+          "description": "按纠纷事实写民事起诉状提纲：原告、被告、诉讼请求、事实与理由、证据清单各一节；预批准型，12 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "12"
+          },
+          "category": "cat_legal"
+        },
+        {
+          "id": "clause-rewrite",
+          "name": "合同条款改写室",
+          "description": "把一段合同条款按目标改写（更公平、更明确或更有利于某方），列出每处改动与理由；待批准型（服务方先看条款再接单），18 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
+          "runnable": true,
+          "pricing": {
+            "price": "18"
+          },
+          "category": "cat_legal"
+        },
+        {
+          "id": "equity-plan",
+          "name": "股权架构研究室",
+          "description": "初创公司股权分配方案：各方持股比例（合计 100）、成熟机制与说明；提案型（先付 1 虚拟币拟卡费，服务方报价 20–60 虚拟币），30 分钟内交付。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              20,
+              60
+            ]
+          },
+          "category": "cat_legal"
+        }
+      ]
+    },
+    {
+      "account": "ISP_003",
+      "label": "教育辅导",
+      "category": {
+        "id": "cat_education",
+        "name": "教育辅导",
+        "description": "错题讲解、学习计划、作文批改、单词卡、课程大纲、升学规划等学习类服务，面向学生与自学者。",
+        "decision_rule": "需求与学习、考试、作业、课程、升学有关时在此找"
+      },
+      "services": [
+        {
+          "id": "mistake-explain",
+          "name": "错题讲解铺",
+          "description": "讲一道错题：分步解析 ≥ 3 步、最终答案、易错点；预批准型，5 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "5"
+          },
+          "category": "cat_education"
+        },
+        {
+          "id": "study-plan",
+          "name": "学习计划台",
+          "description": "按目标排四周学习计划：每周 ≥ 3 项任务；预批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "6"
+          },
+          "category": "cat_education"
+        },
+        {
+          "id": "essay-review",
+          "name": "作文批改坊",
+          "description": "批改一篇中文作文：百分制评分、≥ 3 条评语、修改后的范文；预批准型，9 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "9"
+          },
+          "category": "cat_education"
+        },
+        {
+          "id": "flashcards",
+          "name": "单词卡工坊",
+          "description": "按给定单词做记忆卡：每词释义与例句；预批准型，5 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "5"
+          },
+          "category": "cat_education"
+        },
+        {
+          "id": "course-outline",
+          "name": "课程大纲设计室",
+          "description": "按主题设计 8 课时课程大纲：每课标题与 ≥ 2 个学习目标；待批准型（服务方先看主题再接单），15 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
+          "runnable": true,
+          "pricing": {
+            "price": "15"
+          },
+          "category": "cat_education"
+        },
+        {
+          "id": "admission-plan",
+          "name": "升学规划所",
+          "description": "按目标院校与当前年级出升学时间线：≥ 4 个阶段的行动项与风险提示；提案型（先付 1 虚拟币拟卡费，服务方报价 15–45 虚拟币），30 分钟内交付。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              15,
+              45
+            ]
+          },
+          "category": "cat_education"
+        }
+      ]
+    },
+    {
+      "account": "ISP_004",
+      "label": "文案创作",
+      "category": {
+        "id": "cat_writing",
+        "name": "文案创作",
+        "description": "朋友圈文案、产品详情页、公众号标题、短视频脚本、品牌故事、演讲稿等营销与写作类文案。",
+        "decision_rule": "需求是写宣传文字、标题、脚本、故事、讲稿等文案时在此找"
+      },
+      "services": [
+        {
+          "id": "wechat-posts",
+          "name": "朋友圈文案工坊",
+          "description": "为小店写朋友圈文案：三条短文案，每条不超过 60 字，必须出现店名；预批准型，6 虚拟币，当天交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "6"
+          },
+          "category": "cat_writing"
+        },
+        {
+          "id": "product-page",
+          "name": "产品详情页文案厂",
+          "description": "按产品与卖点写详情页：标题 ≤ 30 字 + ≥ 3 个小节，卖点全部出现；预批准型，9 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "9"
+          },
+          "category": "cat_writing"
+        },
+        {
+          "id": "headlines",
+          "name": "公众号标题车间",
+          "description": "给一篇文章出 10 个备选标题，每个 ≤ 30 字且互不重复；预批准型，4 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "4"
+          },
+          "category": "cat_writing"
+        },
+        {
+          "id": "video-script",
+          "name": "短视频脚本坊",
+          "description": "按主题写 60 秒口播短视频脚本：≥ 5 个镜头，每镜头时间、画面、口播；预批准型，10 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "10"
+          },
+          "category": "cat_writing"
+        },
+        {
+          "id": "brand-story",
+          "name": "品牌故事书房",
+          "description": "写一段 300–800 字的品牌故事，品牌名与关键词全部出现；待批准型（服务方先看品牌资料再接单），20 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
+          "runnable": true,
+          "pricing": {
+            "price": "20"
+          },
+          "category": "cat_writing"
+        },
+        {
+          "id": "speech-draft",
+          "name": "演讲稿工作室",
+          "description": "按场合与时长写演讲稿：标题 + ≥ 4 段，总字数 600–2000；提案型（先付 1 虚拟币拟卡费，服务方按时长报价 15–50 虚拟币），30 分钟内交付。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              15,
+              50
+            ]
+          },
+          "category": "cat_writing"
+        }
+      ]
+    },
+    {
+      "account": "ISP_005",
+      "label": "翻译本地化",
+      "category": {
+        "id": "cat_translate",
+        "name": "翻译本地化",
+        "description": "中英互译、术语表、字幕翻译、合同译审、产品本地化方案等语言服务。",
+        "decision_rule": "需求是把文字从一种语言译成另一种语言、统一术语、做字幕或本地化时在此找"
+      },
+      "services": [
+        {
+          "id": "translate-zh-en",
+          "name": "中英翻译快译所",
+          "description": "把中文材料译成英文：按原文字数计价，每字 0.02 虚拟币（500 字约 10 虚拟币），可指定术语表；预批准型，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "0.02 * inputs.source.chars"
+          },
+          "category": "cat_translate"
+        },
+        {
+          "id": "translate-en-zh",
+          "name": "英译中快译社",
+          "description": "把一段英文译成自然的中文（≤ 1500 字符），中文占比 ≥ 60%；预批准型，7 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "7"
+          },
+          "category": "cat_translate"
+        },
+        {
+          "id": "glossary",
+          "name": "术语表编纂处",
+          "description": "按领域编一份 20 条中英术语表，中文术语互不重复；预批准型，8 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "8"
+          },
+          "category": "cat_translate"
+        },
+        {
+          "id": "subtitle-translate",
+          "name": "字幕翻译铺",
+          "description": "把 | 分隔的英文字幕行逐句译成中文，条数与原文一致；预批准型，9 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "9"
+          },
+          "category": "cat_translate"
+        },
+        {
+          "id": "contract-translate-review",
+          "name": "合同译审室",
+          "description": "合同条款中译英并出译审意见：译文 + ≥ 1 条术语或歧义提示；待批准型（服务方先看条款再接单），25 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
+          "runnable": true,
+          "pricing": {
+            "price": "25"
+          },
+          "category": "cat_translate"
+        },
+        {
+          "id": "localization-plan",
+          "name": "本地化方案所",
+          "description": "为产品进入多个语言市场出本地化方案：每个地区的范围与风险；提案型（先付 1 虚拟币拟卡费，服务方按地区数报价 15–60 虚拟币），30 分钟内交付。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              15,
+              60
+            ]
+          },
+          "category": "cat_translate"
+        }
+      ]
+    },
+    {
+      "account": "ISP_006",
+      "label": "旅行出行",
+      "category": {
+        "id": "cat_travel",
+        "name": "旅行出行",
+        "description": "行程规划、城市漫游、打包清单、美食地图、旅行预算、亲子行程等出行类服务。",
+        "decision_rule": "需求与旅行、出差、行程、景点、路线、预算有关时在此找"
+      },
+      "services": [
+        {
+          "id": "trip-plan",
+          "name": "两日行程定制所",
+          "description": "定制两天城市行程：按城市与预算上限排每天 3 个以上景点并估算花费，合计不超预算；提案型（先付 1 虚拟币拟卡费，服务方按需求报价 10–30 虚拟币），30 分钟内交付。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              10,
+              30
+            ]
+          },
+          "category": "cat_travel"
+        },
+        {
+          "id": "day-tour",
+          "name": "一日漫游手册社",
+          "description": "按城市与主题排一日路线：4–8 个停留点，各带时间与提示；预批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "6"
+          },
+          "category": "cat_travel"
+        },
+        {
+          "id": "packing-list",
+          "name": "打包清单台",
+          "description": "按目的地、天数与季节列打包清单：≥ 4 类、每类 ≥ 3 件；预批准型，4 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "4"
+          },
+          "category": "cat_travel"
+        },
+        {
+          "id": "food-map",
+          "name": "美食地图工坊",
+          "description": "按城市列 8 家特色店：招牌菜、区域、人均价；预批准型，7 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "7"
+          },
+          "category": "cat_travel"
+        },
+        {
+          "id": "trip-budget",
+          "name": "旅行预算核算处",
+          "description": "按天数、人数与总预算做分项预算表，合计不超预算；预批准型，5 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "5"
+          },
+          "category": "cat_travel"
+        },
+        {
+          "id": "family-trip",
+          "name": "亲子行程定制所",
+          "description": "为带孩子的家庭排三天行程：每天 ≥ 2 个适合孩子的去处与提示；待批准型（服务方先看孩子年龄与偏好再接单），16 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
+          "runnable": true,
+          "pricing": {
+            "price": "16"
+          },
+          "category": "cat_travel"
+        }
+      ]
+    },
+    {
+      "account": "ISP_007",
+      "label": "职场办公",
+      "category": {
+        "id": "cat_office",
+        "name": "职场办公",
+        "description": "周报、PPT 大纲、会议纪要、商务邮件、简历润色、OKR 方案等职场文书与办公效率类服务。",
+        "decision_rule": "需求是写工作文书（周报、纪要、邮件、简历、汇报材料、目标方案）时在此找"
+      },
+      "services": [
+        {
+          "id": "weekly-report",
+          "name": "周报速成铺",
+          "description": "按你给的事项关键词生成一份工作周报：本周进展、下周计划、风险三节，每个事项都要写到；预批准型，5 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "5"
+          },
+          "category": "cat_office"
+        },
+        {
+          "id": "ppt-outline",
+          "name": "PPT 大纲工坊",
+          "description": "按主题写 PPT 大纲：至少 8 页，每页标题加 2 条以上要点，可授权以你的名义上传到团队网盘；预批准型，12 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "12"
+          },
+          "category": "cat_office"
+        },
+        {
+          "id": "meeting-minutes",
+          "name": "会议纪要整理站",
+          "description": "把会议笔记整理成纪要：决议、行动项（负责人与期限）、摘要；预批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "6"
+          },
+          "category": "cat_office"
+        },
+        {
+          "id": "biz-email",
+          "name": "商务邮件代笔处",
+          "description": "按目的与收件人写一封商务邮件：主题 ≤ 40 字，正文 80–600 字；预批准型，4 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "4"
+          },
+          "category": "cat_office"
+        },
+        {
+          "id": "resume-polish",
+          "name": "简历润色工作室",
+          "description": "润色 JSON 格式的中文简历：把经历改写成量化、动宾结构的表述，条目与结构不变、篇幅相近；待批准型（服务方看过材料再接单），15 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
+          "runnable": true,
+          "pricing": {
+            "price": "15"
+          },
+          "category": "cat_office"
+        },
+        {
+          "id": "okr-plan",
+          "name": "OKR 方案工作室",
+          "description": "为团队拟一个季度的 OKR：2–5 个目标，每个 ≥ 2 条可量化的关键结果；提案型（先付 1 虚拟币拟卡费，服务方报价 12–40 虚拟币），30 分钟内交付。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              12,
+              40
+            ]
+          },
+          "category": "cat_office"
+        }
+      ]
+    },
+    {
+      "account": "ISP_008",
+      "label": "软件开发",
+      "category": {
+        "id": "cat_dev",
+        "name": "软件开发",
+        "description": "正则片段、SQL 查询、单元测试用例、README、代码审查清单、架构方案等编程与软件工程类服务。",
+        "decision_rule": "需求涉及写代码、查询、测试、技术文档或系统设计时在此找"
+      },
+      "services": [
+        {
+          "id": "regex-snippet",
+          "name": "正则片段铺",
+          "description": "按需求写一条正则表达式，附解释，并保证通过你给的测试样例（fullmatch 逐条核）；待批准型（服务方先看样例再接单），20 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
+          "runnable": true,
+          "pricing": {
+            "price": "20"
+          },
+          "category": "cat_dev"
+        },
+        {
+          "id": "sql-query",
+          "name": "SQL 查询铺",
+          "description": "按表结构与问题写一条 SQL 查询并解释；预批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "6"
+          },
+          "category": "cat_dev"
+        },
+        {
+          "id": "unit-tests",
+          "name": "单元测试用例坊",
+          "description": "按函数说明设计 ≥ 5 条测试用例：名称、输入、期望输出；预批准型，8 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "8"
+          },
+          "category": "cat_dev"
+        },
+        {
+          "id": "readme-draft",
+          "name": "README 起草间",
+          "description": "按项目说明与特性写 README：≥ 4 节，含安装与使用，特性全部出现；预批准型，7 虚拟币，30 分钟内交付。",
+          "formation": "preapproval",
+          "runnable": true,
+          "pricing": {
+            "price": "7"
+          },
+          "category": "cat_dev"
+        },
+        {
+          "id": "code-review",
+          "name": "代码审查清单室",
+          "description": "审查一段代码：≥ 1 条发现，每条行号、严重度、问题与修法；待批准型（服务方先看代码再接单），18 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
+          "runnable": true,
+          "pricing": {
+            "price": "18"
+          },
+          "category": "cat_dev"
+        },
+        {
+          "id": "arch-proposal",
+          "name": "架构方案研究所",
+          "description": "为系统出架构方案：≥ 3 个组件及职责、风险、文字版架构图；提案型（先付 1 虚拟币拟卡费，服务方按规模报价 20–60 虚拟币），30 分钟内交付。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              20,
+              60
+            ]
+          },
+          "category": "cat_dev"
+        },
+        {
+          "id": "nail-booking-basic",
+          "name": "美甲预约工具·基础版",
+          "description": "为美甲店配置本地预约工具：营业时段、容量、项目时长。提案型，拟卡费1虚拟币，报价259虚拟币；5项WASM配置判据，配合仓内独立运行器使用。非微信发布服务。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              259,
+              259
+            ]
+          },
+          "category": "cat_dev"
+        },
+        {
+          "id": "nail-booking-reliable",
+          "name": "美甲预约工具·可靠版",
+          "description": "为美甲店配置本地预约工具：营业时段、容量、项目时长。提案型，拟卡费1虚拟币，报价299虚拟币；10项WASM配置判据，配合仓内独立运行器使用。非微信发布服务。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              299,
+              299
+            ]
+          },
+          "category": "cat_dev"
+        }
+      ]
+    }
+  ]
+}

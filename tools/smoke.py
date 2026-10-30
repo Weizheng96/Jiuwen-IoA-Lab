@@ -1,4 +1,4 @@
-"""Three-process contract smoke: core server, provider server, local client driver."""
+"""Source-tree integration check, outside the platform runtime package."""
 import json
 import os
 from pathlib import Path
@@ -17,7 +17,7 @@ def _port():
 
 def run_smoke():
     root=Path(__file__).resolve().parents[1]
-    sys.path[:0]=[str(root/'sdk'),str(root/'official-services'),str(root/'experiments')]
+    sys.path[:0]=[str(root/'src/access/sdk'),str(root/'official-services'),str(root/'experiments')]
     from catalog import definitions
     from ioalab_sdk import LabClient
     from traffic import run_order
@@ -28,6 +28,7 @@ def run_smoke():
         temp=Path(temp)
         env={**os.environ,'PYTHONUTF8':'1','IOALAB_STUB':'1','IOALAB_MODE':'dev','IOALAB_ADMIN_PASSWORD':'smoke-password',
              'IOALAB_TRAFFIC':'off','IOALAB_PORT':str(ports[0]),'IOALAB_PUBLIC_URL':base,'IOALAB_AUTOSEED':'1','IOALAB_DATA':str(temp/'core'),
+             'IOALAB_SEED_FILE':str(root/'deploy/default-seed.json'),
              'IOALAB_BASE_URL':base,'IOALAB_PROVIDER_PORT':str(ports[1]),'IOALAB_PROVIDER_PUBLIC_URL':service,'IOALAB_PROVIDER_DATA':str(temp/'providers')}
         logs=[]
         try:
@@ -83,3 +84,7 @@ def run_smoke():
                 try: proc.wait(timeout=10)
                 except subprocess.TimeoutExpired: proc.kill();proc.wait()
             for log in logs: log.close()
+
+
+if __name__ == '__main__':
+    sys.exit(run_smoke())

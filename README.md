@@ -28,9 +28,9 @@ Python 3.11。从你同步的GitCode仓克隆本仓，或同步git archive导出
 cd Jiuwen-IoA-Lab
 python tools/check_vendor.py
 python -m venv .venv
-.venv/bin/pip install -r requirements.txt -e . -e ./sdk
+.venv/bin/pip install -r requirements.txt -e ./src/platform -e ./src/access/sdk
 .venv/bin/python tools/build_connector.py
-.venv/bin/ioalab serve
+IOALAB_SEED_FILE=./deploy/default-seed.json .venv/bin/ioalab serve
 ```
 
 另开终端执行 `.venv/bin/python official-services/serve.py`；真实模式需先安装并配置兼容的九问进程入口，配置见 [部署](设计/工程/部署.md)。Windows 将 `.venv/bin/` 换为 `.venv/Scripts/`。
@@ -47,7 +47,7 @@ python -m pytest -q tests
 
 技能独立安装验收：构建安装包后执行 `python tools/check_bootstrap.py`，会在临时干净环境安装依赖并清理，首次需要网络。
 
-以上协议检查为显式桩测试，不调模型；`ioalab smoke` 启动独立核心/服务进程并在第三方本地Client完成合同。`python experiments/traffic.py --base http://127.0.0.1:8750 --count 3` 产生可识别实验流量。真实九问技能委托、通知与独立Swarm生产已分别实测；本地录屏与真实邮件验收入口见 [demo/README.md](demo/README.md)。Linux实机与Outlook真实授权仍按 [试用手册](docs/领导试用手册.md) 单独验收，结果记录在 [验证记录](demo/verification/README.md)。
+以上协议检查为显式桩测试，不调模型；`python tools/smoke.py` 启动独立核心/服务进程并在第三方本地Client完成合同。`python experiments/traffic.py --base http://127.0.0.1:8750 --count 3` 产生可识别实验流量。真实九问技能委托、通知与独立Swarm生产已分别实测；本地录屏与真实邮件验收入口见 [demo/README.md](demo/README.md)。Linux实机与Outlook真实授权仍按 [试用手册](docs/领导试用手册.md) 单独验收，结果记录在 [验证记录](demo/verification/README.md)。
 
 虚拟币只是记账单位。模拟支付方只读卡按卡载金额过账，市场出争议裁定文书，不执行付款。
 

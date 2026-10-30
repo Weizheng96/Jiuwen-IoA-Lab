@@ -141,9 +141,11 @@ def create_app(platform: Platform) -> FastAPI:
     @app.get("/api/services/definitions")
     async def definitions():
         from ..seed import load_definitions
+        if platform.s.seed_file is None:
+            return []
         return [{"id": d["id"], "name": d["name"], "description": d["description"], "formation": d.get("formation", "preapproval"),
                  "runnable": bool(d.get("runnable")), "price": d.get("pricing", {}).get("price"), "category": d.get("category")}
-                for d in load_definitions() if d.get("runnable")]
+                for d in load_definitions(platform.s.seed_file) if d.get("runnable")]
 
 
 
@@ -334,13 +336,13 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get('/downloads/ioalab-skill.zip')
     def skill_download():
-        path=Path(__file__).resolve().parents[2]/'dist/ioalab-skill.zip'
-        if not path.exists(): raise HTTPException(503,'Run tools/build_connector.py first')
+        path=platform.s.bundles_dir/'ioalab-skill.zip'
+        if not path.is_file(): raise HTTPException(503,'Run tools/build_connector.py first')
         return FileResponse(path,filename='ioalab-skill.zip',media_type='application/zip')
 
     @app.get("/downloads/ioalab-client.zip")
     async def connector_bundle():
-        path = Path(__file__).resolve().parents[2] / "dist/ioalab-client.zip"
+        path = platform.s.bundles_dir / "ioalab-client.zip"
         if not path.is_file():
             raise HTTPException(503, "连接器尚未生成，请运行 tools/build_connector.py")
         return FileResponse(path, filename="ioalab-client.zip", media_type="application/zip")

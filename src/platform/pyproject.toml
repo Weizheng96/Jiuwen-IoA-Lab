@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ioalab"
+description = "Jiuwen IoA Lab platform core: identity, discovery, delegation, payment, messaging and Web"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dynamic = ["version"]
+# Install pinned Git dependencies from vendor before this package; no VCS dependency URLs.
+dependencies = [
+  "a2c==0.0.19", "a2x-registry==0.3.3", "a2a-sdk[http-server]==1.0.0",
+  "grpcio>=1.60", "fastapi>=0.110", "uvicorn>=0.29", "httpx>=0.27",
+  "numpy", "jsonschema>=4.23", "python-multipart>=0.0.9", "PyYAML>=6,<7"
+]
+
+[project.scripts]
+ioalab = "ioalab.cli:main"
+
+[tool.setuptools.dynamic]
+version = { file = "VERSION" }
+
+[tool.setuptools.packages.find]
+include = ["ioalab*"]
+
+[tool.setuptools.package-data]
+ioalab = ["seed/**/*.json", "seed/**/*.py", "seed/**/*.md", "seed/**/*.txt", "web/static/*"]

@@ -1,7 +1,7 @@
 """Explicit independent background messaging clients; no core-owned assistants."""
 import argparse,json,sys,time,uuid
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'sdk'))
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'src/access/sdk'))
 from ioalab_sdk import LabClient
 from ioalab_sdk.messaging import MailboxClient
 

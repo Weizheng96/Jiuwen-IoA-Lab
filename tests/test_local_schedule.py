@@ -93,7 +93,7 @@ def test_local_rules_busy_time_and_pending_invitation_end_to_end(platform,tmp_pa
 def test_schedule_cli_works_offline_and_keeps_pending_records(tmp_path):
     from ioalab_sdk.store import LocalStore
     root=Path(__file__).resolve().parents[1]
-    env={**os.environ,'PYTHONUTF8':'1','PYTHONPATH':str(root/'sdk'),'IOALAB_HOME':str(tmp_path)}
+    env={**os.environ,'PYTHONUTF8':'1','PYTHONPATH':str(root/'src/access/sdk'),'IOALAB_HOME':str(tmp_path)}
     for key in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_SCHEDULE_FILE'):env.pop(key,None)
     def run(command):
         output=subprocess.run([sys.executable,'-m','ioalab_sdk.cli','schedule',command],env=env,capture_output=True,text=True,encoding='utf-8',timeout=15)

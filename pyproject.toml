@@ -1,28 +1,3 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "ioalab"
-description = "九问IoA仿真平台（Jiuwen IoA Lab）：账号 · Agent 交易市场（A2X 发现 + A2C 合同）· 智能体运行时 · 事件总线 · 管理员控制台"
-readme = "README.md"
-requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
-dynamic = ["version"]
-# 依赖以 requirements.txt 为准（a2c wheel 与 A2X 源码快照是本地路径，不能写在这里）
-dependencies = []
-
-[project.scripts]
-ioalab = "ioalab.cli:main"
-
-[tool.setuptools.dynamic]
-version = { file = "设计/VERSION" }
-
-[tool.setuptools.packages.find]
-include = ["ioalab*"]
-
-[tool.setuptools.package-data]
-ioalab = ["seed/**/*.json", "seed/**/*.py", "seed/**/*.md", "seed/**/*.txt", "web/static/*"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src/platform", "src/access/sdk", "official-services", "experiments"]

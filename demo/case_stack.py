@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "deploy"), str(ROOT / "sdk")]
+sys.path[:0] = [str(ROOT / "deploy"), str(ROOT / "src/access/sdk")]
 from configure_assistant import read_env, install_skill
 from ioalab_sdk.schedule import LocalSchedule
 from ioalab_sdk.messaging import MailboxClient

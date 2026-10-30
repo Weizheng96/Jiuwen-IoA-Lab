@@ -3,7 +3,7 @@
 版本自检（九问IoA实验平台）。
 
 - 设计/VERSION 是本仓版本唯一的一处，格式 vX.Y.Z；变更/README.md 变更表最上一行必须与它一致
-- ioalab/ · connector/ · examples/ · deploy/ 各有一个 VERSION，记录它依据的本仓设计版本（存在的目录才查）
+- 各交付目录的 VERSION 记录实际依据的设计版本；检查路径跟随代码迁移
 - 设计/README.md 记依据的 A2C 设计版本（一行「依据的 A2C 设计版本：vX.Y.Z」），必须与 vendor/wheels/SOURCE.json 一致
 - README、docstring、设计文档里不得再散写「设计版本 vN」——版本只在 VERSION 文件里
 
@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 FMT = re.compile(r"^v\d+\.\d+\.\d+$")
 STRAY = re.compile(r"设计版本 v\d|随设计 v\d|当前版本：v\d|平台版本 v\d")
 A2C_LINE = re.compile(r"依据的 A2C 设计版本：(v\d+\.\d+\.\d+)")
-ARTIFACTS = ("ioalab", "sdk", "official-services", "experiments", "connector", "examples", "deploy", "personal-assistant", "demo")
+ARTIFACTS = ("src/platform", "src/access/sdk", "official-services", "experiments", "connector", "examples", "deploy", "personal-assistant", "demo")
 
 
 def read_version(path: Path) -> str | None:
@@ -51,7 +51,7 @@ def changelog_top() -> str | None:
 
 def stray_markers() -> list[str]:
     files = [ROOT / "README.md"]
-    files += (ROOT / "ioalab").rglob("__init__.py")
+    files += (ROOT/"src/platform/ioalab").rglob("__init__.py")
     files += sorted(p for p in (ROOT / "设计").rglob("*.md") if "变更" not in p.relative_to(ROOT / "设计").parts)
     files += [p for p in (ROOT / "connector").rglob("*.md")] if (ROOT / "connector").exists() else []
     files += [p for p in (ROOT / "docs").rglob("*.md")] if (ROOT / "docs").exists() else []

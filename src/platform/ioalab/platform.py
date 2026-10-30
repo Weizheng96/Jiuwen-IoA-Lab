@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import time
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Mapping
 import httpx
@@ -370,7 +371,7 @@ class Platform:
                 "traffic": {"level": "external", "enabled": False},
                 "config": {"mode": self.s.mode, "public_url": self.s.public_url, "registration": self.s.registration,
                            "login_credit": self.s.login_credit, "isc_count": self.s.isc_count,
-                           "version": (Path(__file__).parents[1] / "设计/VERSION").read_text(encoding="utf-8").strip()}}
+                           "version": version("ioalab")}}
 
     def order_detail(self, cd):
         self.sync_orders()

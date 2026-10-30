@@ -2,7 +2,7 @@
 import argparse,json,os,subprocess,sys,threading,time,uuid
 from datetime import datetime,timezone,timedelta
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'sdk'))
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'src/access/sdk'))
 from ioalab_sdk.messaging import MailboxClient
 
 def main():

@@ -115,7 +115,7 @@ def test_windows_json_file_cli(platform,pair,tmp_path):
     from pathlib import Path
     users,(a,b,c)=pair
     params=tmp_path/'message.json';params.write_text(json.dumps({'to':users[0]['username'],'interface':'message.forward','payload':{'text':'从UTF-8文件传参'}}),encoding='utf-8-sig')
-    env={**os.environ,'PYTHONUTF8':'1','IOALAB_BASE_URL':platform.s.base_url,'IOALAB_USERNAME':b.username,'IOALAB_PASSWORD':PASSWORD,'IOALAB_HOME':str(b.home),'PYTHONPATH':str(Path(__file__).resolve().parents[1]/'sdk')}
+    env={**os.environ,'PYTHONUTF8':'1','IOALAB_BASE_URL':platform.s.base_url,'IOALAB_USERNAME':b.username,'IOALAB_PASSWORD':PASSWORD,'IOALAB_HOME':str(b.home),'PYTHONPATH':str(Path(__file__).resolve().parents[1]/'src/access/sdk')}
     result=subprocess.run([sys.executable,'-m','ioalab_sdk.cli','mail','send','--args-file',str(params)],env=env,capture_output=True,text=True,encoding='utf-8',timeout=30)
     assert result.returncode==0,result.stdout+result.stderr
     assert json.loads(result.stdout)['payload']['text']=='从UTF-8文件传参'

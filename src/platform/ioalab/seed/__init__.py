@@ -3,8 +3,8 @@ from .domains import definitions as load_definitions, load_domains
 
 def seed_all(platform, only=None):
     from .accounts import ensure_accounts
-    accounts = ensure_accounts(platform)
-    domains = load_domains()
+    domains = load_domains(platform.s.seed_file)
+    accounts = ensure_accounts(platform, domains=domains)
     members = {d["category"]["id"]: [] for d in domains}
     for row in platform.db.rows("SELECT id,definition FROM agents WHERE role='service'"):
         from ..store import jload

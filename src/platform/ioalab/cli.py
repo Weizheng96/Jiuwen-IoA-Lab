@@ -1,10 +1,10 @@
-"""命令行：ioalab check-config · init · serve · reset · smoke · backup。
+"""命令行：ioalab check-config · init · serve · reset · backup。
 
     ioalab check-config            # 核对环境变量（trial 模式的必填项），打印生效配置
     ioalab init [--no-seed]        # 幂等：建目录 · 建表 · 会话密钥 · A2X 凭据文件 · 记下 PUBLIC_URL · 创建空闲内部账号与分类
     ioalab serve                   # 起平台（单进程单 worker；禁 --reload）；首次启动若未注入种子且 IOALAB_AUTOSEED=1，自动注入
     ioalab reset [--keep-keys] [--keep-accounts]   # 停服后清 data/
-    ioalab smoke                   # 核心、官方服务、本地SDK三进程闭环（显式桩，不调模型）
+    python tools/smoke.py                   # 核心、官方服务、本地SDK三进程闭环（显式桩，不调模型）
     ioalab backup [--out 目录]     # 停服后把 data/ 打成 tar.gz
 """
 from __future__ import annotations
@@ -17,7 +17,6 @@ import tarfile
 import time
 from pathlib import Path
 
-from . import ROOT
 
 
 def _logging() -> None:
@@ -65,13 +64,14 @@ def main(argv: list[str] | None = None) -> None:
     rs = sub.add_parser("reset")
     rs.add_argument("--keep-keys", action="store_true")
     rs.add_argument("--keep-accounts", action="store_true", help="保留账号、钱包与服务注册，只清交易数据（需求 · 订单 · 事件 · 交付件）")
-    sub.add_parser("smoke")
     bk = sub.add_parser("backup")
     bk.add_argument("--out")
     args = ap.parse_args(argv)
     _logging()
     from .config import Settings
     s = Settings()
+    if args.cmd == 'init' and args.no_seed:
+        s.autoseed = False
 
     if args.cmd == "check-config":
         _print_config(s)
@@ -132,12 +132,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"[ioalab] 已清空 {s.data}" + ("（保留 keys/）" if keep else ""))
         return
 
-    if args.cmd == "smoke":
-        from .smoke import run_smoke
-        sys.exit(run_smoke())
-
     if args.cmd == "backup":
-        out = Path(args.out) if args.out else ROOT / "backups"
+        out = Path(args.out) if args.out else s.data.parent / "backups"
         out.mkdir(parents=True, exist_ok=True)
         dst = out / f"ioalab-data-{time.strftime('%Y%m%d-%H%M%S')}.tar.gz"
         with tarfile.open(dst, "w:gz") as tf:

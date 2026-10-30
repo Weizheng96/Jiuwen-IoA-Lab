@@ -40,7 +40,7 @@ def main():
     args=parser.parse_args()
     if not args.send:parser.error('--send is required for actual email delivery')
     import os,sys
-    sys.path[:0]=[str(ROOT/'sdk'),str(ROOT/'deploy')]
+    sys.path[:0]=[str(ROOT/'src/access/sdk'),str(ROOT/'deploy')]
     from configure_assistant import read_env
     from ioalab_sdk.calendar import address
     for key,value in read_env(args.env).items():

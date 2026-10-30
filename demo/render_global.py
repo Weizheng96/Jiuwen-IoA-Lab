@@ -60,7 +60,7 @@ def main():
         if src.is_file():
             shutil.copyfile(src, web / src.name)
     for name in ("panorama.css", "network-map.css", "network-map.js"):
-        shutil.copyfile(ROOT / "ioalab/web/static" / name, web / name)
+        shutil.copyfile(ROOT / "src/platform/ioalab/web/static" / name, web / name)
     run = json.loads((a.source / "public-run.json").read_text(encoding="utf-8"))
     assert run['proof'].get('density',{}).get('passed'),'Real monitor must pass multiple-initiator density checks'
     assert not run["proof"]["errors"] and run["proof"]["a2xTreeSearches"] > 0

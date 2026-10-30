@@ -43,7 +43,7 @@ if [ ! -x .venv/bin/python ]; then
 fi
 .venv/bin/python -m pip install -q --upgrade pip
 .venv/bin/python -m pip install -q -r requirements.txt
-.venv/bin/python -m pip install -q -e . -e ./sdk
+.venv/bin/python -m pip install -q -e ./src/platform -e ./src/access/sdk
 .venv/bin/python tools/build_connector.py
 .venv/bin/ioalab --help >/dev/null
 
@@ -55,6 +55,8 @@ if [ ! -f "$ENV_FILE" ]; then
   sed -i "s#^IOALAB_ADMIN_PASSWORD=.*#IOALAB_ADMIN_PASSWORD=$ADMIN_PW#" "$ENV_FILE"
   sed -i "s#^IOALAB_SECRET=.*#IOALAB_SECRET=$SECRET#" "$ENV_FILE"
   sed -i "s#^IOALAB_DATA=.*#IOALAB_DATA=$STATE_DIR/data#" "$ENV_FILE"
+  sed -i "s#^IOALAB_SEED_FILE=.*#IOALAB_SEED_FILE=$APP_DIR/deploy/default-seed.json#" "$ENV_FILE"
+  sed -i "s#^IOALAB_BUNDLES_DIR=.*#IOALAB_BUNDLES_DIR=$APP_DIR/dist#" "$ENV_FILE"
   sed -i "s#^A2C_CACHE_DIR=.*#A2C_CACHE_DIR=$STATE_DIR/a2c-cache#" "$ENV_FILE"
   IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
   [ -n "$IP" ] && sed -i "s#^IOALAB_PUBLIC_URL=.*#IOALAB_PUBLIC_URL=http://$IP:8750#" "$ENV_FILE"
@@ -63,6 +65,7 @@ if [ ! -f "$ENV_FILE" ]; then
 else
   say "$ENV_FILE 已存在，不改"
 fi
+bash deploy/configure_paths.sh "$ENV_FILE" "$APP_DIR"
 
 # ── 预热验收器沙箱的 wasm 运行时（随 a2c wheel 入库，首次解压约 14 MB）──
 sudo -u "$SVC_USER" env A2C_CACHE_DIR="$STATE_DIR/a2c-cache" .venv/bin/python - <<'PY'

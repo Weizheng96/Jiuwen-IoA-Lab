@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT),str(ROOT/'sdk'),str(ROOT/'official-services'),str(ROOT/'experiments')]
-os.environ.update(IOALAB_STUB='1',IOALAB_ADMIN_PASSWORD='test',IOALAB_AUTOSEED='1')
+os.environ.update(IOALAB_STUB='1',IOALAB_ADMIN_PASSWORD='test',IOALAB_AUTOSEED='1',
+                  IOALAB_SEED_FILE=str(ROOT/'deploy/default-seed.json'))
 
 def free_port():
     with socket.socket() as s:

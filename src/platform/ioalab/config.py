@@ -10,8 +10,6 @@ import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import ROOT
-
 DEFAULT_LLM_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
@@ -42,7 +40,9 @@ class Settings:
     bind: str = field(default_factory=lambda: _env("IOALAB_BIND", "127.0.0.1"))
     port: int = field(default_factory=lambda: int(_env("IOALAB_PORT", "8750")))
     public_url_env: str = field(default_factory=lambda: _env("IOALAB_PUBLIC_URL").rstrip("/"))
-    data: Path = field(default_factory=lambda: Path(_env("IOALAB_DATA", str(ROOT / "data"))))
+    data: Path = field(default_factory=lambda: Path(_env("IOALAB_DATA", "data")).expanduser().resolve())
+    seed_file: Path | None = field(default_factory=lambda: Path(_env("IOALAB_SEED_FILE")).expanduser().resolve() if _env("IOALAB_SEED_FILE") else None)
+    bundles_dir: Path = field(default_factory=lambda: Path(_env('IOALAB_BUNDLES_DIR','dist')).expanduser().resolve())
     stub: bool = field(default_factory=_stub)
     llm: dict = field(default_factory=_llm)
     agent_model: str = field(default_factory=lambda: _env("IOALAB_LLM_MODEL", "qwen3.7-flash"))       # 助手与服务方
@@ -143,6 +143,12 @@ class Settings:
             problems.append(f"IOALAB_REGISTRATION 只能是 open / invite / closed：{self.registration!r}")
         if self.traffic != "off":
             problems.append(f"背景流量须通过 experiments/traffic.py 独立运行；IOALAB_TRAFFIC 只能是 off：{self.traffic!r}")
+        if self.autoseed:
+            from .seed.domains import load_domains
+            try:
+                load_domains(self.seed_file)
+            except ValueError as exc:
+                problems.append(str(exc))
         if self.open and not self.stub:
             if len(self.admin_password) < 12:
                 problems.append("trial 模式必须设置 IOALAB_ADMIN_PASSWORD（≥ 12 位）")

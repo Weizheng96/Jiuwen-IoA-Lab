@@ -17,7 +17,7 @@ def main():
             pass
 
     server = ThreadingHTTPServer(
-        ("127.0.0.1", 0), partial(Handler, directory=str(ROOT / "ioalab/web"))
+        ("127.0.0.1", 0), partial(Handler, directory=str(ROOT / "src/platform/ioalab/web"))
     )
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:

@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-sys.path.insert(0, str(ROOT / "sdk"))
+sys.path.insert(0, str(ROOT / "src/access/sdk"))
 sys.path.insert(0, str(ROOT / "official-services"))
 from a2c.card import build_card, build_proposal_card, build_request, validate_card  # noqa: E402
 from a2c.template import validate  # noqa: E402

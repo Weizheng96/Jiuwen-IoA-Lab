@@ -1,7 +1,7 @@
 // Check external participant mapping and signed-evidence rendering without a browser.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
 const context=vm.createContext({document:{addEventListener(){}},console});
-vm.runInContext(fs.readFileSync(path.join(__dirname,'../ioalab/web/static/common.js'),'utf8')+'\nthis.exports={Names,Cases,Focus};',context);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/platform/ioalab/web/static/common.js'),'utf8')+'\nthis.exports={Names,Cases,Focus};',context);
 const {Names,Cases,Focus}=context.exports;
 const client='urn:a2c:client:external';
 Names.seedUsers([{id:'u-one',username:'one',agents:[{id:client,role:'assistant',name:'Swarm'}]}]);
