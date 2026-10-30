@@ -44,6 +44,18 @@ def waiting_was_cut(previous, current):
     )
 
 
+def validate_delegation_resume(proof, segments, orders, skill_audit):
+    """Only resume footage after real quotes, before any contract consent."""
+    require(proof.get('case')=='delegation' and proof.get('executionPath')=='generic-primitives', 'Resume requires the generic delegation recording')
+    require(proof.get('skillAudit')==skill_audit, 'Installed skill changed since the original capture')
+    require([s['id'] for s in segments]==['cover','account','configuration','skill','need','authorization','discovery','quotes'], 'Resume requires the exact unsigned quote checkpoint')
+    require([t['kind'] for t in proof.get('userTurns',[])]==['request','authorization'], 'Resume must not repeat contract consent')
+    quotes=proof.get('quotes',[])
+    require(len(quotes)==3 and {q['cardDigest'] for q in quotes}=={o['card_digest'] for o in orders}, 'Resume contract set differs from recorded proposals')
+    require(not any(o['signatures'].get('1') for o in orders), 'Resume cannot replay a signed contract')
+    require(not proof.get('browserErrors'), 'Keep failed browser evidence separate')
+
+
 def acceptance_presentation(proof):
     mode=proof.get('acceptancePresentation','recorded')
     require(mode in ('recorded','narrated'),'Unknown acceptance presentation')
@@ -103,7 +115,9 @@ def validate_real_case(proof, *, preview=None):
             require({q['provider'] for q in quotes}=={'灵犀小程序','快搭建站','码上飞'},'Use the authored service identities')
             require(proof.get('confirmationGates')==['authorization','contract','registration','acceptance'],'Four separate confirmation gates are required')
             turns=proof.get('userTurns',[])
-            require([t['kind'] for t in turns]==['request','authorization','contract','registration','acceptance'],'User turn order is incomplete')
+            require([t['kind'] for t in turns] in (['request','authorization','contract','registration','acceptance'], ['request','authorization','clarification','contract','registration','acceptance']),'User turn order is incomplete')
+            if any(t['kind']=='clarification' for t in turns):
+                require(proof.get('materialClarification',{}).get('question') and turns[2]['text']=='本轮不提供架构图，请先比较现有提案的验收标准并推荐，再让我确认具体合同。','Only the authored business-material answer is allowed')
             require(not any(word in turns[0]['text'] for word in ('SDK','SKILL.md','--confirmed','基础版','可靠版')),'Initial user request must be business-only')
             auth=proof.get('authorization',{})
             require(Decimal(str(auth.get('proposalFees',-1)))==3 and Decimal(str(auth.get('budget',0)))==500,'Actual proposal fees and total scope are required')

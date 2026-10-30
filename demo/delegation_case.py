@@ -6,13 +6,15 @@ ROOT=Path(__file__).resolve().parents[1]
 NEED='我是小美美甲店店主，帮我做个预约微信小程序，每个时段最多接两人，顾客还能自己取消预约。预算上限500虚拟币。'
 AUTHORIZE='确认授权，委托合同和验收都由我确认。不影响核心需求的设置先采用合理默认值，在合同里列明给我确认。'
 CONTRACT='确认码上飞这份合同和列出的规格，只确认签约开工。后续环节授权和验收请分别再问我。'
+CLARIFY='本轮不提供架构图，请先比较现有提案的验收标准并推荐，再让我确认具体合同。'
 REGISTER='授权实名注册。'
 ACCEPT='确认验收。'
 
 def record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save):
     b=cfg['accounts']['b'];base=cfg['base'];home=Path(cfg['folder'])/'client-b'
     last_turn=['']
-    proof['flow']='nail-original';proof['userTurns']=[]
+    proof['flow']='nail-original'
+    if not cfg.get('_resume'):proof['userTurns']=[]
     if cfg.get('onboarding'):proof['executionPath']='generic-primitives'
     def view():return box.http.get(base+'/api/workbench',headers={'Authorization':'Bearer '+box.token}).raise_for_status().json()
     def turn(kind,text):
@@ -48,12 +50,13 @@ def record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save):
             page.wait_for_timeout(1000)
         (out/('nine-timeout-'+label+'.txt')).write_text(nine.locator('body').inner_text(),encoding='utf-8')
         raise TimeoutError('Jiuwen did not request '+label)
-    assert not view()['orders'],'Use a fresh participant stack'
-    turn('request',NEED);shot('need','assistant')
-    prompt(('确认授权','委托授权','是否授权','是否同意','请确认'),'delegation-authorization')
-    assert not view()['orders'] and not local('scopes'),'No paid proposal or implicit authorization before user consent'
-    shot('authorization','assistant');turn('authorization',AUTHORIZE)
-    wait(lambda d:any(e['op']=='discovery.search' for e in d['events']),'discovery');shot('discovery','a2x')
+    if not cfg.get('_resume'):
+        assert not view()['orders'],'Use a fresh participant stack'
+        turn('request',NEED);shot('need','assistant')
+        prompt(('确认授权','委托授权','是否授权','是否同意','请确认'),'delegation-authorization')
+        assert not view()['orders'] and not local('scopes'),'No paid proposal or implicit authorization before user consent'
+        shot('authorization','assistant');turn('authorization',AUTHORIZE)
+        wait(lambda d:any(e['op']=='discovery.search' for e in d['events']),'discovery');shot('discovery','a2x')
     proposals=wait(lambda d:d['orders'] if len(d['orders'])>=3 else None,'three-proposals',seconds=1200)
     assert sorted(float(o['total']) for o in proposals)==[239,259,299],proposals
     assert not any(o['signatures'].get('1') for o in proposals),'No final contract without confirmation'
@@ -62,7 +65,11 @@ def record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save):
     proof.update(cardDigest=cd,focusedCardDigest=cd)
     lab.locator('[data-order="'+cd+'"]').first.wait_for(timeout=30000)
     lab.locator('[data-order="'+cd+'"]').first.click();lab.locator('#detail').evaluate('(e)=>e.close()')
-    shot('quotes','service')
+    if not cfg.get('_resume'):shot('quotes','service')
+    question=nine.locator('body').inner_text()
+    if '架构图' in question and '是否希望提供架构图' in question:
+        proof['materialClarification']={'question':'云构要求架构图，是否补充，或先比较已有三份提案？','answer':CLARIFY}
+        shot('materials','service');turn('clarification',CLARIFY)
     prompt(('确认合同','签署合同','是否确认','请确认'),'contract')
     comparison=list(local('comparisons').values())
     assert comparison and comparison[-1]['selected']==local('cards')[cd]['card']['provider'],'Expected an actual recommendation of the authored service, not a forced user replacement'

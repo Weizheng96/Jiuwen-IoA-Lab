@@ -162,3 +162,17 @@ def test_new_generic_film_requires_actual_onboarding(delegation):
     with pytest.raises(ValueError,match='configuration'):validate_real_case(proof)
     proof['nativeSkillPreload']='selected visibly'
     validate_real_case(proof)
+
+
+def test_unsigned_recording_resume_rejects_replay():
+    from demo.artifacts import validate_delegation_resume
+    proof={'case':'delegation','executionPath':'generic-primitives','skillAudit':{'main':'same'},'quotes':[{'cardDigest':str(i)} for i in range(3)],'userTurns':[{'kind':'request'},{'kind':'authorization'}],'browserErrors':[]}
+    segments=[{'id':k} for k in ('cover','account','configuration','skill','need','authorization','discovery','quotes')]
+    orders=[{'card_digest':str(i),'signatures':{'1':False}} for i in range(3)]
+    validate_delegation_resume(proof,segments,orders,{'main':'same'})
+    with pytest.raises(ValueError,match='skill changed'):validate_delegation_resume(proof,segments,orders,{'main':'different'})
+    orders[0]['signatures']['1']=True
+    with pytest.raises(ValueError,match='signed contract'):validate_delegation_resume(proof,segments,orders,{'main':'same'})
+    orders[0]['signatures']['1']=False;orders[0]['card_digest']='another-contract'
+    with pytest.raises(ValueError,match='contract set'):validate_delegation_resume(proof,segments,orders,{'main':'same'})
+    with pytest.raises(ValueError,match='checkpoint'):validate_delegation_resume(proof,segments[:-1],orders,{'main':'same'})

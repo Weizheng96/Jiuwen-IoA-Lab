@@ -1,6 +1,6 @@
 """Record real pages in side-by-side iframes; editing is driven by saved raw timestamps."""
 
-import argparse, json, socket, sys, threading, time, secrets, hashlib
+import argparse, json, socket, sys, threading, time, secrets, hashlib, shutil
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -16,12 +16,13 @@ def main():
     p.add_argument("--config", type=Path, required=True)
     p.add_argument("--case", choices=["delegation", "messaging"], required=True)
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--resume-quotes", action="store_true", help="Resume the same unsigned quote checkpoint without replaying business actions")
     a = p.parse_args()
     cfg = json.loads(a.config.read_text(encoding="utf-8"))
     if cfg.get("scenario", a.case) != a.case:
         raise ValueError("Use the independent participant stack for this scenario")
     out = a.out.resolve()
-    out.mkdir(parents=True, exist_ok=False)
+    if not a.resume_quotes:out.mkdir(parents=True, exist_ok=False)
     if cfg.get("fixtures"):
         raise ValueError("Formal cases reject fixture participants")
     from urllib.parse import urlsplit
@@ -32,7 +33,7 @@ def main():
         )
     b = cfg["accounts"]["b"]
     import httpx
-    box = None if cfg.get('onboarding') else MailboxClient(cfg['base'],b['username'],b['password'],Path(cfg['folder'])/'client-b')
+    box = None if cfg.get('onboarding') and not a.resume_quotes else MailboxClient(cfg['base'],b['username'],b['password'],Path(cfg['folder'])/'client-b')
     health = httpx.get(cfg['provider']+'/health',trust_env=False).raise_for_status().json()
     assert health["execution"] == "swarm"
     proof = {
@@ -54,6 +55,24 @@ def main():
         }
         if proof['skillAudit']['legacyExampleFilesPresent']:raise ValueError('Migrate obsolete installed scenario references before recording a generic skill')
     segments = []
+    source = 'screen.webm'
+    if a.resume_quotes:
+        from artifacts import validate_delegation_resume
+        prior=json.loads((out/'evidence.json').read_text('utf-8'))
+        segments=json.loads((out/'segments.json').read_text('utf-8'))
+        orders=box.http.get(cfg['base']+'/api/workbench',headers={'Authorization':'Bearer '+box.token}).raise_for_status().json()['orders']
+        validate_delegation_resume(prior,segments,orders,proof.get('skillAudit'))
+        assert not (out/'continuation.webm').exists() and not (out/'continuation-raw').exists(), 'Keep earlier continuation captures'
+        sessions=[p.parent.name for p in (ROOT/'.swarm-runtime/agent/sessions').glob('*/metadata.json') if json.loads(p.read_text('utf-8')).get('user_id')==cfg['swarmUserId']]
+        assert len(sessions)==1,'Expected the same unique native session'
+        originals=list((out/'raw').glob('*.webm'));assert len(originals)==1
+        if not (out/'screen.webm').exists():shutil.copyfile(originals[0],out/'screen.webm')
+        assert hashlib.sha256(originals[0].read_bytes()).digest()==hashlib.sha256((out/'screen.webm').read_bytes()).digest()
+        shutil.copyfile(out/'evidence.json',out/'evidence-before-continuation.json')
+        proof=prior;source='continuation.webm';cfg['_resume']=True
+        cfg['swarmWeb']=cfg['swarmWeb'].rstrip('/')+'/chat/'+sessions[0]
+        proof['continuation']={'reason':'Resume a real material question after the unsigned quote checkpoint; no business replay','sameContract':proof['cardDigest'],'source':source,'originalSha256':hashlib.sha256((out/'screen.webm').read_bytes()).hexdigest()}
+
     html = """<!doctype html><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0;background:#080f1b;color:#e7f5ff;font:18px "Microsoft YaHei"}header{height:42px;display:flex;justify-content:space-between;padding:10px 28px;background:#101f31}#panels{display:grid;grid-template-columns:1fr 1fr;height:928px;gap:3px}iframe{width:100%;height:100%;border:0;background:#0b1421}#cover{position:fixed;inset:42px 0 110px;z-index:20;background:radial-gradient(ellipse at center,#17374b,#0b1424 70%);display:grid;place-content:center;text-align:center}h1{font-size:68px;margin:0 0 26px;color:#c9fff4}h2{font-size:34px;color:#9fced9;font-weight:400}#bottom{height:110px;border-top:2px solid #79daca}body.full #panels{grid-template-columns:0 1fr}body.full #left{visibility:hidden}#tag{position:fixed;bottom:118px;right:20px;font-size:14px;color:#94aabd;background:#09121cdd;padding:6px 10px}</style><header><b id="leftlabel">九问 Swarm</b><span>九问IoA实验平台 · 实际界面录屏</span><b id="rightlabel">我的个人助手</b></header><div id="panels"><iframe id="left"></iframe><iframe id="right"></iframe></div><div id="bottom"></div><div id="tag">真实九问与协议 · 虚拟币 · 长等待将在剪辑中缩短</div><div id="cover"><h1>CASE_TITLE</h1><h2>九问IoA实验平台 · Jiuwen IoA Lab</h2></div><script>left.src=NINE_URL;right.src=LAB_URL;</script>"""
     html = (
         html.replace(
@@ -112,7 +131,7 @@ def main():
             browser = pw.chromium.launch()
             context = browser.new_context(
                 viewport={"width": 1920, "height": 1080},
-                record_video_dir=out / "raw",
+                record_video_dir=out / ("continuation-raw" if a.resume_quotes else "raw"),
                 record_video_size={"width": 1920, "height": 1080},
             )
             page = context.new_page()
@@ -125,11 +144,11 @@ def main():
             )
             nine = page.frame_locator("#left")
             lab = page.frame_locator("#right")
-            if not cfg.get('onboarding'):
+            if not cfg.get('onboarding') or a.resume_quotes:
                 lab.locator('#name').fill(b['username']);lab.locator('#password').fill(b['password'])
                 lab.locator('#auth button[type=submit]').click();lab.locator('#workspace').wait_for(state='visible')
             page.locator('#left').evaluate('(e)=>{e.style.width="100%";e.style.left="0"}')
-            nine.get_by_role('button',name='新建任务',exact=True).click()
+            if not a.resume_quotes:nine.get_by_role('button',name='新建任务',exact=True).click()
             page.locator('#left').evaluate('(e)=>{e.style.width="calc(100% + 312px)";e.style.left="-312px"}')
             nine.locator("[contenteditable=true]").last.wait_for(timeout=20000)
             try:
@@ -156,7 +175,7 @@ def main():
                 page.screenshot(path=str(out / (key + ".png")))
                 page.wait_for_timeout(seconds * 1000)
                 segments.append(
-                    {"id": key, "start": round(start, 3), "duration": seconds}
+                    {"id": key, "start": round(start, 3), "duration": seconds, "source": source}
                 )
                 save()
                 print("SHOT", key, flush=True)
@@ -252,9 +271,9 @@ def main():
                 )
                 raise TimeoutError(label)
 
-            shot("cover")
+            if not a.resume_quotes:shot("cover")
             page.locator("#cover").evaluate("(e)=>e.remove()")
-            if cfg.get('onboarding'):
+            if cfg.get('onboarding') and not a.resume_quotes:
                 page.locator('body').evaluate('(e)=>e.classList.add("full")')
                 def register():
                     lab.locator('#name').fill(b['username']);lab.locator('#password').fill(b['password'])
@@ -299,7 +318,7 @@ def main():
             page.screenshot(path=str(out / "final.png"))
             video = page.video
             context.close()
-            video.save_as(out / "screen.webm")
+            video.save_as(out / source)
             browser.close()
             proof["rawDuration"] = round(time.monotonic() - capture, 3)
             save()
