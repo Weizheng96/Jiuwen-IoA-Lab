@@ -8,6 +8,12 @@
 
 同账号逐条调用SDK，拿到上条回执后再发下一条，尤其不能并行多家request。九问bash工具对request设`timeout:900`（秒）；watch等待60秒时设`timeout:180`或更长。该参数属于bash工具，不写进业务JSON或SDK命令行。
 
+## 每阶段确认
+
+委托授权、具体合同、实际环节、每期验收分别询问，不互相代替。九问提供ask_user时，调用`ask_user(query="本阶段待确认事项", questions=[{"question":"针对真实对象和范围的明确问题？"}])`，等待工具返回本阶段用户的新答复；不可用时停止本轮、等待普通聊天的新答复。**不得自问自答或从之前的合同/材料/默认值确认推导后续同意。**
+
+收到stepRequest后先问、再等，不立即answer-step；确认合同只允许签约开工。空答、跳过、取消都不算同意；明确同意或拒绝后，才按本阶段答复调用相应SDK并加--confirmed。SDK不能凭该标记自行证明用户实际作答。
+
 ## 逐项执行
 
 | 顺序 | 必须执行的SDK动作 | 真实回执与下一步 |
@@ -21,7 +27,7 @@
 | 7 征集正式报价 | 对**每个合格候选**：proposal类型`request {template_digest,spec,materials?,budget,scope_id}`加--confirmed；其他类型`draft`同参数 | 保存每份cardDigest和derived.total。**proposalFee只收拟卡费，绝不是合同价；不拿它或公示参考价作为正式报价**。有未报价合格候选且授权费用足够，就继续本项；不能要求用户先选一家才拟卡 |
 | 8 比较并问具体合同 | `inspect {cd}`读各份真实卡；多家时`compare {providers,selected,reason,cd}`记录推荐依据，再完整说明推荐合同并等待用户确认 | 逐项比较判据覆盖、检查方式、失败条件与未覆盖项，再联系需求/价格/期限；不只数条目，不编星级或声称质量最好。总费用含所有拟卡费。只有1家合格/用户指定单方/费用不足才说明原因并减少询价，不固定三家 |
 | 9 定约开工 | 确认具体合同后，proposal用`adopt {cd}`，其他用`sign {cd}`；然后`start {cd}`，均加--confirmed | 确认内容包含规格/默认值、材料、亲签条款、每期金额、拟卡费合计、期限及未覆盖项；不扩张授权 |
-| 10 等待环节/交付 | `watch {cd,timeout:60}`或`poll {cd}`；实际stepRequest出现才询问，按答复`answer-step {cd,granted}`加--confirmed | 没有环节就继续等，不固定实名。参数按真实卡，不重建任务；确认开工不等于确认环节 |
+| 10 等待环节/交付 | `watch {cd,timeout:60}`或`poll {cd}`；实际stepRequest出现后必须通过上面的独立询问等待新答复，再`answer-step {cd,granted}`加--confirmed | 没有环节就继续等，不固定实名。参数按真实卡，不重建任务；确认开工不等于确认环节 |
 | 11 本地验收 | anchored事件给出period后，`fetch {cd,period}`→`verify {cd,period}` | WASM实际报告才算证据；pending等到notBefore，fail/error不签7不付款，讨论修正/仲裁 |
 | 12 逐期确认 | 展示本期成果、验收结果、应付金额，等用户确认后`accept {cd,period}`加--confirmed | SDK重验后签7并读卡付款。多期重复10—12，全部期完成才报告整单完成 |
 
