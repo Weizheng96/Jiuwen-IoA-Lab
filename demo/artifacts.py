@@ -44,6 +44,16 @@ def waiting_was_cut(previous, current):
     )
 
 
+def require_offer_window(card, template, *, margin=180, now=None):
+    """Filming must fit the existing signed proposal window; never renew it."""
+    from datetime import timedelta
+    from a2c.client import header_ts
+    from a2c.codec import parse_duration, utcnow
+    deadline=header_ts(card['signatures']['3'])+parse_duration(template['deadlines']['respondWithin'])
+    require(deadline-(now or utcnow())>=timedelta(seconds=margin), 'Insufficient proposal response time; stop, do not automatically renew authorization or pay again')
+    return deadline.isoformat()
+
+
 def validate_delegation_resume(proof, segments, orders, skill_audit):
     """Only resume footage after real quotes, before any contract consent."""
     require(proof.get('case')=='delegation' and proof.get('executionPath')=='generic-primitives', 'Resume requires the generic delegation recording')

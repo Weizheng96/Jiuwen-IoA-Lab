@@ -57,11 +57,18 @@ def main():
     segments = []
     source = 'screen.webm'
     if a.resume_quotes:
-        from artifacts import validate_delegation_resume
+        from artifacts import validate_delegation_resume, require_offer_window
         prior=json.loads((out/'evidence.json').read_text('utf-8'))
         segments=json.loads((out/'segments.json').read_text('utf-8'))
         orders=box.http.get(cfg['base']+'/api/workbench',headers={'Authorization':'Bearer '+box.token}).raise_for_status().json()['orders']
         validate_delegation_resume(prior,segments,orders,proof.get('skillAudit'))
+        import sqlite3
+        dbpath=Path(cfg['folder'])/'client-b/contracts.sqlite'
+        with sqlite3.connect('file:'+dbpath.as_posix()+'?mode=ro',uri=True) as db:
+            cards={k:json.loads(v)['card'] for k,v in db.execute("SELECT k,v FROM documents WHERE tbl='cards'")}
+            templates={k:json.loads(v) for k,v in db.execute("SELECT k,v FROM documents WHERE tbl='templates'")}
+        for quote in prior['quotes']:
+            card=cards[quote['cardDigest']];require_offer_window(card,templates[card['templateDigest']])
         assert not (out/'continuation.webm').exists() and not (out/'continuation-raw').exists(), 'Keep earlier continuation captures'
         sessions=[p.parent.name for p in (ROOT/'.swarm-runtime/agent/sessions').glob('*/metadata.json') if json.loads(p.read_text('utf-8')).get('user_id')==cfg['swarmUserId']]
         assert len(sessions)==1,'Expected the same unique native session'

@@ -176,3 +176,15 @@ def test_unsigned_recording_resume_rejects_replay():
     orders[0]['signatures']['1']=False;orders[0]['card_digest']='another-contract'
     with pytest.raises(ValueError,match='contract set'):validate_delegation_resume(proof,segments,orders,{'main':'same'})
     with pytest.raises(ValueError,match='checkpoint'):validate_delegation_resume(proof,segments[:-1],orders,{'main':'same'})
+
+
+def test_recording_rejects_expired_or_too_short_proposal_window():
+    from datetime import datetime, timedelta, timezone
+    from a2c.jws import Signer, sign
+    from demo.artifacts import require_offer_window
+    at=datetime(2026,10,30,0,0,tzinfo=timezone.utc)
+    card={'signatures':{'3':sign('sha256:'+'0'*64,Signer.generate('urn:test'),'3',at)}}
+    template={'deadlines':{'respondWithin':'PT10M'}}
+    require_offer_window(card,template,now=at+timedelta(minutes=7))
+    with pytest.raises(ValueError,match='response time'):require_offer_window(card,template,now=at+timedelta(minutes=8))
+    with pytest.raises(ValueError,match='response time'):require_offer_window(card,template,now=at+timedelta(minutes=11))

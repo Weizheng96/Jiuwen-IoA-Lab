@@ -34,3 +34,5 @@
 **阶段检查：合格候选还有未报价项→继续request/draft；没有真实cardDigest/derived.total→不能确认合同；没有确认具体合同→不adopt/sign/start；没有本期验收确认→不accept。** 最低数量满足只是可选策略下限，不等于候选集合已征集完毕。
 
 保存scope_id、候选清单、cardDigest、当前期及真实回执到本地任务笔记。状态未知先核实，不重付或改SDK绕过。恢复与详细参数按需读contract-primitives.md；已有delegate受管理任务用原taskId恢复，不用于新需求或固定行业计划。
+
+发生deadline-passed或合同响应窗口已过时立即停止并说明。旧request缓存不会延长期限；不得为恢复流程自行修改purpose重建scope、重新付费或修改签名时间。只有用户新的明确授权和具体合同确认后才能重新委托。

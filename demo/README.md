@@ -120,3 +120,5 @@ python demo/review_cases.py --recording recordings/<本轮>
 模型可复现配置：case_stack可用--assistant-model-id、--assistant-model-alias、--assistant-model-name选择已通过九问正常入口配置的模型，录像会核对可见别名并保存模型摘要；不改宿主源码或全局指令。service-model独立控制服务方Process模型，二者不要混淆。
 
 同单接续仅用于已录到三份未签约提案的画面中断：`python demo/record_cases.py --config <原run.json> --case delegation --out <原录像目录> --resume-quotes`。入口核对技能摘要、三份合同及未签约状态，使用原生会话URL恢复，保留screen.webm与独立continuation.webm时间原点；不重复注册、授权或拟卡付费，已有接续片时拒绝覆盖。必需材料的业务追问如实入镜，不注入技能路径或SDK命令。
+
+接续还须保留至少3分钟提案响应余量；最终合同确认前再保留2分钟。以真实签3及模板respondWithin计算，不能改写期限。窗口不足拒绝接续；模型收到deadline-passed应停止，重新授权或付费必须有新的用户同意。

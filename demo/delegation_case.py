@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
 NEED='我是小美美甲店店主，帮我做个预约微信小程序，每个时段最多接两人，顾客还能自己取消预约。预算上限500虚拟币。'
-AUTHORIZE='确认授权，委托合同和验收都由我确认。不影响核心需求的设置先采用合理默认值，在合同里列明给我确认。'
+AUTHORIZE='确认授权，委托合同和验收都由我确认。本轮没有软件架构图。不影响核心需求的设置先采用合理默认值，在合同里列明给我确认。'
 CONTRACT='确认码上飞这份合同和列出的规格，只确认签约开工。后续环节授权和验收请分别再问我。'
 CLARIFY='本轮不提供架构图，请先比较现有提案的验收标准并推荐，再让我确认具体合同。'
 REGISTER='授权实名注册。'
@@ -70,10 +70,13 @@ def record(cfg,out,page,nine,lab,box,proof,shot,send,wait,save):
     if '架构图' in question and '是否希望提供架构图' in question:
         proof['materialClarification']={'question':'云构要求架构图，是否补充，或先比较已有三份提案？','answer':CLARIFY}
         shot('materials','service');turn('clarification',CLARIFY)
+    else:shot('materials','service')
     prompt(('确认合同','签署合同','是否确认','请确认'),'contract')
     comparison=list(local('comparisons').values())
     assert comparison and comparison[-1]['selected']==local('cards')[cd]['card']['provider'],'Expected an actual recommendation of the authored service, not a forced user replacement'
     proof['recommendation']={'provider':chosen['providerName'],'reason':comparison[-1]['reason'],'source':'actual SDK comparison before contract confirmation'}
+    from artifacts import require_offer_window
+    card=local('cards')[cd]['card'];require_offer_window(card,local('templates')[card['templateDigest']],margin=120)
     shot('choice','contract');turn('contract',CONTRACT)
     wait(lambda d:any(o['card_digest']==cd and o['signatures'].get('1') for o in d['orders']),'signed')
     shot('contract','contract')
