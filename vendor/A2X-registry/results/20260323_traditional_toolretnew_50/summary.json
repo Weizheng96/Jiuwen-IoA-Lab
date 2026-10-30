@@ -1,0 +1,12 @@
+{
+  "method": "traditional",
+  "total_queries": 50,
+  "precision": 0.05170709432332352,
+  "recall": 0.8366666666666666,
+  "hit_rate": 0.86,
+  "f1": 0.0973950473330143,
+  "avg_llm_calls": 1.0,
+  "avg_tokens": 66567.72,
+  "avg_found_services": 160.18,
+  "elapsed_time": 452.5957033634186
+}

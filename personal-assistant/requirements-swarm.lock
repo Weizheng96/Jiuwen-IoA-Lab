@@ -1,6 +1,6 @@
 a2a-sdk==1.2.3
 a2ui-agent-sdk==0.2.1
-a4p @ git+https://gitcode.com/openJiuwen/agent-protocol.git@1699ea352a08430731c6dddac0fc46a1b1a385f2#subdirectory=A4P
+./vendor/wheels/a4p-0.2.0-py3-none-any.whl
 agentdescent==0.4.6
 aiofile==3.12.3
 aiofiles==25.1.0
@@ -90,7 +90,7 @@ idna==3.20
 imageio-ffmpeg==0.6.0
 importlib-metadata==8.7.1
 importlib-resources==7.1.0
-intelli-router @ git+https://gitcode.com/openJiuwen/agent-protocol.git@e83f98f2251e889d1f51a7b631aa675c0e43168d#subdirectory=intelli_router
+./vendor/wheels/intelli_router-0.1.0-py3-none-any.whl
 jaraco-classes==3.4.0
 jaraco-context==6.1.2
 jaraco-functools==4.6.0
@@ -126,7 +126,7 @@ oauthlib==4.0.0
 onnxruntime==1.31.0
 openai==3.37.0
 openapi-pydantic==0.6.0
-openjiuwen @ git+https://gitcode.com/openJiuwen/agent-core.git@f9f50368d526dde64cd3ad10473956b660a50694
+./vendor/wheels/openjiuwen-0.1.19-py3-none-any.whl
 openpyxl==3.1.5
 opentelemetry-api==1.41.1
 opentelemetry-exporter-otlp-proto-common==1.41.1
@@ -243,8 +243,12 @@ websocket-client==1.9.2
 websockets==15.0.1
 wecom-aibot-sdk==1.0.8
 win32-setctime==1.2.1 ; sys_platform == "win32"
-workswarm @ git+https://github.com/openJiuwen-ai/jiuwenswarm.git@b465f45c8cb059117ffd64c92178493239b613d1
+./vendor/wheels/workswarm-0.2.5b1-py3-none-any.whl
 wrapt==2.5.1
 xlsxwriter==3.3.0
 yarl==1.25.1
 zipp==4.1.2
+
+# Linux-only requirements from the pinned keyring metadata.
+SecretStorage==3.5.0 ; sys_platform == "linux"
+jeepney==0.9.0 ; sys_platform == "linux"

@@ -1,0 +1,13 @@
+{
+  "dataset": "ToolRet_new",
+  "query_file": "database/ToolRet_new/query.json",
+  "mode": "get_all",
+  "total_queries": 1714,
+  "precision": 0.16059638817122618,
+  "recall": 0.8918514196810579,
+  "hit_rate": 0.925904317386231,
+  "f1": 0.27218093993362386,
+  "avg_llm_calls": 7.957992998833139,
+  "avg_tokens": 7068.694865810969,
+  "elapsed_time": 767.1697053909302
+}

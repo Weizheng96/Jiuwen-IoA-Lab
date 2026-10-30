@@ -2,7 +2,7 @@
 # 九问IoA仿真平台（Jiuwen IoA Lab）· 裸 Linux 安装（无 Docker）：
 #   /opt/ioalab（本仓库，含 .venv）· /etc/ioalab/ioalab.env · /var/lib/ioalab（数据）· systemd 单元 ioalab.service
 #
-#   sudo git clone --recursive https://github.com/Weizheng96/Jiuwen-IoA-Lab.git /opt/ioalab
+#   将本仓从部署方的GitCode镜像克隆或同步到 /opt/ioalab（依赖已随仓）
 #   sudo /opt/ioalab/deploy/install.sh            # 幂等；装完先编辑 /etc/ioalab/ioalab.env（key · PUBLIC_URL）
 #   sudo systemctl enable --now ioalab            # 首次启动创建内部账号与分类元数据；服务由独立进程登记
 #
@@ -17,10 +17,8 @@ PY="${PYTHON:-python3.11}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 
 say() { echo "[ioalab-install] $*"; }
-need() { command -v "$1" >/dev/null 2>&1 || { say "缺少命令：$1"; exit 1; }; }
 
 [ "$(id -u)" -eq 0 ] || { say "请用 root（sudo）运行"; exit 1; }
-need git
 command -v "$PY" >/dev/null 2>&1 || { say "需要 Python 3.11（$PY 不存在）：apt install python3.11 python3.11-venv"; exit 1; }
 "$PY" -c 'import sys; assert sys.version_info[:2] == (3, 11), sys.version' || { say "解释器必须是 3.11"; exit 1; }
 
@@ -31,8 +29,7 @@ if [ "$HERE" != "$APP_DIR" ]; then
   cp -a "$HERE/." "$APP_DIR/"
 fi
 cd "$APP_DIR"
-git submodule update --init --recursive
-[ -f vendor/A2X-registry/pyproject.toml ] || { say "子模块 vendor/A2X-registry 未取到"; exit 1; }
+"$PY" tools/check_vendor.py
 
 # ── 账号与目录 ───────────────────────────────────────────────────────
 id -u "$SVC_USER" >/dev/null 2>&1 || useradd --system --home-dir "$STATE_DIR" --shell /usr/sbin/nologin "$SVC_USER"
@@ -86,10 +83,7 @@ sed -e "s#/opt/ioalab#$APP_DIR#g" -e "s#/var/lib/ioalab#$STATE_DIR#g" -e "s#^Use
   deploy/ioalab-providers.service > /etc/systemd/system/ioalab-providers.service
 # 独立管理员九问；默认附带安装，可在受限服务器先设置IOALAB_INSTALL_SWARM=0后补装。
 if [ "${IOALAB_INSTALL_SWARM:-1}" = "1" ]; then
-  command -v npm >/dev/null || { say "安装九问网页需要 Node/npm，请先安装后重试"; exit 1; }
-  if [ ! -x "$APP_DIR/.swarm-venv/bin/python" ]; then
-    .venv/bin/python personal-assistant/install_swarm.py --venv "$APP_DIR/.swarm-venv" --data "$STATE_DIR/swarm"
-  fi
+  .venv/bin/python personal-assistant/install_swarm.py --venv "$APP_DIR/.swarm-venv" --data "$STATE_DIR/swarm"
   .venv/bin/python deploy/configure_assistant.py --core-env "$ENV_FILE" --assistant-env /etc/ioalab/personal-assistant.env --swarm-data "$STATE_DIR/swarm" --assistant-data "$STATE_DIR/personal-assistant"
   chown -R "$SVC_USER:$SVC_USER" "$STATE_DIR/swarm"
   chown root:"$SVC_USER" /etc/ioalab/personal-assistant.env

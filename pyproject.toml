@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 dynamic = ["version"]
-# 依赖以 requirements.txt 为准（a2c wheel 与 A2X 子模块是本地路径，不能写在这里）
+# 依赖以 requirements.txt 为准（a2c wheel 与 A2X 源码快照是本地路径，不能写在这里）
 dependencies = []
 
 [project.scripts]

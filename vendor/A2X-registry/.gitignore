@@ -1,0 +1,92 @@
+# Reference materials - ignore from version control
+reference/
+
+# Backups (e.g. the archived standalone client repo) — not tracked here
+backup/
+
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+/build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code local settings
+.claude/settings.local.json
+CLAUDE.md
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# API keys
+llm_apikey.json
+openai_apikey.json
+
+# Auth module runtime data — credentials hashes + audit log live alongside
+# the code in a2x_registry/auth/ but must never enter git or wheels.
+# Override path via $A2X_REGISTRY_AUTH_DATA if you store these elsewhere.
+a2x_registry/auth/auth_data/
+*.token
+a2x_pat_*
+
+# Environment
+.env
+.env.*
+
+# Binary data files
+*.bin
+
+# Database — git submodule (A2X-registry-demo-data)
+# Ignore local-only generated files within it
+database/chroma/
+database/*/removed_skills/
+
+# Cache
+cache/
+**/chroma_db/
+
+# Claude scripts and prompt drafts
+claude scripts/
+prompt/
+
+# Results — only track summary.json for experiments referenced by README
+results/*
+!results/20260323_a2x-getall_toolretnew_1714/
+!results/20260323_vector_toolretnew_1714/
+!results/20260323_traditional_toolretnew_50/
+!results/20260323_a2x-getall_publicmcp_50/
+!results/20260323_vector_publicmcp_50/
+results/20260323_*/
+!results/20260323_*/summary.json
+
+# Docs — local-only design notes
+docs/optimize_design.md
+docs/动机与核心思想.md

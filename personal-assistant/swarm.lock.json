@@ -4,7 +4,8 @@
   "repository": "https://github.com/openJiuwen-ai/jiuwenswarm.git",
   "commit": "b465f45c8cb059117ffd64c92178493239b613d1",
   "sourceArchiveSha256": "dafa108639525ec8c99794cee29091f35be0fc599f589bfe3c72715d1f9b6608",
-  "requirementsSha256": "a659ed37ded00955297eca36829dbd1389dc2f49f5b0d5f2a9ee4577f96f2d82",
+  "requirementsSha256": "42509ed8f64833ab13df2f4510590786d2577cf4d680d597cc8bcd189bdde628",
   "python": "3.11",
-  "frontend": "npm ci && npm run build from pinned source; no source modifications"
+  "frontend": "Original prebuilt web UI included in the local workswarm wheel; deployment requires no Node/npm",
+  "manifest": "vendor/SOURCES.json"
 }

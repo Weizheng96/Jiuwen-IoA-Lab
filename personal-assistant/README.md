@@ -16,7 +16,7 @@
 4. 如需自动检查Outlook日历冲突，再配置独立的日历读取授权，见下文；仅收到邀请邮件不代表此项已验收。
 5. 启动已锁定的九问，再执行`python personal-assistant/assistant.py run --env data/personal-assistant.env`。`once`只收取处理一轮，适合诊断。
 
-独立九问安装：`python personal-assistant/install_swarm.py --venv .swarm-venv --data data/admin-swarm`。需Python 3.11、Git、Node/npm；源码、版本和依赖在同目录锁文件中。安装器只在新建归档副本中构建，不改传入的参考仓。模型配置写入九问自己的config/.env，不上传核心。当前锁在Windows实测；Linux实机安装另行验收。
+独立九问安装：`python personal-assistant/install_swarm.py --venv .swarm-venv --data data/admin-swarm`。需Python 3.11和可达的PyPI包镜像；Git源码依赖、本地wheel、预构建原网页及许可证已随仓保存，见[vendor](../vendor/README.md)。服务器不需要Git或Node/npm安装九问，安装器不拉取或修改上游仓。可用--verify-only只检查本地输入。模型配置写入九问自己的config/.env，不上传核心。当前锁在Windows实测，已补齐并审查Linux条件依赖；Linux实机安装另行验收。
 
 先生成技能安装包，再执行`deploy/configure_assistant.py`：会将完整技能安装到九问的`agent/workspace/skills`，首次写入ISC_001账号与本地SDK目录；升级保留已有技能账号配置。技能包排除`settings.local.json`，账号仅写在部署机器中。
 

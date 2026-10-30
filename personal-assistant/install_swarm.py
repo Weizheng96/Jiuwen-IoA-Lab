@@ -1,53 +1,86 @@
-"""Install the pinned runtime and original web UI outside the Lab core environment."""
+"""Install the pinned original Jiuwen runtime from bundled wheels; no Git or npm."""
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import venv
 
-HERE=Path(__file__).resolve().parent
-def run(argv,**kwargs): subprocess.run([str(a) for a in argv],check=True,**kwargs)
+ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT))
+from tools.check_vendor import validate
+
+
+def run(argv,**kwargs):subprocess.run([str(a) for a in argv],check=True,**kwargs)
+
+
+def installation_plan(root=ROOT):
+    root=Path(root).resolve();manifest=validate(root)
+    wheels=[(root/'vendor'/i['wheel']).resolve() for i in manifest['components'] if i['delivery']=='build-wheel']
+    lines=[]
+    for line in (root/'personal-assistant/requirements-swarm.lock').read_text('utf-8').splitlines():
+        lines.append((root/line[2:]).resolve().as_uri() if line.startswith('./vendor/') else line)
+    return manifest,wheels,'\n'.join(lines)+'\n'
+
+
+def ensure_pip(python):
+    # An existing uv-created environment may have no pip. Bootstrap from Python's
+    # bundled ensurepip without downloading or replacing the user's environment.
+    probe=subprocess.run([str(python),'-c','import importlib.util; raise SystemExit(importlib.util.find_spec("pip") is None)'],capture_output=True)
+    if probe.returncode:run([python,'-m','ensurepip','--upgrade'])
+
+
+def initialize_workspace(python,data):
+    fresh=not (data/'config/config.yaml').exists()
+    environment={**os.environ,'JIUWENSWARM_DATA_DIR':str(data),'IOALAB_NEW_SWARM_WORKSPACE':'1' if fresh else '0'}
+    prepare="""from pathlib import Path
+import os
+from jiuwenswarm.common.utils import prepare_workspace
+prepare_workspace(False,preferred_language='zh' if os.environ['IOALAB_NEW_SWARM_WORKSPACE']=='1' else None,workspace_dir=Path(os.environ['JIUWENSWARM_DATA_DIR']))
+"""
+    run([python,'-c',prepare],env=environment)
+    if fresh:
+        # Jiuwen caches config paths during import. Start a new interpreter after
+        # the workspace exists, so configuration cannot target packaged templates.
+        configure="""from jiuwenswarm.common.config import update_config
+def configure(document):
+    document.setdefault('updater',{})['enabled']=False
+    return document
+update_config(configure)
+"""
+        run([python,'-c',configure],env=environment)
+
 
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('--venv',required=True);ap.add_argument('--data',required=True);ap.add_argument('--source',help='Optional existing clean source at the pinned commit');a=ap.parse_args()
-    assert sys.version_info[:2]==(3,11),'Use Python 3.11 for the validated lock'
-    spec=json.loads((HERE/'swarm.lock.json').read_text());lock=HERE/'requirements-swarm.lock'
-    assert hashlib.sha256(lock.read_bytes()).hexdigest()==spec['requirementsSha256'],'Lock digest mismatch'
-    environment=Path(a.venv).resolve();data=Path(a.data).resolve();data.mkdir(parents=True,exist_ok=True)
-    if environment==Path(sys.prefix).resolve(): raise ValueError('Use a separate venv; do not install into Lab core')
-    if not environment.exists(): venv.EnvBuilder(with_pip=True).create(environment)
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--venv',type=Path)
+    parser.add_argument('--data',type=Path)
+    parser.add_argument('--verify-only',action='store_true',help='Verify bundled inputs without installation or network')
+    args=parser.parse_args()
+    if sys.version_info[:2]!=(3,11):raise RuntimeError('Use Python 3.11 for the validated dependency lock')
+    manifest,wheels,requirements=installation_plan()
+    if args.verify_only:
+        print('Pinned local Jiuwen inputs verified; Git and Node/npm are not required on the deployment host.');return
+    if args.venv is None or args.data is None:parser.error('--venv and --data are required for installation')
+    environment=args.venv.resolve();data=args.data.resolve()
+    if environment in (Path(sys.prefix).resolve(),(ROOT/'.venv').resolve()):raise ValueError('Use a separate venv outside the Lab core environment')
+    data.mkdir(parents=True,exist_ok=True)
+    if not environment.exists():venv.EnvBuilder(with_pip=True).create(environment)
     python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
-    source=Path(a.source).resolve() if a.source else data/'build-source'
-    archive_env={**os.environ,'GIT_LFS_SKIP_SMUDGE':'1'}
-    if not source.exists(): run(['git','clone','--no-checkout',spec['repository'],source],env=archive_env);run(['git','-C',source,'checkout','--detach',spec['commit']],env=archive_env)
-    archive=subprocess.check_output(['git','-c','safe.directory='+source.as_posix(),'-C',str(source),'archive','--format=tar',spec['commit']],env=archive_env)
-    if hashlib.sha256(archive).hexdigest()!=spec['sourceArchiveSha256']: raise ValueError('Source digest mismatch')
-    # Build only a fresh archive copy: never write to a caller-supplied reference checkout.
-    import tarfile,io
-    build=data/'web-build'
-    if build.exists(): raise ValueError('Build directory exists; choose a fresh data directory or retain its installed runtime')
-    build.mkdir();
-    with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
-        for member in tar.getmembers():
-            target=(build/member.name).resolve()
-            if not target.is_relative_to(build) or member.issym() or member.islnk(): raise ValueError('Unsafe source archive entry')
-        tar.extractall(build)
-    resolved=data/'requirements-swarm.local.lock'
-    lines=lock.read_text().splitlines();lines=[('workswarm @ '+build.as_uri()) if l.startswith('workswarm @ ') else l for l in lines]
-    resolved.write_text('\n'.join(lines)+'\n')
-    run([python,'-m','pip','install','--no-deps','-r',resolved])
-    npm=shutil.which('npm.cmd' if os.name=='nt' else 'npm')
-    if not npm: raise RuntimeError('Node/npm is required to build the pinned original Jiuwen Web UI')
-    frontend=build/'jiuwenswarm/channels/web/frontend'
-    run([npm,'ci','--no-audit','--no-fund'],cwd=frontend);run([npm,'run','build'],cwd=frontend)
-    package=Path(subprocess.check_output([str(python),'-c','import jiuwenswarm; print(jiuwenswarm.__path__[0])'],text=True).strip())
-    shutil.copytree(frontend/'dist',package/'channels/web/frontend/dist',dirs_exist_ok=True)
-    env={**os.environ,'JIUWENSWARM_DATA_DIR':str(data)}
-    run([python,'-c',"from pathlib import Path; import os; from jiuwenswarm.common.utils import prepare_workspace; prepare_workspace(False,preferred_language='zh',workspace_dir=Path(os.environ['JIUWENSWARM_DATA_DIR']))"],env=env)
-    print('Pinned Jiuwen installed. Configure its config/.env, EXTENSION_DIRS, IOALAB_SWARM_USER_ID and shared bridge secret before starting.')
+    lock=data/'requirements-swarm.local.lock';lock.write_text(requirements,encoding='utf-8')
+    fingerprint={'requirementsSha256':hashlib.sha256(requirements.encode()).hexdigest(),'wheels':{i['id']:i['wheelInfo']['sha256'] for i in manifest['components'] if i['delivery']=='build-wheel'}}
+    marker=data/'local-runtime-install.json'
+    if not marker.exists() or json.loads(marker.read_text('utf-8'))!=fingerprint:
+        ensure_pip(python)
+        run([python,'-m','pip','install','--disable-pip-version-check','--no-deps','-r',lock],cwd=ROOT)
+        # Same-version wheels must replace an older VCS install or an older frontend build.
+        run([python,'-m','pip','install','--disable-pip-version-check','--no-deps','--no-index','--force-reinstall',*wheels],cwd=ROOT)
+        initialize_workspace(python,data)
+        marker.write_text(json.dumps(fingerprint,indent=2)+'\n',encoding='utf-8')
+    else:initialize_workspace(python,data)
+    print('Pinned local Jiuwen runtime and original web UI installed. Existing model, account and skill settings are retained.')
+
 
 if __name__=='__main__':main()

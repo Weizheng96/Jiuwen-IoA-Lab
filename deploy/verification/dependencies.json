@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-30",
+  "platform": "Windows, Python 3.11",
+  "sourceManifest": "vendor/SOURCES.json",
+  "sourceManifestSha256": "52bcf817303427af7b40968c0d48f2c40c95242850904a0de14b22274f02c724",
+  "components": 7,
+  "sourceByteDigests": "267 A2X files match both the Git index and source manifest; source archives and wheels verified",
+  "gitlinks": 0,
+  "gitOrNpmInInstallPath": false,
+  "gitSourceHostsBlockedDuringInstall": [
+    "github.com",
+    "githubusercontent.com",
+    "githubassets.com",
+    "github.io",
+    "gitcode.com"
+  ],
+  "freshExportWithoutGit": true,
+  "freshCore": {
+    "requirements": "passed",
+    "editableProducts": "passed",
+    "pipCheck": "passed",
+    "threeProcessSmoke": "passed",
+    "skillBundleBuild": "passed"
+  },
+  "freshSwarm": {
+    "status": "passed",
+    "localWheelsAndOriginalFrontend": "installed",
+    "pipCheck": "passed",
+    "runtimeImport": "passed",
+    "finalLockAppliedWithNoIndex": "passed",
+    "newWorkspaceUpdaterDisabled": true,
+    "packagedTemplateUnchanged": true,
+    "sameFingerprintNoIndexReuse": true,
+    "existingConfigAndSkillSettingsPreserved": true,
+    "originalFrontendHTTP": {
+      "status": 200,
+      "assets": [
+        {
+          "path": "/logo.svg",
+          "bytes": 27554
+        },
+        {
+          "path": "/assets/index-sUjZyNuJ.js",
+          "bytes": 4989228
+        },
+        {
+          "path": "/assets/index-Fnt7KheM.css",
+          "bytes": 834526
+        }
+      ]
+    },
+    "gitSourceHostAttempts": 0
+  },
+  "ordinaryPypiPackages": "downloaded from a reachable package index; not a fully offline bundle",
+  "regression": {
+    "pytestPassed": 159,
+    "pytestFailed": 0,
+    "deploymentTests": 14,
+    "selfcheck": "passed"
+  },
+  "linux": "Shell syntax and mocked upgrade paths checked; real systemd/Nginx server acceptance pending",
+  "linuxDependencyMarkers": {
+    "linuxConditionalPins": [
+      "SecretStorage==3.5.0 ; sys_platform == \"linux\"",
+      "jeepney==0.9.0 ; sys_platform == \"linux\""
+    ],
+    "missingOrConflictingBaseDependencies": []
+  },
+  "existingEnvironmentWithoutPip": "offline ensurepip bootstrap passed with PIP_NO_INDEX=1",
+  "swarmRequirementsSha256": "42509ed8f64833ab13df2f4510590786d2577cf4d680d597cc8bcd189bdde628",
+  "gitSourceHostAttempts": 0
+}

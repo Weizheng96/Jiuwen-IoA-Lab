@@ -22,6 +22,7 @@ def main():
                           ('Demo scripts and published evidence',[sys.executable,'demo/script_documents.py','--check']),
                           ('Current documentation links',[sys.executable,'tools/check_docs.py']),
                           ('Official service definitions',[sys.executable,'tools/check_services.py']),
+                          ('Vendored deployment inputs',[sys.executable,'tools/check_vendor.py']),
                           ('Three-process smoke',[sys.executable,'-m','ioalab','smoke'])]:
         result=subprocess.run(command,cwd=ROOT,env=ENV,capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=300)
         ok(label,result.returncode==0)

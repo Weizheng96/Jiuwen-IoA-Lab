@@ -1,10 +1,10 @@
 {
   "date": "2026-10-30",
   "pytest": {
-    "passed": 145,
+    "passed": 159,
     "failed": 0
   },
-  "selfcheck": "passed: versions, screenplays/movie hashes, documentation links, service definitions, three-process smoke, A2C wheel, runtime boundary, wording and signed evidence",
+  "selfcheck": "passed: versions, screenplays/movie hashes, documentation links, service definitions, vendored deployment inputs, three-process smoke, A2C wheel, runtime boundary, wording and signed evidence",
   "originalTenTestFiles": "preserved",
   "workbenchUi": "passed: 960x928 and 1920x1080, fixed network while forms/details scroll, preserved expanded schema, neutral interface text, anonymous local background, no global requests, finite own flows, no replay on refresh",
   "adminUi": "passed: full-height four columns, real event log with 200-row bound, pause/resume and payload exclusion; component focus, scoped contract routing and zero residual paths",
@@ -28,7 +28,8 @@
     "currentCases": "cases.json",
     "earlyRealSwarm": "real-swarm.json",
     "notificationTransport": "agentmail.json",
-    "localSchedule": "local-schedule.json"
+    "localSchedule": "local-schedule.json",
+    "deploymentDependencies": "../../deploy/verification/dependencies.json"
   },
   "limits": [
     "Linux deployment has config/syntax checks but no real-server acceptance.",

@@ -1,0 +1,13 @@
+{
+  "dataset": "publicMCP",
+  "query_file": "database/publicMCP/query.json",
+  "mode": "get_all",
+  "total_queries": 50,
+  "precision": 0.1053988536576964,
+  "recall": 0.9486666666666668,
+  "hit_rate": 1.0,
+  "f1": 0.18971947614635123,
+  "avg_llm_calls": 14.1,
+  "avg_tokens": 15365.98,
+  "elapsed_time": 35.28641748428345
+}

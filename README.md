@@ -18,11 +18,11 @@
 
 ## 本地启动
 
-Python 3.11，首次克隆包含 A2X 子模块：
+Python 3.11。从你同步的GitCode仓克隆本仓，或同步git archive导出的源码目录；部署依赖已随仓保存，来源见[vendor](vendor/README.md)。常规PyPI包使用服务器可达的包镜像。
 
 ```bash
-git clone --recursive https://github.com/Weizheng96/Jiuwen-IoA-Lab.git
 cd Jiuwen-IoA-Lab
+python tools/check_vendor.py
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt -e . -e ./sdk
 .venv/bin/python tools/build_connector.py

@@ -1,6 +1,6 @@
 """ioalab：九问IoA仿真平台（Jiuwen IoA Lab）。设计见 设计/，运行与部署见 README.md 与 设计/部署.md。
 
-对 a2c SDK 只 import a2c（vendor/wheels 里的 wheel）；A2X（vendor/A2X-registry 子模块）与 openJiuwen（openjiuwen）作库使用。
+对 a2c SDK 只 import a2c（vendor/wheels 里的 wheel）；A2X 使用 vendor/A2X-registry 固定源码快照；九问在独立运行时中执行。
 """
 from __future__ import annotations
 

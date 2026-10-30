@@ -6,6 +6,16 @@
 *.example text eol=lf
 *.py text eol=lf
 *.json text eol=lf
+*.lock text eol=lf
 *.md text eol=lf
 *.whl binary
 *.png binary
+
+# Preserve upstream bytes and source archive digests across Windows/Linux clones.
+vendor/A2X-registry/** -text
+vendor/licenses/** -text
+vendor/sources/** binary
+
+# These are actual bundled bytes, never remote LFS references.
+vendor/wheels/** -filter
+vendor/sources/** -filter
