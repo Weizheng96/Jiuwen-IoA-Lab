@@ -51,6 +51,7 @@ A2C 合同字段、签名链、期限和验收器以[主仓协议](https://githu
 | 技能 | 使用条件 |
 |---|---|
 | [design](.agents/skills/design/SKILL.md) | 仅编写、修改、整理及审查设计文档；检查高内聚低耦合与流程闭环 |
+| [develop](.agents/skills/develop/SKILL.md) | 按设计开发、重构和修复代码；设计问题先修规范，验证公开闭环与恢复 |
 
 以下约定适用于本仓所有 Codex 开发技能，包括后续新增的代码开发、Demo 制作等技能。
 
