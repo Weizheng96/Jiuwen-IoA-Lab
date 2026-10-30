@@ -37,24 +37,27 @@ start 复用已运行实例；启动仍在进行时报告 waiting，不重新创
 
 ## 委托授权入口
 
-同一常驻调用格式支持以下授权、发现与候选操作。正式提案已使用原 A2C Client/Provider；具体合同确认、开工与完整履约仍待切换，不回退旧命令绕过门禁。
+同一常驻调用格式支持授权、发现、候选与具体合同确认。两种成约方式复用原 A2C Client/Provider；开工与完整履约仍待切换，不回退旧命令绕过门禁。
 
 | 操作 | 参数及真实结果 |
 |---|---|
 | `assistant.delegation.prepare` | purpose、budget、proposalFeeLimit；可选 categoryIds、validDays（默认7天）；返回本地 taskRef，尚未授权 |
 | `assistant.delegation.authorize` | taskRef，可选 validDays；返回待确认摘要；本机用户页批准后重复原调用，才签发并登记授权 |
 | `assistant.delegation.renew` | 原 taskRef，可选 validDays；再次由用户确认同一范围的有效期，不重置预算和原合同 |
-| `assistant.delegation.status` | taskRef 查看授权/预算；quoteRef 查看原候选任务与真实结果 |
+| `assistant.delegation.status` | taskRef 查看授权/预算；quoteRef 查看候选；contractRef 查看真实合同确认与成约结果 |
 | `assistant.delegation.close` | taskRef；关闭后续许可，保留既有合同与付款，不能当作解除合同 |
 | `assistant.delegation.intent` | taskRef、service agentId、原未签 request 或 card；可选 ttlSeconds；返回 messageRef 与投递回执 |
 | `assistant.delegation.intent_status` | messageRef；恢复同一交互 UUID、预留答复及意向状态 |
 | `assistant.delegation.search` | taskRef、query，可选 topK；返回平台实际发现结果 |
 | `assistant.delegation.inspect` | service agentId，可选 templateDigest；取得并验签原模板 |
 | `assistant.delegation.request` | taskRef、service、templateDigest、spec，可选 materials；返回 quoteRef；提案经接单、原 AP2 和签认取得正式卡，待批准只返回未签本地候选 |
+| `assistant.delegation.confirm` | quoteRef，可选 confirmationRef；首次返回具体合同待确认，用户批准后返回 contractRef 与本地任务；不接受另传的卡或 confirmed 字段 |
 
 金额可以输入整数或两位小数，SDK 规范化后供用户检查；分类 null 表示不限、空数组表示不允许新候选。context 的摘要稳定，grant 修订独立。签名请求发送前持久保存；响应丢失从原操作恢复，不重新签发或延长时间。数据中 authorizationReceipt 是原接受记录，authorization 才是平台当前状态。具体契约见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
 
 materials 以模板材料名为键，每项提供 text 或 bytesBase64，可选 spec；不接受任意本地路径。预签审查材料须先经本机用户确认。候选的预算、报价和验收条件均来自实际授权、模板及服务方决定；SDK 不固定候选数量或中选服务。未知结果核对原操作及已签原件，不重新拟卡、收费或运行模型。
+
+具体合同确认展示实际卡和材料审查范围，不能复用前次委托授权。平台先原子预留完整价款，再由原 SDK 保存用户签1；提案在原交互中采纳，待批准在选中后才取得接单预留、提交签1并取得服务方签2。结果分别返回 formed 与 started；确认成功不表示开工。丢失结果只恢复原件，不重签或重跑服务审查；拒绝、过期或超额不自动改签其他候选。
 
 ## 服务公示入口
 

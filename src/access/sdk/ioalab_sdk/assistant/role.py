@@ -19,6 +19,7 @@ from ..runtime.questions import native_answer
 from .rules import Rules
 from .delegation import DelegationTasks
 from .trading import Trading
+from .contracts import Contracts
 
 
 def stable(*values):return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(list(values))))
@@ -42,12 +43,14 @@ class AssistantRole:
         self.rules=Rules(runtime,self.identity,self.tools)
         self.delegation=DelegationTasks(runtime,self.identity)
         self.trading=Trading(self)
+        self.contracts=Contracts(self.trading)
         names=('rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
                'messaging.interfaces','messaging.send','messaging.status','messaging.close',
-               'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search')
+               'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search','delegation.confirm')
         return {'operations':{'assistant.'+name:self._operation(name) for name in names},
                 'jobs':{'assistant.message':JobHandler(self._process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available'))),
-                        'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False)},
+                        'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False),
+                        'assistant.contract':JobHandler(self.contracts.run,'assistant-contract-v1',False)},
                 'profiles':[self.identity.profile] if self.host else []}
 
     @staticmethod
@@ -71,6 +74,7 @@ class AssistantRole:
 
     def _call(self,name,operation,args):
         if name=='delegation.request':return self.trading.request(operation,args)
+        elif name=='delegation.confirm':return self.contracts.confirm(operation,args)
         elif name=='delegation.inspect':
             self.fields(args,('service',),('templateDigest',))
             return {'status':'completed','data':{'service':args['service'],'templates':self.trading.inspect(args['service'],args.get('templateDigest'))}}
@@ -79,6 +83,7 @@ class AssistantRole:
             self.delegation.task(args['taskRef'])
             return {'status':'completed','data':self.runtime.account.api('POST','/search',{'query':args['query'],'top_k':args.get('topK',8)})}
         elif name=='delegation.status' and set(args)=={'quoteRef'}:return self.trading.status(args['quoteRef'])
+        elif name=='delegation.status' and set(args)=={'contractRef'}:return self.contracts.status(args['contractRef'])
         if name=='delegation.intent':
             self.fields(args,('taskRef','service'),('request','card','ttlSeconds'))
             return self.delegation.intent(operation,args)
@@ -270,7 +275,8 @@ class AssistantRole:
         while not self._stop.is_set():
             self._wake.clear()
             try:
-                if self.runtime.connection.connected and self.trading:self.trading.recover()
+                if self.runtime.connection.connected and self.trading:
+                    self.trading.recover();self.contracts.recover()
                 if self.runtime.connection.connected and self.host and self.host.capabilities().get('available'):
                     self._schedule_received()
             except (RuntimeFault,httpx.HTTPError):pass

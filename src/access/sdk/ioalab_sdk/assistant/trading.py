@@ -106,15 +106,8 @@ class Trading:
         return {'status':job['status'] if job and job['status'] in ('completed','rejected','failed','unknown') else 'running' if job else 'waiting',
                 'data':{'quoteRef':reference,'phase':record['phase'],'job':job}}
 
-    def run(self,job):
-        ref=job['payload']['quoteRef'];key='quote:'+ref;record=self.store.checkpoint(self.namespace,key)
-        if record.get('result') is not None:return JobOutcome('completed',record['result'])
-        if record['phase']=='calling':raise RuntimeFault('unknown_result','Inspect the original signed call; never create a replacement request')
-        if record.get('materialApproval'):
-            approval=record['materialApproval']
-            self.runtime.confirmations.claim(approval['reference'],approval['binding'])
-        template=record['template']
-        sent=self.role.delegation.intent(stable('quote-intent',ref),{'taskRef':record['taskRef'],'service':record['service'],'request':record['subject']})
+    def establish(self,record,operation,subject):
+        sent=self.role.delegation.intent(operation,{'taskRef':record['taskRef'],'service':record['service'],subject:record['subject']})
         origin=sent['data']['messageRef']
         def reserved():
             if self.runtime.closing.is_set():raise RuntimeFault('unknown_result','Runtime closed while waiting for its original admission')
@@ -126,19 +119,32 @@ class Trading:
                 if body['outcome'] in ('rejected','failed'):raise RuntimeFault(body['error'].get('code','not_ready'),'Service did not accept this intent')
                 if body['outcome']=='reserved' and relation:return relation,body
             return None
-        try:relation,receipt=self.runtime.connection.wait_for(reserved)
+        return self.runtime.connection.wait_for(reserved)
+
+    def protocol(self,record,interaction,admission):
+        transport=SessionTransport(self.runtime,self.identity,interaction,admission,self.protocol_id(record['service']),public=self.public)
+        store=ProtocolStore(self.store,self.identity.agent_id,interaction)
+        for table,values in record['initial'].items():
+            for name,value in values.items():
+                if store.get(table,name) is None:store.put(table,name,value)
+        return self.client(store,transport)
+
+    def run(self,job):
+        ref=job['payload']['quoteRef'];key='quote:'+ref;record=self.store.checkpoint(self.namespace,key)
+        if record.get('result') is not None:return JobOutcome('completed',record['result'])
+        if record['phase']=='calling':raise RuntimeFault('unknown_result','Inspect the original signed call; never create a replacement request')
+        if record.get('materialApproval'):
+            approval=record['materialApproval']
+            self.runtime.confirmations.claim(approval['reference'],approval['binding'])
+        template=record['template']
+        try:relation,receipt=self.establish(record,stable('quote-intent',ref),'request')
         except RuntimeFault as exc:
             if exc.code in ('capacity_full','expired','closed','forbidden','service_paused'):
                 return self.finish(key,record,'rejected',{'quoteRef':ref,'error':{'code':exc.code,'message':str(exc)}})
             raise
-        transport=SessionTransport(self.runtime,self.identity,relation['id'],receipt['admissionId'],self.protocol_id(record['service']),public=self.public)
-        store=ProtocolStore(self.store,self.identity.agent_id,relation['id'])
-        for table,values in record['initial'].items():
-            for name,value in values.items():
-                if store.get(table,name) is None:store.put(table,name,value)
         record={**record,'phase':'calling','interactionId':relation['id'],'admissionId':receipt['admissionId']}
         self.store.checkpoint_set(self.namespace,key,record)
-        client=self.client(store,transport)
+        client=self.protocol(record,relation['id'],receipt['admissionId'])
         try:card=client.submit_request(record['subject'])
         except A2CError as exc:
             return self.finish(key,record,'rejected',{'quoteRef':ref,'error':{'code':exc.code,'message':exc.message}})

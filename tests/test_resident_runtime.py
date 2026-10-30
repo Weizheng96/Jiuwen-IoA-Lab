@@ -118,7 +118,7 @@ def test_local_rpc_origin_host_auth_and_size_are_enforced(platform,tmp_path):
             assert http.post(url,content=b'x'*(128*1024+1),headers={**headers,'Content-Type':'application/json'}).status_code==400
             assert http.post(url,json={**body,'unexpected':True},headers=headers).status_code==400
         rejected=client.call('assistant.delegation.confirm',{'confirmed':True})
-        assert rejected['status']=='rejected' and rejected['error']['code']=='not_ready'
+        assert rejected['status']=='rejected' and rejected['error']['code']=='invalid_input'
         assert client.call('runtime.stop',{'bootId':uid()})['status']=='rejected'
         assert query(client)['bootId']==status['bootId']
 
@@ -134,7 +134,7 @@ def test_cli_persists_original_operation_without_direct_role_fallback(platform,t
         first,second=json.loads(one.stdout),json.loads(two.stdout)
         assert one.returncode==two.returncode==1
         assert first['operationId']==second['operationId']==read_json(args)['operationId']
-        assert first['error']['code']==second['error']['code']=='not_ready'
+        assert first['error']['code']==second['error']['code']=='invalid_input'
 
 
 def test_adding_service_profile_reuses_account_and_original_assistant(platform,tmp_path):
