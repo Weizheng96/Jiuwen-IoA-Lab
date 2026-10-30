@@ -1,0 +1,44 @@
+{
+  "kind": "read_only_runtime_probe",
+  "recordedAt": "2026-10-30T14:16:17.275490+00:00",
+  "operations": [
+    "protocol.capabilities",
+    "model.list"
+  ],
+  "workspace": "existing configured local Jiuwen workspace",
+  "modelInvoked": false,
+  "sessionCreated": false,
+  "capabilitiesStatus": "completed",
+  "schema": "0.1",
+  "features": {
+    "custom_agent": true,
+    "run_model": true,
+    "run_skills": true,
+    "run_mcp": true,
+    "run_permissions": true,
+    "structured_output": true,
+    "max_turns": true,
+    "max_budget_usd": true,
+    "host_tools": true,
+    "interaction_callback": true,
+    "unattended_permission_rejection": true,
+    "cancel": true,
+    "session_resume": true,
+    "stable_event_fields": true,
+    "field_errors": true,
+    "empty_tools": true,
+    "protocol_schema": true
+  },
+  "modelCatalogStatus": "completed",
+  "modelErrorCode": null,
+  "modelCount": 3,
+  "currentSelection": "qwen-flash#0",
+  "selectionKeys": [
+    "qwen-flash#0",
+    "qwen-plus#1",
+    "qwen3.5-plus#2"
+  ],
+  "limits": [
+    "Does not prove agent execution, trusted confirmation, web visibility or new demo acceptance."
+  ]
+}

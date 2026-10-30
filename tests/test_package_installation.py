@@ -38,10 +38,12 @@ import importlib.metadata as m, importlib.resources as r, json
 from ioalab.config import Settings
 page=r.files('ioalab').joinpath('web/static/index.html').read_text(encoding='utf-8')
 print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),
-                 'resource':bool(page.strip()),'data':str(Settings().data)}))
+                 'resource':bool(page.strip()),'data':str(Settings().data),
+                 'accessEntry':{e.name:e.value for e in m.distribution('ioalab-sdk').entry_points if e.group=='console_scripts'}.get('ioalab-access')}))
 '''], tmp_path)
     result = json.loads(output)
     assert result['core'] == (ROOT/'src/platform/VERSION').read_text().strip().removeprefix('v')
     assert result['sdk'] == (ROOT/'src/access/sdk/VERSION').read_text().strip().removeprefix('v')
     assert result['resource']
+    assert result['accessEntry']=='ioalab_sdk.runtime.__main__:main'
     assert ROOT.as_posix().lower() not in result['data'].replace('\\','/').lower()

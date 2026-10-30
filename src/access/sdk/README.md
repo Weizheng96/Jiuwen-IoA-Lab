@@ -2,7 +2,22 @@
 
 安装：先安装仓库 `vendor/wheels/` 中锁定的 A2C wheel，再 `pip install ./src/access/sdk`。SDK 不依赖平台 Python 包，不在本地安装 A2X 或九问运行时。
 
-`ioalab_sdk.runtime` 已提供 `RuntimeStore` 与 `AgentConnection`：持久收件、连续游标、待发操作、WebSocket 连接恢复和交互 UUID 关联。它们仅构成共用传输基础，尚未替换下述旧 CLI/业务入口；常驻进程 IPC、角色调度与九问宿主适配仍按[开发计划](../../../docs/开发计划.md)推进，不能据此宣称两个角色已完成长连接接入。
+## 常驻接入入口
+
+共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。当前默认装配未启用业务处理器及九问宿主：可以绑定和接收，但不会处理消息、签约或替用户确认。完整角色切换仍见[开发计划](../../../docs/开发计划.md)。
+
+复制[配置模板](../../../deploy/access-runtime.json.example)，填写平台和账号，并在本机设置模板引用的密码环境变量；服务方可将 identities 改为 service profile，服务绑定不创建个人助手。数据目录相对配置文件定位，作为 SDK 专用目录；配置及调用参数文件放在其外。每个 profile 的稳定身份及私钥保存在该目录，不能删除重建。旧直接客户端目录须先迁移，不与常驻进程争用。
+
+```text
+python -m ioalab_sdk.runtime start --config <本机配置文件>
+python -m ioalab_sdk.runtime call runtime.status --home <配置中的数据目录>
+python -m ioalab_sdk.runtime call identity.status --home <配置中的数据目录>
+python -m ioalab_sdk.runtime call runtime.stop --home <配置中的数据目录> --args-file <已创建的空JSON参数文件>
+```
+
+start 复用已运行实例；启动仍在进行时报告 waiting，不重新创建竞争实例。状态分别报告 IPC、账号、身份、连接和执行能力，不能将进程运行当作业务完成。stop 在参数文件保存目标实例及原操作标识，等待实际轮次收敛并保留数据。运行数据、配置、端点凭据与日志均不入库。SDK 还提供 `ioalab-access` 命令，行为与模块入口一致。
+
+## 迁移中的原业务入口
 
 个人助手使用 `ioalab-client <command> --args '<JSON>'`；命令清单见 `python -m ioalab_sdk.cli --help`。配置 `IOALAB_BASE_URL`、`IOALAB_USERNAME`、`IOALAB_PASSWORD`；身份与合同存入本地 `IOALAB_HOME`。需确认的命令显式传 `--confirmed`，技能必须先取得用户同意。
 

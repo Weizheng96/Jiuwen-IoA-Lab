@@ -1,6 +1,7 @@
 """Resident WebSocket transport. Never invokes a model or repeats password login."""
 import json
 import random
+from collections import deque
 import threading
 import time
 from urllib.parse import urlsplit
@@ -13,7 +14,7 @@ from .protocol import RuntimeFault, encode
 
 
 class AgentConnection:
-    def __init__(self, base_url, token, actors, store):
+    def __init__(self, base_url, token, actors, store, *, clock=time.monotonic):
         parsed = urlsplit(base_url)
         if parsed.scheme not in ('http','https') or parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError('An HTTP(S) platform address without credentials or query is required')
@@ -29,19 +30,21 @@ class AgentConnection:
         self._socket = None
         self._ready = False
         self.error = None
+        self._clock,self._lease_until=clock,0
 
     @property
     def connected(self):
         with self._changed:
-            return self._ready and self.error is None
+            return self._ready and self.error is None and self._clock()<self._lease_until
 
-    def start(self, timeout=10):
+    def start(self, timeout=10, *, wait=True):
         with self._changed:
             if self._thread is None:
                 self._thread = threading.Thread(target=self._run, name='ioa-delivery', daemon=True)
                 self._thread.start()
+            if not wait:return self
             deadline = time.monotonic()+timeout
-            while not self._ready and self.error is None:
+            while not self.connected and self.error is None:
                 remaining = deadline-time.monotonic()
                 if remaining<=0:
                     raise RuntimeFault('not_ready', 'Connection is still recovering; local outbox is preserved')
@@ -126,6 +129,7 @@ class AgentConnection:
         url = self.base.replace('http','ws',1)+'/ws/agents'
         with connect(url,proxy=None,open_timeout=10,close_timeout=2,max_size=131072) as ws:
             self._socket = ws
+            authenticated_at=self._clock()
             ws.send(encode({'type':'connection.auth','ticket':ticket,'runtimeId':self.store.runtime_id,'cursors':self.store.cursors()}))
             ready = json.loads(ws.recv(timeout=10))
             self._error_frame(ready)
@@ -138,11 +142,14 @@ class AgentConnection:
             if not interval>0 or ready['leaseSeconds']<3*ready['heartbeatSeconds']:
                 raise RuntimeFault('protocol_error','Invalid heartbeat interval')
             sent = set()
-            ping_at = time.monotonic()+interval
+            ping_at = self._clock()+interval
+            pings=deque()
             with self._changed:
+                self._lease_until=authenticated_at+ready['leaseSeconds']
                 self._ready = True
                 self._changed.notify_all()
             while not self._stop.is_set():
+                if self._clock()>=self._lease_until:raise OSError('Execution heartbeat lease expired')
                 for operation in self.store.pending():
                     key = (operation['actor'],operation['kind'],operation['id'])
                     if key in sent:
@@ -150,11 +157,12 @@ class AgentConnection:
                     ws.send(encode({'type':operation['kind'],'operationId':operation['id'],'agentId':operation['actor'],
                                     'generation':generations[operation['actor']],'payload':operation['payload']}))
                     sent.add(key)
-                if time.monotonic()>=ping_at:
+                if self._clock()>=ping_at:
+                    pings.append(self._clock())
                     ws.send(encode({'type':'connection.ping','connectionId':ready['connectionId']}))
-                    ping_at = time.monotonic()+interval
+                    ping_at = self._clock()+interval
                 try:
-                    frame = json.loads(ws.recv(timeout=min(.25,max(.01,ping_at-time.monotonic()))))
+                    frame = json.loads(ws.recv(timeout=min(.25,max(.01,ping_at-self._clock()))))
                 except TimeoutError:
                     continue
                 self._error_frame(frame)
@@ -164,7 +172,11 @@ class AgentConnection:
                     self.store.complete(frame)
                     if not frame['ok'] and frame['error']['code']=='stale_generation':
                         self._error_frame({'type':'connection.error','error':frame['error']})
-                elif frame.get('type')!='connection.pong':
+                elif frame.get('type')=='connection.pong':
+                    if frame.get('connectionId')!=ready['connectionId'] or not pings:
+                        raise RuntimeFault('protocol_error','Heartbeat response does not match this connection')
+                    self._lease_until=pings.popleft()+ready['leaseSeconds']
+                else:
                     raise RuntimeFault('protocol_error','Unexpected server frame')
                 with self._changed:
                     self._changed.notify_all()

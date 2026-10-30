@@ -1,0 +1,14 @@
+{
+  "platform_url": "http://127.0.0.1:8000",
+  "username": "your-account",
+  "password_env": "IOALAB_ACCESS_PASSWORD",
+  "data_dir": "./access-data",
+  "identities": [
+    {"key": "personal", "role": "assistant", "name": "我的个人助手"}
+  ],
+  "max_model_runs": 2,
+  "max_pending_requests": 128,
+  "assistant": {},
+  "provider": {},
+  "host": {}
+}

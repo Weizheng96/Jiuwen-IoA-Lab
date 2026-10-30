@@ -12,7 +12,7 @@ from .protocol import RuntimeFault,instant
 
 
 class AccountSession:
-    def __init__(self,base,username,password,home,*,legacy=None,connect=True):
+    def __init__(self,base,username,password,home,*,legacy=None,connect=True,allow_offline=False):
         parsed=urlsplit(base)
         if parsed.scheme not in ('http','https') or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError('A platform HTTP(S) address without embedded credentials is required')
@@ -23,6 +23,7 @@ class AccountSession:
         if os.name!='nt':os.chmod(self.cache.path,0o600)
         self.http=httpx.Client(timeout=120,trust_env=False)
         self.account={}
+        self.allow_offline,self.verified=allow_offline,False
         try:
             binding={'platform':self.base,'username':username}
             with self.cache.transaction():
@@ -32,7 +33,13 @@ class AccountSession:
                 self.cache.put('meta','binding',binding)
                 if legacy and not self.cache.get('session','current'):
                     self.cache.put('session','current',legacy)
-            self.config=self.http.get(self.base+'/api/config').raise_for_status().json()
+            try:
+                self.config=self.http.get(self.base+'/api/config',timeout=10).raise_for_status().json()
+                self.cache.put('meta','public_config',self.config)
+            except (httpx.TransportError,httpx.HTTPStatusError) as exc:
+                if isinstance(exc,httpx.HTTPStatusError) and exc.response.status_code<500:raise
+                self.config=self.cache.get('meta','public_config') if allow_offline else None
+                if not self.config:raise
             if connect:self._connect()
             else:self.account=self.cache.get('session','current') or {}
         except BaseException:
@@ -58,13 +65,23 @@ class AccountSession:
 
     def _check_account(self):
         try:
-            account=self.http.get(self.base+'/api/v1/me',headers={'Authorization':'Bearer '+self.token}).raise_for_status().json()
+            account=self.http.get(self.base+'/api/v1/me',headers={'Authorization':'Bearer '+self.token},timeout=10).raise_for_status().json()
         except httpx.HTTPStatusError as exc:
+            if exc.response.status_code>=500 and self._offline():return
             if exc.response.status_code!=401:raise
             raise RuntimeFault('authenticate','Saved credentials are invalid; explicitly log in again','authenticate') from None
+        except httpx.TransportError:
+            if self._offline():return
+            raise
         if account.get('username')!=self.username:
             raise RuntimeFault('identity_conflict','Saved credentials belong to another account')
         self.account.update({key:account[key] for key in ('id','username','kind','display_name')})
+        self.verified=True
+
+    def _offline(self):
+        self.verified=False
+        expires=self.account.get('expiresAt')
+        return bool(self.allow_offline and self.token and expires and instant(expires)>time.time())
 
     def login(self,*,new_operation=False):
         with self.cache.transaction():
@@ -101,6 +118,7 @@ class AccountSession:
         if renewed.get('id')!=self.account.get('id') or renewed.get('credited') is not False:
             raise RuntimeFault('protocol_error','Credential renewal returned a conflicting account result')
         self.account.update(renewed)
+        self.verified=True
         self.cache.put('session','current',self.account)
         return self.status()
 
@@ -131,7 +149,8 @@ class AccountSession:
     def status(self):
         expires=self.account.get('expiresAt')
         return {'id':self.account.get('id'),'username':self.username,'platform':self.base,
-                'authenticated':bool(self.token) and (not expires or instant(expires)>time.time()),'expiresAt':expires}
+                'authenticated':bool(self.token) and (not expires or instant(expires)>time.time()),
+                'verifiedOnline':self.verified,'expiresAt':expires}
 
     def close(self):
         self.http.close()

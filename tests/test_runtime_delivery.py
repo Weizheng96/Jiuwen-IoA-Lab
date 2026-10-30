@@ -12,6 +12,29 @@ def store_at(tmp_path, person, base):
     return RuntimeStore(tmp_path/'runtime.sqlite',base,[person['actor']],owner_id=person['id'])
 
 
+def test_execution_stops_at_heartbeat_deadline_even_with_a_live_socket(platform,people,tmp_path):
+    person=people[0]
+    clock=[0.0]
+    store=store_at(tmp_path,person,platform.s.base_url)
+    connection=AgentConnection(platform.s.base_url,person['token'],[person['actor']],store,clock=lambda:clock[0])
+    ended=threading.Event();errors=[]
+    def once():
+        try:connection._session()
+        except OSError as exc:errors.append(str(exc))
+        finally:ended.set()
+    thread=threading.Thread(target=once)
+    thread.start()
+    try:
+        wait_for(lambda:connection.connected)
+        assert connection._socket is not None
+        clock[0]=platform.s.ws_lease_seconds+1
+        assert not connection.connected
+        assert ended.wait(5)
+        assert errors==['Execution heartbeat lease expired']
+    finally:
+        connection.close();thread.join(5);store.close()
+
+
 def delivery(actor, seq, mid=None, **extra):
     return {'type':'message.deliver','agentId':actor,'recipientSeq':seq,'deliveryState':'queued',
             'message':{'messageId':mid or uid(),'kind':'message.request','recipient':actor,'recipientSeq':seq, **extra}}

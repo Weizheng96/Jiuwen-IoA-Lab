@@ -70,6 +70,12 @@ class RuntimeStore:
         with self.lock:
             return dict(self.db.execute('SELECT actor,seq FROM runtime_cursors').fetchall())
 
+    def summary(self):
+        with self.lock:
+            return {'savedMessages':self.db.execute('SELECT COUNT(*) FROM runtime_inbox').fetchone()[0],
+                    'pendingOperations':self.db.execute('SELECT COUNT(*) FROM runtime_operations WHERE response IS NULL').fetchone()[0],
+                    'cursors':dict(self.db.execute('SELECT actor,seq FROM runtime_cursors').fetchall())}
+
     def _prepare(self, conn, actor, kind, payload, operation_id):
         if not conn.execute('SELECT 1 FROM runtime_cursors WHERE actor=?', (actor,)).fetchone():
             raise RuntimeFault('forbidden', 'Identity is outside this local instance')
