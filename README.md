@@ -33,7 +33,7 @@ python -m venv .venv
 .venv/bin/ioalab serve
 ```
 
-另开终端执行 `.venv/bin/python official-services/serve.py`；真实模式需先安装并配置兼容的九问进程入口，配置见 [部署](设计/部署.md)。Windows 将 `.venv/bin/` 换为 `.venv/Scripts/`。
+另开终端执行 `.venv/bin/python official-services/serve.py`；真实模式需先安装并配置兼容的九问进程入口，配置见 [部署](设计/工程/部署.md)。Windows 将 `.venv/bin/` 换为 `.venv/Scripts/`。
 
 用户访问核心首页注册，下载可直接导入九问技能页的ioalab-skill.zip，按技能说明配置本机账号。浏览器登录后可切换个人助手和服务方工作台；有管理角色的账号还可进入全景与消息审计。核心默认8750，官方服务默认8751；两个对外地址都须能被用户访问。内部账号已预注册，但保持空闲；SDK关联本地身份后才显示助手。
 
