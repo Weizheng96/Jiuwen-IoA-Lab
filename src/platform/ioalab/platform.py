@@ -148,12 +148,14 @@ class Platform:
         self.messaging.delivery.scopes=self.scopes
         self.messaging.delivery.publications=self.publications
         from .delegation import Admissions
-        from .operations import PaymentOperations
+        from .operations import PaymentOperations,MarketOperations
         self.admissions=Admissions(self.db,self.identities,self.publications,self.scopes,self.payment_provider)
         self.admissions.active=self.messaging.delivery.active_in
         self.payment_operations=PaymentOperations(self.db,self.identities,self.psp,self.admissions,self.scopes)
+        self.market_operations=MarketOperations(self.db,self.identities,self.admissions,self.market)
         self.messaging.delivery.admissions=self.admissions
         self.messaging.delivery.payment_operations=self.payment_operations
+        self.messaging.delivery.market_operations=self.market_operations
         self.psp.requires_admission=self.identities.bound_service
         self.market.market.requires_admission=self.identities.bound_service
         from .delegation.relay import ProtocolRelay

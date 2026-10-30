@@ -27,6 +27,7 @@ class ResidentRuntime:
         self.ready_profiles=set(ready_profiles)
         self.modules=tuple(modules)
         self.stop_requested=threading.Event()
+        self.closing=threading.Event()
         self._closed=False
         reserved={'runtime.status','runtime.stop','runtime.open_ui','identity.status','operations.get','operations.resume','confirmations.get'}
         if set(self.operations)&reserved or not all(callable(handler) for handler in self.operations.values()):
@@ -83,7 +84,8 @@ class ResidentRuntime:
         available=bool(host.get('available') and connected and not scheduler['error'] and not self.stop_requested.is_set())
         def role_ready(profile):
             return all(module.ready(profile) for module in self.modules
-                       if getattr(module,'identity',None) and module.identity.profile==profile and hasattr(module,'ready'))
+                       if hasattr(module,'ready') and ((getattr(module,'identity',None) and module.identity.profile==profile)
+                           or profile in getattr(module,'identities',{})))
         return {'runtimeId':self.store.runtime_id,'bootId':self.ipc.boot_id,'pid':os.getpid(),
                 'ipcReady':bool(self.ipc.thread and self.ipc.thread.is_alive()),
                 'account':self.account.status(),'platformConnected':connected,
@@ -159,6 +161,7 @@ class ResidentRuntime:
     def close(self):
         if self._closed:return
         self._closed=True
+        self.closing.set()
         # Keep the DB and OS ownership until all actual work/RPC threads stop.
         if self.scheduler:self.scheduler.drain()
         for module in self.modules:module.close()

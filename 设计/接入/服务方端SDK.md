@@ -21,12 +21,15 @@
 
 官方服务定义、模板、验收器及业务技能归 `src/official/services/`，通过显式配置和资源引用交给同一 SDK；通用服务方模块不导入官方目录，也不另建官方执行器。固定候选、报价与台词归 Demo 场景配置，不能成为服务方 SDK 的默认决策。
 
+常驻配置的 provider.services 以本地 profile 为键；每项声明 instructions、skills、max_active_delegations 和 accepting，可选 resources 保存本服务已发布的验收器引用等业务数据。仅装配已配置身份与宿主；未配置专业处理规则时只提供公示，不接取业务。skills 为本机已安装的业务技能引用，不从来信加载；resources 不授予额外工具权限。模型通过本单 quote 或 decision 工具输出结构化业务决定，SDK 保存决定后复用原 A2C 拟卡/复签；价格、验收条目、服务选择不由通用模块填充。
+
 ## 管理操作
 
 | 操作 | 输入 | 输出及边界 |
 |---|---|---|
 | `provider.configure` | 本地服务配置 | 配置草稿与缺项，不自动发布或修改已有合同 |
 | `provider.validate` | 配置草稿引用 | 业务工具、宿主、模板/包、模式、身份和容量检查结果 |
+| `provider.verifier.publish` | profile、verifierId、source，可选 reads、kind | 通过平台的确定性打包通道上传验收器源码，返回真实包引用；不在宿主执行源码，同操作恢复原内容 |
 | `provider.publish` | 通过检查的配置、可信确认引用 | 本地签名、市场签认、A2X 登记/刷新各自的真实结果 |
 | `provider.reputation.submit` | 所属已完成合同引用、稳定操作标识 | 核验收与付款凭证，复用 A2C Provider.close 提交结清卡，查询平台签发信誉；重复调用恢复原结果，未结清不能伪造成功日志 |
 | `provider.status` | 所属服务引用 | 公示、连接、可执行、容量、未完成任务、异常分别列示 |
@@ -44,13 +47,17 @@
 | 任务能力 | 输入 | 输出及限制 |
 |---|---|---|
 | `provider.task.inspect` | 运行时授予的本单 taskRef | 本单模式、原合同/提案、材料、阶段与可用能力；不返回其他任务或凭据 |
-| `provider.task.quote` | 本单 taskRef、符合模板的确定报价与所需提案数据 | A2C SDK 拟卡/签名结果；只用于提案阶段，不能绕过期限或容量提交 |
+| `provider.task.quote` | 符合本单模板的确定报价、验收条目与验收时长，或单独拒绝原因 | 返回业务决定已记录；SDK 后续复用原 A2C 拟卡/签认，实际结果从原任务读取；不能绕过期限或容量提交 |
 | `provider.task.decision` | 本单待批准 taskRef、批准或拒绝及原因 | 仅处理真实 card.countersign 请求；批准前复核委托方签1、卡摘要、期限及接单资格，原子提交预留后复用 A2C 复签形成签2；拒绝返回原协议原因，不签约 |
 | `provider.task.request_step` | 已开工合同、模板声明的环节名 | 复用 A2C Provider.request_step，产生签名 stepRequest 并经原任务推送；保存等待状态，收到对应有效授权前不执行受保护动作 |
 | `provider.task.selftest` | 本单候选成果 | 用合同验收器进行自测，返回真实报告；不修改判据、不替委托方验收 |
 | `provider.task.deliver` | 本单通过检查的成果引用 | A2C 原协议交付与存证结果；只有真实回执才报告已交付 |
 
 上述操作是 A2C Provider 原语的本单适配，不定义第二套合同状态机。业务技能负责实际生产；SDK 负责协议与权限。九问任务由运行时固定当前交互、Session、技能及工具能力，来信不得选择平台管理模式或另一任务。
+
+宿主任务工具的本单上下文由 SDK 固定；模型不传入或更换 taskRef、UUID、签名身份及 Session。quote 的 acceptance、acceptWithin、lineItems 均以实际模板交付件名为键，拒绝报价时只提交 reason，不把说明文本混入成功报价的拒绝分支。
+
+quote 工具明确区分三类验收器引用，不要求每项交付同时包含三类。保存业务决定前复用 A2C 校验卡结构、包摘要与清单种类；错误返回本单准确校验原因，由原模型轮次修正，不自动删改业务条款，不因此重收费或另起委托。
 
 待批准模式的签2即成约，不能用 decision 给多个未获用户具体确认的候选预先复签。批准或签署结果未知时恢复原操作，不生成另一份承诺；拒绝和过期均返回实际原因。
 

@@ -1,0 +1,21 @@
+{
+  "scope": "Original Jiuwen business decision with real resident HTTP/WS/A2C/AP2; scripted trusted user; not native web UI, delivery or video acceptance",
+  "model": "qwen-flash#0",
+  "interactionId": "dfc04d21-21cb-452d-9070-a225f876e75f",
+  "sessionId": "process_cli_1a18e90eef2_cbb5e8768382",
+  "cardDigest": "sha256:07a275fd0e8cfad0b74d62a5ddaf129c5807736ee7cac79d26363f62dcef7544",
+  "proposalPrice": 9,
+  "marketSignature": {
+    "protected": "eyJhMmMtc2lnbmVyIjoiaHR0cDovLzEyNy4wLjAuMTo1NjY1MS9hMmEvbWFya2V0IiwiYTJjLXNsb3QiOiIzIiwiYTJjLXRzIjoiMjAyNi0xMC0zMFQyMDo0NzoxOVoiLCJhbGciOiJFZDI1NTE5IiwiY3JpdCI6WyJhMmMtc2lnbmVyIiwiYTJjLXNsb3QiLCJhMmMtdHMiXSwia2lkIjoibTEifQ",
+    "signature": "OspOUnpEoJkHeHRTBlgVOXBYK3impey1ewOCm4Wz9e73yj8F9fs-sSoHVtHtu_h-D-wyLH_LGnX06fTfCKXpAw"
+  },
+  "userSlotOne": null,
+  "proposalFeeTransfers": 1,
+  "date": "2026-10-31",
+  "command": "pytest tests/test_resident_delegation.py::test_real_original_jiuwen_returns_a_valid_proposal_through_resident_provider_and_client (explicit original Jiuwen/model environment)",
+  "result": "1 passed, 8 deselected in 46.28 seconds",
+  "sourceSha256": {
+    "src/access/sdk/ioalab_sdk/provider/policy.py": "2639f657f00a1cae935003fe8b0913689fde6776fd7a94d3fc404735ad92da43",
+    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "c15f0398124e9e2d2308c85a2413578ceedc91cd52ceb3edb8c838e429d2621d"
+  }
+}

@@ -58,11 +58,15 @@ class ProtocolRelay:
         if conn.execute('SELECT 1 FROM delegation_protocol_calls WHERE interaction=? AND op=?',(value['interactionId'],value['body']['op'])).fetchone():
             raise LabError('id_conflict','Resume the original protocol message instead of signing a replacement',status=409)
         self.files.grant_in(conn,value['sender'],value['recipient'],value['body']['files'])
+        if value['body']['op']=='request.submit':
+            self.admissions.signed_request_in(conn,value['body']['admissionId'],value['messageId'],value['body']['body']['request'])
         conn.execute("INSERT INTO delegation_protocol_calls(message,interaction,admission,op,state) VALUES(?,?,?,?,'pending')",
                      (value['messageId'],value['interactionId'],value['body']['admissionId'],value['body']['op']))
 
     def start_in(self,conn,value):
         self.check_request_in(conn,value)
+        if value['body']['op']=='request.submit':
+            self.admissions.signed_request_in(conn,value['body']['admissionId'],value['messageId'],value['body']['body']['request'],started=True)
         conn.execute("UPDATE delegation_protocol_calls SET state='processing' WHERE message=?",(value['messageId'],))
 
     def result_in(self,conn,value,original):
@@ -71,15 +75,24 @@ class ProtocolRelay:
         call=conn.execute('SELECT * FROM delegation_protocol_calls WHERE message=?',(original['id'],)).fetchone()
         if not call or original['started'] is None:raise LabError('forbidden','An A2C result requires its original start permit',status=403)
         payload=value['body']
-        if set(payload)!={'reply','files'} or not isinstance(payload['reply'],dict) or not isinstance(payload['files'],dict):raise LabError('invalid_input','Preserve the original A2C reply and file map')
+        if set(payload)-{'reply','files','taskFiles','executionError'} or not {'reply','files'}.issubset(payload) or not isinstance(payload['reply'],dict) or not isinstance(payload['files'],dict) or not isinstance(payload.get('taskFiles',{}),dict):raise LabError('invalid_input','Preserve the original A2C reply and file maps')
         reply=payload['reply']
         if set(reply)-{'body','state','taskId','task'} or not isinstance(reply.get('body'),dict) or reply['body'].get('op')!=call['op']:
             raise LabError('invalid_input','A2C reply must preserve its original protocol method')
         state=reply.get('state')
         if state is None:state='completed'
         if state not in ('working','auth-required','completed','failed','rejected','canceled'):raise LabError('invalid_input','Use an original A2C task state')
+        if 'executionError' in payload:
+            error=payload['executionError']
+            if state not in ('working','auth-required') or not isinstance(error,dict) or set(error)!={'code','recovery'} or error['code']!='unknown_result' or error['recovery']!='reconcile_original':
+                raise LabError('invalid_input','Unknown execution preserves a nonterminal original task')
         task=reply.get('taskId')
         if task is not None and (not isinstance(task,str) or not 1<=len(task)<=256):raise LabError('invalid_input','Use the original A2C task ID')
+        snapshot=reply.get('task')
+        if snapshot is not None:
+            if not isinstance(snapshot,dict) or set(snapshot)!={'id','op','state','artifacts','status'} or (snapshot['id'],snapshot['op'],snapshot['state'])!=(task,call['op'],state) or not isinstance(snapshot['artifacts'],list) or (snapshot['status'] is not None and not isinstance(snapshot['status'],dict)):
+                raise LabError('invalid_input','Task snapshot must preserve the original reply identity, method and state')
+        elif payload.get('taskFiles'):raise LabError('invalid_input','Task files require the original task snapshot')
         if call['task'] and task!=call['task']:raise LabError('id_conflict','A2C progress changed its original task ID',status=409)
         fingerprint=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
         if call['state'] in ('completed','failed','rejected','canceled'):
@@ -89,6 +102,7 @@ class ProtocolRelay:
             request=json.loads(original['envelope'])['body']['body']['card']
             self.admissions.countersign_result_in(conn,call['admission'],reply['body']['card'],request['signatures']['1'])
         self.files.grant_in(conn,value['sender'],value['recipient'],payload['files'])
+        self.files.grant_in(conn,value['sender'],value['recipient'],payload.get('taskFiles',{}))
         conn.execute('UPDATE delegation_protocol_calls SET state=?,last_result=?,last_hash=?,task=? WHERE message=?',
                      (state,value['messageId'],fingerprint,task,original['id']))
         return None

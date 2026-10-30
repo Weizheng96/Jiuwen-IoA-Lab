@@ -87,6 +87,18 @@ class AgentConnection:
         response.raise_for_status()
         return self.store.recover_link(actor,response.json())
 
+    def wait_for(self,predicate,*,timeout=30):
+        """Wait on a locally saved push result, without polling a remote task."""
+        deadline=time.monotonic()+timeout
+        with self._changed:
+            while True:
+                value=predicate()
+                if value is not None:return value
+                if self.error:raise self.error
+                remaining=deadline-time.monotonic()
+                if remaining<=0 or self._stop.is_set():raise RuntimeFault('unknown_result','The original protocol call is saved; recover its original result','resume_original')
+                self._changed.wait(min(remaining,.25))
+
     def _run(self):
         attempt = 0
         while not self._stop.is_set():

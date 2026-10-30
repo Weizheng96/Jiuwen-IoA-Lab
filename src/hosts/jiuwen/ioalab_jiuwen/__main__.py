@@ -28,7 +28,7 @@ def main(argv=None):
         config=RuntimeConfig.load(args.config)
         host=ProcessHost.from_config(config.host,base_dir=args.config.resolve().parent)
         module=AssistantRole(host)
-        runtime=ResidentRuntime(config,modules=(module,ProviderRole()),host_status=host.capabilities)
+        runtime=ResidentRuntime(config,modules=(module,ProviderRole(host)),host_status=host.capabilities)
         if not host.probe()['available']:raise RuntimeFault('not_ready','Jiuwen model/capability probe did not pass','configure_host')
         runtime.run()
     except RuntimeFault as exc:

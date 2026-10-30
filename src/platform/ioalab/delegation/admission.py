@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS delegation_admissions(id TEXT PRIMARY KEY,interaction
 CREATE TABLE IF NOT EXISTS admission_operations(owner TEXT NOT NULL,actor TEXT NOT NULL,kind TEXT NOT NULL,id TEXT NOT NULL,
  fingerprint TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(actor,kind,id));
 CREATE TABLE IF NOT EXISTS admission_payments(payment_id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,admission TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS delegation_signed_requests(admission TEXT PRIMARY KEY,message TEXT NOT NULL,request TEXT NOT NULL,started REAL);
+CREATE TABLE IF NOT EXISTS delegation_offers(admission TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,result TEXT NOT NULL);
 '''
 
 
@@ -296,3 +298,47 @@ class Admissions:
             if any(item for slot,value in card['signatures'].items() if slot not in ('1','2') for item in (value if isinstance(value,list) else [value])):raise ValueError()
             if verify_card(template,card,keys).effective is None:raise ValueError()
         except (A2CError,TypeError,KeyError,ValueError):raise LabError('invalid_input','Countersign result changed its bound card or original signature chain') from None
+
+    def signed_request_in(self,conn,identifier,message,request,*,started=False):
+        identifier=self.admission(conn,identifier)['id']
+        original=conn.execute('SELECT * FROM delegation_signed_requests WHERE admission=?',(identifier,)).fetchone()
+        if original:
+            if original['message']!=message or json.loads(original['request'])!=request:raise LabError('id_conflict','Original signed request cannot change',status=409)
+        else:
+            conn.execute('INSERT INTO delegation_signed_requests(admission,message,request) VALUES(?,?,?)',(identifier,message,encode(request)))
+        if started:conn.execute('UPDATE delegation_signed_requests SET started=COALESCE(started,?) WHERE admission=?',(self.clock(),identifier))
+
+    def issued_offer_in(self,conn,owner,actor,identifier,fingerprint):
+        self.owned_service(owner,actor)
+        admission=self.admission(conn,identifier);identifier=admission['id']
+        if admission['service']!=actor:raise LabError('forbidden','This service does not own that admission',status=403)
+        row=conn.execute('SELECT * FROM delegation_offers WHERE admission=?',(identifier,)).fetchone()
+        if row and row['fingerprint']!=fingerprint:raise LabError('id_conflict','An admission already has its original signed offer',status=409)
+        return json.loads(row['result']) if row else None
+
+    def proposal_eligible_in(self,conn,owner,actor,identifier,request,card):
+        self.owned_service(owner,actor)
+        row=self.admission(conn,identifier)
+        identifier=row['id']
+        if row['service']!=actor or row['state']!='committed':raise LabError('forbidden','The original service needs committed admission before market endorsement',status=403)
+        original,_=self._eligible(conn,self.intent(conn,row['origin']))
+        source=conn.execute('SELECT * FROM delegation_signed_requests WHERE admission=?',(identifier,)).fetchone()
+        if not source or source['started'] is None or json.loads(source['request'])!=request:raise LabError('forbidden','Use the original signed request that actually started',status=403)
+        party=self.identities.service_party(actor);keys=Directory();keys.add(party['id'],{'keys':[party['jwk']]})
+        try:
+            header=verify_request(request)
+            template=original['template'];validate_card(template,card,request=request)
+            if template['formation']!='proposal' or request_digest(request)!=row['binding'] or card['provider']!=party['id'] or not card['signatures']['2']:
+                raise ValueError()
+            if any(item for slot,value in card['signatures'].items() if slot!='2' for item in (value if isinstance(value,list) else [value])):raise ValueError()
+            requested=parse_time(header['a2c-ts'])
+            verify_card(template,card,keys,request_ts=requested)
+            now=datetime.fromtimestamp(self.clock(),timezone.utc)
+            check_fresh(header_of(card['signatures']['2']),now)
+            if now>requested+parse_duration(template['deadlines']['respondWithin']):raise ValueError()
+        except (A2CError,TypeError,KeyError,ValueError):raise LabError('invalid_input','Proposal changed the original request or its signature/window') from None
+        return template
+
+    def record_offer_in(self,conn,identifier,fingerprint,result):
+        identifier=self.admission(conn,identifier)['id']
+        conn.execute('INSERT INTO delegation_offers VALUES(?,?,?)',(identifier,fingerprint,encode(result)))

@@ -32,15 +32,16 @@ class JobHandler:
     revision: str
     uses_model: bool=True
     ready: Callable|None=None
+    control: bool=False
 
 
 class Scheduler:
     def __init__(self,store,handlers,*,max_models=2,max_pending=128,max_workers=None,can_dispatch=lambda:True):
-        max_workers=max_workers if max_workers is not None else max(8,max_models)
+        max_workers=max_workers if max_workers is not None else max(8,max_models+2)
         if any(type(n) is not int or n<1 for n in (max_models,max_pending,max_workers)):
             raise ValueError('Positive scheduler limits are required')
         if any(not isinstance(name,str) or not isinstance(h,JobHandler) or not h.revision or not callable(h.run)
-               for name,h in handlers.items()):raise ValueError('Register explicit local role handlers')
+               or h.control and h.uses_model for name,h in handlers.items()):raise ValueError('Register explicit local handlers; control handlers cannot run models')
         self.store,self.handlers=store,dict(handlers)
         self.max_models,self.max_pending,self.max_workers=max_models,max_pending,max_workers
         self.can_dispatch=can_dispatch
@@ -65,7 +66,7 @@ class Scheduler:
         self._thread.start()
         return self
 
-    def submit(self,actor,interaction,handler,payload,*,operation_id,session=None,deadline=None):
+    def submit(self,actor,interaction,handler,payload,*,operation_id,session=None,deadline=None,admitted=False):
         if handler not in self.handlers:raise RuntimeFault('not_ready','Role handler is unavailable','configure_role')
         if not isinstance(interaction,str) or not interaction or not isinstance(operation_id,str) or not 1<=len(operation_id)<=128:
             raise RuntimeFault('invalid_input','A stable interaction and operation are required')
@@ -74,8 +75,9 @@ class Scheduler:
         if deadline is not None and (type(deadline) not in (int,float) or not 0<deadline<float('inf')):
             raise RuntimeFault('invalid_input','Invalid local execution deadline')
         revision=self.handlers[handler].revision
+        if type(admitted) is not bool:raise ValueError('Admission is an internal role decision')
         original=encode({'actor':actor,'interaction':interaction,'handler':handler,'revision':revision,
-                         'payload':payload,'session':session,'deadline':deadline})
+                         'payload':payload,'session':session,'deadline':deadline,**({'admitted':True} if admitted else {})})
         fingerprint=hashlib.sha256(original.encode()).hexdigest()
         job=self.reference(actor,handler,operation_id)
         with self.store.transaction() as conn:
@@ -87,7 +89,7 @@ class Scheduler:
             if not conn.execute('SELECT 1 FROM runtime_cursors WHERE actor=?',(actor,)).fetchone():
                 raise RuntimeFault('forbidden','Job identity is outside this instance')
             count=conn.execute("SELECT COUNT(*) FROM runtime_jobs WHERE state IN ('queued','running','waiting','unknown')").fetchone()[0]
-            if count>=self.max_pending:raise RuntimeFault('quota_exceeded','Local pending queue is full','wait_for_capacity')
+            if count>=self.max_pending and not admitted:raise RuntimeFault('quota_exceeded','Local pending queue is full','wait_for_capacity')
             conn.execute('INSERT INTO runtime_jobs(id,actor,interaction,session,handler,revision,payload,fingerprint,state,created,deadline,result,continuation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
                          (job,actor,interaction,session,handler,revision,encode(payload),fingerprint,
                           'queued',time.time(),deadline,None,None))
@@ -194,11 +196,12 @@ class Scheduler:
 
     def _next(self):
         with self.store.transaction() as conn:
-            held=conn.execute("SELECT interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')").fetchall()
+            held=conn.execute("SELECT id,interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')").fetchall()
             interactions={r['interaction'] for r in held}
             sessions={r['session'] for r in held if r['session']}
             models=sum(self.handlers[r['handler']].uses_model for r in held
                        if r['state']=='running' and not r['model_waiting'] and r['handler'] in self.handlers)
+            business_threads=sum(not self.handlers[r['handler']].control for r in held if r['id'] in self._active and r['handler'] in self.handlers)
             for row in conn.execute("SELECT * FROM runtime_jobs WHERE state='queued' ORDER BY created,id").fetchall():
                 handler=self.handlers.get(row['handler'])
                 if row['deadline'] is not None and row['deadline']<=time.time():
@@ -207,6 +210,7 @@ class Scheduler:
                 if not handler or row['revision']!=handler.revision or handler.ready and not handler.ready():continue
                 if row['interaction'] in interactions or (row['session'] and row['session'] in sessions):continue
                 if handler.uses_model and models>=self.max_models:continue
+                if not handler.control and business_threads>=max(1,self.max_workers-2):continue
                 conn.execute("UPDATE runtime_jobs SET state='running' WHERE id=?",(row['id'],))
                 return dict(row)
         return None

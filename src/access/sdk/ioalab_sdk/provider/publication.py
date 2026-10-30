@@ -14,7 +14,8 @@ from ..runtime.protocol import RuntimeFault
 
 
 class ProviderRole:
-    def __init__(self):
+    def __init__(self,host=None):
+        self.host,self.execution=host,None
         self.runtime = None
         self.identities = {}
         self.error = None
@@ -25,12 +26,17 @@ class ProviderRole:
         self.identities = {p.profile: p for p in runtime.identities if p.role == 'service'}
         if not self.identities:
             return {}
-        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories')}}
+        from .execution import ProviderExecution
+        self.execution=ProviderExecution(self,runtime,self.host)
+        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish')},**self.execution.bind()}
 
-    def start(self):pass
-    def wake(self):pass
-    def close(self):pass
-    def ready(self, profile):return False  # Publication is not an admission/execution claim.
+    def start(self):
+        if self.execution:self.execution.start()
+    def wake(self):
+        if self.execution:self.execution.wake()
+    def close(self):
+        if self.execution:self.execution.close()
+    def ready(self,profile):return bool(self.execution and self.execution.ready(profile))
 
     def _identity(self, profile):
         identity = self.identities.get(profile) if isinstance(profile, str) else None
@@ -46,13 +52,27 @@ class ProviderRole:
     def _handler(self, name):
         def execute(runtime, operation, args):
             try:
+                if name=='verifier.publish':
+                    self.fields(args,('profile','verifierId','source'),('reads','kind'))
+                    identity=self._identity(args['profile']);namespace='provider:'+identity.agent_id;key='verifier:'+operation
+                    record=runtime.store.checkpoint(namespace,key);fingerprint=digest(args)
+                    if record and record['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original verifier upload changed')
+                    if not record:
+                        record={'fingerprint':fingerprint,'body':{k:v for k,v in args.items() if k!='profile'}}
+                        runtime.store.checkpoint_set(namespace,key,record)
+                    if 'result' not in record:
+                        result=runtime.account.api('POST','/provider/packages',record['body'])
+                        if result.get('id')!=args['verifierId'] or result.get('uri')!='ioalab://pkg/'+result.get('digest',''):raise RuntimeFault('protocol_error','Verifier upload returned a different reference')
+                        runtime.account.fetch_package(result['uri'])
+                        record={**record,'result':result};runtime.store.checkpoint_set(namespace,key,record)
+                    return {'status':'completed','data':record['result']}
                 if name == 'categories':
                     self.fields(args, ())
                     return {'status': 'completed', 'data': runtime.account.api('GET', '/services/categories')}
                 if name == 'status':
                     self.fields(args, ('profile',))
                     identity = self._identity(args['profile'])
-                    return {'status': 'completed', 'data': self.status(identity)}
+                    return {'status': 'completed', 'data': {**self.status(identity),'localExecution':self.execution.status(identity.profile)}}
                 if name == 'preview':
                     self.fields(args, ('service',))
                     identity, config = self.configuration(args['service'])
@@ -170,4 +190,7 @@ class ProviderRole:
         self.runtime.store.checkpoint_set(namespace, key, {**record, 'result': result})
 
     def finish(self, identity, result):
+        if self.execution:
+            with self.execution.lock:self.execution.refresh.add(identity.profile)
+            self.execution.wake()
         return {'status': 'completed', 'data': {'publicationReceipt': result, 'currentPublication': self.status(identity)}}

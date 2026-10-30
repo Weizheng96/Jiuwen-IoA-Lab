@@ -56,6 +56,7 @@ class DeliveryBroker:
         self.scopes=None
         self.publications=None
         self.admissions=self.payment_operations=None
+        self.market_operations=None
         self.protocol=None
         self._listeners={}
         self._listener_lock=threading.RLock()
@@ -150,6 +151,7 @@ class DeliveryBroker:
         if kind=='service.publish' and self.publications:return self.publications.operation(owner,actor,operation)
         if kind.startswith('admission.') and self.admissions:return self.admissions.operation(owner,actor,kind,operation)
         if kind=='ap2.pay' and self.payment_operations:return self.payment_operations.operation(owner,actor,operation)
+        if kind=='a2c.market' and self.market_operations:return self.market_operations.operation(owner,actor,operation)
         row=self.db.one('SELECT result FROM delivery_operations WHERE actor=? AND kind=? AND id=?',actor,kind,operation)
         if not row:raise LabError('not_ready','Operation has no accepted result',status=404,recovery='retry_original')
         return json.loads(row['result'])
@@ -166,6 +168,11 @@ class DeliveryBroker:
         # are rechecked below before committing the prepared immutable action.
         prepared=None
         payment=None
+        endorsement=None
+        if kind=='a2c.market':
+            if not self.market_operations:raise LabError('not_ready','Market application is unavailable',status=409)
+            with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
+            endorsement=self.market_operations.prepare(owner,actor,frame.get('operationId'),payload)
         if kind=='ap2.pay':
             if not self.payment_operations:raise LabError('not_ready','Payment application is unavailable',status=409)
             with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
@@ -186,6 +193,8 @@ class DeliveryBroker:
                 result=self.scopes.apply_in(conn,owner,frame.get('operationId'),prepared)
             elif payment is not None:
                 result,transferred=self.payment_operations.apply_in(conn,owner,actor,payment)
+            elif endorsement is not None:
+                result=self.market_operations.apply_in(conn,owner,actor,endorsement)
             elif kind.startswith('admission.'):
                 if not self.admissions:raise LabError('not_ready','Admission authority is unavailable',status=409)
                 result=self.admissions.apply_in(conn,owner,actor,kind,frame.get('operationId'),payload)

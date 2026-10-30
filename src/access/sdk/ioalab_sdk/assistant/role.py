@@ -8,14 +8,17 @@ from urllib.parse import quote,urlencode
 import uuid
 
 from a2c.codec import digest
+from a2c.errors import A2CError
 import httpx
 from jsonschema import Draft202012Validator,FormatChecker
 
 from ..runtime.host import AgentDefinition,HostTurn,ToolBinding
 from ..runtime.protocol import RuntimeFault,encode,instant,stamp
 from ..runtime.scheduling import JobHandler,JobOutcome
+from ..runtime.questions import native_answer
 from .rules import Rules
 from .delegation import DelegationTasks
+from .trading import Trading
 
 
 def stable(*values):return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(list(values))))
@@ -25,6 +28,7 @@ class AssistantRole:
     def __init__(self,host=None,tools=None):
         self.host,self.tools=host,dict(tools or {})
         self.runtime=self.identity=self.rules=None
+        self.trading=None
         self.error=None
         self._stop=threading.Event();self._wake=threading.Event();self._thread=None
         self.lock=threading.RLock()
@@ -37,11 +41,13 @@ class AssistantRole:
         self.namespace='assistant:'+self.identity.agent_id
         self.rules=Rules(runtime,self.identity,self.tools)
         self.delegation=DelegationTasks(runtime,self.identity)
+        self.trading=Trading(self)
         names=('rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
                'messaging.interfaces','messaging.send','messaging.status','messaging.close',
-               'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status')
+               'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search')
         return {'operations':{'assistant.'+name:self._operation(name) for name in names},
-                'jobs':{'assistant.message':JobHandler(self._process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available')))},
+                'jobs':{'assistant.message':JobHandler(self._process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available'))),
+                        'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False)},
                 'profiles':[self.identity.profile] if self.host else []}
 
     @staticmethod
@@ -52,6 +58,7 @@ class AssistantRole:
     def _operation(self,name):
         def execute(runtime,operation,args):
             try:return self._call(name,operation,args)
+            except A2CError as exc:raise RuntimeFault('invalid_input',exc.message) from None
             except httpx.HTTPStatusError as exc:
                 try:body=exc.response.json();problem=body.get('error') or body.get('detail')
                 except (ValueError,AttributeError):problem=None
@@ -63,6 +70,15 @@ class AssistantRole:
         return execute
 
     def _call(self,name,operation,args):
+        if name=='delegation.request':return self.trading.request(operation,args)
+        elif name=='delegation.inspect':
+            self.fields(args,('service',),('templateDigest',))
+            return {'status':'completed','data':{'service':args['service'],'templates':self.trading.inspect(args['service'],args.get('templateDigest'))}}
+        elif name=='delegation.search':
+            self.fields(args,('taskRef','query'),('topK',))
+            self.delegation.task(args['taskRef'])
+            return {'status':'completed','data':self.runtime.account.api('POST','/search',{'query':args['query'],'top_k':args.get('topK',8)})}
+        elif name=='delegation.status' and set(args)=={'quoteRef'}:return self.trading.status(args['quoteRef'])
         if name=='delegation.intent':
             self.fields(args,('taskRef','service'),('request','card','ttlSeconds'))
             return self.delegation.intent(operation,args)
@@ -248,11 +264,13 @@ class AssistantRole:
         if self._thread:
             self._thread.join(15)
             if self._thread.is_alive():raise RuntimeError('Assistant control thread is still active; preserve local ownership')
+        if self.trading:self.trading.close()
 
     def _listen(self):
         while not self._stop.is_set():
             self._wake.clear()
             try:
+                if self.runtime.connection.connected and self.trading:self.trading.recover()
                 if self.runtime.connection.connected and self.host and self.host.capabilities().get('available'):
                     self._schedule_received()
             except (RuntimeFault,httpx.HTTPError):pass
@@ -364,19 +382,7 @@ class AssistantRole:
             state['session']=session
 
         def on_question(record):
-            payload=record['payload'];native=payload['interaction']
-            binding={'actor':self.identity.agent_id,'operationId':stable(job['id'],payload['interaction_id']),
-                     'subject':{'requestId':record['request_id'],'sessionId':record['session_id'],'interactionId':payload['interaction_id']},
-                     'stage':'host.interaction','action':'native.answer','preview':{'title':'九问需要您的补充答复','question':native}}
-            value=self.runtime.confirmations.ensure(binding,kind='question',questions=native.get('questions',[]),ttl=300)
-            try:
-                with self.runtime.scheduler.user_wait(job['id'],cancelled=lambda:self._stop.is_set() or record.get('_cancelled',lambda:False)()):
-                    while not self._stop.is_set() and not record.get('_cancelled',lambda:False)():
-                        answer=self.runtime.confirmations.native_answer(value['reference'])
-                        if answer is not None:return answer
-                        self._stop.wait(.2)
-            finally:self.runtime.confirmations.cancel_question(value['reference'])
-            raise RuntimeFault('closed','Local execution stopped while waiting for the user')
+            return native_answer(self.runtime,self.identity.agent_id,job['id'],record,self._stop)
 
         def on_tool(name,args,call_id):
             self.runtime.require_execution()

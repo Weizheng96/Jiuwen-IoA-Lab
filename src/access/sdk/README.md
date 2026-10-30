@@ -4,7 +4,7 @@
 
 ## 常驻接入入口
 
-共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。默认装配已提供助手收信设置、消息与服务公示操作；没有宿主时可配置、发送和接收，不调用模型或执行业务工具。可选[九问适配](../../hosts/jiuwen/README.md)装配入站执行。委托及服务方履约主路径尚未切换，差距见[开发计划](../../../docs/开发计划.md)。
+共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。默认装配已提供助手收信设置、消息、服务公示及候选提案；没有宿主时不执行入站业务。可选[九问适配](../../hosts/jiuwen/README.md)装配助手入站处理与服务方提案/审查。完整履约主路径尚未切换，差距见[开发计划](../../../docs/开发计划.md)。
 
 复制[配置模板](../../../deploy/access-runtime.json.example)，填写平台和账号，并在本机设置模板引用的密码环境变量；服务方可将 identities 改为 service profile，服务绑定不创建个人助手。数据目录相对配置文件定位，作为 SDK 专用目录；配置及调用参数文件放在其外。每个 profile 的稳定身份及私钥保存在该目录，不能删除重建。旧直接客户端目录须先迁移，不与常驻进程争用。
 
@@ -37,19 +37,24 @@ start 复用已运行实例；启动仍在进行时报告 waiting，不重新创
 
 ## 委托授权入口
 
-同一常驻调用格式支持以下授权与意向操作；正式报价、签约和履约仍待新角色链路切换，不回退旧命令绕过门禁。
+同一常驻调用格式支持以下授权、发现与候选操作。正式提案已使用原 A2C Client/Provider；具体合同确认、开工与完整履约仍待切换，不回退旧命令绕过门禁。
 
 | 操作 | 参数及真实结果 |
 |---|---|
 | `assistant.delegation.prepare` | purpose、budget、proposalFeeLimit；可选 categoryIds、validDays（默认7天）；返回本地 taskRef，尚未授权 |
 | `assistant.delegation.authorize` | taskRef，可选 validDays；返回待确认摘要；本机用户页批准后重复原调用，才签发并登记授权 |
 | `assistant.delegation.renew` | 原 taskRef，可选 validDays；再次由用户确认同一范围的有效期，不重置预算和原合同 |
-| `assistant.delegation.status` | taskRef；分别返回授权真实状态及预算记录 |
+| `assistant.delegation.status` | taskRef 查看授权/预算；quoteRef 查看原候选任务与真实结果 |
 | `assistant.delegation.close` | taskRef；关闭后续许可，保留既有合同与付款，不能当作解除合同 |
 | `assistant.delegation.intent` | taskRef、service agentId、原未签 request 或 card；可选 ttlSeconds；返回 messageRef 与投递回执 |
 | `assistant.delegation.intent_status` | messageRef；恢复同一交互 UUID、预留答复及意向状态 |
+| `assistant.delegation.search` | taskRef、query，可选 topK；返回平台实际发现结果 |
+| `assistant.delegation.inspect` | service agentId，可选 templateDigest；取得并验签原模板 |
+| `assistant.delegation.request` | taskRef、service、templateDigest、spec，可选 materials；返回 quoteRef；提案经接单、原 AP2 和签认取得正式卡，待批准只返回未签本地候选 |
 
 金额可以输入整数或两位小数，SDK 规范化后供用户检查；分类 null 表示不限、空数组表示不允许新候选。context 的摘要稳定，grant 修订独立。签名请求发送前持久保存；响应丢失从原操作恢复，不重新签发或延长时间。数据中 authorizationReceipt 是原接受记录，authorization 才是平台当前状态。具体契约见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
+
+materials 以模板材料名为键，每项提供 text 或 bytesBase64，可选 spec；不接受任意本地路径。预签审查材料须先经本机用户确认。候选的预算、报价和验收条件均来自实际授权、模板及服务方决定；SDK 不固定候选数量或中选服务。未知结果核对原操作及已签原件，不重新拟卡、收费或运行模型。
 
 ## 服务公示入口
 
@@ -60,9 +65,14 @@ start 复用已运行实例；启动仍在进行时报告 waiting，不重新创
 | `provider.categories` | 空参数；返回当前可选 A2X 类别 |
 | `provider.preview` | service 配置（profile、name、description、tags、categoryId、templates）；模板为未签 A2C 草稿；返回 contentDigest 和 expectedRevision |
 | `provider.publish` | 相同 service、contentDigest、expectedRevision；本机用户确认后重复原操作；返回原 publicationReceipt 与当前 currentPublication |
-| `provider.status` | profile；分别查看当前修订、索引和有效模板，不代表可接单 |
+| `provider.verifier.publish` | profile、verifierId、source，可选 reads、kind；上传确定性验收器包并返回实际引用，不在宿主执行源码 |
+| `provider.status` | profile；分别查看当前公示与 localExecution，不将公示成功当作业务就绪 |
 
-模板仅允许待批准或提案，并选择配置中的平台支付提供者。稳定签名请求在上传前保存，响应丢失或重启后沿用原操作，不重签、不延期。公开地址由绑定身份导出，平台不抓取用户任意 URL。当前入站接单及履约尚待统一切换，公示成功不视为执行成功。
+模板仅允许待批准或提案，并选择配置中的平台支付提供者。稳定签名请求在上传前保存，响应丢失或重启后沿用原操作，不重签、不延期。公开地址由绑定身份导出，平台不抓取用户任意 URL。
+
+服务方执行还需在本机配置 provider.services，以 service profile 为键，声明 instructions、skills、max_active_delegations、accepting；resources 可保存真实验收器引用等业务数据。重启常驻实例后读取配置，原身份与业务数据保留。只有公示、宿主和配置均就绪才接新意向；容量限制承接数量，max_model_runs 单独限制模型。当前支持接单与提案/审查，后续生产、交付和结清尚未开放。
+
+每个交互使用原 Provider、独立协议命名空间和实际九问 Session。报价工具根据本单模板生成字段 Schema，复用原校验并核验验收器包种类后才保存决定；错误由同一模型轮次修正。签3响应丢失从原操作恢复，不再次执行模型或收拟卡费。
 
 ## 迁移中的原业务入口
 

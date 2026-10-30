@@ -75,6 +75,68 @@ class PaymentOperations:
         return result,transferred
 
 
+@dataclass(frozen=True)
+class PreparedEndorsement:
+    operation:str
+    fingerprint:str
+    payload:str
+    result:str|None=None
+    snapshot:str|None=None
+
+
+class MarketOperations:
+    """Publish original slot 3 only with the current service/admission transaction."""
+    def __init__(self,db,identities,admissions,market):
+        self.db,self.identities,self.admissions,self.market=db,identities,admissions,market
+        with db.lock:db.conn.execute('''CREATE TABLE IF NOT EXISTS delegation_market_operations(
+             owner TEXT NOT NULL,actor TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
+             PRIMARY KEY(actor,id))''')
+
+    def operation(self,owner,actor,operation):
+        self.identities.owned(owner,actor)
+        row=self.db.one('SELECT * FROM delegation_market_operations WHERE actor=? AND id=?',actor,operation)
+        if not row or row['owner']!=owner:raise LabError('not_ready','Original market operation is unavailable',status=404,recovery='retry_original')
+        return json.loads(row['result'])
+
+    def prepare(self,owner,actor,operation,payload):
+        self.identities.owned(owner,actor)
+        if not isinstance(operation,str) or not 1<=len(operation)<=128 or set(payload)!={'admissionId','op','body','request'} or payload['op']!='card.endorse' or not isinstance(payload['body'],dict) or set(payload['body'])!={'card'}:
+            raise LabError('invalid_input','Use original card.endorse with its admission and signed request')
+        fingerprint=digest(payload)
+        old=self.db.one('SELECT * FROM delegation_market_operations WHERE actor=? AND id=?',actor,operation)
+        if old:
+            if old['owner']!=owner or old['fingerprint']!=fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
+            return PreparedEndorsement(operation,fingerprint,json.dumps(payload),old['result'])
+        with self.db.tx() as conn:
+            result=self.admissions.issued_offer_in(conn,owner,actor,payload['admissionId'],fingerprint)
+            template=None if result else self.admissions.proposal_eligible_in(conn,owner,actor,payload['admissionId'],payload['request'],payload['body']['card'])
+        if result:return PreparedEndorsement(operation,fingerprint,json.dumps(payload),json.dumps(result))
+        try:
+            result,snapshot=self.market.prepare_proposal(template,payload['body']['card'],self.identities.service_party(actor))
+        except A2CError as exc:raise LabError('invalid_input','Original market rejected the proposal: '+exc.message) from None
+        except (TypeError,KeyError,ValueError):raise LabError('invalid_input','Original market rejected malformed proposal data') from None
+        return PreparedEndorsement(operation,fingerprint,json.dumps(payload),json.dumps(result),json.dumps(snapshot))
+
+    def apply_in(self,conn,owner,actor,prepared):
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Market endorsement needs the owned application transaction')
+        self.identities.owned(owner,actor)
+        old=conn.execute('SELECT * FROM delegation_market_operations WHERE actor=? AND id=?',(actor,prepared.operation)).fetchone()
+        if old:
+            if old['owner']!=owner or old['fingerprint']!=prepared.fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
+            return json.loads(old['result'])
+        payload=json.loads(prepared.payload)
+        result=self.admissions.issued_offer_in(conn,owner,actor,payload['admissionId'],prepared.fingerprint)
+        if result is None:
+            self.admissions.proposal_eligible_in(conn,owner,actor,payload['admissionId'],payload['request'],payload['body']['card'])
+            if prepared.snapshot is None:raise LabError('unknown_result','Restore the original market snapshot',status=409)
+            result=json.loads(prepared.result)
+            from a2c.card import card_digest
+            self.market.commit_snapshot_in(conn,card_digest(result['card']),json.loads(prepared.snapshot))
+            self.admissions.record_offer_in(conn,payload['admissionId'],prepared.fingerprint,result)
+        conn.execute('INSERT INTO delegation_market_operations VALUES(?,?,?,?,?)',(owner,actor,prepared.operation,prepared.fingerprint,json.dumps(result)))
+        return result
+
+
 class ServiceOperations:
     """Coordinate endorsement, authoritative publication, then a rebuildable index."""
     def __init__(self,db,publications,market,discovery,payment_provider):

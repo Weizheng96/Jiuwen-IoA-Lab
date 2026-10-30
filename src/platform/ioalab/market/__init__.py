@@ -75,6 +75,22 @@ class MarketService:
         return endorsed
 
     # ── 服务认证（协议外）────────────────────────────────────────────
+    def prepare_proposal(self,template,card,party):
+        """Original market validation/signature in an isolated, unpublished Store."""
+        from a2c.market import Market
+        from a2c.common import Store
+        keys=Directory();keys.add(party['id'],{'keys':[party['jwk']]})
+        keys.add(self.id,{'keys':[self.market.signer.jwk]})
+        staged=Market(self.market.signer,keys=keys,fetch=self.market.fetch,clock=self.market.now,store=Store(),
+                      recognized_services=self.market.recognized_services,models=self.market.models)
+        staged.store.put('snapshots',template['templateDigest'],{'template':template})
+        reply=staged.op_card_endorse({'card':card},{},None)
+        return reply.body,staged.store.get('snapshots',card_digest(card))
+
+    def commit_snapshot_in(self,conn,key,snapshot):
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Market snapshot requires the owned application transaction')
+        self.market.store.put('snapshots',key,snapshot)
+
     def certify(self, agent_id: str, jwk: Mapping[str, Any], name: str) -> dict:
         """认主体身份，发一条认证记录（市场签名的独立文书，A2C 不消费）；公钥入 Directory。"""
         self.keys.add(agent_id, {"keys": [dict(jwk)]})

@@ -162,6 +162,8 @@ def test_original_protocol_progress_and_taskless_reply_keep_their_states(platfor
         different={'messageId':uid(),'kind':'a2c.result','recipient':sender.actor,'interactionId':binding['interactionId'],
                    'inReplyTo':request['messageId'],'expiresAt':at(300),'body':{'reply':{**progress,'taskId':'different-task'},'files':{}}}
         assert receiver.call('message.send',different,ok=False)['code']=='id_conflict'
+        invalid_snapshot={**different,'messageId':uid(),'body':{'reply':{**progress,'task':{'id':first.task_id,'op':'work.start','state':'working','artifacts':[],'status':None}},'files':{}}}
+        assert receiver.call('message.send',invalid_snapshot,ok=False)['code']=='invalid_input'
         final=provider.finish(first)
         terminal={'body':final.body,'state':final.state,'taskId':final.task_id}
         assert respond(terminal)==terminal and final.state=='completed'
@@ -210,6 +212,37 @@ def test_failed_message_commit_does_not_leak_a_material_read_grant(platform,clie
         with pytest.raises(httpx.HTTPStatusError):PrivateFiles(account,identity.agent_id).get(ref)
         sender.call('message.send',request)
         assert PrivateFiles(account,identity.agent_id).get(ref)
+
+
+def test_task_file_grants_rollback_together_with_reply_and_message(platform,client,local_client,service):
+    from dataclasses import asdict
+    local=local_client;account,identity=service;template,_=template_for(platform,service)
+    brief=PrivateFiles(local.session,local.signer.id).put('brief',uid().encode(),uid())
+    scope,card,intent=setup_counter(platform,client,local,service,template,brief)
+    receiver_files=PrivateFiles(account,identity.agent_id);sender_files=PrivateFiles(local.session,local.signer.id)
+    reply_file=receiver_files.put('evidence.bin',b'reply evidence',uid());task_file=receiver_files.put('evidence.bin',b'task evidence',uid())
+    with online(client,local,service) as (sender,receiver):
+        request,binding=request_for(platform,local,service,template,brief,scope,card,intent,sender,receiver)
+        request['body']['body']['informationAuthorization']=material_authorization(local,card)
+        sender.call('message.send',request);receiver.delivery(request['messageId'])
+        receiver.call('request.start',{'messageId':request['messageId'],'interactionId':binding['interactionId']})
+        keys=Directory();keys.add(identity.protocol_id,{'keys':[identity.signer.jwk]});keys.add(platform.market_id,{'keys':[platform.market_signer.jwk]})
+        provider=Provider(identity.signer,market=platform.market_id,keys=keys,transport=local.transport,fetch=account.fetch_package,store=Store())
+        provider.store.put('templates',template['templateDigest'],template)
+        reply=provider.handle('card.countersign',request['body']['body'],{'brief':sender_files.get(brief)})
+        task=asdict(provider.tasks[reply.task_id]);task.pop('files')
+        result={'messageId':uid(),'kind':'a2c.result','recipient':sender.actor,'interactionId':binding['interactionId'],'inReplyTo':request['messageId'],
+                'expiresAt':at(300),'body':{'reply':{'body':reply.body,'taskId':reply.task_id,'state':reply.state,'task':task},'files':{'evidence.bin':reply_file},'taskFiles':{'evidence.bin':task_file}}}
+        platform.db.run("CREATE TRIGGER test_task_files BEFORE INSERT ON delivery_messages WHEN NEW.id='"+result['messageId']+"' BEGIN SELECT RAISE(ABORT,'test file commit outage'); END")
+        try:
+            with pytest.raises(sqlite3.IntegrityError):invoke(platform,receiver,'message.send',result)
+        finally:platform.db.run('DROP TRIGGER test_task_files')
+        for ref in (reply_file,task_file):
+            with pytest.raises(httpx.HTTPStatusError):sender_files.get(ref)
+        receiver.call('message.send',result)
+        received=sender.delivery(result['messageId'])['message']['body']
+        assert sender_files.get(received['files']['evidence.bin'])==b'reply evidence'
+        assert sender_files.get(received['taskFiles']['evidence.bin'])==b'task evidence'
 
 
 def test_new_service_cannot_bypass_admission_using_public_market_slot_three(platform,client,local_client,service):

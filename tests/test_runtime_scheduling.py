@@ -24,6 +24,24 @@ def submit(queue,interaction,*,handler='model',session=None,payload=None,operati
     return queue.submit('a',interaction,handler,payload or {},operation_id=operation or uid(),session=session,deadline=deadline)['reference']
 
 
+def test_nonmodel_business_waits_cannot_fill_control_workers_or_reject_admitted_progress(store):
+    gate=threading.Event();started=[]
+    def wait(job):
+        started.append(job['id']);assert gate.wait(5)
+        return JobOutcome('completed',{})
+    queue=Scheduler(store,{'business':JobHandler(wait,'v1',False),
+        'control':JobHandler(lambda job:JobOutcome('completed',{'control':True}),'v1',False,control=True)},max_pending=4,max_workers=4).start()
+    try:
+        jobs=[submit(queue,'wait-'+str(i),handler='business') for i in range(4)]
+        wait_for(lambda:len(started)==2)
+        with pytest.raises(RuntimeFault,match='queue is full'):submit(queue,'new',handler='business')
+        control=queue.submit('a','admitted','control',{},operation_id=uid(),admitted=True)['reference']
+        wait_for(lambda:queue.get(control)['status']=='completed')
+        assert len(started)==2 and sum(queue.get(job)['status']=='queued' for job in jobs)==2
+        gate.set();wait_for(lambda:all(queue.get(job)['status']=='completed' for job in jobs))
+    finally:gate.set();queue.close()
+
+
 def test_parallel_models_exclude_same_interaction_and_real_session_without_blocking_control(store):
     gate=threading.Event();started=set();lock=threading.Lock()
     def run(job):
