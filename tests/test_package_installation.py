@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 import venv
+import shutil
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,8 +21,14 @@ def run(command, cwd):
 
 def test_built_packages_have_own_versions_and_platform_resources(tmp_path):
     wheels = tmp_path/'wheels'
-    run([sys.executable,'-m','pip','wheel','--no-index','--no-deps','--no-build-isolation',
-         '-w',str(wheels),str(ROOT/'src/platform'),str(ROOT/'src/access/sdk')], tmp_path)
+    source = tmp_path/'platform-source'
+    shutil.copytree(ROOT/'src/platform',source,ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
+    stale = source/'build/lib/ioalab/psp/obsolete.py'
+    stale.parent.mkdir(parents=True)
+    stale.write_text("raise RuntimeError('obsolete module must never ship')\n",encoding='utf-8')
+    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(source),str(ROOT/'src/access/sdk')], tmp_path)
+    with zipfile.ZipFile(next(wheels.glob('ioalab-*.whl'))) as archive:
+        assert not any(name.startswith('ioalab/psp/') for name in archive.namelist())
     environment = tmp_path/'installed'
     venv.EnvBuilder(with_pip=True).create(environment)
     python = environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')

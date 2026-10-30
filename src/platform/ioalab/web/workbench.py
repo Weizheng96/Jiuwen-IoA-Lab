@@ -1,7 +1,7 @@
 """Owned views for personal assistants and individual provider services."""
 from fastapi import APIRouter,Depends,HTTPException
 from ..store import jload
-from ..psp import money
+from ..payments import money
 
 
 def build_router(platform,current_user,require_admin):

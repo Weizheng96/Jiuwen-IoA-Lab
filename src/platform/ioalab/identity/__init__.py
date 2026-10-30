@@ -35,6 +35,13 @@ class IdentityDirectory:
         if not row:raise LabError('not_ready','Connect a personal assistant identity first',status=409)
         return row['id']
 
+    def matches_party(self,owner,party):
+        """Historical payment ownership; disabling new execution does not erase a binding."""
+        if not isinstance(party,dict) or not isinstance(party.get('id'),str):
+            return False
+        row=self.db.one('SELECT owner_id,meta FROM agents WHERE id=?',party['id'])
+        return bool(row and row['owner_id']==owner and json.loads(row['meta']).get('clientJwk')==party.get('jwk'))
+
     def bearer(self,authorization):
         if not isinstance(authorization,str) or not authorization.startswith('Bearer '):
             raise LabError('forbidden','SDK Bearer authentication is required',status=401)

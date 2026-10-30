@@ -11,7 +11,7 @@ from a2c.objects import object_digest
 from a2c.slots import verify_card
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
-from .psp import thumbprint
+from .identity.keys import thumbprint
 from .store import jdump, jload, now
 
 

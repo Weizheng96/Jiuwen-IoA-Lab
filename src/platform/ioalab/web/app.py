@@ -17,7 +17,7 @@ from a2c.errors import A2CError
 from ..errors import LabError
 
 from ..platform import Platform
-from ..psp import money
+from ..payments import money
 from ..store import jdump, jload
 
 log = logging.getLogger("ioalab.web")

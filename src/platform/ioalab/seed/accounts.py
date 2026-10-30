@@ -17,7 +17,7 @@ def ensure_accounts(platform, *, domains=None) -> dict:
     for i in range(1, max(0, platform.s.isc_count) + 1):
         password=platform.s.assistant_password if i==1 and platform.s.assistant_password else f"{i:03d}"
         if i==1 and platform.s.open:
-            from ..psp.auth import _check_pw,_pbkdf2
+            from ..identity.auth import _check_pw,_pbkdf2
             import secrets
             if password=='001':
                 path=platform.s.data/'assistant.secret'

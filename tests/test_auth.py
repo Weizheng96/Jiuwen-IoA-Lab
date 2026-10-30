@@ -86,7 +86,7 @@ def test_admin_requires_password_and_rate_limit(platform):
 def test_trial_invite_registration():
     """trial 模式 + 邀请注册直接构造 Auth：外部账号须密码 ≥ 8 与邀请码、按 IP 限速；内部账号不受约束。"""
     from ioalab.config import Settings
-    from ioalab.psp.auth import Auth
+    from ioalab.identity.auth import Auth
     from ioalab.store import DB
 
     tmp = Path(tempfile.mkdtemp(prefix="ioalab-trial-"))

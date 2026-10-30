@@ -44,7 +44,7 @@ def build(output):
         temp=Path(temp);bundle=temp/'ioalab-client'
         shutil.copytree(ROOT/'connector/ioalab-client',bundle,ignore=shutil.ignore_patterns('__pycache__','*.pyc','assets','settings.local.json'))
         assets=bundle/'skills/ioalab-delegate/assets';wheels=assets/'wheels';wheels.mkdir(parents=True)
-        subprocess.run([sys.executable,'-m','pip','wheel','--no-index','--no-deps','--no-build-isolation',str(ROOT/'src/access/sdk'),'-w',str(wheels)],check=True)
+        subprocess.run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(ROOT/'src/access/sdk')],check=True)
         source=json.loads((ROOT/'vendor/wheels/SOURCE.json').read_text(encoding='utf-8'))
         original=ROOT/'vendor/wheels'/source['wheel']
         if hashlib.sha256(original.read_bytes()).hexdigest()!=source['sha256']:

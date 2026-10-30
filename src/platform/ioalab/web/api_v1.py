@@ -42,6 +42,14 @@ def build_router(platform, current_user):
     def reputation(provider: str, uid=Depends(current_user)):
         return platform.market.reputation(provider)
 
+    @router.get('/payments/{paymentId}')
+    def payment(paymentId:str,uid=Depends(current_user)):
+        return platform.psp.lookup(uid,paymentId)
+
+    @router.get('/payments')
+    def payment_by_reference(ref:str,purpose:str,period:int|None=None,uid=Depends(current_user)):
+        return platform.psp.lookup(uid,ref=ref,purpose=purpose,period=period)
+
     @router.post("/provider/register")
     def register(body: dict, uid=Depends(current_user)):
         return platform.register_external_provider(uid, url=body["url"], name=body["name"], description=body.get("description", ""),

@@ -18,8 +18,9 @@ from .config import Settings
 from .events import EventBus, TracingTransport, trace_endpoint
 from .keys import KeyStore
 from .market import Discovery, MarketService
-from .psp import SimPaymentProvider, Wallets, money, thumbprint
-from .psp.auth import Auth
+from .payments import SimPaymentProvider, Wallets, money
+from .identity.keys import thumbprint
+from .identity.auth import Auth
 from .runtime.llm import LLM
 from .runtime.packages import PackageStore
 from .store import DB, SqliteStore, jdump, jload, now
@@ -111,7 +112,7 @@ class Platform:
                                     store=SqliteStore(self.db, "market"), db=self.db, discovery=self.discovery, models=self.llm.model_ports())
         trace_endpoint(self.market.market, self.bus, self.market_id)
         self.psp = SimPaymentProvider(self.pay_signer, keys=self.keys, ap2_key=self.pay_ec, payee_keys=self._payee_key,
-                                      wallets=self.wallets, payee_of=self._payee_of, db=self.db,
+                                      wallets=self.wallets, payee_of=self._payee_of, client_matches=self.identities.matches_party, db=self.db,
                                       on_transfer=lambda t: self.bus.emit("ap2", "transfer", sender=t["payer"], receiver=t["payee"],
                                           card_digest=t["ref"], period=t.get("period"), amount=t["amount"], outcome=t["purpose"]))
         self.router.apps["market"] = build_app(self.market.market, name="IoA Lab Agent 交易市场", base_url=self.market_id,
@@ -158,9 +159,12 @@ class Platform:
         return seed_all(self)
 
     def reset_transactions(self):
-        for name in ("orders", "events", "observations", "transfers", "paid", "rulings"):
-            self.db.run(f"DELETE FROM {name}")
-        self.db.run("DELETE FROM kv WHERE party='market' AND tbl NOT IN ('templates','snapshots')")
+        with self.db.tx() as conn:
+            if conn.execute('SELECT 1 FROM paid LIMIT 1').fetchone() or conn.execute('SELECT 1 FROM payment_records LIMIT 1').fetchone():
+                fail(CARD_INVALID,'已有付款证据；请使用新的实验身份或独立数据目录')
+            for name in ("orders", "events", "observations", "transfers", "paid", "rulings"):
+                conn.execute(f"DELETE FROM {name}")
+            conn.execute("DELETE FROM kv WHERE party='market' AND tbl NOT IN ('templates','snapshots')")
 
     async def _sync_loop(self):
         while True:
