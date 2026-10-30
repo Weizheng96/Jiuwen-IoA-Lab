@@ -3,6 +3,9 @@ data/
 logs/
 ext-data/
 
+# 一次性调查、草案、脚本；正式可复现实验保留在 experiments/
+/temp/
+
 # 凭据与本机配置
 settings.local.json
 .env

@@ -2,7 +2,7 @@
 
 本仓使用 Codex。平台设计的唯一规范入口是[设计/README.md](设计/README.md)；本文件只写维护约束。实现差距见[开发计划](docs/开发计划.md)，运行与成片结果见[验证记录](demo/verification/README.md)。
 
-`connector/` 中交付给九问 Swarm 的 Skill 是产品内容；`.agents/skills/` 是 Codex 开发技能，二者不得混用。
+`src/access/skills/` 中交付给九问 Swarm 的 Skill 是产品内容，迁移前实际位于 `connector/`；`.agents/skills/` 是 Codex 开发技能，二者不得混用。目标项目结构以[架构](设计/架构.md)为准，实际路径及迁移次序见开发计划。
 
 ## 唯一事实来源与文档维护
 
@@ -19,7 +19,7 @@
 
 改规范先修改职责页、术语与 `设计/VERSION`，在变更索引新增条目并写 `设计/变更/YYYY-MM-DD-v0.0.N-主题.md`，再实现。提交信息以「设计 v0.0.N：」开头，创建并推送对应设计标签。
 
-`ioalab/`、`sdk/`、`official-services/`、`experiments/`、`connector/`、`examples/`、`deploy/`、`personal-assistant/`、`demo/` 各维护 VERSION。README、docstring 和设计正文不得散写平台版本号。依据的 A2C 设计版本仅在设计入口标记，与 `vendor/wheels/SOURCE.json` 一致。
+产物 VERSION 归属以[架构](设计/架构.md)的交付表为准。迁移前保留现有目录的 VERSION 和检查范围；实际迁移时同步构建、资源、版本与检查入口，不能先建立空目标目录或虚升产物依据。README、docstring 和设计正文不得散写平台版本号。依据的 A2C 设计版本仅在设计入口标记，与 `vendor/wheels/SOURCE.json` 一致。
 
 ## 协议与执行边界
 
@@ -44,7 +44,7 @@ A2C 合同字段、签名链、期限和验收器以[主仓协议](https://githu
 | 九问 | 使用锁定原版公开接口，不改源码、全局指令或私有历史数据库；未支持的能力保持明确未就绪 |
 | 部署依赖 | Git 源码依赖随仓固定来源、许可和摘要；不现场访问 GitHub、用子模块或 VCS 安装；普通包可用国内镜像 |
 | 变更手段 | 优先 apply_patch；脚本替换必须断言成功。只终止本任务的 PID，不按通用进程名批量终止 |
-| 不入库 | data、私钥、凭据、模型配置、浏览器状态和原始私人消息；不因整理文档运行真实邮件或付费业务 |
+| 不入库 | temp、data、私钥、凭据、模型配置、浏览器状态和原始私人消息；正式可复现实验放 experiments 入库，data 不作临时文件清理；不因整理文档运行真实邮件或付费业务 |
 
 ## Codex 技能
 
