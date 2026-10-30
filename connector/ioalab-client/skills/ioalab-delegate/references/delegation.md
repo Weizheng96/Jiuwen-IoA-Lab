@@ -6,6 +6,8 @@
 
 使用主技能返回的目录S：`python "<S>/scripts/ioalab.py" 命令 --args-file "参数文件绝对路径"`。先write_file写UTF-8 JSON，再调用；不是`--query`等业务命令行选项。确认类命令仅在用户已经明确同意对应对象/用途/金额后加`--confirmed`。
 
+同账号逐条调用SDK，拿到上条回执后再发下一条，尤其不能并行多家request。九问bash工具对request设`timeout:900`（秒）；watch等待60秒时设`timeout:180`或更长。该参数属于bash工具，不写进业务JSON或SDK命令行。
+
 ## 逐项执行
 
 | 顺序 | 必须执行的SDK动作 | 真实回执与下一步 |

@@ -33,5 +33,20 @@
     "result": "failed: no authorize scope or signed proposal; model compared proposalFee=1 as delivery price and asked to choose before request",
     "templateFinding": "eligible candidates were not excluded; proposal pricing needs clearer natural-language explanation",
     "action": "clarify public and signed-template description, simplify generic execution checklist; repeat real verification"
+  },
+  "modelComparison": {
+    "date": "2026-10-30",
+    "model": "qwen3.5-plus",
+    "configuration": "native models.upsert, new non-default resource; original model and host code/instructions unchanged",
+    "minimumQuotePreference": 1,
+    "scopeCreated": true,
+    "distinctProviderRequests": 3,
+    "signedPricesReceived": [
+      239,
+      299
+    ],
+    "thirdResult": "unknown after native shell timeout=60 seconds",
+    "guard": "unknown outcome blocks adoption and duplicate fee; failure retained",
+    "newMoviePublished": false
   }
 }

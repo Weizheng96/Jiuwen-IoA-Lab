@@ -28,6 +28,9 @@ def main():
         "--service-model", required=True, help="Process SDK model.list selection_key"
     )
     p.add_argument("--scenario", choices=("delegation", "messaging"), required=True)
+    p.add_argument("--assistant-model-id",default="mdl_ioa_qwen_plus")
+    p.add_argument("--assistant-model-alias",default="IoA演示模型")
+    p.add_argument("--assistant-model-name",default="")
     a = p.parse_args()
     folder = a.folder.resolve()
     folder.mkdir(parents=True, exist_ok=False)
@@ -89,8 +92,9 @@ def main():
         "swarm": "ws://127.0.0.1:19000/ws?user_id=ioa-admin",
         "swarmWeb": "http://127.0.0.1:5173",
         "swarmUserId": 'ioa-demo-'+secrets.token_hex(6) if a.scenario=='delegation' else 'ioa-demo-b',
-        "swarmModelId": "mdl_ioa_qwen_plus",
-        "swarmModelAlias": "IoA演示模型",
+        "swarmModelId": a.assistant_model_id,
+        "swarmModelAlias": a.assistant_model_alias,
+        "swarmModelName": a.assistant_model_name,
         "providerAccount": {"username": "ISP_008", "password": "008"},
     }
     processes = []

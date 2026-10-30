@@ -42,6 +42,8 @@ def main():
         "providerExecution": "swarm",
         "browserErrors": [],
     }
+    if cfg.get('swarmModelName'):
+        proof['assistantModel']={'id':cfg['swarmModelId'],'name':cfg['swarmModelName'],'alias':cfg['swarmModelAlias']}
     if cfg.get('onboarding'):
         skill=Path(cfg['skillDirectory'])
         proof['skillAudit']={
@@ -141,6 +143,7 @@ def main():
                     selector.last.click()
                     nine.get_by_text(desired,exact=True).last.click()
                     break
+            nine.get_by_text(desired,exact=True).last.wait_for(state="visible",timeout=20000)
 
             def shot(key, node=None, seconds=18, action=None):
                 if node:

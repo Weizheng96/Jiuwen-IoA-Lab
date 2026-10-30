@@ -47,6 +47,8 @@ def test_named_flow_three_proposals_four_gates_and_real_acceptance(platform,loca
             template=c.templates(url)[0]
             d=defs['nail-'+key]
             args=dict(template_digest=template_digest(template),spec={'booking':{**d['sample_spec'],'shop':'小美美甲店'}},budget=500,scope_id=sid)
+            with pytest.raises(ValueError,match='requires request'):c.draft(**args)
+            assert len(c.scope(sid)['requests'])==len(quotes)
             with pytest.raises(ValueError,match='confirmation'):c.request(**args)
             result=c.request(**args,confirmed=True)
             assert c.request(**args,confirmed=True)==result  # Cached, not a second paid proposal.

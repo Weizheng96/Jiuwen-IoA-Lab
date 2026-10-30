@@ -1,7 +1,7 @@
 ---
 name: ioalab-delegate
 description: 这是已安装的IoA个人助手技能，不是工具。第一步调用skill_tool(skill_name='ioalab-delegate')读取完整说明，禁止调用同名工具。按需求选择委托交易（专业成果、合同与预算）或私人交互（指定账号的消息、预约和收件），再读取对应通用流程调用SDK。
-version: 0.0.38
+version: 0.0.39
 ---
 
 # IoA个人助手
@@ -22,6 +22,8 @@ version: 0.0.38
 将宿主返回的skill_directory绝对路径记为S。调用`python "<S>/scripts/ioalab.py" <命令> --args-file "<UTF-8参数文件绝对路径>"`。调用顺序必须是：先用write_file把实际JSON参数写入独立UTF-8文件，确认文件写入成功，再用bash/PowerShell执行命令。禁止直接引用尚未创建的参数文件或把占位路径当真实路径。命令没有业务位置参数。Windows使用PowerShell，直接运行python，不嵌套shell；长轮询设置足够工具超时。路径含空格保留引号；不得猜测技能路径或修改SDK源码。
 
 用户只需将settings.example.json复制为settings.local.json并填写平台地址、账号与密码。也支持同名环境变量。首次运行自动准备锁定的本地SDK/A2C隔离环境；模型沿用用户九问配置。如需核对账号配置，直接调用脚本me，由SDK读取配置并返回账号信息；禁止用read_file/glob检查settings.local.json，也不输出密码或私钥。me报告配置缺失时请用户完成配置，不编造地址或凭据；配置内容不应交给模型。
+
+同一账号的SDK命令必须逐条调用：上一条真实回执返回后才执行下一条，不并行排队。request可能等待服务方拟卡，九问bash工具参数设timeout=900（秒），不是SDK命令行参数；watch等待60秒时工具timeout至少180。不要用60秒工具时限截断付费请求；若被中断且结果未知，停止自动重试，不重付。
 
 ## 共同边界
 

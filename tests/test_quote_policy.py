@@ -51,3 +51,12 @@ def test_invalid_comparison_preferences_fail_explicitly(local_client,monkeypatch
     assert local_client.delegation_policy()=={'minimumQuotes':1}
     for value in (0,9,True,1.5,'2'):
         with pytest.raises(ValueError,match='minimum_quotes'):local_client.authorize('Test explicit preference',100,minimum_quotes=value,confirmed=True)
+
+
+def test_request_on_nonproposal_explains_draft_before_any_request(providers,local_client):
+    c=local_client;d=next(d for d in providers.selected if d.get('formation','preapproval')!='proposal')
+    url=providers.public_url+'/a2a/providers/svc-'+d['id'];template=c.templates(url)[0]
+    sid=c.authorize('No paid action for an invalid formation',100,confirmed=True)['scopeId']
+    with pytest.raises(ValueError,match='use draft'):
+        c.request(template['templateDigest'],{d['deliverable']['name']:d.get('sample_spec',{})},scope_id=sid,confirmed=True)
+    assert c.scope(sid)['requests']=={} and c.store.all('cards')=={}

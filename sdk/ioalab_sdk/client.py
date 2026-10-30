@@ -213,6 +213,7 @@ class LabClient(DelegationScopes):
     def draft(self, template_digest: str, spec: dict, *, materials=None, budget=100, scope_id=None, sign1="user", sign7="user"):
         self.require_scope_for_policy(scope_id)
         template = self.resolve_template(template_digest)
+        if template["formation"]=="proposal":raise ValueError("Proposal template requires request, not draft: obtain a signed proposal and derived.total with the authorized scope_id")
         spec, notices = self.clean_spec(template,spec)
         scope_terms={'budget':str(budget)}
         if scope_id:
@@ -261,6 +262,7 @@ class LabClient(DelegationScopes):
         if managed and not getattr(self,'_workflow_dispatch',False):
             raise ValueError('Use delegate with task_id='+managed+' to resume this authorized proposal collection')
         t = self.resolve_template(template_digest)
+        if t["formation"]!="proposal":raise ValueError("Only proposal templates use request; use draft for preapproval or countersign, then confirm the actual contract")
         spec, _ = self.clean_spec(t,spec)
         scope_terms=self.live_scope(scope_id) if scope_id else {'budget':str(budget)}
         if scope_id: scope_terms={k:scope_terms[k] for k in ('scopeId','purpose','budget','proposalFeeLimit','expiresAt','minimumQuotes') if k in scope_terms}
