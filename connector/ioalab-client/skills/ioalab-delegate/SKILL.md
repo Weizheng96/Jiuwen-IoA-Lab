@@ -1,7 +1,7 @@
 ---
 name: ioalab-delegate
 description: 这是已安装的IoA个人助手技能，不是工具。第一步调用skill_tool(skill_name='ioalab-delegate')读取完整说明，禁止调用同名工具。按需求选择委托交易（专业成果、合同与预算）或私人交互（指定账号的消息、预约和收件），再读取对应通用流程调用SDK。
-version: 0.0.37
+version: 0.0.38
 ---
 
 # IoA个人助手

@@ -1,71 +1,28 @@
-# 委托交易通用流程
+# 委托交易：执行清单
 
-本流程适用于公开服务的成果委托。业务理解与推荐由九问完成，协议动作由SDK执行，不使用预置行业计划、不固定三家、不固定排序或确认次数。
+你正在替用户执行委托，不是只编写推荐方案。按以下顺序调用真实SDK，保存回执；缺少信息才问用户。没有真实合同摘要和金额，不能确认合同。
 
-## 用户确认的呈现
+## 调用方法
 
-**委托授权、具体合同、实际环节及每期验收都必须先完整提出问题，再等待用户明确答复。可以通过普通聊天或宿主原生询问工具收集自然语言答复；原生窗口须有可填写答案或明确选项，空提交、跳过、取消不算同意。用户提出需求不算同意，工具返回“通过”不算用户验收。** 不固定确认次数，只在本合同确实需要的边界询问。
+使用主技能返回的目录S：`python "<S>/scripts/ioalab.py" 命令 --args-file "参数文件绝对路径"`。先write_file写UTF-8 JSON，再调用；不是`--query`等业务命令行选项。确认类命令仅在用户已经明确同意对应对象/用途/金额后加`--confirmed`。
 
-## 读取账号偏好
+## 逐项执行
 
-先调用me读取delegationPolicy.minimumQuotes。它是用户可选的最低比选数量，不是行业剧情；默认允许单家。授权时说明实际最低数量，authorize会固化策略。每次request/draft后读取quoteProgress：readyForConfirmation=false时按instruction继续征集或核实费用，不能停止去问用户确认合同。需要恢复时用quote-progress {scope_id}读取实际计数；同一服务端点多张卡只算一次。
-
-## 先取得委托授权
-
-**用户只提出需求、尚未确认委托范围时，第一轮只解释目的、总预算、拟卡费上限及有效期，提出授权问题并结束回复等待。此时可以读取本技能流程，但不执行authorize或任何付费/签字命令；不能把用户提出需求当作确认。** 若需建议拟卡费限额，明确为待用户确认的建议，不能假定已获同意。用户确认后才创建授权scope并继续发现。不要用失败的authorize命令探测是否需要确认。
-
-授权说明采用以下通用事实模板，替换真实数值，不增添退款承诺：
-
-> 将为您就【目的】发起委托。总预算【预算】虚拟币，包含拟卡费；按本账号策略至少比较【最低数量】份报价；拟卡费上限建议【限额】，有效期【天数】天。拟卡费按各模板公示规则计收，不承诺未成交或未采纳时退还；具体合同、合同声明的环节和每期验收仍分别请您确认。是否授权？
-
-**禁止声称“未成交可退还”“未采用免费”或“签约前不产生费用”。** 若模板另有明确规则，后续只按实际已验签内容说明。用户未确认前，额度只是建议，不得执行authorize/request。
-
-## 搜索与筛选的责任
-
-初次检索用用户需求中的领域和成果类型组成简洁词组，适当扩大top_k；具体细则留给真实模板核验，不把全部验收条件拼成检索必选词。每个候选先reputation核验市场签发的信誉，再templates读取完整已验签模板；无历史就说明无历史，不编造星级。
-
-需要额外材料的候选不一定适合本轮：先比较现有资料可以满足的其他候选；若这些仍不足或用户偏好该服务，再请求补充材料。不能仅因为模板声明inputs就排除已备齐材料的服务。disputeModels只用于仲裁复算，不是正常验收必须使用的模型名单；验收能力或本地模型观察配置不足时如实说明，不伪称支持。
-
-## 搜索结果字段与错误恢复
-
-`search`的每条结果包含注册中心内部`id`和Agent Card的`card.url`。**templates和reputation的provider必须填真实HTTP(S)地址`hits[i].card.url`，绝不能填`hits[i].id`（如ext-...）或服务名称。** 先从本轮回执复制该URL，写入参数文件`{"provider":"实际card.url"}`，再调用templates/reputation。模板摘要来自templates回执的templateDigest，不从注册ID推导。
-
-遇到SDK参数或连接错误，先依错误信息修正或如实报告阻塞。**不能用搜索摘要代替完整模板或真实签名提案，不在模板读取失败后让用户盲选服务。** 若有多个满足能力与材料要求的候选、用户未指定单方且拟卡费许可，先征集多份真实提案再比较推荐；数量取决于实际候选和授权费用，不固定三家。
-
-## 多候选的三个阶段（不得跳步）
-
-| 阶段 | 必须完成的动作 | 完成条件 |
+| 顺序 | 必须执行的SDK动作 | 真实回执与下一步 |
 |---|---|---|
-| A 候选资格 | 阅读本轮搜索返回的相关服务完整模板，逐项标记合格、排除及依据、待补充材料；形成合格候选集合。能力/材料/预算决定资格，验收覆盖的偏好用于后续比较 | 尚有待读候选时继续核验，不能发现第一家看似更优就停止 |
-| B 正式报价 | 对合格候选集合逐一request（其他成约方式draft），保存真实cardDigest、金额、判据、期限及拟卡费；本地记录每家是否已取得报价。多个合格且授权费用允许时必须征集多个，不能只向暂时偏好的一家询价 | 所有本轮合格候选已取得报价，或明确记录不能征集的实际原因。请求一份成功只是本阶段的中间结果，继续下一家；不问用户是否采纳第一份 |
-| C 横向推荐 | inspect各份真实合同，compare记录差异及推荐理由，再请求用户确认具体合同 | 已完成B；不拿公示价代替正式报价，不因验收项更多就承诺绝对质量保证 |
+| 1 读配置 | `me` | 读取账号与可选delegationPolicy；不读settings或密钥。默认最低数量1不是只询价1家的指令 |
+| 2 请求委托授权 | 说明目的、总预算（含拟卡费）、建议拟卡费上限及有效期（最多7天），等待明确答复 | 拟卡费按模板计收，不承诺未成交退款；合同、环节、每期验收分别确认。普通聊天或原生问答均可，空答/取消/跳过不算同意 |
+| 3 保存授权 | 用户同意后，立即`authorize {purpose,budget,proposal_fee_limit,valid_days}`加--confirmed | 保存scopeId。**没有scopeId就执行本项，不跳到搜索或拟卡**；用户授权不等于签订某份合同 |
+| 4 发现 | `search {query,top_k:8}`；各候选`reputation {provider}`、`templates {provider}` | provider填hits[i].card.url，不填ext注册ID。信誉无历史就如实说明 |
+| 5 确定候选集合 | 读完整验签模板的交付、inputs、specSchema、pricing、acceptance、期限；记录每家合格/排除/待补材料及依据 | 验收覆盖偏好用于后续推荐，不能据此让其他满足需求的服务免于询价。材料未备齐先看其他候选；不足再问用户 |
+| 6 准备规格 | 各spec按deliverable name分组，值符合模板；材料用materials={名称:{path,declared}} | 不猜字段或隐藏复杂JSON。用户没给的非关键默认值须在合同确认时说明，关键缺失先补齐 |
+| 7 征集正式报价 | 对**每个合格候选**：proposal类型`request {template_digest,spec,materials?,budget,scope_id}`加--confirmed；其他类型`draft`同参数 | 保存每份cardDigest和derived.total。**proposalFee只收拟卡费，绝不是合同价；不拿它或公示参考价作为正式报价**。有未报价合格候选且授权费用足够，就继续本项；不能要求用户先选一家才拟卡 |
+| 8 比较并问具体合同 | `inspect {cd}`读各份真实卡；多家时`compare {providers,selected,reason,cd}`记录推荐依据，再完整说明推荐合同并等待用户确认 | 比较实际成果/判据/金额/期限及用户偏好；不编星级或绝对质量保证。总费用含所有拟卡费。只有1家合格/用户指定单方/费用不足才说明原因并减少询价，不固定三家 |
+| 9 定约开工 | 确认具体合同后，proposal用`adopt {cd}`，其他用`sign {cd}`；然后`start {cd}`，均加--confirmed | 确认内容包含规格/默认值、材料、亲签条款、每期金额、拟卡费合计、期限及未覆盖项；不扩张授权 |
+| 10 等待环节/交付 | `watch {cd,timeout:60}`或`poll {cd}`；实际stepRequest出现才询问，按答复`answer-step {cd,granted}`加--confirmed | 没有环节就继续等，不固定实名。参数按真实卡，不重建任务；确认开工不等于确认环节 |
+| 11 本地验收 | anchored事件给出period后，`fetch {cd,period}`→`verify {cd,period}` | WASM实际报告才算证据；pending等到notBefore，fail/error不签7不付款，讨论修正/仲裁 |
+| 12 逐期确认 | 展示本期成果、验收结果、应付金额，等用户确认后`accept {cd,period}`加--confirmed | SDK重验后签7并读卡付款。多期重复10—12，全部期完成才报告整单完成 |
 
-用户明确指定单一服务、确实只有一家合格或授权费用不足时，可以只保留一家，但要说明实际依据。费用不足需要用户扩大授权时再问，不自动超支；有待补材料不伪称已合格。数量按实际候选和费用确定，不固定三家。默认minimumQuotes=1只是SDK允许的最低下限，**不是“只征集一份”的流程指令**；可选更高下限也不能替代A—C的业务比较。
+**阶段检查：合格候选还有未报价项→继续request/draft；没有真实cardDigest/derived.total→不能确认合同；没有确认具体合同→不adopt/sign/start；没有本期验收确认→不accept。** 最低数量满足只是可选策略下限，不等于候选集合已征集完毕。
 
-先在本地工作笔记列出候选集合和待征集项，每取得一份就更新状态并处理下一项。只有B完成后才进入C；不能把“我偏好这家”当作其他候选不合格，也不能提前请求合同确认后再补报价。
-
-## 调用顺序
-
-| 步骤 | SDK命令及参数 | 下一步条件 |
-|---|---|---|
-| 委托范围 | 从用户原话提取purpose、总预算budget；说明proposal_fee_limit（未授权默认0）、valid_days（最长7天）与拟卡费可能不退。获得确认后`authorize {purpose,budget,proposal_fee_limit,valid_days}`加--confirmed，保存scopeId | 不把委托范围授权当成签署具体合同 |
-| 服务发现 | `search {query,top_k}`；逐项`reputation {provider}`、`templates {provider}` | 只使用回执中的真实URL、名称、信誉和完整验签模板 |
-| 逐节筛选 | 阅读deliverables、inputs、specSchema、pricing、acceptance、deadlines、signers与样件；先排除能力不符，再比较 | 材料不足先请用户补充；不能将所有需要材料的服务一概排除。没有合适服务如实说明 |
-| 准备规格 | 按每份模板的deliverable name分组构造spec；materials用`{名称:{path,declared}}`提供本地文件 | 不猜测字段，不在JSON字符串中隐藏不兼容值；缺少必填信息先补齐；拟卡费超限重新授权 |
-| 形成合同 | 提案型`request {template_digest,spec,materials?,budget,scope_id}`加--confirmed；其他类型`draft {template_digest,spec,materials?,budget,scope_id}` | 前者使用已确认的拟卡费范围，取得真实签名提案；后者仅拟卡。不能用公示参考价冒充提案报价 |
-| 比选与确认 | `inspect {cd}`读取真实卡及模板；多方比较须`compare {providers,selected,reason,cd?}`记录实际推荐理由（2—8方）；仅一方时不虚构其他候选 | 按用户偏好解释交付/验收覆盖、价格及期限，不强制script优先。只有一方不伪造其他候选。预算包含所有已付拟卡费 |
-| 定约 | 明确说明具体成果、待确认规格/默认值、材料、亲签条款、分期金额、拟卡费及合计、期限、验收/未覆盖项；等待用户确认具体合同。提案型`adopt {cd}`，其他`sign {cd}`，均加--confirmed；成功后`start {cd}`加--confirmed | start使用本次已确认合同的开工授权，不另编造确认问题；拒绝时不签字不开工 |
-| 等待与环节 | `watch {cd,timeout:60}`或`poll {cd}`；没有人工节点就继续等待 | 仅有真实stepRequest时按合同描述询问；用户同意/拒绝后`answer-step {cd,granted}`加--confirmed。不预设实名；可以有0个或多个环节 |
-| 本期交付 | anchored事件给出实际period后，`fetch {cd,period}`→`verify {cd,period}` | SDK在本地WASM验收。pending到notBefore再验；fail/error不签7不付款，讨论修正/仲裁，不能仅凭模型宣称通过 |
-| 本期验收 | 告诉用户本期成果、实际检查结果及付款金额；等待验收确认后`accept {cd,period}`加--confirmed | SDK重验后才签7并读卡付款。签约确认不能代替本期验收确认 |
-| 多期与恢复 | 从inspect的实际合同期数逐期重复等待/取件/验收/付款；`scope {scope_id}`恢复授权，inspect/poll核对合同 | 全部期完成才报告整单完成；already-accepted不代表付款已确认。unknown或结果不明先核实，不重建任务或重复付款 |
-
-用户本轮已明确同意的对象、用途、金额和动作可传递给对应SDK命令，不要求重复确认；不得扩大授权。scope只负责限额，不等于SDK能独立证明用户确实同意。金额均以真实合同和回执为准。
-
-## 格式与恢复
-
-`spec`以真实deliverable name为第一层，例如`{"document":{"language":"中文","pages":2}}`，字段和值域来自模板。调用参数写入独立UTF-8文件，不能在命令后直接放业务文字。不得读取settings.local.json、密钥或修改SDK来绕过报错。
-
-`compare`的reason只记录个人助手推荐，不是市场认证；没有历史信誉则不编造。签名、卡片和验收原件由SDK本地存储。断线继续原合同watch/poll，保留身份目录。需要停止时`terminate {cd}`加--confirmed，存在解除报价及协议条件；验收争议可`arbitrate {cd,period}`加--confirmed。付款确实失败与结果未知要区分，`pay`只能在已签7且核实允许重试时使用。
-
-兼容旧delegate任务：`delegate {action:status}`列出本机任务；有taskId的受管理合同继续status/poll，并仅在对应用户确认后advance --confirmed。不将新需求强行套入旧任务，不从主skill加载行业计划。完整接口参数表见contract-primitives.md。
+保存scope_id、候选清单、cardDigest、当前期及真实回执到本地任务笔记。状态未知先核实，不重付或改SDK绕过。恢复与详细参数按需读contract-primitives.md；已有delegate受管理任务用原taskId恢复，不用于新需求或固定行业计划。

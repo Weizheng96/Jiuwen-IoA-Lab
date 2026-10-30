@@ -25,5 +25,13 @@
   },
   "conclusion": "本次不是模板资格排除了其他两家；通用skill允许多候选，但征集完成边界不够明确。",
   "change": "候选资格、正式报价、横向推荐三阶段；不设固定三份偏好复测。",
-  "status": "new full recording pending"
+  "status": "new full recording pending",
+  "followUp": {
+    "date": "2026-10-30",
+    "minimumQuotePreference": "not configured",
+    "flowLoad": "native history confirms successful skill_tool return containing the full three-phase flow",
+    "result": "failed: no authorize scope or signed proposal; model compared proposalFee=1 as delivery price and asked to choose before request",
+    "templateFinding": "eligible candidates were not excluded; proposal pricing needs clearer natural-language explanation",
+    "action": "clarify public and signed-template description, simplify generic execution checklist; repeat real verification"
+  }
 }
