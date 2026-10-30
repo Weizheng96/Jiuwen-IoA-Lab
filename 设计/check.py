@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-版本自检（九问IoA仿真平台子仓）。
+版本自检（九问IoA实验平台）。
 
-- 设计/VERSION 是本仓版本唯一的一处，格式 vX.Y.Z；变更记录.md 变更表最上一行必须与它一致
+- 设计/VERSION 是本仓版本唯一的一处，格式 vX.Y.Z；变更/README.md 变更表最上一行必须与它一致
 - ioalab/ · connector/ · examples/ · deploy/ 各有一个 VERSION，记录它依据的本仓设计版本（存在的目录才查）
 - 设计/README.md 记依据的 A2C 设计版本（一行「依据的 A2C 设计版本：vX.Y.Z」），必须与 vendor/wheels/SOURCE.json 一致
 - README、docstring、设计文档里不得再散写「设计版本 vN」——版本只在 VERSION 文件里
@@ -35,7 +35,12 @@ def vtuple(v: str) -> tuple[int, ...]:
 
 
 def changelog_top() -> str | None:
-    text = (ROOT / "设计/变更记录.md").read_text(encoding="utf-8")
+    path = ROOT / "设计/变更/README.md"
+    if not path.is_file():
+        return None
+    text = path.read_text(encoding="utf-8")
+    if "## 变更表" not in text:
+        return None
     sec = text.split("## 变更表", 1)[1]
     for line in sec.splitlines():
         cells = [c.strip().strip("`") for c in line.strip().strip("|").split("|")]
@@ -47,7 +52,7 @@ def changelog_top() -> str | None:
 def stray_markers() -> list[str]:
     files = [ROOT / "README.md"]
     files += (ROOT / "ioalab").rglob("__init__.py")
-    files += sorted((ROOT / "设计").glob("*.md"))
+    files += sorted(p for p in (ROOT / "设计").rglob("*.md") if "变更" not in p.relative_to(ROOT / "设计").parts)
     files += [p for p in (ROOT / "connector").rglob("*.md")] if (ROOT / "connector").exists() else []
     files += [p for p in (ROOT / "docs").rglob("*.md")] if (ROOT / "docs").exists() else []
     out = []
@@ -69,7 +74,7 @@ def main() -> int:
         design = None
     top = changelog_top()
     if design and top != design:
-        bad.append(f"变更记录.md 变更表最上一行是 {top}，与 设计/VERSION 的 {design} 不一致")
+        bad.append(f"变更/README.md 变更表最上一行是 {top}，与 设计/VERSION 的 {design} 不一致")
     print(f"本仓版本 {design or '—'}　（变更表最上一行 {top or '—'}）")
 
     # 依据的 A2C 设计版本：设计/README.md ↔ vendor/wheels/SOURCE.json

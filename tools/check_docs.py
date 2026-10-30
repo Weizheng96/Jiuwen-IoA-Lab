@@ -9,8 +9,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def current_documents():
     files = [ROOT / name for name in ("README.md", "AGENTS.md", "历史备份/README.md")]
-    for folder in ("设计", "docs"):
-        files.extend((ROOT / folder).glob("*.md"))
+    files.extend(p for p in (ROOT / "设计").rglob("*.md")
+                 if "变更" not in p.relative_to(ROOT / "设计").parts)
+    files.append(ROOT / "设计/变更/README.md")
+    files.extend((ROOT / "docs").rglob("*.md"))
+    files.extend((ROOT / ".agents/skills").glob("*/SKILL.md"))
     files.extend((ROOT / "demo").glob("*/剧本.md"))
     for folder in (
         "sdk",
