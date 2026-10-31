@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 FMT = re.compile(r"^v\d+\.\d+\.\d+$")
 STRAY = re.compile(r"设计版本 v\d|随设计 v\d|当前版本：v\d|平台版本 v\d")
 A2C_LINE = re.compile(r"依据的 A2C 设计版本：(v\d+\.\d+\.\d+)")
-ARTIFACTS = ("src/platform", "src/access/sdk", "src/hosts/jiuwen", "src/official", "official-services", "experiments", "connector", "examples", "deploy", "personal-assistant", "demo")
+ARTIFACTS = ("src/platform", "src/access/sdk", "src/access/skills", "src/hosts/jiuwen", "src/official", "official-services", "experiments", "connector", "examples", "deploy", "personal-assistant", "demo")
 
 
 def read_version(path: Path) -> str | None:

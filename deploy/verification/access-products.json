@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-31",
+  "scope": "Actual two distributed skill ZIPs, fresh isolated install using domestic mirror, original Jiuwen public probe and real platform HTTP/WS/IPC. No native web loading, business production, official tools or Linux proof.",
+  "bundleSha256": {
+    "ioalab-assistant-skill.zip": "55ee2b66acb8602e4d690d39b3db0d674a017e0b8727886f756cd5912bf794d7",
+    "ioalab-provider-skill.zip": "d748be100105a79c1e83910e2db41396a17859daee98835e5138b9d4abbcd229"
+  },
+  "sharedEnvironment": true,
+  "environmentCount": 1,
+  "platformInstalled": false,
+  "jiuwenRuntimeInstalled": false,
+  "configuredRoleMissingRejected": true,
+  "staleConfigurationRejected": true,
+  "safeRestartRetainsAssistantIdentity": true,
+  "actualProfiles": [
+    "personal",
+    "service"
+  ],
+  "hostAvailable": true,
+  "checks": [
+    "actual bundle install and cached second-role reuse",
+    "read-only config validation hides password",
+    "original host capability probe",
+    "real platform HTTP/WS/IPC",
+    "safe stop and restart with both roles",
+    "isolated adapter/SDK imports without core or Jiuwen runtime"
+  ]
+}

@@ -20,6 +20,14 @@ READ_ONLY={'runtime.status','identity.status','operations.get'}
 
 def start(config_path,*,timeout=15,command=None):
     config=RuntimeConfig.load(config_path)
+    expected=config.public_summary()['configurationDigest']
+    def matching(result):
+        account=result['data']['account']
+        if account['username']!=config.username or account['platform']!=config.platform:
+            raise RuntimeFault('identity_conflict','Running instance belongs to another configured account')
+        if result['data'].get('configurationDigest')!=expected:
+            raise RuntimeFault('configuration_changed','The running instance uses another configuration; safely stop it before starting the edited configuration','runtime.stop')
+        return result
     prepare_home(config.home)
     client=LocalClient(config.home,timeout=.5)
     try:
@@ -27,10 +35,7 @@ def start(config_path,*,timeout=15,command=None):
     except RuntimeFault:
         pass
     else:
-        account=result['data']['account']
-        if account['username']!=config.username or account['platform']!=config.platform:
-            raise RuntimeFault('identity_conflict','Running instance belongs to another configured account')
-        return result
+        return matching(result)
     try:
         # An OS-owned lock is current evidence; a PID/descriptor file is not.
         probe=Lease(config.home/'client.lock',timeout=0)
@@ -50,8 +55,9 @@ def start(config_path,*,timeout=15,command=None):
     while time.monotonic()<until:
         if child.poll() is not None:
             raise RuntimeFault('not_ready','Runtime bootstrap exited; inspect the private runtime log','inspect_local_log')
-        try:return client.call('runtime.status')
+        try:result=client.call('runtime.status')
         except RuntimeFault:time.sleep(.1)
+        else:return matching(result)
     return {'operationId':str(uuid.uuid4()),'status':'waiting','data':{'pid':child.pid,'starting':True},
             'error':{'code':'not_ready','message':'Bootstrap is still running; wait without starting another instance','recovery':'runtime.status'}}
 
@@ -59,7 +65,7 @@ def start(config_path,*,timeout=15,command=None):
 def main(argv=None):
     parser=argparse.ArgumentParser(prog='ioalab-access')
     commands=parser.add_subparsers(dest='command',required=True)
-    for name in ('serve','start'):
+    for name in ('serve','start','validate'):
         item=commands.add_parser(name)
         item.add_argument('--config',type=Path,required=True)
     call=commands.add_parser('call')
@@ -76,7 +82,8 @@ def main(argv=None):
             runtime=ResidentRuntime(RuntimeConfig.load(args.config),modules=(AssistantRole(),ProviderRole()))
             runtime.run()
             return 0
-        if args.command=='start':result=start(args.config)
+        if args.command=='validate':result={'status':'completed','data':RuntimeConfig.load(args.config).public_summary(),'error':None}
+        elif args.command=='start':result=start(args.config)
         else:
             if args.operation not in READ_ONLY and not args.args_file:
                 raise RuntimeFault('invalid_input','Create an arguments file before a mutating call')

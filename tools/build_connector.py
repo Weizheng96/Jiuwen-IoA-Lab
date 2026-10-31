@@ -15,9 +15,12 @@ from packaging.requirements import Requirement
 ROOT=Path(__file__).resolve().parents[1]
 
 
-def constraints():
-    sdk=tomllib.loads((ROOT/'src/access/sdk/pyproject.toml').read_text(encoding='utf-8'))['project']
-    pending=[('ioalab-sdk',set())]
+def constraints(projects=None):
+    local={}
+    for path in projects or [ROOT/'src/access/sdk']:
+        project=tomllib.loads((path/'pyproject.toml').read_text(encoding='utf-8'))['project']
+        local[project['name'].lower().replace('_','-')]=(project,(path/'VERSION').read_text().strip().removeprefix('v'))
+    pending=[(name,set()) for name in local]
     seen={}; versions={}
     while pending:
         name,extras=pending.pop()
@@ -26,9 +29,9 @@ def constraints():
         seen.setdefault(key,set()).update(extras)
         # Editable-install metadata may still describe the previous SDK release.
         # Lock the package we just built, not its previously installed version.
-        if key=='ioalab-sdk':
-            versions[sdk['name']]=(ROOT/'src/access/sdk/VERSION').read_text().strip().removeprefix('v')
-            requirements=sdk['dependencies']
+        if key in local:
+            project,version=local[key];versions[project['name']]=version
+            requirements=project['dependencies']
         else:
             dist=md.distribution(name);versions[dist.metadata['Name']]=dist.version
             requirements=dist.requires or []

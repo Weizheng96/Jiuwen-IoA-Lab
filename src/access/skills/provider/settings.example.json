@@ -1,0 +1,15 @@
+{
+  "platform_url": "http://127.0.0.1:8000",
+  "username": "your-account",
+  "password_env": "IOALAB_ACCESS_PASSWORD",
+  "data_dir": "~/.ioalab/instances/main",
+  "identities": [{"key": "service", "role": "service", "name": "我的专业服务"}],
+  "max_model_runs": 2,
+  "assistant": {},
+  "provider": {"services": {"service": {
+    "instructions": "请填写本服务的实际业务规则、生产能力和验收要求",
+    "skills": [], "native_tools": {}, "resources": {},
+    "max_active_delegations": 2, "accepting": true
+  }}},
+  "host": {"command": ["jiuwenswarm-process"], "data_dir": "<自己的九问数据目录>"}
+}

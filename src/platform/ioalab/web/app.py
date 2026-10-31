@@ -352,6 +352,13 @@ def create_app(platform: Platform) -> FastAPI:
             raise HTTPException(503, "连接器尚未生成，请运行 tools/build_connector.py")
         return FileResponse(path, filename="ioalab-client.zip", media_type="application/zip")
 
+    @app.get('/downloads/{bundle}')
+    def access_skill_download(bundle:str):
+        if bundle not in ('ioalab-assistant-skill.zip','ioalab-provider-skill.zip'):raise HTTPException(404,'Unknown public bundle')
+        path=platform.s.bundles_dir/bundle
+        if not path.is_file():raise HTTPException(503,'Product skill bundle is not built')
+        return FileResponse(path,filename=bundle,media_type='application/zip')
+
     app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
     return app
 

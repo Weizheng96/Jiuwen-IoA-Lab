@@ -73,11 +73,13 @@ materials 以模板材料名为键，每项提供 text 或 bytesBase64，可选 
 
 模板仅允许待批准或提案，并选择配置中的平台支付提供者。稳定签名请求在上传前保存，响应丢失或重启后沿用原操作，不重签、不延期。公开地址由绑定身份导出，平台不抓取用户任意 URL。
 
-服务方执行还需在本机配置 provider.services，以 service profile 为键，声明 instructions、skills、max_active_delegations、accepting；resources 可保存真实验收器引用等业务数据。重启常驻实例后读取配置，原身份与业务数据保留。只有公示、宿主和配置均就绪才接新意向；容量限制承接数量，max_model_runs 单独限制模型。当前支持接单与提案/审查，后续生产、交付和结清尚未开放。
+服务方执行还需在本机配置 provider.services，以 service profile 为键，声明 instructions、skills、max_active_delegations、accepting；resources 保存真实验收器引用等业务数据，native_tools 只列用户明确配置的原生工具及权限。重启常驻实例后读取配置，原身份与业务数据保留。只有公示、宿主和配置均就绪才接新意向；容量限制承接数量，max_model_runs 单独限制模型。正常生产、环节授权、WASM验收、原AP2付款及结清已开放；进一步故障矩阵与官方业务切换见开发计划。
 
 每个交互使用原 Provider、独立协议命名空间和实际九问 Session。报价工具根据本单模板生成字段 Schema，复用原校验并核验验收器包种类后才保存决定；错误由同一模型轮次修正。签3响应丢失从原操作恢复，不再次执行模型或收拟卡费。
 
 ## 迁移中的原业务入口
+
+普通用户使用[两种产品技能](../skills/README.md)及常驻入口。下列直接客户端继续支撑尚未迁移的旧官方运行路径和在途记录，不作为新技能入口；迁移差距见开发计划。
 
 个人助手使用 `ioalab-client <command> --args '<JSON>'`；命令清单见 `python -m ioalab_sdk.cli --help`。配置 `IOALAB_BASE_URL`、`IOALAB_USERNAME`、`IOALAB_PASSWORD`；身份与合同存入本地 `IOALAB_HOME`。需确认的命令显式传 `--confirmed`，技能必须先取得用户同意。
 

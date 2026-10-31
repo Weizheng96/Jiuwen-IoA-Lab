@@ -30,12 +30,15 @@ python tools/check_vendor.py
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt -e ./src/platform -e ./src/access/sdk
 .venv/bin/python tools/build_connector.py
+.venv/bin/python tools/build_access_skills.py
 IOALAB_SEED_FILE=./deploy/default-seed.json .venv/bin/ioalab serve
 ```
 
 另开终端执行 `.venv/bin/python official-services/serve.py`；真实模式需先安装并配置兼容的九问进程入口，配置见 [部署](设计/工程/部署.md)。Windows 将 `.venv/bin/` 换为 `.venv/Scripts/`。
 
-用户访问核心首页注册，下载可直接导入九问技能页的ioalab-skill.zip，按技能说明配置本机账号。浏览器登录后可切换个人助手和服务方工作台；有管理角色的账号还可进入全景与消息审计。核心默认8750，官方服务默认8751；两个对外地址都须能被用户访问。内部账号已预注册，但保持空闲；SDK关联本地身份后才显示助手。
+用户访问核心首页注册，下载个人助手或服务方产品技能 ZIP，导入九问原生技能页并按说明配置本机账号。两个技能共用隔离安装环境和常驻实例，用户服务通过出站长连接接入，不需要公网 IP；源与构建入口见[产品技能](src/access/skills/README.md)。浏览器可切换个人助手和服务方工作台，有管理角色的账号可进入全景与审计。内部账号保持空闲，关联本地身份后才显示助手。
+
+当前官方默认服务和管理员后台仍在迁移，以上旧运行入口及现有视频不代表新架构全部完成；实际差距和新接入证据见[开发计划](docs/开发计划.md)。
 
 ## 验证与试用
 

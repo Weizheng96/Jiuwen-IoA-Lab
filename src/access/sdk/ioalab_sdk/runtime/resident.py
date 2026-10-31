@@ -87,6 +87,7 @@ class ResidentRuntime:
                        if hasattr(module,'ready') and ((getattr(module,'identity',None) and module.identity.profile==profile)
                            or profile in getattr(module,'identities',{})))
         return {'runtimeId':self.store.runtime_id,'bootId':self.ipc.boot_id,'pid':os.getpid(),
+                'configurationDigest':self.config.public_summary()['configurationDigest'],
                 'ipcReady':bool(self.ipc.thread and self.ipc.thread.is_alive()),
                 'account':self.account.status(),'platformConnected':connected,
                 'connectionError':public_error(self.connection.error) if self.connection.error else None,

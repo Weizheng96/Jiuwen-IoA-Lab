@@ -45,6 +45,7 @@ fi
 .venv/bin/python -m pip install -q -r requirements.txt
 .venv/bin/python -m pip install -q -e ./src/platform -e ./src/access/sdk -e ./src/official
 .venv/bin/python tools/build_connector.py
+.venv/bin/python tools/build_access_skills.py
 .venv/bin/ioalab --help >/dev/null
 
 # ── 配置文件（已存在则不动）────────────────────────────────────────────

@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 from .files import read_json
 from .protocol import RuntimeFault
+from a2c.codec import digest
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,12 @@ class RuntimeConfig:
     assistant: dict=field(default_factory=dict)
     provider: dict=field(default_factory=dict)
     host: dict=field(default_factory=dict)
+
+    def public_summary(self):
+        value={'platform':self.platform,'username':self.username,'dataDir':str(self.home),'identities':list(self.identities),
+               'maxModelRuns':self.max_model_runs,'maxPendingRequests':self.max_pending_requests,
+               'assistant':self.assistant,'provider':self.provider,'host':self.host}
+        return {'configurationDigest':digest(value),'dataDir':str(self.home),'identities':list(self.identities)}
 
     @classmethod
     def load(cls,path):
