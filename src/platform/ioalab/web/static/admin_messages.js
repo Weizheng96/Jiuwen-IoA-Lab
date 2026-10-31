@@ -12,7 +12,7 @@ async function loadMessages() {
         rows
           .map(
             (m) =>
-              `<tr><td>${esc(m.senderUsername)}</td><td>${esc(m.receiverUsername)}</td><td>${esc(m.interface)}</td><td>${esc(m.state)}</td><td>${ymdhm(m.created)}</td><td><button class="btn sm" data-audit="${esc(m.id)}">查看正文</button></td></tr>`,
+              `<tr><td>${esc(m.senderUsername)}</td><td>${esc(m.receiverUsername)}</td><td>${esc(m.interface)}</td><td>${esc(m.deliveryState)} / ${esc(m.requestState)}</td><td>${ymdhm(m.created)}</td><td>${m.canAudit ? `<button class="btn sm" data-audit="${esc(m.id)}">审计正文</button>` : "仅元数据"}</td></tr>`,
           )
           .join("") +
         "</table>"

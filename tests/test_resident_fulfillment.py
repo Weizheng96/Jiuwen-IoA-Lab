@@ -100,7 +100,8 @@ def accept_preview(assistant,reference):
 
 @pytest.mark.parametrize('formation',['proposal','countersign'])
 @pytest.mark.parametrize('lose_payment',[False,True])
-def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_reputation(platform,tmp_path,monkeypatch,formation,lose_payment):
+def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_reputation(platform,client,tmp_path,monkeypatch,formation,lose_payment):
+    http=client
     configure_template(monkeypatch)
     with participants(platform,tmp_path,formation=formation,fee=1 if formation=='proposal' else 0,agent_host=ProductionHost(),verifier_source=VERIFIER) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task);selected,_,_=confirm(assistant,quote);ref=selected['data']['contractRef']
@@ -195,6 +196,57 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         assert verify_card(template,actual['card'],protocol.keys).accepted==1
         assert all(actual['card']['signatures'][str(i)] for i in range(1,8) if i!=3 or formation=='proposal')
         assert actual['payment']=='paid' and actual['vouchers'][0]['amount']==8
+        own_headers={'Authorization':'Bearer '+platform.auth.bearer(assistant.account.account['id'],restricted=True)}
+        response=http.get('/api/workbench',headers=own_headers)
+        assert response.status_code==200
+        views=response.json()['orders']
+        displayed=next(row for row in views if row['card_digest']==ref)
+        assert displayed['card']==actual['card'] and displayed['state']=='completed'
+        assert displayed['effective'] and displayed['paid']=='9.00'
+        assert http.get('/api/orders/'+ref,headers=own_headers).json()['card']==actual['card']
+        assert displayed['proposalFeePaid']==('1.00' if formation=='proposal' else '0.00')
+        assert all('card' not in row and 'detail' not in row for row in platform.contract_views.list())
+        assert platform.contract_views.rebuild()==0
+        # A replay/older copy or altered signature must never roll the display backward.
+        record=platform.db.one('SELECT * FROM observation_contracts WHERE digest=?',ref)
+        offer=platform.db.one('SELECT result FROM delegation_offers WHERE admission=?',actual['admissionId'])
+        with platform.db.tx() as conn:
+            if offer:assert not platform.contract_views.record_in(conn,actual['admissionId'],json.loads(offer['result'])['card'])
+            invalid=copy.deepcopy(actual['card']);invalid['signatures']['7'][0]['signature']+='altered'
+            assert not platform.contract_views.record_in(conn,actual['admissionId'],invalid)
+        assert platform.db.one('SELECT * FROM observation_contracts WHERE digest=?',ref)==record
+        platform.db.run('UPDATE observation_contracts SET card_hash=? WHERE digest=?','corrupt-copy',ref)
+        damaged=next(row for row in platform.contract_views.list(assistant.account.account['id'],private=True) if row['card_digest']==ref)
+        assert damaged['state']=='completed' and damaged['effective'] and damaged['total'] is None and damaged['paid']=='9.00'
+        assert 'card' not in damaged and damaged['evidenceStatus']=='unavailable'
+        platform.db.run('UPDATE observation_contracts SET card_hash=? WHERE digest=?',record['card_hash'],ref)
+        # Metadata must keep the original transaction's facts, not a later final card.
+        events=platform.db.rows("SELECT * FROM events WHERE card_digest=? ORDER BY seq",ref)
+        resident=[{**row,'detail':json.loads(row['detail'])} for row in events if json.loads(row['detail']).get('source')=='resident']
+        assert any(row['op']=='delivery.anchor' and row['detail']['signatures']['5']==[True] for row in resident)
+        queued=next(row for row in resident if row['op']=='work.start' and row['outcome']=='queued')
+        assert queued['detail']['signatures']['5']==[] and queued['detail']['signatures']['7']==[]
+        closed=next(row for row in resident if row['op']=='card.close')
+        assert closed['detail']['state']=='completed' and closed['detail']['signatures']['7']==[True]
+        from _support import new_user
+        outsider=new_user(platform)
+        assert http.get('/api/orders/'+ref,headers={'Authorization':'Bearer '+platform.auth.bearer(outsider['id'])}).status_code==404
+        global_orders=http.get('/api/admin/orders',headers={'Authorization':'Bearer '+platform.auth.token('admin')}).json()
+        assert all('card' not in row and 'detail' not in row for row in global_orders)
+        service_headers={'Authorization':'Bearer '+platform.auth.bearer(provider.account.account['id'],restricted=True)}
+        service=next(row for row in http.get('/api/workbench',headers=service_headers).json()['services'] if row['id']==provider.identities[0].agent_id)
+        assert service['earned']==('10.00' if formation=='proposal' else '9.00')
+        assert service['commissionEarned']=='9.00' and service['completedCount']==1
+        original_list=platform.contract_views.list
+        with monkeypatch.context() as patch:
+            patch.setattr(platform.contract_views,'list',lambda owner=None,**kwargs:[] if owner==provider.account.account['id'] else original_list(owner,**kwargs))
+            paged=http.get('/api/workbench',headers=service_headers).json()
+            total=next(row for row in paged['services'] if row['id']==service['id'])
+            assert total['orders']==[] and total['earned']==service['earned'] and total['completedCount']==1
+        from decimal import Decimal
+        platform.wallets.transfer(assistant.account.account['id'],provider.account.account['id'],Decimal('1'),purpose='fee',ref=ref)
+        reloaded=http.get('/api/workbench',headers=service_headers).json()
+        assert next(row for row in reloaded['services'] if row['id']==service['id'])['earned']==service['earned']
         payments=platform.db.rows('SELECT purpose,amount FROM payment_records WHERE ref=? ORDER BY purpose',ref)
         assert payments==[{'purpose':'deposit','amount':'1.00'},{'purpose':'installment','amount':'8.00'}]
         aid=actual['admissionId']
@@ -202,11 +254,32 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         assert platform.market.reputation(provider.identities[0].protocol_id)['completed']==1
         assert blocked_close==[True]
         assert bool(dropped)==lose_payment
+        # Rebuild only the disposable display copy, then expire this closed test interaction.
+        if formation=='proposal' and not lose_payment:
+            platform.db.run('DELETE FROM observation_contracts WHERE admission=?',aid)
+            assert platform.contract_views.rebuild()>0
+            restored=next(row for row in platform.contract_views.list(assistant.account.account['id'],private=True) if row['card_digest']==ref)
+            assert restored['card']==actual['card']
         if dropped:assert actual['card']['signatures']['7']==dropped
         key,_=invoke(assistant,ref,'pay',period=1)
         wait_for(lambda:operation(assistant,ref,key))
         assert operation(assistant,ref,key)['data']['payment']=='paid'
         assert len(platform.db.rows('SELECT * FROM payment_records WHERE ref=?',ref))==2
+        if formation=='proposal' and not lose_payment:
+            assistant.close();provider.close()
+            iid=actual['interactionId']
+            platform.db.run('UPDATE delivery_messages SET expires=0,retain_until=0 WHERE interaction=?',iid)
+            platform.messaging.delivery.cleanup()
+            assert not platform.db.one('SELECT 1 FROM delivery_messages WHERE interaction=? AND envelope IS NOT NULL',iid)
+            assert platform.contract_views.rebuild()==0
+            retained=next(row for row in platform.contract_views.list(assistant.account.account['id'],private=True) if row['card_digest']==ref)
+            assert retained['card']==actual['card'] and retained['state']=='completed'
+            # Losing the display copy after payload cleanup cannot recreate missing acceptance signatures.
+            platform.db.run('DELETE FROM observation_contracts WHERE admission=?',aid)
+            assert platform.contract_views.rebuild()>0
+            partial=next(row for row in platform.contract_views.list(assistant.account.account['id'],private=True) if row['card_digest']==ref)
+            assert partial['state']=='completed' and partial['evidenceStatus']=='partial'
+            assert partial['signatures']['7']==[] and partial['paid']=='9.00'
         turns=[turn for turn in host.turns if json.loads(turn.input)['phase']=='production']
         assert len(turns)==2 and len({turn.session_id for turn in turns})==1
 
@@ -237,7 +310,7 @@ def test_actual_bad_delivery_fails_wasm_and_never_signs_acceptance_or_pays(platf
 
 
 @pytest.mark.skipif(not os.environ.get('IOALAB_REAL_JIUWEN_DATA_DIR'),reason='requires explicitly configured original Jiuwen/model')
-def test_real_original_jiuwen_produces_native_file_and_completes_original_contract(platform,tmp_path,monkeypatch):
+def test_real_original_jiuwen_produces_native_file_and_completes_original_contract(platform,client,tmp_path,monkeypatch):
     from ioalab_jiuwen.process import ProcessHost
     configure_template(monkeypatch)
     host=ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'))
@@ -292,8 +365,35 @@ def test_real_original_jiuwen_produces_native_file_and_completes_original_contra
         assert not turns[0].allow_native_tools and all(turn.allow_native_tools for turn in production)
         assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',actual['admissionId'])['state']=='released'
         assert platform.market.reputation(provider.identities[0].protocol_id)['completed']==1
-        report={'scope':'Real original Jiuwen production, native write_file, same Session, original A2C/AP2/WASM and scripted trusted browser confirmations; not native web visibility or video',
+        account=assistant.account.account;owner=provider.account.account
+        def workbench(user):
+            response=client.get('/api/workbench',headers={'Authorization':'Bearer '+platform.auth.bearer(user['id'])})
+            assert response.status_code==200;return response.json()
+        observed=next(row for row in workbench(account)['orders'] if row['card_digest']==ref)
+        assert observed['card']==actual['card'] and observed['paid']=='9.00' and observed['state']=='completed'
+        service=next(row for row in workbench(owner)['services'] if row['id']==provider.identities[0].agent_id)
+        assert service['earned']=='10.00' and service['completedCount']==1
+        report={'scope':'Real original Jiuwen production, native write_file, same Session, original A2C/AP2/WASM and scripted trusted browser confirmations; actual workbench HTTP evidence; not native Skill UI or video',
                 'model':host.capabilities()['model'],'interactionId':actual['interactionId'],'sessionId':production[-1].session_id,'cardDigest':ref,
+                'workbench':{'exactOriginalCard':True,'paid':observed['paid'],'state':observed['state'],'providerIncome':service['earned'],'completedCount':service['completedCount']},
                 'nativeFileCreated':True,'contentVerifier':'expected-delivery-content','payment':'paid','closed':True,'reputationCompleted':1,
                 'paymentRecords':platform.db.rows('SELECT purpose,amount FROM payment_records WHERE ref=? ORDER BY purpose',ref)}
         if os.environ.get('IOALAB_REAL_FULFILLMENT_REPORT'):private_json(Path(os.environ['IOALAB_REAL_FULFILLMENT_REPORT']),report)
+        if os.environ.get('IOALAB_VIEW_PROOF_DIR'):
+            # Explicitly bounded live fixture for observing actual public workbench pages.
+            from test_assistant_role import runtime_at,ScriptedHost,INPUT,publish,send_and_read
+            from ioalab_sdk.runtime.host import ToolBinding
+            proof=Path(os.environ['IOALAB_VIEW_PROOF_DIR']);proof.mkdir(parents=True,exist_ok=True)
+            assert not (proof/'finish.json').exists(),'Use a fresh proof directory'
+            tool=ToolBinding('reserve_slot','Isolated receipt driver',INPUT,lambda args,context:{'status':'reserved'},'reservation')
+            with runtime_at(platform,tmp_path/'peer',ScriptedHost(),[tool]) as (peer,_,_,target):
+                publish(peer,LocalClient(peer.config.home),account['username'])
+                rpc=LocalClient(assistant.config.home)
+                interface=rpc.call('assistant.messaging.interfaces',{'account':target['username']})['data'][0]['interfaceRef']
+                sent,_=send_and_read(rpc,{'interfaceRef':interface,'input':{'slot':'本地消息通路验收'}})
+                assert any(m['id']==sent['data']['messageRef'] for m in workbench(account)['messages'])
+                private_json(proof/'context.json',{'url':platform.s.base_url,'assistant':account['username'],
+                    'provider':owner['username'],'peer':target['username'],'cardDigest':ref,
+                    'scope':'Real original model production; messaging host/tool and user decisions are explicit isolated test drivers'})
+                wait_for(lambda:(proof/'finish.json').exists(),timeout=900)
+                assert json.loads((proof/'finish.json').read_text(encoding='utf-8'))['verified']

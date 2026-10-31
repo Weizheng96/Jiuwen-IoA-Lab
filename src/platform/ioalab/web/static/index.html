@@ -4,9 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>九问IoA实验平台（Jiuwen IoA Lab）· 工作台</title>
-    <link rel="stylesheet" href="/static/app.css" />
-    <link rel="stylesheet" href="/static/network-map.css" />
-    <link rel="stylesheet" href="/static/workbench.css" />
+    <link rel="stylesheet" href="/static/app.css?sha256=c96c5a4f91060823" />
+    <link rel="stylesheet" href="/static/network-map.css?sha256=ce9a15007df34a57" />
+    <link rel="stylesheet" href="/static/workbench.css?sha256=0a6497bb0f2567e7" />
   </head>
   <body>
     <header class="topbar">
@@ -105,7 +105,8 @@
                 <p class="hint" id="interface-description"></p>
                 <form id="send" class="stack">
                   <div id="fields"></div>
-                  <button class="btn primary" type="submit">发送消息</button>
+                  <button class="btn primary" type="submit">整理消息草稿</button>
+                  <pre id="message-draft" hidden></pre>
                 </form>
               </div>
               <p id="send-status" role="status"></p>
@@ -150,9 +151,9 @@
         <pre id="detail-body"></pre>
       </dialog>
     </main>
-    <script src="/static/network-map.js"></script>
-    <script src="/static/network.js"></script>
-    <script src="/static/provider-workbench.js"></script>
-    <script src="/static/index.js"></script>
+    <script src="/static/network-map.js?sha256=fc66c03f6ab5c567"></script>
+    <script src="/static/network.js?sha256=39d56a95abf85982"></script>
+    <script src="/static/provider-workbench.js?sha256=bac7f6bde936d10c"></script>
+    <script src="/static/index.js?sha256=bb740b8943493178"></script>
   </body>
 </html>

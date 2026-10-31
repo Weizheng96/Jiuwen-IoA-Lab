@@ -54,8 +54,8 @@ window.IoaNetwork = (() => {
     el('assistant').querySelector('b').textContent=name+'的个人助手';
     el('assistant').querySelector('small').textContent=latest.identities.some(x=>x.role==='assistant')?'已登记 · 本地九问':'等待九问接入';
     const order=latest.orders.find(o=>o.card_digest===selectedOrder)||latest.orders[0];
-    el('service').querySelector('b').textContent=order?.providerName||'相关专业服务';
-    el('service').querySelector('small').textContent=order ? (done.has(order.state)?'已结束委托':'当前委托') : '从 A2X 发现服务';
+    el('service').querySelector('b').textContent=order?.providerName||latest.intents[0]?.providerName||'相关专业服务';
+    el('service').querySelector('small').textContent=order ? (done.has(order.state)?'已结束委托':'当前委托') : latest.intents.length?'委托意向处理中':'从 A2X 发现服务';
     const services=(latest.publicServices||[]).filter(s=>s.url!==order?.provider_id).slice(0,18);
     const serviceList=document.getElementById('public-network-services'),signature=services.map(s=>s.id+s.name).join('|');
     if(serviceList.dataset.signature!==signature){
@@ -122,16 +122,16 @@ window.IoaNetwork = (() => {
     const steps = [
       ["发起", "assistant", !!o || ops.has("need.create"), "参与方上报"],
       ["A2X 搜索", "a2x", ops.has("discovery.search"), "过程记录"],
-      ["筛选服务", "a2x", ops.has("discovery.compared"), "参与方上报"],
+      ["选择服务", "a2x", !!o?.effective || ops.has("discovery.compared"), "合同指向的所选服务"],
       [
         "协商报价",
         "service",
         !!s["2"] || ops.has("order.proposed"),
         "报价/合同记录",
       ],
-      ["定约", "contract", !!s["1"], "已核验签名"],
+      ["定约", "contract", !!o?.effective, "原A2C成约证据"],
       ["交付", "service", !!s["5"]?.some(Boolean), "已核验存证签名"],
-      ["本地验收", "assistant", !!s["7"]?.some(Boolean), "本地验收确认签名"],
+      ["验收确认", "assistant", !!s["7"]?.some(Boolean), "已核验验收签名"],
       [
         "模拟支付",
         "payment",

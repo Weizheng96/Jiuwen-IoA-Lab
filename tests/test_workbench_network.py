@@ -2,7 +2,8 @@
 import json
 from decimal import Decimal
 from _support import new_user, PASSWORD
-from traffic import run_order
+from test_resident_delegation import participants
+from ioalab_sdk.runtime.ipc import LocalClient
 
 
 def test_personal_network_does_not_disclose_other_activity(platform,client,local_client):
@@ -18,21 +19,20 @@ def test_personal_network_does_not_disclose_other_activity(platform,client,local
     assert any(e['op']=='discovery.compared' for e in data['events'])
     assert all(set(e)<={'seq','at','op','card_digest','period','outcome','source','trust'} for e in data['events'])
     catalog=client.get('/api/catalog',headers={'Authorization':'Bearer '+local_client.token}).json()
-    assert all(set(s)=={'id','name','status','category','description','url'} for s in catalog)
+    assert all(set(s)=={'id','name','status','category','description','url','published','indexReady','connected','templateAvailable','accepting','activeDelegations','maxActiveDelegations'} for s in catalog)
 
 
-def test_service_income_requires_real_card_payment(platform,providers,local_client,client):
-    d=providers.selected[0];url=providers.public_url+'/a2a/providers/svc-'+d['id']
-    provider=platform._agent_of_provider(url)
-    result=run_order(local_client,d,url);cd=result['cardDigest']
-    # An unrelated manual fee with the same reference is not A2C payment evidence.
-    platform.wallets.transfer(local_client.account['id'],provider['owner_id'],Decimal('1'),purpose='fee',ref=cd)
-    headers={'Authorization':'Bearer '+local_client.token}
-    order=next(o for o in client.get('/api/workbench',headers=headers).json()['orders'] if o['card_digest']==cd)
-    assert Decimal(order['paid'])==Decimal(order['total'])
-    assert all(p['purpose'] in ('installment','deposit') for p in order['payments'])
-    headers={'Authorization':'Bearer '+platform.auth.bearer(provider['owner_id'])}
-    service=next(s for s in client.get('/api/workbench',headers=headers).json()['services'] if s['url']==url)
-    expected=platform.db.rows("SELECT t.amount FROM transfers t JOIN orders o ON o.card_digest=t.ref WHERE o.provider_id=? AND t.payee_id=? AND t.payer_id=o.owner_id AND t.purpose IN ('deposit','installment')",url,provider['owner_id'])
-    assert Decimal(service['earned'])==sum(Decimal(p['amount']) for p in expected)
-    assert any(o['card_digest']==cd for o in service['orders'])
+def test_public_service_uses_its_declaration_connection_and_current_admission_policy(platform,client,tmp_path):
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (provider,assistant,host,template,task):
+        actor=provider.identities[0].agent_id
+        headers={'Authorization':'Bearer '+platform.auth.bearer(provider.account.account['id'])}
+        service=next(s for s in client.get('/api/workbench',headers=headers).json()['services'] if s['id']==actor)
+        assert service['published'] and service['indexReady'] and service['connected'] and service['templateAvailable']
+        assert service['status']=='online' and service['earned']=='0.00' and service['orders']==[]
+        platform.wallets.transfer(assistant.account.account['id'],provider.account.account['id'],Decimal('1'),purpose='fee',ref='not-a-contract')
+        assert next(s for s in client.get('/api/workbench',headers=headers).json()['services'] if s['id']==actor)['earned']=='0.00'
+        paused=LocalClient(provider.config.home).call('provider.pause',{'profile':'service'})
+        assert paused['status']=='completed'
+        public=next(s for s in client.get('/api/catalog',headers=headers).json() if s['id']==actor)
+        assert public['status']=='paused' and public['connected'] and public['accepting'] is False
+        assert 'orders' not in public and 'owner_id' not in public

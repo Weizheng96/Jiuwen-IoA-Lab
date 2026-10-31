@@ -35,7 +35,8 @@ function dur(s) { if (s === null || s === undefined) return '—'; return s < 60
 /* ── 中文标签 ───────────────────────────────────────────────── */
 // A2C / AP2 报文（与 events.py 的 LABELS 一致；/api/admin/events 的行没有 label 字段，这里兜底）
 const OP_LABELS = {
-  'interface.updated':'消息接口更新','message.queued':'消息已投递','message.processing':'消息处理中','message.completed':'消息已处理','message.rejected':'消息被拒绝','message.audit':'管理员消息审计',
+  'delegation.intent':'委托意向入队','delegation.result':'接单意向回复','interaction.opened':'建立交互关系',
+  'interface.updated':'消息接口更新','message.queued':'消息已入队','message.processing':'消息处理中','message.completed':'消息已处理','message.rejected':'消息被拒绝','message.audit':'管理员消息审计',
   'template.get': '取合同模板', 'template.endorse': '市场签模板', 'request.submit': '提交提案卡',
   'card.endorse': '市场签3', 'card.countersign': '请求复签（签2）', 'work.start': '开工请求',
   'step.authorize': '环节授权', 'delivery.anchor': '交付留痕（签5）', 'anchor.watch': '订阅存证',
@@ -61,7 +62,7 @@ function labelOf(ev) {
 }
 const OUTCOME = { ok: '成功', completed: '完成', error: '失败', failed: '失败', working: '处理中', submitted: '已提交', rejected: '拒绝',
   granted: '允许', refused: '拒绝', timeout: '超时', pass: '通过', fail: '不通过', provider: '责任在服务方', client: '责任在委托方',
-  online: '在线', listed: '挂牌', virtual: '临时账号', isp: '内部服务方', isc: '内部用户', external: '外部用户', welcome: '注册赠送', login: '登录赠送', seed: '初始额度', grant: '发放 / 扣减', deposit: '定金', installment: '期款',
+  online: '已连接', listed: '待公示', paused: '暂停接新委托', offline: '未连接', busy: '名额已满', unavailable: '模板不可用', disabled: '已停用', virtual: '临时账号', isp: '内部服务方', isc: '内部用户', external: '外部用户', welcome: '注册赠送', login: '登录赠送', seed: '初始额度', grant: '发放 / 扣减', deposit: '定金', installment: '期款',
   proposalFee: '拟卡费', sign: '定约亲签', accept: '验收亲签', step: '环节授权', arbitrate: '是否仲裁', 'a2x-tree': 'A2X 分类树', vector: '向量退路',
   'input-review': '输入审查', recompute: '复算', deadline: '时限' };
 function outcomeOf(ev) {
@@ -259,7 +260,23 @@ class Cases {
     return { c, isNew };
   }
   _apply(c, ev) {
-    const op = ev.op, p = ev.period, ok = !/^(error|failed)$/.test(ev.outcome || '');
+    if(ev.detail.source==='resident') {
+      const d=ev.detail;
+      if(d.evidenceTrust==='verified'&&d.signatures) {
+        const extendsOld=Object.entries(c.sigs).every(([key,old])=>Array.isArray(old)?old.every((v,i)=>!v||d.signatures[key]?.[i]):!old||d.signatures[key]);
+        if(extendsOld) {
+          c.sigs=d.signatures;c.total=d.total;c.periods=d.periods;
+          c.periodMax=Math.max(c.periodMax,...['4','5','6','7'].map(k=>d.signatures[k].length));
+          c.phase=Math.max(c.phase,({offered:1,signed:1,started:2,delivered:3,accepted:4,completed:5,arbitrated:4,'client-terminated':5})[d.state]??-1);
+          if(!['已结清','已裁定','已解除'].includes(c.state)) {
+            c.state=({completed:'已结清',arbitrated:'已裁定','client-terminated':'已解除',started:'履约中',signed:'已成约',offered:'待确认合同',delivered:'等待验收',accepted:'已签验收'})[d.state]||'状态未知';
+            c.stateClass=d.state==='completed'?'ok':'info';
+          }
+        }
+      }
+      return;
+    }
+    const op = ev.op, p = ev.period, ok = !/^(error|failed|queued)$/.test(ev.outcome || '');
     if (PHASE_OF[op] !== undefined && ok) c.phase = Math.max(c.phase, PHASE_OF[op]);
     const setP = (k, i) => { if (!i) return; const a = c.sigs[k]; while (a.length < i) a.push(false); a[i - 1] = true; c.periodMax = Math.max(c.periodMax, i); };
     if (op === 'order.signed') c.sigs[1] = true;

@@ -30,7 +30,7 @@ const Panorama = (() => {
     logDirty=false;logPaintAt=Clock.now();
   }
   function recordLog(ev,A){
-    const action=logLabels[ev.op];if(quiet||!action||logSeen.has(ev.seq))return;
+    const action=logLabels[ev.op]||(ev.detail?.source==='resident'?labelOf(ev):null);if(quiet||!action||logSeen.has(ev.seq))return;
     const key=ev.seq??('event-'+logRows.length),at=Number(ev.at)||Date.now()/1000;
     const who=ev.op.startsWith('message.')?Names.of(ev.op==='message.queued'?ev.sender:ev.receiver):A?Names.of(A.id):Names.of(ev.sender||'market');
     const extra=ev.op.startsWith('message.')?NetworkMap.messageLabel(ev.detail?.interface||''):ev.cardDigest?ev.cardDigest.slice(-10):'';
@@ -160,7 +160,7 @@ const Panorama = (() => {
     quiet = !money_;                                               // 历史事件：只恢复状态，不画脉冲、不闪
     const cardCase=ev.cardDigest&&cases.byCard[ev.cardDigest];
     const A = (cardCase&&N.asst[cardCase.assistant]) || N.asst[s] || N.asst[r] || N.asst[d.assistant] || (N.byUser[s] && N.asst[N.byUser[s]]) || (N.byUser[r] && N.asst[N.byUser[r]]) || null;
-    if(d.evidenceTrust==='verified'&&d.signatures){
+    if(d.evidenceTrust==='verified'&&d.signatures&&d.source!=='resident'){
       if(d.signatures['5']?.some(Boolean)&&ev.cardDigest)anchoredCards.add(ev.cardDigest);
       if(A)Object.entries(d.signatures).forEach(([k,value])=>sig(A,k,Array.isArray(value)?value.some(Boolean):!!value));
     }
@@ -168,6 +168,21 @@ const Panorama = (() => {
     const accts = Focus.accountsOf(ev);
     eventInitiator=(op.startsWith('message.')?N.asst[s]?.uid:A?.uid)||s;
     recordLog(ev,A);
+    if(d.source==='resident') {
+      if(cardCase?.sigs['5']?.some(Boolean)&&ev.cardDigest)anchoredCards.add(ev.cardDigest);
+      if(A&&cardCase){Object.entries(cardCase.sigs).forEach(([k,value])=>sig(A,k,Array.isArray(value)?value.some(Boolean):!!value));setState(A,cardCase.state,cardCase.stateClass);}
+      if(op.startsWith('message.')) {
+        const start=op==='message.queued',receiving=op==='message.processing';
+        const from=start?nodeEl(s):receiving?$('pnMessages'):nodeEl(s);
+        const to=start?$('pnMessages'):receiving?nodeEl(r):$('pnMessages');
+        pulse(from,to,start?'消息入队':receiving?'开始处理':'处理回执',COLORS.agent,500,accts);
+      } else if(ev.kind!=='delivery') {
+        const method=op.replace(/\.result$/,'');
+        const component=method==='delivery.anchor'?'pnNotary':method==='card.close'?'pnLedger':method==='card.endorse'?'pnNotary':'pnContracts';
+        pulse(nodeEl(s)||A?.el,$(component),labelOf(ev)+(ev.outcome==='queued'?' · 入队':''),COLORS.agent,500,accts);
+      }
+      quiet=false;eventFamily='other';return;
+    }
     switch (op) {
       case 'message.queued': { const from=nodeEl(s);if(from)pulse(from,$('pnMessages'),NetworkMap.messageLabel(d.interface)||'发送消息',COLORS.agent,650,accts);break; }
       case 'message.processing': { const to=nodeEl(r);if(to)pulse($('pnMessages'),to,'收取 · '+NetworkMap.messageLabel(d.interface||''),COLORS.agent,650,accts);break; }
@@ -296,12 +311,15 @@ const Panorama = (() => {
   /** 从已载入的卡状态恢复连线与签名（实时模式接入时，正在进行的单不必等事件重放） */
   function restore(caseList) {
     caseList.forEach(c => {
+      c.events.filter(e=>e.kind==='message'&&e.detail?.messageId).forEach(e=>observedMessages.add(e.detail.messageId));
+      if(c.cd&&c.sigs['5']?.some(Boolean))anchoredCards.add(c.cd);
       const A = N.asst[c.assistant]; if (!A || !c.provider || !c.cd) return;
       A.provider=Names.key(c.provider); unlink(A);
       [1, 2, 3].forEach(k => sig(A, k, !!c.sigs[k]));
       [4, 5, 6, 7].forEach(k => sig(A, k, (c.sigs[k] || []).some(Boolean)));
       if (c.state === '已结清') setState(A, '已结清 ✓', 'ok'); else if (c.state === '进行中') setState(A, '进行中', 'info'); else if (/裁定/.test(c.state)) setState(A, c.state, 'warn');
     });
+    renderCounters();
   }
   function tick(n) {
     if (!ready) return;

@@ -353,11 +353,17 @@ async function loadUsers() {
   if (!SRC) { try { USERS = await api('/api/admin/users'); Names.seedUsers(USERS); } catch (e) { return toast(e.message, 'bad'); } }
   const KIND_ORDER = { isp: 0, isc: 1, external: 2, virtual: 3 };
   const rows = [...USERS].sort((a, b) => (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) || String(a.username).localeCompare(String(b.username)));
-  $('usersTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>用户名</th><th>种类</th><th>显示名</th><th class="num">余量</th><th>智能体</th><th>最近登录</th><th></th></tr>` +
+  $('usersTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>用户名</th><th>种类</th><th>显示名</th><th class="num">余量</th><th>智能体</th><th>最近登录</th><th>正文审计权限</th><th></th></tr>` +
     rows.map(u => `<tr data-accts="${esc(u.id)}" class="${Focus.acct === u.id ? 'hit' : ''}"><td><b data-acct="${esc(u.id)}" style="cursor:pointer">${esc(u.username)}</b><br><code class="mute">${esc(u.id)}</code></td><td><span class="badge kind-${esc(u.kind)}">${esc(OUTCOME[u.kind] || u.kind)}</span></td><td>${esc(u.display_name || '')}${u.note ? ` <span class="mute">${esc(u.note)}</span>` : ''}</td>
       <td class="num" style="color:var(--c-pay)">${money(u.balance)}</td><td>${(u.agents || []).map(a => `<span class="who ${a.role === 'assistant' ? 'agent' : 'provider'}"><i></i>${esc(a.name)}</span>`).join(' ')}</td>
-      <td class="nowrap mute">${u.last_login ? ymdhm(u.last_login) : '—'}</td><td class="nowrap"><button class="btn sm" data-w="${esc(u.id)}" data-d="1">发放</button> <button class="btn sm" data-w="${esc(u.id)}" data-d="-1">扣减</button></td></tr>`).join('') + '</table>'
+      <td class="nowrap mute">${u.last_login ? ymdhm(u.last_login) : '—'}</td><td>${REPLAY ? "仅回放" : !(u.roles || []).includes("admin") ? "无管理权限" : `<button class="btn sm" title="允许此管理员读取私人消息正文；每次审计留痕" data-role-audit="${esc(u.id)}">${(u.roles || []).includes("auditor") ? "撤销正文审计" : "授予正文审计"}</button>`}</td><td class="nowrap"><button class="btn sm" data-w="${esc(u.id)}" data-d="1">发放</button> <button class="btn sm" data-w="${esc(u.id)}" data-d="-1">扣减</button></td></tr>`).join('') + '</table>'
     : '<div class="empty">还没有账号</div>';
+  $('usersTable').querySelectorAll('[data-role-audit]').forEach(b => b.onclick = async () => {
+    const user=USERS.find(u=>u.id===b.dataset.roleAudit),current=[...(user.roles||[])];
+    const roles=current.includes('auditor')?current.filter(r=>r!=='auditor'):[...current,'auditor'];
+    try { await api('/api/admin/users/'+encodeURIComponent(user.id)+'/roles',{roles,expectedRoles:current},'PUT'); toast('审计权限已更新','ok'); await loadUsers(); }
+    catch(e) { toast(e.message,'bad'); }
+  });
   $('usersTable').querySelectorAll('[data-w]').forEach(b => b.onclick = async () => {
     const v = prompt(`${b.dataset.d === '1' ? '发放' : '扣减'}多少虚拟币？`, '10'); if (!v) return;
     const note = prompt('原因', '管理员调整') || '管理员调整';
@@ -388,7 +394,7 @@ function renderRegistry() {
   const f = $('regFilter').value.trim().toLowerCase();
   const rows = REGISTRY.filter(s => !f || (s.name + ' ' + (s.tags || []).join(' ') + ' ' + s.id + ' ' + (s.category || '') + ' ' + Names.of(s.owner_id || '')).toLowerCase().includes(f));
   $('registryTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>#</th><th>名称</th><th>领域 · 标签</th><th>成约 · 上限</th><th class="num">价</th><th>状态</th><th>信誉</th><th>账号 · id</th></tr>` +
-    rows.map((s, i) => `<tr data-accts="${esc(s.owner_id || '')}" class="${Focus.acct && Focus.acct === s.owner_id ? 'hit' : ''}"><td class="mute">${i + 1}</td><td>${Names.html(s.id)}${s.external ? ' <span class="badge info" title="' + esc(s.url || '') + '">外部</span>' : ''}${s.runnable ? ' <span class="badge ok">可运行</span>' : ''}</td>
+    rows.map((s, i) => `<tr data-accts="${esc(s.owner_id || '')}" class="${Focus.acct && Focus.acct === s.owner_id ? 'hit' : ''}"><td class="mute">${i + 1}</td><td>${Names.html(s.id)}${s.external ? ' <span class="badge info" title="' + esc(s.url || '') + '">外部</span>' : ''}${s.runnable ? ' <span class="badge ok">接收开启</span>' : ''}</td>
       <td>${s.category ? `<span class="badge market">${esc((CATEGORIES.find(c => c.id === s.category) || {}).name || s.category)}</span> ` : ''}${(s.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join(' ')}</td><td>${esc(FORMATION[s.formation] || s.formation)}${s.capacity ? ` <span class="mute">× ${esc(s.capacity)}</span>` : ''}</td>
       <td class="num">${s.price !== null && s.price !== undefined ? esc(s.price) : '<span class="mute">报价</span>'}</td>
       <td><span class="badge ${s.status === 'online' ? 'ok' : s.status === 'busy' ? 'warn' : ''}">${esc(OUTCOME[s.status] || s.status)}</span></td>
@@ -405,15 +411,8 @@ async function loadDispatch() {
 const stateClass = s => /completed|started/.test(s) ? 'ok' : /failed|aborted|lapsed|declined/.test(s) ? 'bad' : /arbitrated/.test(s) ? 'warn' : 'info';
 async function loadNeeds() {
   let rows;
-  try { rows = await api(SRC ? SRC + '/needs.json' : '/api/admin/needs'); } catch (e) { return toast(e.message, 'bad'); }
-  $('needsTable').innerHTML = rows.length ? `<table class="tbl"><tr><th>时间</th><th>需求</th><th>助手</th><th>状态</th><th>合同卡</th><th class="num">模型调用 / token</th><th>工具轨迹</th></tr>` +
-    rows.map((n, i) => `<tr data-accts="${esc(n.owner_id || '')}" class="${Focus.acct && Focus.acct === n.owner_id ? 'hit' : ''}"><td class="nowrap mute">${ymdhm(n.created)}</td><td class="ellipsis" style="max-width:480px" title="${esc(n.text)}">${esc(n.text)}${n.driver === 'external' ? ' <span class="badge info">swarm 驾驭</span>' : ''}</td><td>${Names.html(n.assistant_id)}</td>
-      <td><span class="badge ${stateClass(n.state)}">${esc(STATE[n.state] || n.state)}</span></td><td>${n.card_digest ? `<a href="#" data-cd="${esc(n.card_digest)}" class="mono">${esc(shortCd(n.card_digest))}</a>` : ''}</td>
-      <td class="num">${n.llm_calls || 0} / ${n.tokens || 0}</td><td><button class="btn sm" data-tr="${i}">${(n.trace || []).length} 步</button></td></tr>
-      <tr class="hide" id="trace-${i}"><td colspan="7"><div class="trace">${(n.trace || []).map((t, k) => `${String(k + 1).padStart(2, '0')} ${esc(t.tool)}  ${esc(t.args)}\n   → ${esc(t.result)}`).join('\n') || '（无）'}${n.result ? '\n\n结论：' + esc(JSON.stringify(n.result)) : ''}</div></td></tr>`).join('') + '</table>'
-    : '<div class="empty">还没有需求</div>';
-  $('needsTable').querySelectorAll('[data-tr]').forEach(b => b.onclick = () => $('trace-' + b.dataset.tr).classList.toggle('hide'));
-  $('needsTable').querySelectorAll('[data-cd]').forEach(a => a.onclick = e => { e.preventDefault(); openOrder(a.dataset.cd); });
+  try { rows = await api(SRC ? SRC + '/needs.json' : '/api/admin/delegation-intents'); } catch (e) { return toast(e.message, 'bad'); }
+  $('needsTable').innerHTML=rows.length?'<table class="tbl"><tr><th>时间</th><th>个人助手</th><th>服务方</th><th>受理进展</th><th>实际拟卡费</th><th>交互</th></tr>'+rows.map(n=>`<tr><td>${n.created?ymdhm(n.created):'时点未保留'}</td><td>${esc(n.clientName)}</td><td>${esc(n.providerName)}</td><td>${esc(n.phase)}</td><td>${esc(n.proposalFeePaid)} 虚拟币</td><td><code>${esc(n.interactionId||n.originMessageId)}</code></td></tr>`).join('')+'</table>':'<div class="empty">暂无未形成合同的委托意向</div>';
 }
 $('btnNeedsRefresh').onclick = loadNeeds;
 
@@ -478,7 +477,7 @@ async function loadComponents() {
   const yn = b => b ? '<span class="ok">✓ 已配置</span>' : '<span class="bad">✗ 未配置</span>';
   $('comps').innerHTML =
     comp('注册中心（A2X）', 'market', [['服务', `${c.registry.services}（在线 ${c.registry.online}）`], ['类目', c.registry.categories], ['分类树', c.registry.taxonomy], ['最近检索', OUTCOME[c.registry.last_mode] || c.registry.last_mode || '—']]) +
-    comp('智能体消息中心', 'agent', [['免费接口', c.messaging?.interfaces ?? 0], ['待处理', c.messaging?.pending ?? 0], ['已处理', c.messaging?.states?.completed ?? 0]]) +
+    comp('智能体消息中心', 'agent', [['交互接口', c.messaging?.interfaces ?? 0], ['待处理', c.messaging?.pending ?? 0], ['已处理', c.messaging?.states?.completed ?? 0]]) +
     comp('合同模板公示', 'market', [['已签认模板', c.templates.endorsed], ['签3 快照', c.templates.snapshots], ['认证记录', c.templates.certifications]]) +
     comp('信誉与仲裁', 'market', [['结清', c.ledger.completed], ['裁定', c.ledger.rulings], ['被拒 / 退回', c.ledger.declined]]) +
     comp('支付中心', 'pay', [['钱包', c.payment.wallets], ['流通量', `${money(c.payment.circulating)} 虚拟币`], ['今日过账', `${c.payment.transfers_today} 笔 · ${money(c.payment.volume_today)}`], ['累计过账', c.payment.transfers_total]]) +

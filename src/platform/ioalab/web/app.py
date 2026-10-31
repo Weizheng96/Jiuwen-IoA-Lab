@@ -21,6 +21,7 @@ from ..errors import LabError
 from ..platform import Platform
 from ..payments import money
 from ..store import jdump, jload
+from ..observation import event_view
 
 log = logging.getLogger("ioalab.web")
 STATIC = Path(__file__).parent / "static"
@@ -95,9 +96,15 @@ def create_app(platform: Platform) -> FastAPI:
         return sub.removeprefix("assistant:")
 
     def require_admin(request: Request) -> str:
-        if not platform.auth.is_admin(subject(request)):
+        operator=subject(request)
+        if not platform.auth.is_admin(operator):
             raise HTTPException(401, "需要管理员登录")
-        return "admin"
+        return operator
+
+    def require_auditor(request:Request) -> str:
+        operator=subject(request)
+        if not platform.auth.is_auditor(operator):raise HTTPException(403,"需要消息正文审计权限")
+        return operator
 
     def set_cookie(resp: Response, token: str) -> None:
         resp.set_cookie(COOKIE, token, httponly=True, samesite="lax", secure=s.public_url.startswith("https://"), max_age=7 * 86400)
@@ -179,20 +186,17 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/orders")
     async def my_orders(uid: str = Depends(current_user)):
-        return platform.db.rows("SELECT * FROM orders WHERE owner_id=? ORDER BY created DESC", uid)
+        return [row for row in platform.contract_views.list(uid,private=True) if row['owner_id']==uid]
 
     @app.get("/api/orders/{cd}")
     async def order_detail(cd: str, request: Request):
-        sub = subject(request)
-        o = platform.db.one("SELECT owner_id FROM orders WHERE card_digest=?", cd)
-        if not o:
-            raise HTTPException(404)
-        if not platform.auth.is_admin(sub) and (sub or "").removeprefix("assistant:") != o["owner_id"]:
-            raise HTTPException(403)
-        d = platform.order_detail(cd)
-        # 只加字段：服务方名字（用户端没有注册表可查）
-        d["provider_name"] = (platform.db.one("SELECT name FROM agents WHERE id=?", (d.get("provider_id") or "").rsplit("/", 1)[-1]) or {}).get("name")
-        return d
+        sub=subject(request);uid=(sub or '').removeprefix('assistant:')
+        if not sub:raise HTTPException(401,'请先登录')
+        candidates=platform.contract_views.rows(None if platform.auth.is_admin(sub) else uid,digest=cd,limit=1)
+        row=candidates[0] if candidates else None
+        if not row:raise HTTPException(404,'合同不可用')
+        private=uid in (row['owner_id'],row['service_owner_id'])
+        return platform.contract_views.view(row,private=private)
 
 
     app.include_router(build_router(platform, current_user))
@@ -201,7 +205,7 @@ def create_app(platform: Platform) -> FastAPI:
     app.include_router(messaging_router(platform.messaging,current_user))
     from .agents import build_router as agents_router
     app.include_router(agents_router(platform,current_user))
-    app.include_router(workbench_router(platform,current_user,require_admin))
+    app.include_router(workbench_router(platform,current_user,require_admin,require_auditor))
 
     # ── 管理员 API ────────────────────────────────────────────────────
     @app.post("/api/admin/login")
@@ -220,10 +224,10 @@ def create_app(platform: Platform) -> FastAPI:
     @app.get("/api/admin/events")
     async def events(_: str = Depends(require_admin), after: int = 0, limit: int = 300, run: str = ""):
         rid = run or platform.bus.run_id
-        rows = platform.db.rows("SELECT * FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT ?", rid, after, limit)
+        rows = platform.db.rows("SELECT * FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT ?", rid, max(0,after), max(1,min(limit,1000)))
         for r in rows:
             r["detail"] = jload(r["detail"])
-        return rows
+        return [event_view(row) for row in rows]
 
     @app.get("/api/admin/runs")
     async def runs(_: str = Depends(require_admin)):
@@ -231,16 +235,11 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/admin/orders")
     async def admin_orders(_: str = Depends(require_admin)):
-        rows = platform.db.rows("SELECT o.*, n.text AS need_text, a.name AS assistant_name FROM orders o LEFT JOIN needs n ON n.id=o.need_id "
-                                "LEFT JOIN agents a ON a.id=o.assistant_id ORDER BY o.created DESC LIMIT 200")
-        for r in rows:
-            r["detail"] = jload(r["detail"])
-            r["provider_name"] = (platform._agent_of_provider(r["provider_id"]) or {}).get("name")
-        return rows
+        return platform.contract_views.list()
 
-    @app.get("/api/admin/needs")
-    async def admin_needs(_: str = Depends(require_admin)):
-        return []
+    @app.get('/api/admin/delegation-intents')
+    async def admin_intents(_:str=Depends(require_admin)):
+        return platform.contract_views.intents()
 
     @app.get("/api/admin/users")
     async def users(_: str = Depends(require_admin)):
@@ -248,7 +247,19 @@ def create_app(platform: Platform) -> FastAPI:
         for r in rows:
             r.pop("pw_hash", None)
             r["agents"] = platform.db.rows("SELECT id, role, name, status FROM agents WHERE owner_id=?", r["id"])
+            r["roles"]=platform.auth.roles(r["id"])
         return rows
+
+    @app.put('/api/admin/users/{userId}/roles')
+    async def user_roles(userId:str,request:Request,operator=Depends(require_admin)):
+        body=await request.json()
+        if not isinstance(body,dict) or set(body)!={'roles','expectedRoles'}:
+            raise HTTPException(400,'提交roles和expectedRoles')
+        result=platform.auth.set_roles(operator,userId,body['roles'],body['expectedRoles'])
+        if result['changed']:
+            platform.bus.emit('platform','identity.roles_changed',sender=operator,receiver=userId,
+                detail={'targetId':userId,'trust':'verified'})
+        return result
 
     @app.post("/api/admin/users")
     async def create_virtual_user(request: Request, _: str = Depends(require_admin)):
@@ -278,16 +289,11 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/admin/registry")
     async def registry(_: str = Depends(require_admin)):
-        rows = platform.db.rows("SELECT id, owner_id, name, status, created, definition, meta FROM agents WHERE role='service' ORDER BY created")
-        for r in rows:
-            d = jload(r.pop("definition"))
-            meta = jload(r.pop("meta", None) or "{}")
-            pid = meta.get("url") or platform.provider_url(r["id"])
-            r.update(formation=d.get("formation", "preapproval"), runnable=bool(d.get("runnable")), tags=d.get("tags", []),
-                     price=d.get("pricing", {}).get("price"), category=d.get("category"), capacity=d.get("capacity", 1),
-                     external=bool(meta.get("external")), url=pid, reputation=platform.market.reputation(pid),
-                     observation='connected' if __import__('time').time()-meta.get('lastSeen',0)<45 else 'unknown')
-            r["reputation"].pop("signature", None)
+        rows=platform.service_views.list(include_unpublished=True)
+        for row in rows:
+            row['reputation']=platform.market.reputation(row['url']) if row['url'] else None
+            if row['reputation']:row['reputation'].pop('signature',None)
+            row['observation']='connected' if row['connected'] else 'not_connected'
         return {"taxonomy": platform.discovery.taxonomy_state(), "categories": platform.discovery.categories(), "services": rows}
 
     @app.post("/api/admin/search")
@@ -325,7 +331,7 @@ def create_app(platform: Platform) -> FastAPI:
         p = s.data / "runs" / run / "events.jsonl"
         if not p.exists():
             raise HTTPException(404)
-        return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+        return [event_view(json.loads(l)) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
 
     @app.websocket("/ws/admin")
     async def ws_admin(ws: WebSocket):
@@ -340,10 +346,10 @@ def create_app(platform: Platform) -> FastAPI:
         q = platform.bus.subscribe()
         try:
             for ev in platform.bus.recent(100):
-                await ws.send_text(json.dumps(ev, ensure_ascii=False))
+                await ws.send_text(json.dumps(event_view(ev), ensure_ascii=False))
             while True:
                 ev = await q.get()
-                await ws.send_text(json.dumps(ev, ensure_ascii=False))
+                await ws.send_text(json.dumps(event_view(ev), ensure_ascii=False))
         except (WebSocketDisconnect, RuntimeError):
             pass
         finally:

@@ -13,7 +13,9 @@ const $ = (id) => document.getElementById(id),
         })[c],
     );
 const labels = {
-  queued: "待收取",
+  queued: "平台暂存",
+  pending: "等待处理",
+  failed: "处理失败",
   synced: "已同步到助手",
   processing: "处理中",
   completed: "已处理",
@@ -27,9 +29,9 @@ const labels = {
   offered: "待确认提案",
   finished: "已完成",
   invite_submitted: "邀请邮件已提交，等待接受",
-  delivered: "已投递九问会话",
+  delivered: "已交付",
   no_time: "该时段不可预约",
-  unknown: "发送结果待核实",
+  unknown: "结果待核对",
 };
 let data = null,
   definitions = [],
@@ -47,16 +49,19 @@ async function api(path, body, method) {
   if (!r.ok) { const error=Error(d.error?.message||"请求失败"); error.status=r.status; throw error; }
   return d;
 }
-const badge = (s) =>
-  `<span class="badge ${["completed", "accepted", "finished"].includes(s) ? "done" : ["rejected", "expired", "unknown"].includes(s) ? "warn" : ""}">${esc(labels[s] || s)}</span>`;
+const badge = (s, text = labels[s] || s) =>
+  `<span class="badge ${["completed", "accepted", "finished"].includes(s) ? "done" : ["rejected", "expired", "unknown"].includes(s) ? "warn" : ""}">${esc(text)}</span>`;
 const when = (t) =>
-  new Date(t * 1000).toLocaleString("zh-CN", { hour12: false });
+  t == null ? "时点未保留" : new Date(t * 1000).toLocaleString("zh-CN", { hour12: false });
+function intentRows(rows) {
+  return rows.map(r=>`<div class="row"><div><b>${esc(r.providerName)}</b><small>委托意向 · 尚未形成合同</small></div><div>${esc(r.phase)}</div><div>已付拟卡费 ${esc(r.proposalFeePaid)} 虚拟币<small>${esc(when(r.created))}</small></div><button class="btn" data-intent="${esc(r.originMessageId)}">详情</button></div>`).join("");
+}
 function orders(rows) {
   return rows.length
     ? rows
         .map(
           (o) =>
-            `<div class="row"><div><b>${esc(o.providerName || o.provider_id)}</b><small>${esc(o.card_digest?.slice(0, 23))}…</small></div><div>${badge(o.state)}</div><div>${esc(o.total)} 虚拟币<small>已付 ${esc(o.paid || "0.00")} · ${esc(when(o.created))}</small></div><button class="btn" data-order="${esc(o.card_digest)}">详情</button></div>`,
+            `<div class="row"><div><b>${esc(o.providerName || o.provider_id)}</b><small>${esc(o.card_digest?.slice(0, 23))}…</small></div><div>${badge(o.state, o.phase)}</div><div>${o.total===null?'报价未知':esc(o.total)+' 虚拟币'}<small>已付 ${esc(o.paid || "0.00")} · ${esc(when(o.created))}</small></div><button class="btn" data-order="${esc(o.card_digest)}">详情</button></div>`,
         )
         .join("")
     : '<div class="empty">还没有委托记录。向九问描述需求，确认合同后即可开始。</div>';
@@ -72,11 +77,11 @@ function render() {
       .map((x) => `${x.name} · ${x.status}`)
       .join(" / ") || "账号已就绪，等待本地九问关联助手身份。";
   $("metrics").innerHTML = [
-    ["已签委托", data.orders.filter(o=>o.signatures?.["1"]).length],
+    ["已签委托", data.orders.filter(o=>o.effective).length],
     [
       "履约中",
       data.orders.filter(
-        (o) => o.signatures?.['1'] && !IoaNetwork.done.has(o.state),
+        (o) => o.effective && !IoaNetwork.done.has(o.state),
       ).length,
     ],
     ["交互消息", data.messages.length],
@@ -86,9 +91,9 @@ function render() {
     .join("");
   IoaNetwork.render(data);
   $("orders").innerHTML = orders(
-    data.orders.filter((o) => o.signatures?.["1"] && !IoaNetwork.done.has(o.state)),
+    data.orders.filter((o) => o.effective && !IoaNetwork.done.has(o.state)),
   );
-  $('proposal-orders').innerHTML=orders(data.orders.filter(o=>!o.signatures?.['1']&&!IoaNetwork.done.has(o.state)));
+  $('proposal-orders').innerHTML=intentRows(data.intents)+orders(data.orders.filter(o=>!o.effective&&!IoaNetwork.done.has(o.state)));
   $("order-history").innerHTML = orders(
     data.orders.filter((o) => IoaNetwork.done.has(o.state)),
   );
@@ -105,11 +110,13 @@ function render() {
     ? data.messages
         .map(
           (m) =>
-            `<div class="row"><div><b>${esc(m.senderDisplayName || m.senderUsername)} → ${esc(m.receiverDisplayName || m.receiverUsername)}</b><small>${esc(m.interface)}</small></div><div>${badge(m.state)}<small>${esc(labels[m.result?.status] || m.result?.status || "")}</small></div><div>${esc(when(m.created))}</div><button class="btn" data-message="${m.id}">查看消息</button></div>`,
+            `<div class="row"><div><b>${esc(m.senderDisplayName || m.senderUsername)} → ${esc(m.receiverDisplayName || m.receiverUsername)}</b><small>${esc(m.interface)}</small></div><div>${badge(m.deliveryState, {queued:"平台暂存",delivered:"已送达助手",expired:"投递已过期"}[m.deliveryState] || m.deliveryState)} ${badge(m.requestState)}<small>用户阅读状态未知</small></div><div>${esc(when(m.created))}</div><button class="btn" data-message="${m.id}">查看消息</button></div>`,
         )
         .join("")
     : '<div class="empty">尚无交互。查询对方账号对你开放的交互接口，按输入格式发送。</div>';
   ProviderWorkbench.render(data);
+  document.querySelectorAll('[data-intent]').forEach(b=>b.onclick=()=>show('委托意向',
+    [...data.intents,...data.services.flatMap(s=>s.intents)].find(r=>r.originMessageId===b.dataset.intent)));
   document.querySelectorAll("[data-message]").forEach(
     (b) =>
       (b.onclick = () =>
@@ -293,16 +300,10 @@ $("send").onsubmit = async (e) => {
               ? JSON.parse(input.value)
               : input.value;
     }
-    const m = await api("/api/v1/messaging/messages", {
-      to: $("recipient").value.trim(),
-      interface: chosen.name,
-      revision: chosen.revision,
-      payload,
-      idempotencyKey: crypto.randomUUID(),
-    });
-    $("send-status").textContent =
-      `已投递 · ${m.id.slice(0, 12)} · 等待对方助手收取`;
-    await refresh();
+    const draft = {to: $("recipient").value.trim(), interface: chosen.name, revision: chosen.revision, input: payload};
+    $("message-draft").textContent = JSON.stringify(draft, null, 2);
+    $("message-draft").hidden = false;
+    $("send-status").textContent = "消息草稿已整理。请交给自己的九问个人助手发送；此页面不会代替助手发信。";
   } catch (e) {
     $("send-status").textContent = e.message;
   } finally {

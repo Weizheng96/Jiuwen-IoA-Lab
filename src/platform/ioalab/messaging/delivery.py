@@ -58,6 +58,7 @@ class DeliveryBroker:
         self.admissions=self.payment_operations=None
         self.market_operations=None
         self.protocol=None
+        self.observe_in=None
         self._listeners={}
         self._listener_lock=threading.RLock()
         with db.lock:db.conn.executescript(SCHEMA)
@@ -185,6 +186,7 @@ class DeliveryBroker:
         self.cleanup()
         inserted=False
         transferred=False
+        activity=[]
         with self.db.tx() as conn:
             self.lease(conn,owner,actor,connection,generations[actor])
             if kind=='operation.get':
@@ -194,7 +196,9 @@ class DeliveryBroker:
             elif payment is not None:
                 result,transferred=self.payment_operations.apply_in(conn,owner,actor,payment)
             elif endorsement is not None:
+                fresh=not conn.execute('SELECT 1 FROM delegation_market_operations WHERE actor=? AND id=?',(actor,frame.get('operationId'))).fetchone()
                 result=self.market_operations.apply_in(conn,owner,actor,endorsement)
+                if fresh and self.observe_in:activity=self.observe_in(conn,frame,result,fresh=True)
             elif kind.startswith('admission.'):
                 if not self.admissions:raise LabError('not_ready','Admission authority is unavailable',status=409)
                 result=self.admissions.apply_in(conn,owner,actor,kind,frame.get('operationId'),payload)
@@ -204,14 +208,12 @@ class DeliveryBroker:
                                        lambda:handlers[kind](conn,actor,payload,generations[actor]))
                 inserted=kind=='message.send' and not prior and result.get('messageId')==payload.get('messageId')
             else:raise LabError('protocol_error','Unsupported control operation')
+            if self.observe_in and kind in ('message.send','request.start'):activity=self.observe_in(conn,frame,result,inserted=inserted)
             conn.execute('UPDATE delivery_leases SET expires=? WHERE actor=?',(self.clock()+self.s.ws_lease_seconds,actor))
         self.notify()
         if transferred:self.payment_operations.project(payment)
-        if inserted and self.emit:
-            message=self.db.one('SELECT recipient,kind,interaction FROM delivery_messages WHERE id=?',result['messageId'])
-            if message:
-                self.emit('message','message.queued',sender=actor,receiver=message['recipient'],
-                          detail={'messageId':result['messageId'],'interactionId':message['interaction'],'kind':message['kind'],'trust':'verified'})
+        if self.emit:
+            for event in activity:self.emit(**event)
         return result
 
     @staticmethod

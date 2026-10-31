@@ -15,9 +15,9 @@ SCHEMA='''CREATE TABLE IF NOT EXISTS delegation_protocol_calls(
 
 
 class ProtocolRelay:
-    def __init__(self,db,identities,admissions,scopes,files,*,clock,contracts=None):
+    def __init__(self,db,identities,admissions,scopes,files,*,clock,contracts=None,record=None):
         self.db,self.identities,self.admissions,self.scopes,self.files,self.clock=db,identities,admissions,scopes,files,clock
-        self.contracts=contracts
+        self.contracts,self.record=contracts,record
         with db.lock:db.conn.executescript(SCHEMA)
         self._migrate_calls()
 
@@ -89,6 +89,8 @@ class ProtocolRelay:
         if value['body']['op']=='request.submit':
             self.admissions.signed_request_in(conn,value['body']['admissionId'],value['messageId'],value['body']['body']['request'])
         if self.contracts and value['body']['op'] not in ('request.submit','card.countersign'):self.contracts.accepted_in(conn,value)
+        if self.record and isinstance(value['body']['body'].get('card'),dict):
+            self.record(conn,value['body']['admissionId'],value['body']['body']['card'])
         conn.execute("INSERT INTO delegation_protocol_calls(message,interaction,admission,op,state) VALUES(?,?,?,?,'pending')",
                      (value['messageId'],value['interactionId'],value['body']['admissionId'],value['body']['op']))
 
@@ -134,6 +136,7 @@ class ProtocolRelay:
             self.admissions.countersign_result_in(conn,call['admission'],reply['body']['card'],request['signatures']['1'])
         if self.contracts and call['op'] in ('work.start','step.authorize'):
             self.contracts.result_in(conn,self.admissions.admission(conn,call['admission']),reply)
+        if self.record and isinstance(reply['body'].get('card'),dict):self.record(conn,call['admission'],reply['body']['card'])
         self.files.grant_in(conn,value['sender'],value['recipient'],payload['files'])
         self.files.grant_in(conn,value['sender'],value['recipient'],payload.get('taskFiles',{}))
         conn.execute('UPDATE delegation_protocol_calls SET state=?,last_result=?,last_hash=?,task=? WHERE message=?',

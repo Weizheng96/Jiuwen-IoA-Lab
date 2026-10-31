@@ -1,7 +1,8 @@
 """Retain account, ledger, replay and discovery regressions across execution-boundary migration."""
 from _support import as_admin,username
+from test_resident_delegation import participants
 
-def test_admin_api(platform,providers,client):
+def test_admin_api(platform,client,tmp_path):
     as_admin(client)
     u=client.post('/api/admin/users',json={'username':username(),'credit':'100'}).json()[0]
     assert platform.auth.login(u['username'],u['password'])['id']==u['id']
@@ -9,18 +10,19 @@ def test_admin_api(platform,providers,client):
     assert users[u['id']]['agents']==[] and 'pw_hash' not in users[u['id']]
     assert client.post('/api/admin/wallet',json={'user_id':u['id'],'delta':'-40','note':'test'}).json()['balance']=='60.00'
     assert client.post('/api/admin/wallet',json={'user_id':u['id'],'delta':'-1000'}).status_code==400
-    reg=client.get('/api/admin/registry').json()
-    # Other users may already have independently bound services in this session.
-    # Every published fixture service must remain visible with its real endpoint.
-    assert {agent.url for agent in providers.agents.values()} <= {s['url'] for s in reg['services']}
-    assert 'signature' not in reg['services'][0]['reputation']
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (provider,assistant,host,template,task):
+        reg=client.get('/api/admin/registry').json()
+        service=next(s for s in reg['services'] if s['id']==provider.identities[0].agent_id)
+        assert service['url']==provider.identities[0].protocol_id and service['connected'] and service['published']
+        assert 'signature' not in service['reputation']
+        found=client.post('/api/admin/search',json={'query':service['name'],'top_k':20}).json()['hits']
+        assert service['id'] in {hit['id'] for hit in found}
     assert platform.bus.run_id in client.get('/api/admin/runs').json()
     assert client.get('/api/admin/replay/'+platform.bus.run_id).json()
     assert client.get('/api/admin/replay/no-such-run').status_code==404
     assert len(client.get('/api/admin/events?limit=5').json())<=5
     assert client.post('/api/admin/invite').json()['code']
     assert client.get('/api/admin/orders').status_code==200
-    assert client.post('/api/admin/search',json={'query':'医疗','top_k':20}).json()['hits']
 
 def test_components_traffic_and_pool(platform,client):
     as_admin(client)

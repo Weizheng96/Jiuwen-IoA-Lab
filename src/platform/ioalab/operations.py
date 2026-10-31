@@ -28,8 +28,9 @@ class PreparedExecution:
 
 class PaymentOperations:
     """Application transaction for AP2, capacity and authorization budget."""
-    def __init__(self,db,identities,psp,admissions,scopes):
+    def __init__(self,db,identities,psp,admissions,scopes,*,record=None):
         self.db,self.identities,self.psp,self.admissions,self.scopes=db,identities,psp,admissions,scopes
+        self.record=record
         with db.lock:db.conn.executescript(PAYMENT_OPERATIONS_SCHEMA)
 
     def project(self,prepared):
@@ -70,6 +71,9 @@ class PaymentOperations:
         except A2CError as exc:
             raise LabError('forbidden','Payment changed or expired before transaction commit',status=403) from exc
         if created:self.scopes.record_payment_in(conn,owner,actor,payment.scope_digest,payment)
+        if self.record and prepared.original:
+            card=json.loads(prepared.original).get('card')
+            if card:self.record(conn,prepared.admission,card)
         if created!=transferred:raise LabError('unknown_result','Capacity and original payment facts disagree; reconcile before retrying',status=409)
         result=reply.body
         conn.execute('INSERT INTO delegation_payment_operations VALUES(?,?,?,?,?)',(owner,actor,prepared.operation,prepared.fingerprint,json.dumps(result,ensure_ascii=False)))
@@ -88,9 +92,9 @@ class PreparedEndorsement:
 
 class MarketOperations:
     """Publish original slot 3 only with the current service/admission transaction."""
-    def __init__(self,db,identities,admissions,market,*,contracts=None,psp=None,close=None):
+    def __init__(self,db,identities,admissions,market,*,contracts=None,psp=None,close=None,record=None):
         self.db,self.identities,self.admissions,self.market=db,identities,admissions,market
-        self.contracts,self.psp,self.close=contracts,psp,close
+        self.contracts,self.psp,self.close,self.record=contracts,psp,close,record
         with db.lock:db.conn.execute('''CREATE TABLE IF NOT EXISTS delegation_market_operations(
              owner TEXT NOT NULL,actor TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
              PRIMARY KEY(actor,id))''')
@@ -138,6 +142,7 @@ class MarketOperations:
             from a2c.card import card_digest
             self.market.commit_snapshot_in(conn,card_digest(result['card']),json.loads(prepared.snapshot))
             self.admissions.record_offer_in(conn,payload['admissionId'],prepared.fingerprint,result)
+        if self.record:self.record(conn,payload['admissionId'],result['card'])
         conn.execute('INSERT INTO delegation_market_operations VALUES(?,?,?,?,?)',(owner,actor,prepared.operation,prepared.fingerprint,json.dumps(result)))
         return result
 
@@ -166,6 +171,9 @@ class MarketOperations:
             if term.get('quote'):amounts.append(('termination',None,max(Decimal(0),Decimal(str(term['quote']['fee']))-Decimal(str(card['derived']['deposit'])))))
             self.psp.require_payments_in(conn,ref=card_digest(card),currency=template['pricing']['currency'],payer=self.identities.agent(row['client'])['owner_id'],payee=owner,amounts=amounts)
         self.market.commit_contract_in(conn,json.loads(prepared.changes))
+        if self.record:
+            result_card=json.loads(prepared.result).get('card') or payload['body']['card']
+            self.record(conn,row['id'],result_card)
         if payload['op']=='card.close':
             self.admissions.finish_in(conn,row['id'])
             self.close(conn,row['interaction'])

@@ -156,16 +156,25 @@ class Platform:
         from .delegation.contracts import ContractAuthority
         self.contracts=ContractAuthority(self.db,self.identities,self.admissions,self.scopes,self.market)
         self.admissions.contracts=self.contracts
-        self.payment_operations=PaymentOperations(self.db,self.identities,self.psp,self.admissions,self.scopes)
+        from .observation import ContractProjection
+        self.contract_views=ContractProjection(self.db,self.identities,self.market)
+        self.payment_operations=PaymentOperations(self.db,self.identities,self.psp,self.admissions,self.scopes,record=self.contract_views.record_in)
         self.market_operations=MarketOperations(self.db,self.identities,self.admissions,self.market,contracts=self.contracts,psp=self.psp,
-            close=self.messaging.delivery.contract_closed_in)
+            close=self.messaging.delivery.contract_closed_in,record=self.contract_views.record_in)
         self.messaging.delivery.admissions=self.admissions
         self.messaging.delivery.payment_operations=self.payment_operations
         self.messaging.delivery.market_operations=self.market_operations
         self.psp.requires_admission=self.identities.bound_service
         self.market.market.requires_admission=self.identities.bound_service
         from .delegation.relay import ProtocolRelay
-        self.messaging.delivery.protocol=ProtocolRelay(self.db,self.identities,self.admissions,self.scopes,self.files,clock=self.messaging.delivery.clock,contracts=self.contracts)
+        self.messaging.delivery.protocol=ProtocolRelay(self.db,self.identities,self.admissions,self.scopes,self.files,clock=self.messaging.delivery.clock,contracts=self.contracts,record=self.contract_views.record_in)
+        self.contract_views.rebuild()
+        from .observation.activity import ActivityViews
+        self.activity_views=ActivityViews(self.contract_views)
+        self.messaging.delivery.observe_in=self.activity_views.capture_in
+        from .observation import MessageViews,ServiceViews
+        self.message_views=MessageViews(self.db)
+        self.service_views=ServiceViews(self.db)
 
     def _agent_of_provider(self, provider_id):
         return next((r for r in self.db.rows("SELECT * FROM agents WHERE role='service'")
@@ -374,13 +383,16 @@ class Platform:
 
 
     def stats(self):
-        self.sync_orders()
         count = lambda table, where="1": self.db.one(f"SELECT COUNT(*) AS n FROM {table} WHERE {where}")["n"]
         day0=time.mktime(time.strptime(time.strftime('%Y-%m-%d'),'%Y-%m-%d'))
         transfers=self.db.rows('SELECT amount FROM transfers WHERE at>=?',day0)
+        visible=self.db.rows('SELECT digest,created FROM observation_contracts')
+        effective_facts=self.db.rows('SELECT digest FROM delegation_contracts')
+        ledger=self.market.market.store.all('ledger')
+        services=self.service_views.list()
         return {"assistants": count("agents", "role='assistant'"), "services": count("agents", "role='service'"),
-                "runnable": count("agents", "role='service' AND status='online'"), "users": count("users"), "needs": 0,
-                "orders_today": count("orders",f'created>={day0}'), "transfers_today": len(transfers), "completed": count("orders", "state='completed'"),
+                "runnable": sum(row["status"]=="online" for row in services), "users": count("users"), "needs": 0,
+                "orders_today": sum(row["created"]>=day0 for row in visible), "transfers_today": len(transfers), "completed": sum(ledger.get(row["digest"],{}).get("outcome")=="completed" for row in effective_facts),
                 "arbitrated": count("rulings"), "declined": 0, "success_rate": None, "avg_duration_s": None,
                 "volume_today": str(sum(money(r["amount"]) for r in transfers)),
                 "circulating": str(sum(money(r["balance"]) for r in self.db.rows("SELECT balance FROM wallets"))),
@@ -389,10 +401,9 @@ class Platform:
 
     def components(self):
         stats = self.stats()
-        reports=[jload(r['meta']) for r in self.db.rows("SELECT meta FROM agents WHERE role='service'")]
-        connected=[r for r in reports if now()-r.get('lastSeen',0)<45 and 'execution' in r]
-        self.messaging.cleanup()
-        message_states={r['state']:r['n'] for r in self.db.rows('SELECT state,COUNT(*) AS n FROM messages GROUP BY state')}
+        reports=self.service_views.list()
+        connected=[r for r in reports if r['connected']]
+        message_states={r['state']:r['n'] for r in self.db.rows("SELECT request_state AS state,COUNT(*) AS n FROM delivery_messages WHERE kind='message.request' GROUP BY request_state")}
         return {"messaging":{"interfaces":self.db.one('SELECT COUNT(*) AS n FROM message_interfaces')['n'],"states":message_states,"pending":sum(v for k,v in message_states.items() if k not in ('completed','rejected','expired'))},"registry": {"services": stats["services"], "online": stats["runnable"], "categories": len(self.discovery.categories()),
                              "taxonomy": stats["taxonomy"], "last_mode": self.discovery.last_mode},
                 "templates": {"endorsed": len(self.market.market.store.all("templates")), "snapshots": len(self.market.market.store.all("snapshots")),
@@ -401,9 +412,7 @@ class Platform:
                 "payment": {"transfers_today": stats["transfers_today"], "volume_today": stats["volume_today"],
                             "circulating": stats["circulating"], "wallets": stats["users"], "transfers_total":len(self.db.rows('SELECT id FROM transfers'))},
                 "services": {"online": stats["runnable"],"observed":len(connected),"unknown":len(reports)-len(connected),
-                             "working":sum(r['execution'].get('running',0) for r in connected) if connected else None,
-                             "queued":sum(r['execution'].get('queued',0) for r in connected) if connected else None,
-                             "sessions":sum(r['execution'].get('sessions',0) for r in connected) if connected else None,
+                             "working":None,"queued":None,"sessions":None,
                              "busy": [], "location": "independent-process"},
                 "assistants": {"total": stats["assistants"], "external_driven": stats["assistants"], "active_needs": 0,
                                "pending_confirmations": 0, "runtime": False},

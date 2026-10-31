@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>九问IoA实验平台（Jiuwen IoA Lab）· 管理员控制台</title>
-<link rel="stylesheet" href="/static/app.css">
-<link rel="stylesheet" href="/static/panorama.css">
-<link rel="stylesheet" href="/static/network-map.css">
+<link rel="stylesheet" href="/static/app.css?sha256=c96c5a4f91060823">
+<link rel="stylesheet" href="/static/panorama.css?sha256=5953d94ea3f121ff">
+<link rel="stylesheet" href="/static/network-map.css?sha256=ce9a15007df34a57">
 </head>
 <body>
 <div class="topbar">
@@ -51,7 +51,7 @@
     <button data-tab="users">用户与钱包</button>
     <button data-tab="registry">服务注册表</button>
     <button data-tab="dispatch">实验</button>
-    <button data-tab="needs">需求列表</button>
+    <button data-tab="needs">委托意向</button>
     <button data-tab="orders">订单</button>
     <button data-tab="search">合同卡检索</button>
     <button data-tab="runs">回放</button>
@@ -114,7 +114,7 @@
   <div class="view" id="view-dispatch"></div>
 
   <div class="view" id="view-needs">
-    <div class="panel market"><h2>需求列表 <span class="tools"><button class="btn sm" id="btnNeedsRefresh">刷新</button></span></h2><div id="needsTable"></div></div>
+    <div class="panel market"><h2>委托意向 <span class="tools"><button class="btn sm" id="btnNeedsRefresh">刷新</button></span></h2><div id="needsTable"></div></div>
   </div>
 
   <div class="view" id="view-orders">
@@ -144,10 +144,10 @@
   <div id="omBody"></div>
 </div></div>
 
-<script src="/static/common.js"></script>
-<script src="/static/network-map.js"></script>
+<script src="/static/common.js?sha256=6afe8230752fe192"></script>
+<script src="/static/network-map.js?sha256=fc66c03f6ab5c567"></script>
 <script>NetworkMap.mount(document.querySelector("#pn .pn-mid"));</script>
-<script src="/static/panorama.js"></script>
-<script src="/static/admin.js"></script><script src="/static/admin_messages.js"></script>
+<script src="/static/panorama.js?sha256=337bd8adce1d22c6"></script>
+<script src="/static/admin.js?sha256=08d8115f5f189819"></script><script src="/static/admin_messages.js?sha256=27cdeef36e039577"></script>
 </body>
 </html>

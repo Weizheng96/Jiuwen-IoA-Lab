@@ -36,12 +36,12 @@ body.trial #mainView.trial-grid{display:block}body.trial #view-stream,body.trial
 .pn #pnIntent .map-stat{font-size:11px}
 
 /* Full-height network columns; the workbench keeps its separate compact layout. */
-#pn{height:calc(100vh - 154px);min-height:0}
+#pn{height:max(760px,calc(100vh - 154px));min-height:760px}
 #pn>.pn-col{min-height:0;display:flex;flex-direction:column}
-#pn>.pn-mid{padding-top:32px;height:100%}
-#pn>.pn-mid>.pn-infra{flex:1 1 0;display:flex;flex-direction:column;justify-content:center}
-#pn>.pn-mid>#pnMarket{flex:3.2 1 0;min-height:220px!important}
-#pn>.pn-mid>#pnMarket .subs{flex:1;grid-auto-rows:1fr}
+#pn>.pn-mid{padding-top:32px;height:100%;box-sizing:border-box;display:grid;grid-template-rows:auto minmax(min-content,1fr) repeat(4,auto)}
+#pn>.pn-mid>.pn-infra{min-height:min-content!important;display:flex;flex-direction:column;justify-content:center}
+#pn>.pn-mid>#pnMarket{min-height:min-content!important}
+#pn>.pn-mid>#pnMarket .subs{flex:none;grid-auto-rows:minmax(min-content,1fr)}
 #pn .pn-list,#pn .pn-blocks{flex:1;min-height:0}
 #pn:has(>.pn-log){grid-template-columns:minmax(360px,1.05fr) minmax(520px,1.5fr) minmax(260px,.78fr) minmax(280px,.82fr);gap:18px}
 .pn-log{min-height:0;display:flex;flex-direction:column;border:1px solid #345469;border-radius:12px;background:#0e1b2b;padding:12px;margin-top:32px;color:#b8ccdc;overflow:hidden}

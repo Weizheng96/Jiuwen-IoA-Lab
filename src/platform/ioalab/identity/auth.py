@@ -89,6 +89,30 @@ class Auth:
     def roles(self,uid):
         return [r['role'] for r in self.db.rows('SELECT role FROM user_roles WHERE user_id=?',uid)]
 
+    def is_auditor(self,subject):
+        return bool(subject and subject!='admin' and self.is_admin(subject) and 'auditor' in self.roles(subject))
+
+    def set_roles(self,operator,target,roles,expected):
+        from ..errors import LabError
+        def valid(value):return isinstance(value,list) and len(value)<=2 and all(type(x) is str and x in ('admin','auditor') for x in value) and len(set(value))==len(value)
+        if not valid(roles) or not valid(expected) or ('auditor' in roles and 'admin' not in roles):
+            raise LabError('invalid_input','Auditor permission requires an explicit web administrator role')
+        with self.db.tx() as conn:
+            if not self.is_admin(operator):raise LabError('forbidden','Web administrator permission is required',status=403)
+            if not conn.execute('SELECT 1 FROM users WHERE id=?',(target,)).fetchone():raise LabError('not_ready','Target account does not exist',status=404)
+            current=sorted(row['role'] for row in conn.execute('SELECT role FROM user_roles WHERE user_id=?',(target,)))
+            desired=sorted(roles)
+            if current==desired:return {'userId':target,'roles':current,'changed':False}
+            if current!=sorted(expected):raise LabError('revision_conflict','Read current roles before replacing them',status=409)
+            conn.execute("""CREATE TABLE IF NOT EXISTS identity_role_changes(
+                id TEXT PRIMARY KEY,at REAL NOT NULL,operator TEXT NOT NULL,target TEXT NOT NULL,previous TEXT NOT NULL,current TEXT NOT NULL)""")
+            conn.execute('DELETE FROM user_roles WHERE user_id=?',(target,))
+            conn.executemany('INSERT INTO user_roles(user_id,role) VALUES(?,?)',[(target,role) for role in desired])
+            import json
+            conn.execute('INSERT INTO identity_role_changes VALUES(?,?,?,?,?,?)',
+                (str(uuid.uuid4()),time.time(),operator,target,json.dumps(current),json.dumps(desired)))
+            return {'userId':target,'roles':desired,'previousRoles':current,'changed':True}
+
     def admin_login(self, password: str) -> str:
         if not _check_pw(password, self.admin_hash):
             fail(CARD_INVALID, "口令错误")

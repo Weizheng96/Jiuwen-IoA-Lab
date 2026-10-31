@@ -1,0 +1,123 @@
+{
+  "date": "2026-11-01",
+  "scope": "Unified resident SDK facts in actual authorized workbenches; original A2C/AP2 evidence and metadata-only monitoring",
+  "verification": {
+    "fullRegression": "563 passed, 16 skipped, 1 warning in 1271.37s (0:21:11)",
+    "requiredChecksPassed": true,
+    "seconds": 1317.58,
+    "sourceFilesChecked": 275,
+    "sourceUnchangedDuringChecks": true,
+    "focused": "6 passed, 1 warning in 32.94s",
+    "nativeRun": "1 passed; elapsed includes a bounded live browser observation hold, not model latency"
+  },
+  "native": {
+    "cardDigest": "sha256:16794354041e6b8cc035a93772b507a40ef3031ce5212d775d0dabb036729330",
+    "closed": true,
+    "contentVerifier": "expected-delivery-content",
+    "interactionId": "f08e20f1-4571-40cb-a6ed-311850c94f0a",
+    "model": "qwen3.5-plus#2",
+    "nativeFileCreated": true,
+    "payment": "paid",
+    "paymentRecords": [
+      {
+        "amount": "1.00",
+        "purpose": "deposit"
+      },
+      {
+        "amount": "8.00",
+        "purpose": "installment"
+      }
+    ],
+    "reputationCompleted": 1,
+    "scope": "Real original Jiuwen production, native write_file, same Session, original A2C/AP2/WASM and scripted trusted browser confirmations; actual workbench HTTP evidence; not native Skill UI or video",
+    "sessionId": "process_cli_1a193ba0ebc_2f50d15996df",
+    "workbench": {
+      "completedCount": 1,
+      "exactOriginalCard": true,
+      "paid": "9.00",
+      "providerIncome": "10.00",
+      "state": "completed"
+    }
+  },
+  "ui": {
+    "browser": "in-app browser",
+    "realPages": [
+      "assistant",
+      "provider",
+      "administrator"
+    ],
+    "evidence": "public isolated test accounts, real model production, original card/payment and message results",
+    "componentTitlesInsideBounds": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "limitations": [
+      "Messages host/tool and owner confirmations are explicit test drivers",
+      "No native Skill approval or video proof"
+    ],
+    "screenshots": [
+      "docs/progress/workbench-assistant.jpg",
+      "docs/progress/workbench-provider.jpg",
+      "docs/progress/workbench-admin-messages.jpg",
+      "docs/progress/workbench-admin.jpg"
+    ]
+  },
+  "installation": {
+    "wheel": "ioalab-0.0.46-py3-none-any.whl",
+    "sha256": "869d6d3967c40e24c9cca59683fc6aa85a591ab2c4f19280e9872133e4c06b45",
+    "sourceFilesCompared": 68,
+    "observationIncluded": true,
+    "installedCoreImportedOutsideCheckout": true,
+    "publicPagesAndMetadataPassed": true,
+    "windowsOnly": true,
+    "originalSwarmConfigurationsUnchanged": true,
+    "configurationFilesChecked": 4
+  },
+  "boundaries": {
+    "originalCardCopy": true,
+    "chainNeverRollsBack": true,
+    "queuedDoesNotImplyBusinessSuccess": true,
+    "eventMetadataCapturedInOriginalTransaction": true,
+    "eventsEmittedAfterCommit": true,
+    "incomeAndCompletionIndependentOfDisplayedHistory": true,
+    "workbenchDoesNotConsumeInbox": true,
+    "ordinaryAdminHasNoPrivateBodyAudit": true,
+    "auditRequiresCurrentExplicitRole": true,
+    "roleMutationRechecksOperatorInTransaction": true,
+    "contractDetailsScopedByOwnerAndDigest": true,
+    "messageReadStateUnknownWithoutEvidence": true,
+    "shortLivedEnvelopeCleanupDoesNotEraseContractCopy": true,
+    "missingSignaturesNotInferredFromCompletedLedger": true,
+    "staticAssetsUseContentDigests": true
+  },
+  "limits": [
+    "User confirmations and personal-message host/tools were isolated test drivers",
+    "No native front-end Skill publication or complete user tutorial claim",
+    "No Linux/systemd, official bulk deployment/renewal, termination, four new videos or operations assistant claim",
+    "Old official/rehearsal execution paths remain pending whole-group migration; no old workbench API aliases"
+  ],
+  "sources": {
+    "src/platform/ioalab/operations.py": "f0a7f38e8224d529ce833d91f3d9399486ba02a9ef43a5c418a9137e509f0c1e",
+    "src/platform/ioalab/delegation/relay.py": "addcbb72c700e1b9e7c5b05b2536d35d03b69378e3589e7eae489e16cd098b12",
+    "src/platform/ioalab/identity/auth.py": "d83ff8da8bdf9f3f49b53bc85517c3ae08fb1db9a7f8521ba03b13b12ad5a4c6",
+    "src/platform/ioalab/messaging/delivery.py": "cecdc86ba777dd68fb48b216d32c11ebbb8867583220454159868ddf49f1a6d6",
+    "src/platform/ioalab/observation/activity.py": "1a399f71318ae2db7c8f1ab385e397087e0c83bf9acd195e01a55c8e75f55677",
+    "src/platform/ioalab/observation/contracts.py": "d3af2ae562654ef44ab05787f7a4af9378be11a1833654175945320294ce431f",
+    "src/platform/ioalab/observation/events.py": "ff99301a48b1efe8528379d1ce4d6948ba8641f3aab1d8ee962ef30e73ae259d",
+    "src/platform/ioalab/observation/messages.py": "8bd3cff13879e90da3091ddf0a25113a93a6c01d68f030a237c70d2b7b308819",
+    "src/platform/ioalab/observation/services.py": "25ae27a1845e9e016ac7d75a8f0596ea1012b0f981e3fcd349f5f7cc903e78c9",
+    "src/platform/ioalab/observation/__init__.py": "17453e909f560155cd6644f82f69f4342653e2fd94b812b998cd51923b58c13b",
+    "src/platform/ioalab/web/app.py": "26b94eb1b99d813120c5dc0a735abc53587d53ebd5b209e564b2b1176ac6c66c",
+    "src/platform/ioalab/web/workbench.py": "5e37f610a61732d2ce1c44a11eb122bb9026a61f0b3a233032c9f67925619d15",
+    "src/platform/ioalab/web/static/common.js": "6afe8230752fe1923dac0dc0fd694f004abc7febe30a60778bf6bfb35059f748",
+    "src/platform/ioalab/web/static/network-map.css": "ce9a15007df34a57495c9eee33c97885badf265786aca04e6237b6b961829679",
+    "src/platform/ioalab/web/static/panorama.js": "337bd8adce1d22c6e8b5433a86622ce19992575cb8704f2fbd91ec5a16d9b09f",
+    "tests/test_observation_views.py": "8049085cc47fa17c59995c4d42cb65ecdef0e58658cf21d96bc1293c44a766a2",
+    "tests/test_resident_fulfillment.py": "12ef2a9eb20023e6882ade3d8b7f42c6006eb92f565fdab58b4fd78d1accd6a5",
+    "tools/stamp_static.py": "416aff6d9e32ce62d83b1513247855bcff0d061f97b050ecb9208216852892dc"
+  }
+}
