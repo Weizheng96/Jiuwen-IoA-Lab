@@ -183,9 +183,9 @@ def test_wrong_phase_tool_returns_precise_error_and_can_correct_in_original_revi
         assert len(host.turns)==1 and platform.db.one('SELECT state FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id)['state']=='committed'
 
 
-def test_original_native_tool_manifest_is_frozen_and_missing_tools_block_new_service(platform,tmp_path):
+def test_original_native_tool_manifest_is_frozen_and_denied_tools_block_new_service(platform,tmp_path):
     from ioalab_sdk.provider.policy import definition_digest
-    host=QuoteHost();host.capabilities=lambda:{'available':True,'testDouble':True,'nativeTools':{'write_file':'allow','edit_file':'allow'}}
+    host=QuoteHost();host.capabilities=lambda:{'available':True,'testDouble':True,'nativeToolPolicy':{'write_file':'allow','edit_file':'allow','blocked_tool':'deny'}}
     with participants(platform,tmp_path,agent_host=host,business={'native_tools':{'write_file':'ask'}}) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task)
         execution=provider.modules[0].execution;endpoint=execution.contexts[quote['interactionId']]
@@ -198,7 +198,13 @@ def test_original_native_tool_manifest_is_frozen_and_missing_tools_block_new_ser
         assert execution.status('service')['executionReady']
         execution.configs['service']['native_tools']={'not_installed':'allow'}
         state=execution.status('service')
-        assert not state['executionReady'] and state['unavailableNativeTools']==['not_installed']
+        assert state['executionReady'] and state['uncheckedNativeTools']==['not_installed']
+        execution.configs['service']['native_tools']={'blocked_tool':'allow'}
+        state=execution.status('service')
+        assert not state['executionReady'] and state['unavailableNativeTools']==['blocked_tool']
+        execution.configs['service']['native_tools']={};execution.configs['service']['skills']=['missing_business_source']
+        state=execution.status('service')
+        assert not state['executionReady'] and state['unavailableSkills']==['missing_business_source']
         assert endpoint.provider.policy.definition(template).native_tools==original.native_tools
 
 

@@ -11,5 +11,5 @@
     "skills": [], "native_tools": {}, "resources": {},
     "max_active_delegations": 2, "accepting": true
   }}},
-  "host": {"command": ["jiuwenswarm-process"], "data_dir": "<自己的九问数据目录>"}
+  "host": {"command": ["jiuwenswarm-process"], "data_dir": "<自己的九问数据目录>", "skill_directories": {}}
 }

@@ -1,0 +1,23 @@
+{
+  "scope": "Original Jiuwen public Process SDK, current product skill bytes and bounded host reader; not native web menu or business execution",
+  "model": "qwen-flash#0",
+  "sessionId": "process_cli_1a18f8a3496_949477aacde5",
+  "mainAndFlowRead": true,
+  "documentDigests": [
+    "sha256:914d7dd60072953cf606286c8afba48ac04925d1a555c868c3f120eb89288bc5",
+    "sha256:e3222a2426fc58b41fa0bc71b3cfbdc415038de0ea55d7e6ccd0fb1211d2f751"
+  ],
+  "nativeGlobalReaderExposed": false,
+  "sources": {
+    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "sha256:664e690bcbc0afe09aa3e07118de6f033b31267bf258ae116851a09cf3e568bd",
+    "src/hosts/jiuwen/ioalab_jiuwen/skills.py": "sha256:cf2cb044a4e44bb7b7167e35ece854e1874a82cd4e579d8a6c6daac30a106aaf",
+    "tests/test_business_skills.py": "sha256:9d5285fe6bb51c2d14754b13542d801a50b20ad5ddcd5ac244545c8bbf6b56da",
+    "src/access/skills/assistant/SKILL.md": "sha256:914d7dd60072953cf606286c8afba48ac04925d1a555c868c3f120eb89288bc5",
+    "src/access/skills/assistant/references/delegation.md": "sha256:e3222a2426fc58b41fa0bc71b3cfbdc415038de0ea55d7e6ccd0fb1211d2f751"
+  },
+  "limits": [
+    "No native web menu proof",
+    "No business execution or user approval proof",
+    "No modification of original Jiuwen sources, global instructions or private history database"
+  ]
+}

@@ -84,7 +84,7 @@ def test_native_tools_have_fixed_definition_but_only_production_permissions(tmp_
             await callbacks['on_event']({'session_id':'same-original-session'})
             await callbacks['on_tool_call']({'session_id':'same-original-session','payload':{'name':'business','arguments':{},'call_id':'original-call'}})
             return {'status':'completed','session_id':'same-original-session'}
-    host=ProcessHost(['original-process'],tmp_path);host._capabilities={'available':True,'nativeTools':{'write_file':'ask'}}
+    host=ProcessHost(['original-process'],tmp_path);host._capabilities={'available':True,'nativeToolPolicy':{'write_file':'ask'}}
     monkeypatch.setattr(host,'_client',lambda **kwargs:Process())
     definition=AgentDefinition('business','Use only this task',
         (ToolBinding('business','A stage-checked callback',{'type':'object'},lambda *_:None),),native_tools=(('write_file','allow'),))
@@ -98,21 +98,21 @@ def test_native_tools_have_fixed_definition_but_only_production_permissions(tmp_
     assert requests[0]['agent']['tools']==['business','write_file']
     records=[json.loads(path.read_text()) for path in (tmp_path/'work/runs').glob('*.json')]
     assert len({value['definitionDigest'] for value in records})==1
-    host._capabilities['nativeTools']['write_file']='deny'
+    host._capabilities['nativeToolPolicy']['write_file']='deny'
     with pytest.raises(RuntimeFault,match='originally configured'):host.run(HostTurn('op','actor','iid',definition,'data',str(tmp_path/'work')))
     assert len(requests)==2
 
 
-@pytest.mark.parametrize('native',[(('*','allow'),),(('ask_user','allow'),),(('business','allow'),),(('write_file','allow'),('write_file','ask')),(('unknown','allow'),)])
+@pytest.mark.parametrize('native',[(('*','allow'),),(('ask_user','allow'),),(('business','allow'),),(('write_file','allow'),('write_file','ask')),(('skill_tool','allow'),)])
 def test_invalid_or_unavailable_native_tool_does_not_start_a_process(tmp_path,monkeypatch,native):
-    host=ProcessHost(['original-process'],tmp_path);host._capabilities={'available':True,'nativeTools':{}}
+    host=ProcessHost(['original-process'],tmp_path);host._capabilities={'available':True,'nativeToolPolicy':{}}
     monkeypatch.setattr(host,'_client',lambda **kwargs:pytest.fail('invalid local tools started a process'))
     definition=AgentDefinition('business','Read data',(ToolBinding('business','SDK callback',{'type':'object'},lambda *_:None),),native_tools=native)
     with pytest.raises(RuntimeFault):host.run(HostTurn('op','actor','iid',definition,'data',str(tmp_path/'work')))
 
 
-@pytest.mark.parametrize('failure',[None,'run_permissions','catalog'])
-def test_readiness_requires_run_permissions_and_an_actual_public_tool_catalog(tmp_path,monkeypatch,failure):
+@pytest.mark.parametrize('failure',[None,'run_permissions','policy'])
+def test_readiness_requires_run_permissions_and_an_actual_public_policy_snapshot(tmp_path,monkeypatch,failure):
     queried=[]
     class Process:
         async def query(self,name,**kwargs):
@@ -121,10 +121,24 @@ def test_readiness_requires_run_permissions_and_an_actual_public_tool_catalog(tm
                 return {'status':'completed','data':{'features':{key:key!=failure for key in ('custom_agent','host_tools','session_resume','interaction_callback','run_permissions')}}}
             if name=='model.list':return {'status':'completed','data':{'models':[{'selection_key':'actual-model'}],'current_selection':'actual-model'}}
             assert name=='permission.get'
-            return {'status':'failed' if failure=='catalog' else 'completed','data':{'effective':{'tools':[{'name':'write_file','level':'deny'}]}}}
+            return {'status':'failed' if failure=='policy' else 'completed','data':{'effective':{'tools':[{'name':'write_file','level':'deny'}]}}}
     host=ProcessHost(['original-process'],tmp_path)
     monkeypatch.setattr(host,'_client',lambda **kwargs:Process())
     result=host.probe()
     assert result['available']==(failure is None)
-    assert result['nativeTools']=={'write_file':'deny'}
+    assert result['nativeToolPolicy']=={'write_file':'deny'}
     assert queried==['protocol.capabilities','model.list','permission.get']
+
+
+def test_unlisted_native_tool_keeps_actual_runtime_failure_instead_of_claiming_a_catalog(tmp_path,monkeypatch):
+    requests=[]
+    class Process:
+        async def run(self,request,**callbacks):
+            requests.append(request)
+            return {'status':'failed','error':{'code':'TOOL_NOT_FOUND'}}
+    host=ProcessHost(['original-process'],tmp_path);host._capabilities={'available':True,'nativeToolPolicy':{}}
+    monkeypatch.setattr(host,'_client',lambda **kwargs:Process())
+    result=host.run(HostTurn('op','actor','iid',AgentDefinition('business','Use owner-configured tool',(),native_tools=(('custom_business_tool','allow'),)),
+        'data',str(tmp_path/'work'),allow_native_tools=True))
+    assert result.status=='failed' and result.error['code']=='TOOL_NOT_FOUND'
+    assert len(requests)==1 and requests[0]['permissions']['tools']['custom_business_tool']=='allow'

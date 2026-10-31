@@ -29,7 +29,7 @@ class ProviderExecution:
                 raise RuntimeFault('invalid_input','Each service needs its local profile and professional instructions')
             if type(config.get('max_active_delegations',1)) is not int or not 1<=config.get('max_active_delegations',1)<=1000 or type(config.get('accepting',True)) is not bool:
                 raise RuntimeFault('invalid_input','Configure bounded active delegations and accepting flag')
-            if not isinstance(config.get('skills',[]),list) or any(not isinstance(skill,str) or not skill for skill in config.get('skills',[])):
+            if not isinstance(config.get('skills',[]),list) or len(config.get('skills',[]))>32 or any(not isinstance(skill,str) or not skill.strip() for skill in config.get('skills',[])) or len(set(config.get('skills',[])))!=len(config.get('skills',[])):
                 raise RuntimeFault('invalid_input','Use installed local business skill references')
             if not isinstance(config.get('resources',{}),dict) or len(encode(config.get('resources',{})).encode())>65536:raise RuntimeFault('invalid_input','Use bounded local business resource metadata')
             native=config.get('native_tools',{})
@@ -57,16 +57,22 @@ class ProviderExecution:
     def wake(self):self.changed.set()
 
     def ready(self,profile):
-        return bool(profile in self.configs and not self.tool_errors(profile) and self.published.get(profile,0)>time.time() and self.host and self.host.capabilities().get('available') and self.thread and self.thread.is_alive())
+        return bool(profile in self.configs and not self.tool_errors(profile) and not self.skill_errors(profile) and self.published.get(profile,0)>time.time() and self.host and self.host.capabilities().get('available') and self.thread and self.thread.is_alive())
 
     def tool_errors(self,profile):
-        catalog=self.host.capabilities().get('nativeTools',{}) if self.host else {}
-        return [name for name,level in self.configs.get(profile,{}).get('native_tools',{}).items() if level!='deny' and (name not in catalog or catalog[name]=='deny')]
+        policy=self.host.capabilities().get('nativeToolPolicy',{}) if self.host else {}
+        return [name for name,level in self.configs.get(profile,{}).get('native_tools',{}).items() if level!='deny' and policy.get(name)=='deny']
+
+    def skill_errors(self,profile):
+        sources=self.host.capabilities().get('skillSources',{}) if self.host else {}
+        return [name for name in self.configs.get(profile,{}).get('skills',[]) if not sources.get(name)]
 
     def status(self,profile):
         return {'configured':profile in self.configs,'hostAvailable':bool(self.host and self.host.capabilities().get('available')),
                 'executionReady':self.ready(profile),'publicationValidUntil':self.published.get(profile),
                 'unavailableNativeTools':self.tool_errors(profile),
+                'uncheckedNativeTools':[name for name,level in self.configs.get(profile,{}).get('native_tools',{}).items() if level!='deny' and name not in (self.host.capabilities().get('nativeToolPolicy',{}) if self.host else {})],
+                'unavailableSkills':self.skill_errors(profile),
                 'errors':self.errors.get('profile:'+profile),'blockedRequests':len(self.errors)}
 
     def close(self):

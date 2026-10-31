@@ -13,10 +13,11 @@ from jiuwenswarm_sdk import Client
 from ioalab_sdk.runtime.files import private_json
 from ioalab_sdk.runtime.host import HostResult
 from ioalab_sdk.runtime.protocol import RuntimeFault
+from .skills import FrozenSkills,documents
 
 
 class ProcessHost:
-    def __init__(self,command,data_dir,*,model=None,environment=None,notifier=None):
+    def __init__(self,command,data_dir,*,model=None,environment=None,notifier=None,skill_directories=None):
         if not isinstance(command,(list,tuple)) or not command or any(not isinstance(item,str) or not item for item in command):
             raise RuntimeFault('invalid_input','Configure the original Jiuwen process command as an argv list')
         self.command=tuple(command)
@@ -25,17 +26,22 @@ class ProcessHost:
         self.environment={**os.environ,**(environment or {}),'PYTHONUTF8':'1',
                           'JIUWENSWARM_DATA_DIR':str(self.data_dir),'JIUWENSWARM_CONFIG_DIR':str(self.data_dir/'config')}
         self.notifier=notifier
+        if skill_directories is not None and not isinstance(skill_directories,dict):raise RuntimeFault('invalid_input','Business skill sources must be a name-to-directory mapping')
+        self.skill_directories=dict(skill_directories or {})
+        if len(self.skill_directories)>64 or any(not isinstance(name,str) or not re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]{0,63}',name) or not isinstance(path,(str,Path)) or not Path(path).expanduser().is_absolute() for name,path in self.skill_directories.items()) or len({name.casefold() for name in self.skill_directories})!=len(self.skill_directories):
+            raise RuntimeFault('invalid_input','Configure exact business skill names and absolute local source directories')
+        self.skill_directories={name:Path(path).expanduser() for name,path in self.skill_directories.items()}
         self._capabilities={'available':False,'reason':'Host capability probe has not completed'}
         self._running={};self._lock=threading.RLock()
 
     @classmethod
     def from_config(cls,value,*,base_dir):
-        allowed={'command','data_dir','model'}
+        allowed={'command','data_dir','model','skill_directories'}
         if not isinstance(value,dict) or set(value)-allowed or not {'command','data_dir'}.issubset(value):
-            raise RuntimeFault('invalid_input','Jiuwen host needs command and data_dir; model is optional')
+            raise RuntimeFault('invalid_input','Jiuwen host needs command and data_dir; model and explicit skill_directories are optional')
         data=Path(value['data_dir']).expanduser()
         if not data.is_absolute():data=Path(base_dir)/data
-        return cls(value['command'],data,model=value.get('model'))
+        return cls(value['command'],data,model=value.get('model'),skill_directories=value.get('skill_directories'))
 
     def _client(self,*,cwd=None):
         return Client(command=self.command,cwd=str(cwd or self.data_dir),env=self.environment)
@@ -59,8 +65,13 @@ class ProcessHost:
         self.model=selected
         self._capabilities={'available':bool(available),'model':selected,'protocol':caps.get('schema_version'),
                             'features':caps.get('features',{}),'notify':self.notifier is not None,
-                            'nativeTools':{value['name']:value['level'] for value in (permissions.get('data') or {}).get('effective',{}).get('tools',[])},
+                            'nativeToolPolicy':{value['name']:value['level'] for value in (permissions.get('data') or {}).get('effective',{}).get('tools',[])},
                             'reason':None if available else 'Configure a supported original Jiuwen runtime and model selection'}
+        sources={};errors={}
+        for name,path in self.skill_directories.items():
+            try:documents(path);sources[name]=True
+            except (RuntimeFault,OSError):sources[name]=False;errors[name]='Restore the selected business skill source'
+        self._capabilities.update(skillSources=sources,skillSourceErrors=errors)
         return self.capabilities()
 
     def capabilities(self):return dict(self._capabilities)
@@ -71,10 +82,10 @@ class ProcessHost:
         if len(set(originals))!=len(originals) or any(not isinstance(name,str) or not 1<=len(name)<=128 for name in originals):
             raise RuntimeFault('invalid_input','Local tool names must be distinct bounded strings')
         native=dict(turn.definition.native_tools)
-        if len(native)!=len(turn.definition.native_tools) or len(native)>64 or any(not isinstance(name,str) or not re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name) or name in originals or name=='ask_user' or level not in ('allow','ask','deny') for name,level in native.items()):
+        if len(native)!=len(turn.definition.native_tools) or len(native)>64 or any(not isinstance(name,str) or not re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name) or name in originals or name in ('ask_user','skill_tool','search_skill','install_skill','uninstall_skill') or level not in ('allow','ask','deny') for name,level in native.items()):
             raise RuntimeFault('invalid_input','Native tools require distinct exact owner-configured names and permissions')
-        catalog=self._capabilities.get('nativeTools',{})
-        if any(level!='deny' and (name not in catalog or catalog[name]=='deny') for name,level in native.items()):
+        policy=self._capabilities.get('nativeToolPolicy',{})
+        if any(level!='deny' and policy.get(name)=='deny' for name,level in native.items()):
             raise RuntimeFault('not_ready','Restore the originally configured native production tools and host permissions','configure_host')
         aliases={};declarations=[];metadata=set()
         reserved=set(originals)|set(native)|{'ask_user'}
@@ -93,11 +104,23 @@ class ProcessHost:
         names=list(aliases)
         workspace=Path(turn.workspace)
         workspace.mkdir(parents=True,exist_ok=True)
+        selected=None;reader=None;read_names=set()
+        if turn.definition.skills:
+            binding=digest({'name':turn.definition.name,'instructions':turn.definition.instructions,'tools':[tool.policy() for tool in turn.definition.tools],
+                            'skills':list(turn.definition.skills),'nativeTools':native})
+            selected=FrozenSkills(workspace,turn.definition.skills,self.skill_directories,binding,resume=bool(turn.session_id))
+            reader='ioa_read_business_skill'
+            while reader in reserved:reader='ioa_read_business_skill_'+uuid.uuid5(uuid.NAMESPACE_URL,reader).hex[:12]
+            declarations.append({'name':reader,'description':'读取本单已选业务技能的冻结主文档或Markdown引用；不执行程序、不产生授权。',
+                'input_schema':{'type':'object','properties':{'skill':{'type':'string','enum':list(turn.definition.skills)},'path':{'type':'string'},'call_goal':{'type':'string','maxLength':2048}},'required':['skill'],'additionalProperties':False}})
+            names.append(reader);metadata.add(reader)
         request_id='ioa-'+uuid.uuid4().hex
         mapping={original:name for name,original in aliases.items() if name!=original}
         instructions=turn.definition.instructions+('\nLocal tool aliases: '+str(mapping) if mapping else '')
+        if selected:instructions+='\n先使用'+reader+'读取每个已选业务技能的SKILL.md，再依需要读取references下的Markdown。不要调用原生skill_tool；选中不是授权。只有主文档实际返回后才能提交本单SDK业务动作。冻结业务文档摘要：'+selected.manifest['digest']
         definition={'name':turn.definition.name,'instructions':instructions,
                     'tools':names+list(native)+(['ask_user'] if turn.on_interaction else [])}
+        if selected:definition['skills']=list(turn.definition.skills)
         permissions={**{name:'allow' for name in names},**{name:level if turn.allow_native_tools else 'deny' for name,level in native.items()}}
         request={'mode':'agent.work.normal','request_id':request_id,'input':turn.input,'agent':definition,
                  'model':self.model,'host_tools':declarations,
@@ -136,10 +159,16 @@ class ProcessHost:
             async def tool(record):
                 await session(record)
                 payload=record['payload']
-                if not bound[0] or payload['name'] not in names or turn.on_tool is None:
+                if not bound[0] or payload['name'] not in names:
                     raise RuntimeFault('forbidden','Host tool call has no matching local execution context')
                 arguments=payload['arguments']
                 if payload['name'] in metadata and isinstance(arguments,dict):arguments={key:value for key,value in arguments.items() if key!='call_goal'}
+                if reader and payload['name']==reader:
+                    result=await asyncio.to_thread(selected.read,arguments)
+                    if result['path']=='SKILL.md':read_names.add(result['skill'])
+                    return result
+                if selected and read_names!=set(turn.definition.skills):return {'status':'rejected','error':{'code':'read_business_skill','message':'先用'+reader+'实际读取所选技能主文档，再提交本单动作'}}
+                if turn.on_tool is None:raise RuntimeFault('forbidden','No role callback is configured')
                 return await asyncio.to_thread(turn.on_tool,aliases[payload['name']],arguments,payload['call_id'])
             async def interaction(record):
                 await session(record)
