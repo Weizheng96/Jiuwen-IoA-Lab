@@ -1,0 +1,8 @@
+id: ioa-notifications
+name: IoA Lab Web Notifications
+version: 0.0.9
+description: Owner-scoped authenticated notifications through original public history APIs
+author: Jiuwen IoA Lab
+package_type: application
+dependencies: {}
+requires_transport: true

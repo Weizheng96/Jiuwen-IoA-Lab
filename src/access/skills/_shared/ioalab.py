@@ -110,7 +110,15 @@ def main(argv=None):
         if args.operation=='runtime.install':
             print(json.dumps({'status':'completed','data':{'python':str(python),'sharedEnvironment':True},'error':None}));return 0
         config=(args.config or root/'settings.local.json').expanduser().resolve()
-        if args.operation in ('runtime.validate','runtime.start'):
+        if args.operation=='runtime.web-extension':
+            if not args.args_file:raise RuntimeError('Use an args-file containing the owned profile key')
+            payload=json.loads(args.args_file.read_text(encoding='utf-8'))
+            values=json.loads(config.read_text(encoding='utf-8'))
+            if (not isinstance(payload,dict) or set(payload)!={'profile'} or
+                not any(item.get('key')==payload['profile'] and item.get('role')==role for item in values.get('identities',[]))):
+                raise RuntimeError('Select a configured profile belonging to this product role')
+            result=invoke(python,['-m','ioalab_jiuwen','web-extension','--config',str(config),'--profile',payload['profile']])
+        elif args.operation in ('runtime.validate','runtime.start'):
             checked=invoke(python,['-m','ioalab_sdk.runtime','validate','--config',str(config)])
             if checked.returncode:
                 print(checked.stdout.strip());return checked.returncode

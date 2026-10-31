@@ -7,7 +7,10 @@ name = "ioalab-jiuwen"
 dynamic = ["version"]
 description = "Public Jiuwen Process SDK host adapter for IoA Lab"
 requires-python = ">=3.11"
-dependencies = ["ioalab-sdk>=0.0.39", "jiuwenswarm-process-sdk==0.1.0"]
+dependencies = ["ioalab-sdk>=0.0.39", "jiuwenswarm-process-sdk==0.1.0", "python-dotenv>=1,<2", "websockets>=15,<18"]
+
+[project.entry-points."ioalab.business_tools"]
+jiuwen-web = "ioalab_jiuwen.web_notifications:factory"
 
 [project.scripts]
 ioalab-jiuwen = "ioalab_jiuwen.__main__:main"
@@ -17,3 +20,6 @@ version = {file = "VERSION"}
 
 [tool.setuptools.packages.find]
 include = ["ioalab_jiuwen*"]
+
+[tool.setuptools.package-data]
+ioalab_jiuwen = ["resources/ioa-notifications/*.py", "resources/ioa-notifications/*.yaml"]

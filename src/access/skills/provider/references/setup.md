@@ -14,3 +14,5 @@
 普通调用用主文件中的脚本格式。工具配置或权限变动不扩大既有交互的冻结定义；缺原定义时恢复原配置，不另开无历史 Session。后台收件由常驻 SDK 负责，不让模型轮询维持连接。
 
 共享环境包含官方可选业务工具，安装不启用日程、邮箱或其他权限。只有本机用户显式配置host.business_tools，相关profile才获得工具；后台消息不能选择工厂或修改配置。instance_changed时先重新查看实际实例，不把原操作改成新业务。安装缓存损坏时保留运行数据并报告，不原地重装正在使用的环境。
+
+如需主人九问网页收信，本机配置host.business_tools的jiuwen-web项：profile为本角色配置键，options含url（/ws及匹配user_id）、user_id、secret_env及专用credentials_file。未有密钥时，准备命令可在IoA配置目录内生成新的专用凭据文件，不覆盖已有文件。用参数文件{"profile":"原配置键"}调用runtime.web-extension；它只准备原生用户应用目录内的IoA扩展，返回prepared不等于已加载。需要时请用户用九问原生入口重启，再查runtime.status的实际通知能力；不修改安装、全局配置或权限。

@@ -1,0 +1,82 @@
+{
+  "scope": "Actual HTTP/WS resident sender/receiver and original Jiuwen history; explicit model/browser-confirmation doubles",
+  "messageRef": "9e0fcb57-6d8f-59d2-98a1-0c63dfb89595",
+  "interactionId": "aed32e7a-d444-4a58-a378-1b661d969c8b",
+  "senderAgent": "urn:ioalab:assistant:adec372e-0de2-4c5d-83bf-2cf4b3412053",
+  "receiverAgent": "urn:ioalab:assistant:c80a402e-cb12-4f89-a635-a183748dcdc6",
+  "notificationRef": "99786e390afd52c793c2c1ec04afd978",
+  "sessionId": "web_1a190da2cb2_61d1bd8cb000",
+  "receiptStoreId": "f5aa202a258242cdb0bd75652a61f13a",
+  "contentDigest": "sha256:ed9a0ee72cf587756bf3fa68941aed062442be3271a6a4de5e3758d2ce6cf75a",
+  "state": "session_received",
+  "read": "unknown",
+  "text": "赵专员的个人助手发来消息：会议资料已整理，请王经理查收。",
+  "limits": [
+    "Independent native verification workspace using an existing original install",
+    "Model and confirmation driver are explicit test doubles",
+    "Not a native Skill onboarding proof",
+    "User read not proven",
+    "No external mail or new film"
+  ],
+  "transportChecks": {
+    "status": "verified",
+    "sessionId": "web_1a190da2cb2_61d1bd8cb000",
+    "nativeHistoryRecords": 1,
+    "sameIdSameBody": "original_receipt",
+    "differentBody": "ID_CONFLICT",
+    "differentStore": "STORE_CONFLICT",
+    "read": "unknown"
+  },
+  "browser": {
+    "visible": true,
+    "sessionId": "web_1a190da2cb2_61d1bd8cb000",
+    "image": "docs/progress/native-web-notification.jpg",
+    "imageSha256": "sha256:729b35db7b1d9e7921086530d48e7250bf7122966dbf3aebc6daab2251ea09b9"
+  },
+  "sourceWorkspaceUnchanged": true,
+  "nativeRuntime": {
+    "distribution": "workswarm",
+    "version": "0.2.5b1",
+    "sourceCommit": "b465f45c8cb059117ffd64c92178493239b613d1"
+  },
+  "sources": {
+    "src/hosts/jiuwen/ioalab_jiuwen/resources/ioa-notifications/extension.py": "sha256:ab3b3499a0ffa14dd602901e1c6b00236ef6d32f5f8864f5606098c765301fc0",
+    "src/hosts/jiuwen/ioalab_jiuwen/web_client.py": "sha256:541e11edfbc1eca621466f1c8313d85c1c2d355b647487d67e5245512247a873",
+    "src/hosts/jiuwen/ioalab_jiuwen/web_notifications.py": "sha256:1ec4b29544c040161a75a7ccfaf29941497b453901004069bdd8a74548bb4585",
+    "src/hosts/jiuwen/ioalab_jiuwen/web_setup.py": "sha256:a1b8c1ebc5eb7a53df7302e583d8d7ee628442aeab17cd3b46ad9a4f1a5f9261",
+    "src/hosts/jiuwen/ioalab_jiuwen/tools.py": "sha256:6f92ba4cb6af779d008619b716fe04ffe73a37b25e8b4eb8dd665c73dcdf8019",
+    "src/hosts/jiuwen/ioalab_jiuwen/__main__.py": "sha256:a4cc726031440f69cf79de20065048c68fd68f79c7b0b56bf0a06a50d63e034a",
+    "src/access/sdk/ioalab_sdk/runtime/host.py": "sha256:1acedd5f19903dd5f3a25f5a9438bb7836ec03cc2aa1518306b19de4ed5b4932",
+    "src/access/sdk/ioalab_sdk/assistant/role.py": "sha256:a8323ded370688497c14be9bb4fb9626631c4cda9f54adc7b24bead4253a17f1",
+    "src/access/skills/_shared/ioalab.py": "sha256:d922dce2574e421524154300e8bb8189b06a76a77ab11b45366c7c50db14e5f9",
+    "tests/test_native_web_delivery.py": "sha256:1a2a7f457bfe65e09c9d617a14b4a8417b889c9e7fa8fc8ae5be3e0b1dc2e18e",
+    "tests/test_inbound_context.py": "sha256:9fb1edfa18ebfdecb263ec6d9f8c184bdfe044e879744f7a36d6a346a1285974"
+  },
+  "packagedResources": {
+    "nativeResources": {
+      "ioalab_jiuwen/resources/ioa-notifications/extension.py": "ab3b3499a0ffa14dd602901e1c6b00236ef6d32f5f8864f5606098c765301fc0",
+      "ioalab_jiuwen/resources/ioa-notifications/extension.yaml": "091507b4229d55ecc787df235728153c2035c87887fa568cc7c80b003a4093d7"
+    },
+    "factory": {
+      "jiuwen-web": "ioalab_jiuwen.web_notifications:factory"
+    },
+    "versions": {
+      "ioalab-sdk": "0.0.39",
+      "ioalab-jiuwen": "0.0.46"
+    },
+    "dependencyInstall": "not performed; metadata/resources scope only"
+  },
+  "checks": {
+    "repositoryTests": {
+      "passed": 435,
+      "skipped": 12,
+      "warnings": 1,
+      "seconds": 642.68
+    },
+    "repositorySelfcheck": "passed",
+    "designAndDocs": "passed",
+    "nativeIntegration": "1 passed",
+    "skillValidation": "passed",
+    "readOnlyInspector": "success and missing-workspace rejection verified"
+  }
+}

@@ -10,7 +10,7 @@ from ioalab_sdk.runtime.protocol import RuntimeFault,encode
 
 class ConfiguredTools:
     def __init__(self,specs,profiles,*,home,base_dir):
-        self.by_profile={};self.bundles=[]
+        self.by_profile={};self.bundles=[];self.labels=[];self._started=False
         if not isinstance(specs,list) or len(specs)>32:
             raise RuntimeFault('invalid_input','host.business_tools must list up to32 local installed factories')
         identities={profile['key']:profile for profile in profiles}
@@ -35,9 +35,10 @@ class ConfiguredTools:
                     raise RuntimeFault('not_ready','Business factory configuration failed: '+factory+' ('+type(exc).__name__+')','configure_business_tools') from None
                 if not isinstance(bundle,BusinessTools):
                     raise RuntimeFault('invalid_input','Business factory must return SDK BusinessTools')
-                self.bundles.append(bundle)
-                if not isinstance(bundle.bindings,tuple) or len(bundle.bindings)>32 or bundle.close is not None and not callable(bundle.close):
-                    raise RuntimeFault('invalid_input','Business tools need bounded bindings and a local close callback')
+                self.bundles.append(bundle);self.labels.append({'factory':factory,'profile':profile})
+                if (not isinstance(bundle.bindings,tuple) or len(bundle.bindings)>32 or
+                    any(callback is not None and not callable(callback) for callback in (bundle.start,bundle.status,bundle.close))):
+                    raise RuntimeFault('invalid_input','Business tools need bounded bindings and local lifecycle callbacks')
                 tools=self.by_profile.setdefault(profile,{})
                 for tool in bundle.bindings:
                     if (not isinstance(tool,ToolBinding) or not re.fullmatch('[A-Za-z][A-Za-z0-9_.-]{0,127}',tool.name) or
@@ -60,11 +61,38 @@ class ConfiguredTools:
 
     def for_profile(self,profile):return dict(self.by_profile.get(profile,{}))
 
+    def notify(self,message,owned):
+        if not isinstance(message,dict) or set(message)!={'input','context'} or not isinstance(message['context'],dict):
+            raise RuntimeFault('invalid_input','Use SDK notification input and fixed source context')
+        tool=owned.get(message['context'].get('agentId'))
+        if tool is None:raise RuntimeFault('forbidden','Notification identity has no configured owner channel')
+        return tool.invoke(message['input'],message['context'])
+
+    def start(self):
+        if self._started:return
+        for bundle in self.bundles:
+            if bundle.start:bundle.start()
+        self._started=True
+
+    def status(self):
+        values=[]
+        for label,bundle in zip(self.labels,self.bundles):
+            try:
+                value=bundle.status() if self._started and bundle.status else {'state':'ready' if self._started else 'not_started'}
+                if not isinstance(value,dict) or len(encode(value).encode())>8192:raise ValueError('Invalid resource status')
+                values.append({**label,'resource':copy.deepcopy(value)})
+            except Exception:
+                values.append({**label,'resource':{'state':'error','code':'resource_status_unavailable'}})
+        return values
+
     def close(self):
-        bundles,self.bundles=self.bundles,[]
-        failures=[]
-        for bundle in reversed(bundles):
-            if callable(bundle.close):
-                try:bundle.close()
-                except Exception as exc:failures.append(type(exc).__name__)
+        failed=[];failures=[]
+        for label,bundle in reversed(list(zip(self.labels,self.bundles))):
+            try:
+                if bundle.close:bundle.close()
+            except Exception as exc:
+                failed.append((label,bundle));failures.append(type(exc).__name__)
+        self.labels=[label for label,bundle in reversed(failed)]
+        self.bundles=[bundle for label,bundle in reversed(failed)]
+        self._started=self._started and bool(failed)
         if failures:raise RuntimeFault('not_ready','Business tool resource close failed: '+','.join(failures),'inspect_business_resources')

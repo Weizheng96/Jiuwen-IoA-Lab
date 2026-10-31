@@ -18,11 +18,17 @@ from .tools import ConfiguredTools
 def main(argv=None):
     configure_stdio()
     parser=argparse.ArgumentParser(prog='ioalab-jiuwen')
-    parser.add_argument('command',choices=('start','serve'))
+    parser.add_argument('command',choices=('start','serve','web-extension'))
     parser.add_argument('--config',type=Path,required=True)
+    parser.add_argument('--profile')
     args=parser.parse_args(argv)
+    if (args.command=='web-extension')!=bool(args.profile):parser.error('--profile is required only for web-extension')
     runtime=tools=None
     try:
+        if args.command=='web-extension':
+            from .web_setup import prepare_extension
+            print(json.dumps(prepare_extension(args.config,args.profile),ensure_ascii=False))
+            return 0
         if args.command=='start':
             result=start(args.config,command=[sys.executable,'-m','ioalab_jiuwen'],assembly='ioalab-jiuwen')
             print(json.dumps(result,ensure_ascii=False))
@@ -33,8 +39,12 @@ def main(argv=None):
         host=ProcessHost.from_config(host_config,base_dir=args.config.resolve().parent)
         personal=next((item['key'] for item in config.identities if item['role']=='assistant'),None)
         module=AssistantRole(host,tools.for_profile(personal))
-        runtime=ResidentRuntime(config,modules=(module,ProviderRole(host,tools.by_profile)),host_status=host.capabilities,assembly='ioalab-jiuwen')
+        runtime=ResidentRuntime(config,modules=(module,ProviderRole(host,tools.by_profile)),host_status=lambda:{**host.capabilities(),'businessTools':tools.status()},assembly='ioalab-jiuwen')
+        notices={identity.agent_id:tools.for_profile(identity.profile).get('owner.notify') for identity in runtime.identities}
+        notices={actor:tool for actor,tool in notices.items() if tool is not None}
+        if notices:host.notifier=lambda message:tools.notify(message,notices)
         if not host.probe()['available']:raise RuntimeFault('not_ready','Jiuwen model/capability probe did not pass','configure_host')
+        tools.start()
         runtime.run()
     except RuntimeFault as exc:
         print(json.dumps({'status':'rejected','data':None,'error':public_error(exc)},ensure_ascii=False))

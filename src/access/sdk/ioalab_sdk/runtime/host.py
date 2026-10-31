@@ -25,6 +25,8 @@ class ToolBinding:
 class BusinessTools:
     bindings: tuple[ToolBinding,...]
     close: Callable|None=field(default=None,repr=False)
+    start: Callable|None=field(default=None,repr=False)
+    status: Callable|None=field(default=None,repr=False)
 
 
 @dataclass(frozen=True)
