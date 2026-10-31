@@ -250,6 +250,14 @@ def create_app(platform: Platform) -> FastAPI:
             r["roles"]=platform.auth.roles(r["id"])
         return rows
 
+    @app.get('/api/admin/publication-authorizations')
+    async def publication_authorizations(_:str=Depends(require_admin)):
+        return {'currentAuthorizations':platform.publication_authorizations.list()}
+
+    @app.post('/api/admin/publication-authorizations')
+    async def configure_publication_authorizations(request:Request,operator=Depends(require_admin)):
+        return platform.publication_authorizations.configure(operator,await request.json())
+
     @app.put('/api/admin/users/{userId}/roles')
     async def user_roles(userId:str,request:Request,operator=Depends(require_admin)):
         body=await request.json()

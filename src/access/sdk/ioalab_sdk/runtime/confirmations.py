@@ -22,6 +22,13 @@ class Confirmations:
         with store.lock:store.db.executescript(SCHEMA)
 
     def ensure(self,binding,*,ttl=900,kind='approval',questions=None):
+        return self._request(binding,ttl=ttl,kind=kind,questions=questions,create=True)
+
+    def find(self,binding):
+        """Read the original approval without creating one or changing its final decision."""
+        return self._request(binding,ttl=900,kind='approval',questions=None,create=False)
+
+    def _request(self,binding,*,ttl,kind,questions,create):
         fields={'actor','operationId','subject','stage','action','preview'}
         if not isinstance(binding,dict) or set(binding)!=fields or not isinstance(binding['subject'],dict) or not isinstance(binding['preview'],dict):
             raise RuntimeFault('invalid_input','A complete confirmation binding is required')
@@ -43,6 +50,7 @@ class Confirmations:
             if row:
                 if row['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','The confirmed object or preview changed')
             else:
+                if not create:return None
                 now=self.clock()
                 conn.execute('INSERT INTO runtime_confirmations VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                              (cid,binding['actor'],binding['operationId'],kind,serialized,fingerprint,now+ttl,'pending',None,None,None,now))

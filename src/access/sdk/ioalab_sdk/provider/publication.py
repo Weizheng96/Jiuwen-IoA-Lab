@@ -12,6 +12,7 @@ from a2c.errors import A2CError
 
 from ..runtime.protocol import RuntimeFault
 from .verifiers import VerifierPublisher,platform_fault
+from .terms import covers
 from ..runtime.scheduling import JobHandler,JobOutcome
 
 
@@ -206,7 +207,7 @@ class ProviderRole:
             if record['fingerprint'] != fingerprint:
                 raise RuntimeFault('id_conflict', 'Original publication parameters changed')
             if record.get('result'):
-                return self.finish(identity, record['result'])
+                return self.recover_index(identity,record)
             try:
                 result = self.runtime.account.api('GET', '/operations/' + quote(operation, safe='') + '?' +
                                                  urlencode({'agentId': identity.agent_id, 'operation': 'service.publish'}))
@@ -214,7 +215,7 @@ class ProviderRole:
                 if exc.response.status_code != 404:raise
             else:
                 self.save_result(namespace, key, record, result)
-                return self.finish(identity, result)
+                return self.recover_index(identity,{**record,'result':result})
         else:
             identity, config = self.configuration(config)
             revision = args['expectedRevision']
@@ -227,19 +228,37 @@ class ProviderRole:
             binding = {'actor': identity.agent_id, 'operationId': operation,
                        'subject': {'contentDigest': args['contentDigest'], 'expectedRevision': revision},
                        'stage': 'provider.publish', 'action': 'service.publish', 'preview': preview}
-            decision = self.runtime.confirmations.ensure(binding)
-            if decision['status'] != 'approved':
-                data={'confirmationRef': decision['reference'], 'confirmationStatus': decision['status'], 'preview': preview}
-                if decision['status']=='pending':data['nextAction']={'operation':'runtime.open_ui','purpose':'collect_user_decision'}
-                return {'status': 'waiting' if decision['status'] == 'pending' else 'rejected', 'data':data}
-            if args.get('confirmationRef') not in (None, decision['reference']):
-                raise RuntimeFault('id_conflict', 'Use the original publication confirmation')
-            self.runtime.confirmations.claim(decision['reference'], binding)
+            with self.lock:
+                authority_key='publication-authority:'+operation
+                authority=self.runtime.store.checkpoint(namespace,authority_key)
+                if authority is None:
+                    original=self.runtime.confirmations.find(binding)
+                    policy=self.status(identity).get('publicationAuthorization')
+                    authority={'fingerprint':fingerprint,'revision':policy['revision'] if not original and covers(policy,identity,config,utcnow()) else None}
+                    self.runtime.store.checkpoint_set(namespace,authority_key,authority)
+                elif authority['fingerprint']!=fingerprint:
+                    raise RuntimeFault('id_conflict','Original publication authority parameters changed')
+            if authority['revision'] is None:
+                decision = self.runtime.confirmations.ensure(binding)
+                if decision['status'] != 'approved':
+                    data={'confirmationRef': decision['reference'], 'confirmationStatus': decision['status'], 'preview': preview}
+                    if decision['status']=='pending':data['nextAction']={'operation':'runtime.open_ui','purpose':'collect_user_decision'}
+                    return {'status': 'waiting' if decision['status'] == 'pending' else 'rejected', 'data':data}
+                if args.get('confirmationRef') not in (None, decision['reference']):
+                    raise RuntimeFault('id_conflict', 'Use the original publication confirmation')
+                self.runtime.confirmations.claim(decision['reference'], binding)
+            else:
+                policy=self.status(identity).get('publicationAuthorization')
+                if not covers(policy,identity,config,utcnow()) or policy['revision']!=authority['revision']:
+                    raise RuntimeFault('forbidden','The original deployment publication authorization changed','configure_publication')
+                if args.get('confirmationRef') is not None:
+                    raise RuntimeFault('id_conflict','This operation uses its original deployment publication authorization')
             templates = [sign_template({**draft, 'provider': identity.protocol_id}, identity.signer, 'provider', utcnow()) for draft in config['templates']]
             declaration = {'schema': 'ioalab.service/1', 'agentId': identity.agent_id, 'protocolId': identity.protocol_id,
                            'revision': revision + 1, **{name: config[name] for name in ('name', 'description', 'tags', 'categoryId')},
                            'templateDigests': [t['templateDigest'] for t in templates]}
             body = {'operationId': operation, 'declaration': declaration, 'proof': sign(digest(declaration), identity.signer, 'ioa-service', utcnow()), 'templates': templates}
+            if authority['revision'] is not None:body['authorizationRevision']=authority['revision']
             record = {'fingerprint': fingerprint, 'body': body}
             # Save exactly one signed request before any network effect.
             with self.lock:
@@ -251,6 +270,12 @@ class ProviderRole:
         result = self.runtime.account.api('POST', '/services/' + identity.agent_id + '/publications', record['body'])
         self.save_result(namespace, key, record, result)
         return self.finish(identity, result)
+
+    def recover_index(self,identity,record):
+        if not self.status(identity)['indexReady']:
+            result=self.runtime.account.api('POST','/services/'+identity.agent_id+'/publications',record['body'])
+            if result!=record['result']:raise RuntimeFault('protocol_error','Original publication receipt changed during index recovery')
+        return self.finish(identity,record['result'])
 
     def save_result(self, namespace, key, record, result):
         expected = record['body']['declaration']

@@ -56,6 +56,15 @@ class IdentityDirectory:
             raise LabError('not_ready','The service public signing identity is not bound',status=409)
         return {'id':meta['protocolId'],'jwk':meta['providerJwk']}
 
+    def internal_service(self,actor):
+        """Eligibility for deployment publication only; no contract or execution authority."""
+        row=self.agent(actor)
+        self.service_party(actor)
+        account=self.db.one('SELECT kind FROM users WHERE id=?',row['owner_id'])
+        if not account or account['kind']!='isp':
+            raise LabError('forbidden','Deployment publication requires an internal ISP service identity',status=403)
+        return row
+
     def matches_party(self,owner,party):
         """Historical payment ownership; disabling new execution does not erase a binding."""
         if not isinstance(party,dict) or not isinstance(party.get('id'),str):

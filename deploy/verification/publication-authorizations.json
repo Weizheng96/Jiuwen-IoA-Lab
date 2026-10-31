@@ -1,0 +1,102 @@
+{
+  "date": "2026-11-01",
+  "scope": "Registry-owned deployment publication authorizations and the ordinary resident provider SDK",
+  "verification": {
+    "focused": "48 passed, 1 warning in 70.10s",
+    "fullRegression": "585 passed, 16 skipped, 1 warning in 1301.79s (0:21:41)",
+    "installedPublicApi": "22 passed, 2 warnings in 16.80s",
+    "designDocumentationSelfcheckPassed": true,
+    "frozenSourceFiles": 299,
+    "sourceChangesDuringFinalRun": 0
+  },
+  "boundaries": {
+    "eligibleAccounts": "bound non-disabled service identities of internal ISP accounts only",
+    "configurationAuthority": "current web administrator, rechecked in the write transaction",
+    "sdkMayGrantAuthority": false,
+    "scope": [
+      "agentId",
+      "canonical public terms",
+      "maximum template lifetime",
+      "authorization revision"
+    ],
+    "batchLimit": 64,
+    "batchAtomic": true,
+    "originalHumanDecisionPreserved": true,
+    "participantOriginalSignaturesRequired": true,
+    "manualTermsChangeRevokesOldPolicyAtomically": true,
+    "acceptedOperationReplayDoesNotReenableRevokedAuthority": true,
+    "indexRecoveryReusesOriginalRequestAndProjectsLatestSource": true
+  },
+  "limits": [
+    "No official eight-account fifty-service startup controller or periodic renewal evidence yet",
+    "No change to business admission, host/tool authorization, A2C contracts, acceptance or AP2 payment authority",
+    "Owner decisions and network faults use isolated test drivers, not native frontend approval proof",
+    "No Linux/systemd, new native onboarding tutorial, new film or operations-assistant proof",
+    "Old execution/deployment/rehearsal callers remain until a complete new-chain replacement is verified"
+  ],
+  "installation": {
+    "allCoreSdkModulesFromInstalledWheel": true,
+    "loadedModuleCount": 98,
+    "packages": {
+      "ioalab-0.0.46-py3-none-any.whl": {
+        "sha256": "6095ba8dde19a46095da3ae54202e071c7c883bd34f52c531c1c8a8ecb3363a7",
+        "comparedSourceAndResourceFiles": 70
+      },
+      "ioalab_official-0.0.46-py3-none-any.whl": {
+        "sha256": "093ae3d0aaa959bb80287b778c0a508975e8ff8ef6ac220dae4692554b314410",
+        "comparedSourceAndResourceFiles": 32
+      },
+      "ioalab_sdk-0.0.39-py3-none-any.whl": {
+        "sha256": "2b9bc40f4ecd1611986d7ac9d2be05b99fc5107decebac1af3aec31e4fb22605",
+        "comparedSourceAndResourceFiles": 59
+      },
+      "testsExitCode": 0
+    },
+    "sourceComparison": "LF-normalized source/resource equality with built and installed distributions"
+  },
+  "isolatedBulkPublication": {
+    "scope": "isolated public publication smoke only, no official startup controller or model execution",
+    "accountRuntimes": 8,
+    "publishedServices": 50,
+    "batchAuthorizationCount": 50,
+    "allIndexed": true,
+    "allTemplatesActive": true,
+    "restartPreservedIdentitiesAndPublications": true,
+    "additionalLoginCreditsOnRestart": 0,
+    "modelTasksStarted": 0,
+    "allExecutionReadiness": false,
+    "elapsedSeconds": 35.83
+  },
+  "swarmConfiguration": {
+    "checkedFiles": 4,
+    "unchanged": true,
+    "sourceOrGlobalInstructionsModified": false,
+    "nativeMenuReadOnlyCheck": {
+      "uploadZipEntryVisible": true,
+      "selectedAlreadyInstalledSkill": true,
+      "taskSubmitted": false,
+      "newProductOnboardingProven": false
+    }
+  },
+  "sources": {
+    "src/platform/ioalab/registry/authorizations.py": "sha256:f679edbb3b2e064507cc6c196d88a6963554bef8b46a5f13ddcb3887284408ad",
+    "src/platform/ioalab/registry/publication.py": "sha256:3b420a6366e7b421972b04d768ef7b5a1ee458a83b5d917d290f69eec7dcef84",
+    "src/platform/ioalab/identity/__init__.py": "sha256:8bf2a6372195f2fd0fb7dc97a8d4e4b64eda0e6277ff3e85a2efb65f08176aea",
+    "src/platform/ioalab/platform.py": "sha256:d7bf4468747181a51d7db06820e2c34a70698243025925f03aacf203a975489b",
+    "src/platform/ioalab/web/app.py": "sha256:40235de8f28c635d3ee26c9ef0a58947ff877e26023a9e94bfff3c9df2f8bdf2",
+    "src/access/sdk/ioalab_sdk/provider/terms.py": "sha256:5ae3e4e77d3490334f7b76dc948537a1571cbc43edfdd3cb65a1b355b178a83f",
+    "src/access/sdk/ioalab_sdk/provider/publication.py": "sha256:cd960fb82d2b8af64246e5afb72cf6136e5bab5812e007f9e9eff4c6c76bd06f",
+    "src/access/sdk/ioalab_sdk/runtime/confirmations.py": "sha256:60df1ad0ff8bc4348ab52ea270eb84ef093f7792debf570d504ab597e0d73a37",
+    "tests/test_publication_authorizations.py": "sha256:22fb9d0df7fc8e227a5050590c5ab04db68e3e2a9181d99cfed6bfea78f92ed8"
+  },
+  "observedWarnings": [
+    "Existing protected Windows pytest temporary directory could not be removed by pytest",
+    "Installed in-process pytest reports an already-imported anyio assertion-rewrite warning",
+    "Isolated fifty-service smoke emitted A2A dispatcher-not-running warnings during shutdown after successful checks; no business tasks were started"
+  ],
+  "progressEstimate": {
+    "basis": "estimated remaining effort, not test-count completion",
+    "developmentPercent": 75,
+    "wholeGoalPercent": 49
+  }
+}

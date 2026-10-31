@@ -127,7 +127,9 @@ class Platform:
         from .registry.categories import CategoryPreview
         from .operations import ServiceOperations
         self.category_preview=CategoryPreview(self.discovery.categories,lambda service,categories:self.llm.classify_category(service,categories))
-        self.publications=ServicePublications(self.db,self.identities,self.discovery.categories)
+        from .registry.authorizations import PublicationAuthorizations
+        self.publication_authorizations=PublicationAuthorizations(self.db,self.identities,self.auth)
+        self.publications=ServicePublications(self.db,self.identities,self.discovery.categories,authorizations=self.publication_authorizations)
         from .files import PrivateFiles
         self.files=PrivateFiles(self.db,self.identities,settings.data/'private-files')
         self.service_operations=ServiceOperations(self.db,self.publications,self.market,self.discovery,self.payment_provider)

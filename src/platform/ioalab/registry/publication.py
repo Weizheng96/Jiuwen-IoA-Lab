@@ -37,8 +37,9 @@ class PreparedPublication:
 
 
 class ServicePublications:
-    def __init__(self, db, identities, categories, *, clock=time.time):
+    def __init__(self, db, identities, categories, *, authorizations, clock=time.time):
         self.db, self.identities, self.categories, self.clock = db, identities, categories, clock
+        self.authorizations=authorizations
         with db.lock:
             db.conn.executescript(SCHEMA)
 
@@ -77,7 +78,7 @@ class ServicePublications:
 
     def prepare(self, owner, actor, body):
         _, meta = self.binding(owner, actor)
-        if set(body) != {'operationId', 'declaration', 'proof', 'templates'}:
+        if not isinstance(body,dict) or set(body)-{'operationId', 'declaration', 'proof', 'templates','authorizationRevision'} or not {'operationId','declaration','proof','templates'}<=set(body):
             raise LabError('invalid_input', 'Use the documented publication fields')
         if len(encode(body).encode()) > 1024 * 1024:
             raise LabError('invalid_input', 'Service publication exceeds 1 MiB')
@@ -105,6 +106,8 @@ class ServicePublications:
             raise LabError('invalid_input', 'Template references must match the uploaded originals in order')
         header = verify(body['proof'], digest(declaration), meta['providerJwk'], slot='ioa-service', signer=meta['protocolId'], expect_kid=True)
         check_fresh(header, datetime.fromtimestamp(self.clock(), timezone.utc))
+        if 'authorizationRevision' in body:
+            self.authorizations.check(actor,body,templates,self.clock())
         previous=self.db.one('SELECT MAX(revision) AS revision FROM registry_publications WHERE actor=?',actor)['revision'] or 0
         if declaration['revision']!=previous+1:
             raise LabError('revision_conflict','Read the current publication before changing it',status=409)
@@ -130,6 +133,8 @@ class ServicePublications:
             raise LabError('id_conflict', 'Endorsed templates differ from the original declaration', status=409)
         if any(parse_time(t['validUntil']).timestamp() <= self.clock() for t in templates):
             raise LabError('expired', 'A template expired before publication', status=409)
+        if 'authorizationRevision' in body:self.authorizations.check(prepared.actor,body,templates,self.clock())
+        else:self.authorizations.manual_in(conn,prepared.actor,body,templates)
         declared_digest = digest(declaration)
         result = {'agentId': prepared.actor, 'acceptedRevision': declaration['revision'], 'declarationDigest': declared_digest,
                   'templateDigests': declaration['templateDigests'], 'templates': templates,
@@ -177,7 +182,8 @@ class ServicePublications:
                 'categoryId': declaration['categoryId'] if declaration else None,
                 'indexedCategoryId':projection['category'] if projection else None,
                 'templateReady':bool(active),'activeTemplateDigests':[t['templateDigest'] for t in active],
-                'executionStatus': 'not_reported'}
+                'executionStatus': 'not_reported',
+                'publicationAuthorization':self.authorizations.current(actor)}
 
     def index_document(self, actor):
         row = self.current(actor)
