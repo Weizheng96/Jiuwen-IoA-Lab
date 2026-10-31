@@ -69,5 +69,18 @@ def _write_private(path,write):
         if os.path.exists(name):os.unlink(name)
 
 
+def read_arguments(path,*,configuration,home):
+    """Read a distinct user arguments file, never a settings or runtime file."""
+    path=Path(path).resolve()
+    try:
+        if path.samefile(configuration) or path.is_relative_to(Path(home).resolve()):
+            raise RuntimeFault('invalid_input','Use a separate arguments file outside the configuration and SDK data','correct_input')
+        value=read_json(path)
+    except (OSError,ValueError):
+        raise RuntimeFault('invalid_input','Use a readable UTF-8 JSON arguments object','correct_input') from None
+    if not isinstance(value,dict):raise RuntimeFault('invalid_input','Arguments file must be a JSON object','correct_input')
+    return value
+
+
 def read_json(path):
     return json.loads(Path(path).read_text(encoding='utf-8-sig'))

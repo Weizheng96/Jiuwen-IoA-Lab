@@ -1,0 +1,97 @@
+{
+  "scope": "Unified SDK configuration ownership and file boundaries; Windows installed upgrade and bounded native connection proof",
+  "verification": {
+    "full": "487 passed, 13 skipped, 1 pre-existing temporary cleanup warning in 693.66s; design, documentation and selfcheck passed",
+    "focused": "58 passed, 1 warning in 81.24s",
+    "installedUpgrade": {
+      "exitCode": 0,
+      "test": "tests/test_installed_upgrade.py",
+      "result": "1 passed, 1 warning in 26.32s"
+    }
+  },
+  "installation": {
+    "releaseId": "235b9565157571cba073b6bf26dfd26761ceacf3c6e506db9a274bc53f313b58",
+    "manifest": {
+      "constraintsSha256": "8308a8450f8163bd277405fa532c7deab8318014b5d0212471617ca9d7df7f36",
+      "format": 1,
+      "sourceManifestSha256": "769073ba95db14af5dee8f7a4703919689d064ade734a3d2268a053419ad87d0",
+      "versions": {
+        "a2c": "0.0.19",
+        "ioalab-jiuwen": "0.0.46",
+        "ioalab-official": "0.0.46",
+        "ioalab-sdk": "0.0.39",
+        "jiuwenswarm-process-sdk": "0.1.0"
+      },
+      "wheels": [
+        {
+          "file": "a2c-0.0.19-py3-none-any.whl",
+          "sha256": "0613c5cd6a71983bda09283180ab6230f776b3a3e12e19ccd6a24dd535386bb2"
+        },
+        {
+          "file": "ioalab_jiuwen-0.0.46-py3-none-any.whl",
+          "sha256": "3abb21fd86e5c595fc21608bc280e1b52f48e8ca7b8fc96f3837fb2874006002"
+        },
+        {
+          "file": "ioalab_official-0.0.46-py3-none-any.whl",
+          "sha256": "093ae3d0aaa959bb80287b778c0a508975e8ff8ef6ac220dae4692554b314410"
+        },
+        {
+          "file": "ioalab_sdk-0.0.39-py3-none-any.whl",
+          "sha256": "bff7c273b75e82114c5abbd30545d7e24109825423b01583997b9e99df2aa1ee"
+        },
+        {
+          "file": "jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl",
+          "sha256": "f9aa6e09e21112a82e56320569c4ffea592415551d75489cfc1c51a3da5f0778"
+        }
+      ]
+    },
+    "preserved": [
+      "identity private-key hash",
+      "original signed A2C contract",
+      "authorization and interaction UUID",
+      "actual AP2 proposal fee receipt"
+    ]
+  },
+  "native": {
+    "model": "qwen3.5-plus#2",
+    "importedFileCount": 17,
+    "importMatchesBuiltProduct": true,
+    "providerBundleSha256": "1243d5dc5588b550fd2809bb0cb97030cf64513e6b2707553067a5d444a36a35",
+    "settingsUTF8BOM": true,
+    "originalSwarmConfigurationsUnchanged": true,
+    "publicBootstrapStatusCompleted": true,
+    "runtimeIdentityPreserved": true,
+    "serviceIdentityPreserved": true,
+    "platformConnected": true,
+    "hostAvailable": true,
+    "serviceExecutionReady": false
+  },
+  "publicDownload": {
+    "scope": "Actual public HTTP product response; browser download event was not captured",
+    "status": 200,
+    "bytes": 14064163,
+    "sha256": "1243d5dc5588b550fd2809bb0cb97030cf64513e6b2707553067a5d444a36a35",
+    "matchesBuiltProduct": true
+  },
+  "sources": {
+    "src/access/sdk/ioalab_sdk/runtime/installation.py": "sha256:84b86cf43f4f1c9974a0a8e9a924f8e360a4742d32de4d7de8bdee09fbe2ac82",
+    "src/access/sdk/ioalab_sdk/runtime/__main__.py": "sha256:30a1d4d6e9bea9f9739ab1789d6a852dda17479b5ba2a607f3b4ab32b172cece",
+    "src/access/sdk/ioalab_sdk/runtime/ipc.py": "sha256:a64e15a20ece265352300a986fd88a23f908d40e2c81d6185338924793275fc7",
+    "src/access/sdk/ioalab_sdk/runtime/resident.py": "sha256:52f240ef80331b9059eec81c88fdc5ba8a5cc1089d7d50f731872af3af6f6aa3",
+    "src/access/skills/_shared/ioalab.py": "sha256:007ec3da59b5f5a7f33d84b983abaa577a9a1c2891cde8cbf19d238e3d0c38f0",
+    "tools/build_access_skills.py": "sha256:d889a0b5dce1c6e80ecbacf0ba78d29bb02192d4b078ac2c7b9ad7f6bb8498f5",
+    "tests/test_installed_upgrade.py": "sha256:85895d033bfc793380efd1550d79a20d4b9f566d9c6ab4fc5ff7fc3aae52b91f",
+    "src/access/sdk/ioalab_sdk/runtime/config.py": "sha256:8ca2cdf5e3f8d6d779385cf59bf4bf325c99b25fc2a768d2ab4fd909973e7abc",
+    "src/access/sdk/ioalab_sdk/runtime/files.py": "sha256:6e129931ec8309a768b929e5e27daebb7e686cf4b57e0eadf8c05fe8e000bb6b",
+    "src/hosts/jiuwen/ioalab_jiuwen/__main__.py": "sha256:f96fc62a884a5bfecfa0f834487a31fecf573aa78c3aaed867a568952b5aae8f",
+    "src/hosts/jiuwen/ioalab_jiuwen/web_setup.py": "sha256:fdb437dae1b40942c008d121071e57a7d3b6733f34c0030cd4a731fc6baa9f55",
+    "tests/test_configuration_boundary.py": "sha256:eed45ee8fa0e00e0dcd2884e6d54df4bb587e9074e02b3350d05c46b4c91bc53",
+    "tests/test_web_setup.py": "sha256:b2e38847b53e226b3bf0e489eff935c33207f08ae5fcfef082245efd043ce484"
+  },
+  "limits": [
+    "Installed contract host and confirmation were explicit isolated test drivers; no native user approval proof",
+    "Native provider publication, production and private-credential isolation are not complete",
+    "Browser download-event capture failed; only public HTTP response and imported ZIP bytes are verified",
+    "No new film, external email, Outlook acceptance, Linux deployment or original Swarm modification is evidenced"
+  ]
+}

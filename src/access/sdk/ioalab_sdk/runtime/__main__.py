@@ -9,8 +9,8 @@ import time
 import uuid
 
 from ..lease import Lease
-from .config import RuntimeConfig
-from .files import private_json,read_json,prepare_home
+from .config import RuntimeConfig,read_configuration,data_directory
+from .files import private_json,read_arguments,prepare_home
 from .ipc import LocalClient,public_error
 from .protocol import RuntimeFault,configure_stdio
 from .installation import require_matching,SAFE_CALLS
@@ -19,16 +19,19 @@ from .installation import require_matching,SAFE_CALLS
 READ_ONLY={'runtime.status','identity.status','operations.get'}
 
 
+def require_configuration(state,config,*,assembly=None):
+    account=state['account']
+    if account['username']!=config.username or account['platform']!=config.platform:
+        raise RuntimeFault('identity_conflict','Running instance belongs to another configured account')
+    require_matching(state.get('installation'),assembly=assembly)
+    if state.get('configurationDigest')!=config.public_summary()['configurationDigest']:
+        raise RuntimeFault('configuration_changed','The running instance uses another configuration; safely stop it before starting the edited configuration','runtime.stop')
+
+
 def start(config_path,*,timeout=15,command=None,assembly=None):
     config=RuntimeConfig.load(config_path)
-    expected=config.public_summary()['configurationDigest']
     def matching(result):
-        account=result['data']['account']
-        if account['username']!=config.username or account['platform']!=config.platform:
-            raise RuntimeFault('identity_conflict','Running instance belongs to another configured account')
-        require_matching(result['data'].get('installation'),assembly=assembly)
-        if result['data'].get('configurationDigest')!=expected:
-            raise RuntimeFault('configuration_changed','The running instance uses another configuration; safely stop it before starting the edited configuration','runtime.stop')
+        require_configuration(result['data'],config,assembly=assembly)
         return result
     prepare_home(config.home)
     client=LocalClient(config.home,timeout=.5)
@@ -73,7 +76,7 @@ def main(argv=None):
         item.add_argument('--config',type=Path,required=True)
     call=commands.add_parser('call')
     call.add_argument('operation')
-    call.add_argument('--home',type=Path,required=True)
+    call.add_argument('--config',type=Path,required=True)
     call.add_argument('--args-file',type=Path)
     args=parser.parse_args(argv)
     runtime=None
@@ -90,18 +93,20 @@ def main(argv=None):
         else:
             if args.operation not in READ_ONLY and not args.args_file:
                 raise RuntimeFault('invalid_input','Create an arguments file before a mutating call')
-            values=read_json(args.args_file) if args.args_file else {}
-            if not isinstance(values,dict):raise RuntimeFault('invalid_input','Arguments file must be a JSON object')
+            config_path=args.config.resolve();document=read_configuration(config_path)
+            home=data_directory(config_path,document)
+            values=read_arguments(args.args_file,configuration=config_path,home=home) if args.args_file else {}
             operation=values.get('operationId') or str(uuid.uuid4())
-            client=LocalClient(args.home)
+            client=LocalClient(home)
+            if args.operation not in SAFE_CALLS:
+                config=RuntimeConfig.from_mapping(config_path,document)
+                state=client.call('runtime.status')['data'];installation=state.get('installation')
+                require_configuration(state,config,assembly=installation.get('assembly') if isinstance(installation,dict) else None)
+                client=LocalClient(home,boot_id=state['bootId'])
             if args.operation=='runtime.stop' and 'bootId' not in values:
                 values['bootId']=client.call('runtime.status')['data']['bootId']
             values['operationId']=operation
             if args.args_file:private_json(args.args_file,values)
-            if args.operation not in SAFE_CALLS:
-                state=client.call('runtime.status')['data'];installation=state.get('installation')
-                require_matching(installation,assembly=installation.get('assembly') if isinstance(installation,dict) else None)
-                client=LocalClient(args.home,boot_id=state['bootId'])
             result=client.call(args.operation,{key:value for key,value in values.items() if key!='operationId'},operation_id=operation)
         print(json.dumps(result,ensure_ascii=False))
         return 1 if result.get('status') in ('rejected','failed','unknown') else 0

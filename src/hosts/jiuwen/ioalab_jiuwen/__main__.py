@@ -20,14 +20,17 @@ def main(argv=None):
     parser=argparse.ArgumentParser(prog='ioalab-jiuwen')
     parser.add_argument('command',choices=('start','serve','web-extension'))
     parser.add_argument('--config',type=Path,required=True)
-    parser.add_argument('--profile')
+    parser.add_argument('--args-file',type=Path)
+    parser.add_argument('--role',choices=('assistant','service'))
     args=parser.parse_args(argv)
-    if (args.command=='web-extension')!=bool(args.profile):parser.error('--profile is required only for web-extension')
+    if args.command=='web-extension':
+        if not args.args_file or not args.role:parser.error('--args-file and --role are required for web-extension')
+    elif args.args_file or args.role:parser.error('--args-file and --role are only for web-extension')
     runtime=tools=None
     try:
         if args.command=='web-extension':
             from .web_setup import prepare_extension
-            print(json.dumps(prepare_extension(args.config,args.profile),ensure_ascii=False))
+            print(json.dumps(prepare_extension(args.config,args.args_file,args.role),ensure_ascii=False))
             return 0
         if args.command=='start':
             result=start(args.config,command=[sys.executable,'-m','ioalab_jiuwen'],assembly='ioalab-jiuwen')

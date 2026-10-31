@@ -35,10 +35,10 @@ def test_installed_release_restarts_with_original_identity_contract_authorizatio
         assert code==1 and result['error']['code']=='installation_changed'
         assert rpc.call('runtime.status')['data']['bootId']==before['bootId']
         args=tmp_path/'status.json';private_json(args,{'contractRef':reference})
-        code,result=command('call','assistant.delegation.status','--home',str(assistant.config.home),'--args-file',str(args))
+        code,result=command('call','assistant.delegation.status','--config',str(config),'--args-file',str(args))
         assert code==1 and result['error']['code']=='installation_changed'
         stop=tmp_path/'stop-old.json';private_json(stop,{})
-        code,result=command('call','runtime.stop','--home',str(assistant.config.home),'--args-file',str(stop))
+        code,result=command('call','runtime.stop','--config',str(config),'--args-file',str(stop))
         assert code==0 and result['data']['bootId']==before['bootId']
         assistant.close()
         # Keep an actual child handle throughout the new installed process lifecycle.
@@ -50,7 +50,7 @@ def test_installed_release_restarts_with_original_identity_contract_authorizatio
                 seen=[]
                 def ready():
                     if child.poll() is not None:raise AssertionError('Installed runtime exited; inspect its scoped test log')
-                    try:code,value=command('call','runtime.status','--home',str(assistant.config.home))
+                    try:code,value=command('call','runtime.status','--config',str(config))
                     except (ValueError,subprocess.TimeoutExpired):return False
                     if code==0 and value['data']['platformConnected']:seen.append(value['data']);return True
                     return False
@@ -59,18 +59,18 @@ def test_installed_release_restarts_with_original_identity_contract_authorizatio
                 assert after['identities']==before['identities']
                 assert after['installation']['releaseId'] and after['installation']['environment']!=before['installation']['environment']
                 code,reused=command('start','--config',str(config));assert code==0 and reused['data']['bootId']==after['bootId']
-                code,restored=command('call','assistant.delegation.status','--home',str(assistant.config.home),'--args-file',str(args))
+                code,restored=command('call','assistant.delegation.status','--config',str(config),'--args-file',str(args))
                 assert code==0 and restored['data']['formed'] and restored['data']['card']==original['card']
                 assert restored['data']['interactionId']==original['interactionId'] and restored['data']['admissionId']==original['admissionId']
                 auth_args=tmp_path/'authorization.json';private_json(auth_args,{'taskRef':task})
-                code,current=command('call','assistant.delegation.status','--home',str(assistant.config.home),'--args-file',str(auth_args))
+                code,current=command('call','assistant.delegation.status','--config',str(config),'--args-file',str(auth_args))
                 assert code==0 and current['data']['authorization']==authorization['authorization']
                 assert hashlib.sha256(key_file.read_bytes()).hexdigest()==key_hash
                 assert platform.wallets.balance(account_id)==balance and len(host.turns)==1
             finally:
                 if child.poll() is None:
                     stop=tmp_path/'stop-installed.json';private_json(stop,{})
-                    code,stopped=command('call','runtime.stop','--home',str(assistant.config.home),'--args-file',str(stop))
+                    code,stopped=command('call','runtime.stop','--config',str(config),'--args-file',str(stop))
                     assert code==0,stopped
                     child.wait(timeout=20)
                 assert child.returncode==0

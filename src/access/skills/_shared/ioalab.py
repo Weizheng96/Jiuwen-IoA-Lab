@@ -112,12 +112,8 @@ def main(argv=None):
         config=(args.config or Path.home()/'.ioalab/settings.local.json').expanduser().resolve()
         if args.operation=='runtime.web-extension':
             if not args.args_file:raise RuntimeError('Use an args-file containing the owned profile key')
-            payload=json.loads(args.args_file.read_text(encoding='utf-8'))
-            values=json.loads(config.read_text(encoding='utf-8'))
-            if (not isinstance(payload,dict) or set(payload)!={'profile'} or
-                not any(item.get('key')==payload['profile'] and item.get('role')==role for item in values.get('identities',[]))):
-                raise RuntimeError('Select a configured profile belonging to this product role')
-            result=invoke(python,['-m','ioalab_jiuwen','web-extension','--config',str(config),'--profile',payload['profile']])
+            result=invoke(python,['-m','ioalab_jiuwen','web-extension','--config',str(config),
+                '--args-file',str(args.args_file.expanduser().resolve()),'--role',role])
         elif args.operation in ('runtime.validate','runtime.start'):
             checked=invoke(python,['-m','ioalab_sdk.runtime','validate','--config',str(config)])
             if checked.returncode:
@@ -127,10 +123,7 @@ def main(argv=None):
             if args.operation=='runtime.validate':print(checked.stdout.strip());return 0
             result=invoke(python,['-m','ioalab_jiuwen','start','--config',str(config)])
         else:
-            # Only the installer/SDK reads this file. Never print its credentials.
-            values=json.loads(config.read_text(encoding='utf-8'));home=Path(values['data_dir']).expanduser()
-            if not home.is_absolute():home=config.parent/home
-            arguments=['-m','ioalab_sdk.runtime','call',args.operation,'--home',str(home.resolve())]
+            arguments=['-m','ioalab_sdk.runtime','call',args.operation,'--config',str(config)]
             if args.args_file:arguments+=['--args-file',str(args.args_file.expanduser().resolve())]
             result=invoke(python,arguments)
         if result.stderr:print(result.stderr,end='',file=sys.stderr)

@@ -163,7 +163,7 @@ def test_cli_persists_original_operation_without_direct_role_fallback(platform,t
     with process(config):
         args=tmp_path/'args.json'
         private_json(args,{'confirmed':True})
-        command=[sys.executable,'-m','ioalab_sdk.runtime','call','assistant.delegation.confirm','--home',str(tmp_path/'state'),'--args-file',str(args)]
+        command=[sys.executable,'-m','ioalab_sdk.runtime','call','assistant.delegation.confirm','--config',str(config),'--args-file',str(args)]
         one=subprocess.run(command,cwd=tmp_path,capture_output=True,text=True,encoding='utf-8',timeout=15)
         two=subprocess.run(command,cwd=tmp_path,capture_output=True,text=True,encoding='utf-8',timeout=15)
         first,second=json.loads(one.stdout),json.loads(two.stdout)

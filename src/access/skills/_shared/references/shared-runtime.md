@@ -22,7 +22,7 @@ runtime.start已经完成安装、配置校验及装配启动。runtime.install�
 
 两个角色默认共用~/.ioalab/settings.local.json，也可用同一个--config指定其他外置文件。配置不要放在技能目录或data_dir中；原生覆盖导入会替换技能目录。data_dir保管稳定身份、原Session和业务，依赖缓存是另一个目录，不得删除运行数据来修复安装。
 
-角色操作需要先写UTF-8 JSON参数文件，即使输入为空也用{}；调用格式为 `python "<skill_directory>/scripts/ioalab.py" <operation> --config "<外置配置文件>" --args-file "<参数文件>"`。SDK在参数文件中保留operationId，恢复必须复用原文件；改变已提交内容使用新文件/新操作。runtime.start/status及identity.status按上方命令执行。
+角色操作需要先写UTF-8 JSON参数文件，即使输入为空也用{}；调用格式为 `python "<skill_directory>/scripts/ioalab.py" <operation> --config "<外置配置文件>" --args-file "<参数文件>"`。参数文件必须独立于账号配置和SDK数据，不能把settings.local.json当作args-file；由SDK统一读取，不自行改脚本解析编码。SDK在参数文件中保留operationId，恢复必须复用原文件；改变已提交内容使用新文件/新操作。runtime.start/status及identity.status按上方命令执行。
 
 需要用户确认时，用{}参数调用runtime.open_ui，请用户在本机受控页面核对完整预览并确认，再恢复原角色操作。不能用模型confirmed、自写批准记录或普通RPC代替真实用户。
 

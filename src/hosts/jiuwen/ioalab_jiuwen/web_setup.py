@@ -7,17 +7,20 @@ import secrets
 import tempfile
 
 from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_text, restrict
+from ioalab_sdk.runtime.files import private_text, restrict, read_arguments
 from ioalab_sdk.runtime.protocol import RuntimeFault, encode
 from .process import ProcessHost
 from .web_notifications import WebNotifications
 
 
-def prepare_extension(config_path, profile):
+def prepare_extension(config_path, arguments_path, role):
     config_path = Path(config_path).resolve()
     config = RuntimeConfig.load(config_path)
-    if profile not in {item['key'] for item in config.identities}:
-        raise RuntimeFault('invalid_input', 'Select an owned local identity profile')
+    arguments = read_arguments(arguments_path, configuration=config_path, home=config.home)
+    if set(arguments)!={'profile'}:raise RuntimeFault('invalid_input','Use only profile in notification preparation arguments','correct_input')
+    profile=arguments['profile']
+    if role not in ('assistant','service') or profile not in {item['key'] for item in config.identities if item['role']==role}:
+        raise RuntimeFault('invalid_input', 'Select an owned local identity profile of this role','correct_input')
     host_config = dict(config.host)
     specs = host_config.pop('business_tools', [])
     if not isinstance(specs, list): raise RuntimeFault('invalid_input', 'Configure local business factories')

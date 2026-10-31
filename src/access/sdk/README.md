@@ -10,16 +10,16 @@
 
 ```text
 python -m ioalab_sdk.runtime start --config <本机配置文件>
-python -m ioalab_sdk.runtime call runtime.status --home <配置中的数据目录>
-python -m ioalab_sdk.runtime call identity.status --home <配置中的数据目录>
-python -m ioalab_sdk.runtime call runtime.stop --home <配置中的数据目录> --args-file <已创建的空JSON参数文件>
+python -m ioalab_sdk.runtime call runtime.status --config <本机配置文件>
+python -m ioalab_sdk.runtime call identity.status --config <本机配置文件>
+python -m ioalab_sdk.runtime call runtime.stop --config <本机配置文件> --args-file <已创建的空JSON参数文件>
 ```
 
 start 同时核对账号、配置和安装信息后复用已运行实例；启动仍在进行时报告 waiting，不重新创建竞争实例。状态分别报告 IPC、账号、身份、连接和执行能力，不能将进程运行当作业务完成。stop 在参数文件保存目标实例及原操作标识，等待实际轮次收敛并保留数据。运行数据、配置、端点凭据与日志均不入库。SDK 还提供 `ioalab-access` 命令，行为与模块入口一致。installation_changed要求安全停止后按原目录启动当前安装；普通业务调用也核对安装及同一bootId，instance_changed时先查实际实例。诊断与停止仍可使用，不删除身份或合同。自管环境先停止再升级，不支持源码热替换。
 
 ## 助手收信设置与通信
 
-统一调用格式为 `python -m ioalab_sdk.runtime call <operation> --home <数据目录> --args-file <已创建的JSON文件>`；参数文件自动保存原 operationId，重复调用复用原操作。接口和流程规范见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
+统一调用格式为 `python -m ioalab_sdk.runtime call <operation> --config <本机配置文件> --args-file <已创建的JSON文件>`；参数文件与账号配置及SDK数据分开，不能使用配置文件的路径别名；SDK在完整配置与实例核对后保存原operationId，重复调用复用原操作。诊断与安全停止只需配置中的data_dir，不要求凭据及业务字段仍完整。接口和流程规范见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
 
 | 操作 | 参数 |
 |---|---|

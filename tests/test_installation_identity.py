@@ -62,32 +62,37 @@ def test_same_config_cannot_reuse_an_old_installation_or_dispatch_business(platf
                                       'versions':{**runtime.installation['versions'],'ioalab-jiuwen':'older-build'}}
             with pytest.raises(RuntimeFault) as error:start(config)
             assert error.value.code=='installation_changed'
-            assert main(['call','test.effect','--home',str(runtime.config.home),'--args-file',str(args)])==1
+            assert main(['call','test.effect','--config',str(config),'--args-file',str(args)])==1
             assert json.loads(capsys.readouterr().out)['error']['code']=='installation_changed'
             assert not effects and LocalClient(runtime.config.home).call('runtime.status')['data']['bootId']==original['bootId']
-            assert main(['call','runtime.status','--home',str(runtime.config.home)])==0
+            assert main(['call','runtime.status','--config',str(config)])==0
             assert json.loads(capsys.readouterr().out)['status']=='completed'
-            assert main(['call','runtime.stop','--home',str(runtime.config.home),'--args-file',str(tmp_path/'stop.json')])==0
+            assert main(['call','runtime.stop','--config',str(config),'--args-file',str(tmp_path/'stop.json')])==0
             assert json.loads(capsys.readouterr().out)['data']['bootId']==original['bootId']
     finally:runtime.close()
 
 
 def test_cli_preflight_cannot_switch_to_another_boot_before_a_business_request(tmp_path,monkeypatch,capsys):
     import ioalab_sdk.runtime.__main__ as entry
-    effects=[];servers=[]
+    effects=[];servers=[];home=tmp_path/'state';config=tmp_path/'settings.json'
+    private_json(config,{'platform_url':'http://127.0.0.1:8750','username':'owner','password':'test-only',
+        'data_dir':str(home),'identities':[{'key':'personal','role':'assistant','name':'Owner'}]})
+    configured=RuntimeConfig.load(config)
     def dispatch(operation,operation_id,args):
-        if operation=='runtime.status':data={'bootId':servers[0].boot_id,'installation':installation.current()}
+        if operation=='runtime.status':data={'bootId':servers[0].boot_id,'installation':installation.current(),
+            'account':{'username':configured.username,'platform':configured.platform},
+            'configurationDigest':configured.public_summary()['configurationDigest']}
         else:effects.append((operation,args));data={}
         return {'operationId':operation_id,'status':'completed','data':data,'error':None}
-    first=IpcServer(tmp_path,'first',dispatch);servers.append(first);first.start()
-    second=IpcServer(tmp_path,'second',dispatch)
+    first=IpcServer(home,'first',dispatch);servers.append(first);first.start()
+    second=IpcServer(home,'second',dispatch)
     original=entry.require_matching
     def replace_instance(actual,**kwargs):
         original(actual,**kwargs);second.start()
     monkeypatch.setattr(entry,'require_matching',replace_instance)
     private_json(tmp_path/'action.json',{})
     try:
-        assert main(['call','test.effect','--home',str(tmp_path),'--args-file',str(tmp_path/'action.json')])==1
+        assert main(['call','test.effect','--config',str(config),'--args-file',str(tmp_path/'action.json')])==1
         result=json.loads(capsys.readouterr().out)
         assert result['error']['code']=='instance_changed' and not effects
     finally:first.close();second.close()

@@ -10,6 +10,22 @@ from .protocol import RuntimeFault
 from a2c.codec import digest
 
 
+def read_configuration(path):
+    """Read user settings once; diagnostics may only need their data locator."""
+    try:value=read_json(path)
+    except (OSError,ValueError):
+        raise RuntimeFault('invalid_input','Use a readable UTF-8 JSON configuration object','configure') from None
+    if not isinstance(value,dict):raise RuntimeFault('invalid_input','Configuration must be an object','configure')
+    return value
+
+
+def data_directory(path,value):
+    name=value.get('data_dir')
+    if not isinstance(name,str) or not name.strip():raise RuntimeFault('invalid_input','Missing configuration field: data_dir','configure')
+    home=Path(name).expanduser()
+    return (home if home.is_absolute() else Path(path).resolve().parent/home).resolve()
+
+
 @dataclass(frozen=True)
 class RuntimeConfig:
     platform: str
@@ -32,12 +48,15 @@ class RuntimeConfig:
     @classmethod
     def load(cls,path):
         path=Path(path).resolve()
-        value=read_json(path)
+        return cls.from_mapping(path,read_configuration(path))
+
+    @classmethod
+    def from_mapping(cls,path,value):
         allowed={'platform_url','username','password','password_env','data_dir','identities',
                  'max_model_runs','max_pending_requests','assistant','provider','host'}
         def invalid(message):raise RuntimeFault('invalid_input',message,'configure')
         if not isinstance(value,dict) or set(value)-allowed:invalid('Unknown common runtime configuration fields')
-        for key in ('platform_url','username','data_dir'):
+        for key in ('platform_url','username'):
             if not isinstance(value.get(key),str) or not value[key].strip():invalid('Missing configuration field: '+key)
         platform=value['platform_url'].rstrip('/')
         url=urlsplit(platform)
@@ -50,8 +69,7 @@ class RuntimeConfig:
             password=os.environ.get(key)
         else:password=value.get('password')
         if not isinstance(password,str) or not password:invalid('Configure local account credentials')
-        home=Path(value['data_dir']).expanduser()
-        if not home.is_absolute():home=path.parent/home
+        home=data_directory(path,value)
         profiles=value.get('identities')
         if not isinstance(profiles,list) or not 1<=len(profiles)<=64:invalid('Configure one to 64 local identity profiles')
         keys=set();assistants=0
