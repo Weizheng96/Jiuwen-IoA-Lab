@@ -12,7 +12,7 @@
 | 开工 | assistant.delegation.start：contractRef | SDK 复用原合同及实际定金/开工回执。新候选失效不等于旧合同失效，仍遵守原合同窗口 |
 | 合同环节 | assistant.delegation.answer_step：contractRef、stepRequestDigest | 仅在 status 有真实 stepRequest 时展示对象与动作；用户实际选择同意/拒绝后重发原操作，不传 granted/confirmed |
 | 交付与取件 | assistant.delegation.status：contractRef；fetch：contractRef、period | availablePeriods 及实际签名证明交付，取件保存原文件与签收；不是模型文字“完成” |
-| 验收与付款 | verify：contractRef、period；accept：contractRef、period | WASM 真报告先核是否通过，向用户展示报告和应付款额；取得本期独立确认后重发 accept。原 Client.accept 组合验收、通知及AP2，分别查实际验收与付款结果 |
+| 验收与付款 | verify：contractRef、period；accept：contractRef、period | 异步作业先返回引用；accept取得通过报告后进入waiting，展示真实预览和应付款额。取得本期独立确认后用同一operationId重发accept，原Client.accept复验、通知及AP2，分别查实际验收与付款结果 |
 | 结束核对 | assistant.delegation.status：contractRef；pay：contractRef、period 只核原付款恢复 | 核实际付款和 closed；unknown 先查询原操作/原凭证，不重签验收或重付，不把“已验收”当“已付款” |
 
 spec 是按模板交付件名组织的需求对象；materials 按模板材料名组织，提供 text 或 bytesBase64 及可选 spec。材料不得超出用户已授权范围。服务、模板、报价及合同引用从实际结果获取，不能编造 ID。

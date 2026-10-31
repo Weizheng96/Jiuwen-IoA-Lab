@@ -165,9 +165,11 @@ class ResidentRuntime:
         self.closing.set()
         # Keep the DB and OS ownership until all actual work/RPC threads stop.
         if self.scheduler:self.scheduler.drain()
-        for module in self.modules:module.close()
+        for module in self.modules:
+            if hasattr(module,'quiesce'):module.quiesce()
         if self.ipc:self.ipc.close()
         if self.scheduler:self.scheduler.close()
+        for module in self.modules:module.close()
         if self.connection:self.connection.close()
         if self.store:self.store.close()
         if self.account:self.account.close()

@@ -12,7 +12,9 @@ OUTPUT = ROOT / 'deploy/default-seed.json'
 def document():
     domains, sources = [], {}
     for path in sorted(SOURCE.glob('*.json')):
-        raw = path.read_bytes()
+        # Owned JSON sources use Git's canonical LF bytes across checkouts.
+        # Vendored archives/wheels keep their separate exact-byte checks.
+        raw = path.read_bytes().replace(b'\r\n', b'\n')
         domain = json.loads(raw)
         summaries = []
         for service in domain['services']:

@@ -11,6 +11,7 @@ from a2c.slots import verify_card
 from a2c.jws import header_of
 from ..runtime.protocol import RuntimeFault
 from ..runtime.scheduling import JobOutcome
+from ..runtime.ipc import public_error
 from ..adapters.transport import stable
 from ..adapters.reports import report
 
@@ -63,8 +64,24 @@ class Fulfillment:
 
     def operation_status(self,operation,record):
         if record.get('result') is not None:return {'status':record['status'],'data':record['result']}
-        try:return self.runtime.scheduler.get(self.runtime.scheduler.reference(self.identity.agent_id,'assistant.fulfillment',operation))
+        try:return self.runtime.scheduler.get(self.runtime.scheduler.reference(self.identity.agent_id,self.handler(record),operation))
         except RuntimeFault:return {'status':'waiting','data':{'operationId':operation,'phase':record['phase']}}
+
+    @staticmethod
+    def handler(record):return record.get('handler','assistant.fulfillment')
+
+    def confirmation(self,operation,record):
+        name=record['name']
+        binding={'actor':self.identity.agent_id,'operationId':operation,'subject':record['args'],'stage':'delegation.'+name,'action':name,'preview':record['preview']}
+        question=[{'question':'是否授权本次合同环节？','options':[{'value':'allow','label':'同意'},{'value':'deny','label':'拒绝'}]}]
+        return binding,self.runtime.confirmations.ensure(binding,kind='question' if name=='answer_step' else 'approval',questions=question if name=='answer_step' else None)
+
+    def schedule(self,operation,record,contract):
+        job=self.runtime.scheduler.submit(self.identity.agent_id,contract['interactionId'],self.handler(record),{'operationId':operation},operation_id=operation,admitted=True)
+        if job['status']=='waiting' and record['phase']=='approved':
+            self.runtime.scheduler.resume(job['reference'],{'confirmationRef':record['approval']})
+            job=self.runtime.scheduler.get(job['reference'])
+        return {'status':job['status'] if job['status'] in ('completed','rejected','failed','unknown') else 'accepted','data':{'operationId':operation,'contractRef':record['args']['contractRef'],'job':job}}
 
     def call(self,name,operation,args):
         required=('contractRef','stepRequestDigest') if name=='answer_step' else ('contractRef','period') if name in ('fetch','verify','accept','pay') else ('contractRef',)
@@ -76,26 +93,21 @@ class Fulfillment:
             if record and record['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original fulfillment operation changed')
             client,contract=self.client(args['contractRef'])
             if not record:
-                record={'name':name,'args':value,'fingerprint':fingerprint,'phase':'prepared'}
+                record={'name':name,'args':value,'fingerprint':fingerprint,'phase':'prepared',
+                        'handler':'assistant.verification' if name in ('verify','accept') else 'assistant.fulfillment'}
                 if name=='answer_step':
                     client.poll(args['contractRef']);source=client.store.get('cards',args['contractRef'])
                     pending=[item for item in source.get('steps',[]) if item['answer'] is None]
                     if not pending or objects.object_digest(pending[-1]['request'])!=args['stepRequestDigest']:raise RuntimeFault('forbidden','Use the actual current original step request')
                     record['preview']={'title':'确认本次合同环节','stepRequest':pending[-1]['request'],'contractRef':args['contractRef']}
-                elif name=='accept':
-                    result=client.verify(args['contractRef'],args['period'])
-                    record['preview']={'title':'确认本期验收及相应付款','period':args['period'],'card':client.card(args['contractRef']),'report':report(result),
-                        'amount':client.card(args['contractRef'])['derived']['periods'][args['period']-1]['amount']}
-                    if result.status!='pass':return {'status':'rejected','data':{'operationId':operation,'report':report(result)}}
                 elif name=='start':
                     if client.card(args['contractRef'])['inputs'] and 'materials' not in contract['binding']['preview']:
                         raise RuntimeFault('forbidden','Confirm all material sending stages before starting this older contract')
                 self.store.checkpoint_set(self.namespace,operation,record)
             if record.get('result') is not None:return {'status':record['status'],'data':record['result']}
+            if name=='accept' and 'preview' not in record:return self.schedule(operation,record,contract)
             if 'preview' in record and record['phase']=='prepared':
-                binding={'actor':self.identity.agent_id,'operationId':operation,'subject':value,'stage':'delegation.'+name,'action':name,'preview':record['preview']}
-                question=[{'question':'是否授权本次合同环节？','options':[{'value':'allow','label':'同意'},{'value':'deny','label':'拒绝'}]}]
-                decision=self.runtime.confirmations.ensure(binding,kind='question' if name=='answer_step' else 'approval',questions=question if name=='answer_step' else None)
+                binding,decision=self.confirmation(operation,record)
                 if args.get('confirmationRef',decision['reference'])!=decision['reference']:raise RuntimeFault('id_conflict','Use this exact stage confirmation')
                 if name=='answer_step':
                     answer=self.runtime.confirmations.native_answer(decision['reference'])
@@ -103,20 +115,33 @@ class Fulfillment:
                     if len(answer)!=1 or answer[0].get('custom_input') or answer[0].get('selected_options') not in (['allow'],['deny']):raise RuntimeFault('forbidden','Choose the actual allow or deny option')
                     record['granted']=answer[0]['selected_options']==['allow']
                 else:
-                    if decision['status']!='approved':return {'status':'waiting' if decision['status']=='pending' else 'rejected','data':{'operationId':operation,'confirmationRef':decision['reference']}}
+                    if decision['status']!='approved':
+                        data={'operationId':operation,'contractRef':args['contractRef'],'confirmationRef':decision['reference']}
+                        if decision['status']!='pending':self.save(operation,record,phase='finished',status='rejected',result=data)
+                        return {'status':'waiting' if decision['status']=='pending' else 'rejected','data':data}
                     self.runtime.confirmations.claim(decision['reference'],binding)
                 record=self.save(operation,record,phase='approved',approval=decision['reference'],binding=binding)
-            job=self.runtime.scheduler.submit(self.identity.agent_id,contract['interactionId'],'assistant.fulfillment',{'operationId':operation},operation_id=operation,admitted=True)
-            return {'status':job['status'] if job['status'] in ('completed','rejected','failed','unknown') else 'accepted','data':{'operationId':operation,'contractRef':args['contractRef'],'job':job}}
+            return self.schedule(operation,record,contract)
 
-    def finish(self,operation,record,result):
+    def finish(self,operation,record,result,*,state='completed'):
         result={'operationId':operation,'contractRef':record['args']['contractRef'],**result}
-        self.save(operation,record,phase='finished',status='completed',result=result)
-        return JobOutcome('completed',result)
+        self.save(operation,record,phase='finished',status=state,result=result)
+        return JobOutcome(state,result)
 
     def run(self,job):
         operation=job['payload']['operationId'];record=self.record(operation);args=record['args'];ref=args['contractRef'];client,_=self.client(ref)
         if record.get('result') is not None:return JobOutcome(record['status'],record['result'])
+        if record['name']=='accept' and 'preview' not in record:
+            self.runtime.require_execution()
+            try:
+                with client.transport.operation(operation):result=client.verify(ref,args['period'])
+            except RuntimeFault as exc:return self.finish(operation,record,{'period':args['period'],'error':public_error(exc)},state='failed')
+            if result.status!='pass':return self.finish(operation,record,{'period':args['period'],'report':report(result)},state='rejected')
+            preview={'title':'确认本期验收及相应付款','period':args['period'],'card':client.card(ref),'report':report(result),
+                     'amount':client.card(ref)['derived']['periods'][args['period']-1]['amount']}
+            record=self.save(operation,record,preview=preview)
+            _,decision=self.confirmation(operation,record)
+            return JobOutcome('waiting',{'operationId':operation,'contractRef':ref,'confirmationRef':decision['reference']})
         if record['phase']=='executing':raise RuntimeFault('unknown_result','Reconcile original effects before continuing')
         if record.get('approval'):
             if record['name']=='answer_step':
@@ -135,7 +160,9 @@ class Fulfillment:
                 cached=client.store.get('cards',ref).get('deliveries',{}).get(str(args['period']))
                 files={name:base64.b64decode(data) for name,data in cached.items()} if cached is not None else client.fetch_delivery(ref,args['period'])
                 result={'period':args['period'],'files':{name:{'digest':digest_bytes(data),'size':len(data)} for name,data in files.items()}}
-            elif name=='verify':result={'period':args['period'],'report':report(client.verify(ref,args['period']))}
+            elif name=='verify':
+                try:result={'period':args['period'],'report':report(client.verify(ref,args['period']))}
+                except RuntimeFault as exc:return self.finish(operation,record,{'period':args['period'],'error':public_error(exc)},state='failed')
             elif name=='accept':
                 accepted=client.accept(ref,args['period']);result={'period':args['period'],'acceptance':accepted.status,'report':report(accepted.result),'card':accepted.card,'voucher':accepted.voucher,'payment':'paid' if accepted.voucher else 'unpaid'}
             elif name=='pay':result=self.payment(client,ref,args['period'])
@@ -159,9 +186,19 @@ class Fulfillment:
 
     def _recover(self):
         for operation,record in self.store.checkpoints(self.namespace).items():
-            reference=self.runtime.scheduler.reference(self.identity.agent_id,'assistant.fulfillment',operation)
+            reference=self.runtime.scheduler.reference(self.identity.agent_id,self.handler(record),operation)
             try:job=self.runtime.scheduler.get(reference)
             except RuntimeFault:continue
+            if job['status']=='waiting':
+                if record.get('result') is None and 'preview' in record:
+                    _,decision=self.confirmation(operation,record)
+                    if decision['status'] in ('rejected','expired','cancelled'):
+                        record=self.save(operation,record,phase='finished',status='rejected',result={
+                            'operationId':operation,'contractRef':record['args']['contractRef'],
+                            'confirmationRef':decision['reference'],'reason':decision['status']})
+                if record.get('result') is not None and record.get('status')=='rejected':self.runtime.scheduler.reject_wait(reference,record['result'])
+                elif record['phase']=='approved':self.runtime.scheduler.resume(reference,{'confirmationRef':record['approval']})
+                continue
             if job['status']!='unknown':continue
             if record.get('result') is not None:
                 self.runtime.scheduler.resolve(reference,JobOutcome(record['status'],record['result']));continue
@@ -221,7 +258,7 @@ class Fulfillment:
             if not closed and not (notified and notified['result']['reply']['body'].get('ok') is True):client.transport.send(card['provider'],'payment.notify',{'voucher':voucher})
             original=client.store.get('cards',ref)
             if voucher not in original.get('vouchers',[]):client.store.put('cards',ref,{**original,'vouchers':[*original.get('vouchers',[]),voucher]})
-        original_job=self.runtime.scheduler.reference(self.identity.agent_id,'assistant.fulfillment',operation)
+        original_job=self.runtime.scheduler.reference(self.identity.agent_id,self.handler(record),operation)
         # The scanner and the short receipt job consume the same actual facts.
         # Keep their local finalization under one owner; an already-finalized job
         # must not turn the other recovery job into unknown and block later reads.

@@ -1,6 +1,7 @@
 """Durable role jobs, with interaction/session exclusion and a separate model limit."""
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 import hashlib
 import json
@@ -10,6 +11,8 @@ from typing import Callable
 import uuid
 
 from .protocol import RuntimeFault,encode
+
+CURRENT_JOB=ContextVar('ioa-current-job',default=None)
 
 
 SCHEMA='''CREATE TABLE IF NOT EXISTS runtime_jobs(
@@ -47,6 +50,7 @@ class Scheduler:
         self.can_dispatch=can_dispatch
         self._condition=threading.Condition(threading.RLock())
         self._active={}
+        self._observation_locks={}
         self._stop=threading.Event()
         self._draining=False
         self._thread=None
@@ -132,6 +136,23 @@ class Scheduler:
             return {'states':counts,'active':len(self._active),'draining':self._draining,'maxModelRuns':self.max_models,
                     'maxPendingRequests':self.max_pending,'waitingForUser':user_waits,'error':self.error}
 
+    def require_model(self,actor,interaction):
+        current=CURRENT_JOB.get()
+        if not current or current[0] is not self:raise RuntimeFault('forbidden','Model observations require the current local model job')
+        with self.store.lock:row=self.store.db.execute('SELECT actor,interaction,handler,state,model_waiting FROM runtime_jobs WHERE id=?',(current[1],)).fetchone()
+        handler=self.handlers.get(row['handler']) if row else None
+        if not row or row['actor']!=actor or row['interaction']!=interaction or row['state']!='running' or row['model_waiting'] or not handler or not handler.uses_model or handler.control:
+            raise RuntimeFault('forbidden','This job has no model permit for the requested identity and interaction')
+        return current[1]
+
+    @contextmanager
+    def observation(self,actor,interaction):
+        job=self.require_model(actor,interaction)
+        with self._condition:lock=self._observation_locks.setdefault(job,threading.Lock())
+        with lock:
+            self.require_model(actor,interaction)
+            yield job
+
     @contextmanager
     def user_wait(self,job,*,cancelled=lambda:False):
         """Keep the original child/session alive while yielding only its model slot."""
@@ -178,6 +199,14 @@ class Scheduler:
             row=conn.execute('SELECT * FROM runtime_jobs WHERE id=?',(job,)).fetchone()
             if not row or row['state']!='unknown':raise RuntimeFault('id_conflict','Job is not awaiting reconciliation')
             self._save_outcome(conn,row,outcome)
+        with self._condition:self._condition.notify_all()
+
+    def reject_wait(self,job,data):
+        """A local owner has verified rejection/expiry of its pending approval."""
+        with self.store.transaction() as conn:
+            row=conn.execute('SELECT * FROM runtime_jobs WHERE id=?',(job,)).fetchone()
+            if not row or row['state']!='waiting':raise RuntimeFault('id_conflict','Only the original waiting job can be rejected')
+            self._save_outcome(conn,row,JobOutcome('rejected',data))
         with self._condition:self._condition.notify_all()
 
     @staticmethod
@@ -244,6 +273,11 @@ class Scheduler:
                 else:self._condition.wait(.1)
 
     def _execute(self,row):
+        token=CURRENT_JOB.set((self,row['id']))
+        try:self._run_job(row)
+        finally:CURRENT_JOB.reset(token)
+
+    def _run_job(self,row):
         job={**row,'payload':json.loads(row['payload']),
              'continuation':json.loads(row['continuation']) if row['continuation'] else None,
              'previous':json.loads(row['result']) if row['result'] else None}
@@ -260,6 +294,7 @@ class Scheduler:
     def _finished(self,job):
         with self._condition:
             self._active.pop(job,None)
+            self._observation_locks.pop(job,None)
             self._condition.notify_all()
 
     def drain(self):

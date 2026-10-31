@@ -34,6 +34,8 @@ class ProviderRole:
         if self.execution:self.execution.start()
     def wake(self):
         if self.execution:self.execution.wake()
+    def quiesce(self):
+        if self.execution:self.execution.quiesce()
     def close(self):
         if self.execution:self.execution.close()
     def ready(self,profile):return bool(self.execution and self.execution.ready(profile))

@@ -102,12 +102,14 @@ class Production:
             self.runtime.require_execution()
             if state['outcome']:return {'status':'rejected','error':{'code':'forbidden','message':'本轮已交付或等待授权，请结束本轮'}}
             if name not in {tool.name for tool in tools()}:return {'status':'rejected','error':{'code':'forbidden','message':'当前为production阶段，仅可调用本单生产工具'}}
-            key=job['id']+':'+call;old=endpoint.store.get('production_calls',key);fingerprint=digest({'name':name,'args':args})
-            if old:
-                if old['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original production tool input changed')
-                if old.get('result') is not None:return old['result']
-                raise RuntimeFault('unknown_result','Reconcile the original production effect without repeating it')
+            key=job['id']+':'+call;fingerprint=digest({'name':name,'args':args})
             with endpoint.lock,provider.transport.operation(stable('production-tool',key)):
+                if state['outcome']:return {'status':'rejected','error':{'code':'forbidden','message':'本轮已交付或等待授权，请结束本轮'}}
+                old=endpoint.store.get('production_calls',key)
+                if old:
+                    if old['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original production tool input changed')
+                    if old.get('result') is not None:return old['result']
+                    raise RuntimeFault('unknown_result','Reconcile the original production effect without repeating it')
                 current=provider.store.get('cards',cd)
                 if any(item['answer'] is None or not item['answer'].get('granted') for item in current.get('steps',[])):
                     return {'status':'rejected','error':{'code':'forbidden','message':'用户尚未同意当前受保护环节'}}
@@ -117,15 +119,18 @@ class Production:
                     result={'status':'waiting','stepRequest':provider.request_step(cd,args['step'])};state['outcome']='waiting'
                 else:
                     values=self.files(args,workspace)
-                    if name.endswith('selftest'):
-                        target=deliverable_of(template,job['payload']['period'])
-                        result=report(run_target(acceptance_of(template,card)[target]['verifiers'],fetch=self.runtime.account.fetch_package,template=template,card=card,target=target,files={name:data for name,(data,_) in values.items()},period=job['payload']['period'],anchored_at=None,model=provider.model))
-                    else:
+                    if not name.endswith('selftest'):
                         endpoint.store.put('production_files',key,{name:{'bytesBase64':base64.b64encode(data).decode(),'mediaType':media} for name,(data,media) in values.items()})
                         delivered=provider.deliver(cd,values);result={'status':'delivered','card':delivered};state['outcome']='completed'
+                if not name.endswith('selftest'):
+                    saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
+                    self.sync(endpoint,cd)
+                    return result
+            target=deliverable_of(template,job['payload']['period'])
+            result=report(run_target(acceptance_of(template,card)[target]['verifiers'],fetch=self.runtime.account.fetch_package,template=template,card=card,target=target,files={name:data for name,(data,_) in values.items()},period=job['payload']['period'],anchored_at=None,model=provider.model))
+            with endpoint.lock:
                 saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
-                self.sync(endpoint,cd)
-                return result
+            return result
         prompt=encode({'phase':'production','card':card,'period':job['payload']['period'],'artifactDirectory':str(workspace/'artifacts'),'materials':{name:base64.b64encode(data).decode() for name,data in provider.materials(cd).items()},'steps':provider.store.get('cards',cd).get('steps',[]),
                        'instruction':'按合同和已配置业务能力生产。需要用户批准的环节先调用provider.task.request_step并结束本轮；交付前可selftest，deliver取得回执后结束本轮。不得把文字当交付或自行批准环节。'})
         self.execution.active.add(job['id'])

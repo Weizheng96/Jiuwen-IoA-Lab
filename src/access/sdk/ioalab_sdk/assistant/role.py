@@ -55,6 +55,7 @@ class AssistantRole:
                         'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False),
                         'assistant.contract':JobHandler(self.contracts.run,'assistant-contract-v1',False),
                         'assistant.fulfillment':JobHandler(self.fulfillment.run,'assistant-fulfillment-v1',False),
+                        'assistant.verification':JobHandler(self.fulfillment.run,'assistant-verification-v1',True),
                         'assistant.receipt':JobHandler(self.fulfillment.reconcile_receipt,'assistant-receipt-v1',False,control=True)},
                 'profiles':[self.identity.profile] if self.host else []}
 
@@ -273,11 +274,14 @@ class AssistantRole:
     def ready(self,profile):
         return bool(self.identity and self.identity.profile==profile and self._thread and self._thread.is_alive() and not self.error)
 
-    def close(self):
+    def quiesce(self):
         self._stop.set();self.wake()
         if self._thread:
             self._thread.join(15)
             if self._thread.is_alive():raise RuntimeError('Assistant control thread is still active; preserve local ownership')
+
+    def close(self):
+        self.quiesce()
         if self.trading:self.trading.close()
 
     def _listen(self):

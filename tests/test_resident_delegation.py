@@ -41,34 +41,36 @@ class QuoteHost:
         self.turns.append(turn);turn.on_session(turn.session_id or 'isolated-provider-'+uid())
         if self.wait:assert self.wait.wait(15),'test host was not released'
         if json.loads(turn.input)['phase']=='quote':
-            args={'acceptance':{'result':{'verifiers':{'script':self.verifier},'notCovered':[]}},'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}}
+            args={'acceptance':{'result':{'verifiers':{getattr(self,'verifier_kind','script'):self.verifier},'notCovered':[]}},'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}}
             turn.on_tool('provider.task.quote',args,'isolated-call')
         else:turn.on_tool('provider.task.decision',{'approved':True},'isolated-call')
         return HostResult('completed',turn.session_id,{'testDouble':True})
 
 
 @contextmanager
-def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None):
+def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None):
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
     private_json(pconfig,value);host=agent_host or QuoteHost();prole=ProviderRole(host)
     provider=ResidentRuntime(RuntimeConfig.load(pconfig),modules=(prole,),host_status=host.capabilities).start()
-    aconfig,_=configuration(platform,tmp_path/'assistant',service=False);arole=AssistantRole()
+    aconfig,_=configuration(platform,tmp_path/'assistant',service=False);avalue=read_json(aconfig);avalue['max_model_runs']=models;private_json(aconfig,avalue);arole=AssistantRole(assistant_host)
     assistant=ResidentRuntime(RuntimeConfig.load(aconfig),modules=(arole,)).start()
     try:
         wait_for(lambda:provider.connection.connected and assistant.connection.connected)
         source=verifier_source or "def verify(ctx):\n    return {'status': 'pass'}\n"
-        uploaded=LocalClient(provider.config.home).call('provider.verifier.publish',{'profile':'service','verifierId':'resident_result@1.0','source':source})
+        uploaded=LocalClient(provider.config.home).call('provider.verifier.publish',{'profile':'service','verifierId':'resident_result@1.0','source':source,'kind':verifier_kind})
         assert uploaded['status']=='completed',uploaded
         host.verifier=uploaded['data']
+        host.verifier_kind=verifier_kind
+        if verifier_kind=='skill':host.verifier={**host.verifier,'disputeModels':['test-observation-model']}
         resources={'outputVerifier':host.verifier,'quoteAmount':9,'acceptWithin':'PT10M'}
         instructions='本隔离测试的专业能力是提供摘要交付。当前请求可直接报价，无须补充需求。请使用业务资源outputVerifier作script验收器，quoteAmount作确定报价，acceptWithin作验收时长。'
         professional={'resources':resources,'instructions':instructions,**(business or {})}
         prole.execution.configs['service'].update(professional)
         value['provider']['services']['service'].update(professional);private_json(pconfig,value)
         definition={'formation':formation,'deliverable':{'name':'result'},'pricing':{'proposalFee':fee,'price':'9'},
-                    'verifier':{'id':'resident_result@1.0','source':source}}
+                    'verifier':{'id':'resident_result@1.0','source':source,'kind':verifier_kind,**({'disputeModels':['test-observation-model']} if verifier_kind=='skill' else {})}}
         from types import SimpleNamespace
         def upload(**args):return host.verifier
         template=template_from_definition(definition,packages=SimpleNamespace(put=upload),payment_provider=platform.payment_provider)

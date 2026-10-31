@@ -31,6 +31,41 @@ ROOT=Path(__file__).resolve().parents[1]
 def uid():return str(uuid.uuid4())
 
 
+def test_close_quiesces_roles_but_keeps_their_transport_until_active_jobs_finish(platform,tmp_path):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    from ioalab_sdk.runtime.scheduling import JobHandler,JobOutcome
+    started=threading.Event();release=threading.Event();quiesced=threading.Event();finished=threading.Event()
+    class Role:
+        closed=False
+        def bind(self,runtime):return {'jobs':{'read':JobHandler(self.read,'read-v1',False)}}
+        def start(self):pass
+        def wake(self):pass
+        def quiesce(self):quiesced.set()
+        def close(self):
+            assert finished.is_set(),'role transport was released before its active reader ended'
+            self.closed=True
+        def read(self,job):
+            started.set();assert release.wait(10)
+            assert not self.closed,'in-flight public key/package reads lost their transport'
+            finished.set();return JobOutcome('completed',{})
+    path,_=configuration(platform,tmp_path,service=False);role=Role()
+    runtime=ResidentRuntime(RuntimeConfig.load(path),modules=(role,)).start()
+    try:
+        wait_for(lambda:runtime.connection.connected)
+        runtime.scheduler.submit(runtime.identities[0].agent_id,'close-read','read',{},operation_id=uid())
+        assert started.wait(5)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            closing=pool.submit(runtime.close)
+            try:
+                assert quiesced.wait(5)
+                assert not role.closed and not closing.done()
+            finally:release.set()
+            closing.result(timeout=10)
+        assert finished.is_set() and role.closed
+    finally:release.set();runtime.close()
+
+
 def configuration(platform,tmp_path,*,service=True):
     user=new_user(platform)
     profiles=[{'key':'personal','role':'assistant','name':'本地助手'}]

@@ -16,6 +16,7 @@ from ..adapters.endpoint import EndpointSession
 from ..adapters.transport import stable
 from ..runtime.protocol import RuntimeFault,instant,stamp,encode
 from ..runtime.scheduling import JobHandler,JobOutcome
+from ..runtime.observations import model_port
 from .policy import HostPolicy
 
 
@@ -75,13 +76,16 @@ class ProviderExecution:
                 'unavailableSkills':self.skill_errors(profile),
                 'errors':self.errors.get('profile:'+profile),'blockedRequests':len(self.errors)}
 
-    def close(self):
+    def quiesce(self):
         self.stop.set();self.wake()
         if self.host:
             for job in list(self.active):self.host.cancel(job)
         if self.thread:
             self.thread.join(15)
             if self.thread.is_alive():raise RuntimeError('Provider control thread is still active; preserve local ownership')
+
+    def close(self):
+        self.quiesce()
         self.public.close()
 
     def listen(self):
@@ -219,7 +223,8 @@ class ProviderExecution:
                 config={key:self.configs[identity.profile].get(key,[] if key=='skills' else {} if key in ('resources','native_tools') else '') for key in ('instructions','skills','resources','native_tools')};store.put('context','config',config)
             transport=SessionTransport(self.runtime,identity,relation['id'],aid,relation['peer'],public=self.public)
             provider=Provider(identity.signer,market=self.runtime.account.config['market'],keys=Directory(fetch=transport.jwks),transport=transport,
-                fetch=self.runtime.account.fetch_package,store=store,ap2_key=identity.payment,name=identity.name)
+                fetch=self.runtime.account.fetch_package,store=store,ap2_key=identity.payment,name=identity.name,
+                model=model_port(self.runtime,self.host,identity,relation['id']))
             provider.store.put('templates',original['template']['templateDigest'],original['template'])
             endpoint=EndpointSession(self.runtime,identity,relation['id'],provider)
             provider.policy=HostPolicy(self,identity,relation,provider,job,config,aid)

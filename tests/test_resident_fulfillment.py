@@ -88,6 +88,15 @@ def invoke(assistant,reference,name,**args):
     return key,value
 
 
+def accept_preview(assistant,reference):
+    key,started=invoke(assistant,reference,'accept',period=1)
+    assert started['status']=='accepted',started
+    job=started['data']['job']['reference']
+    wait_for(lambda:assistant.scheduler.get(job)['status']=='waiting')
+    pending=assistant.scheduler.get(job)
+    return key,{'status':'waiting','data':pending['data'],'jobRef':job}
+
+
 @pytest.mark.parametrize('formation',['proposal','countersign'])
 @pytest.mark.parametrize('lose_payment',[False,True])
 def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_reputation(platform,tmp_path,monkeypatch,formation,lose_payment):
@@ -128,7 +137,7 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         wait_for(lambda:operation(assistant,ref,key));assert operation(assistant,ref,key)['data']['report']['status']=='pass',operation(assistant,ref,key)
         assert not status(assistant,ref)['data']['card']['signatures']['7']
         assert not platform.db.rows("SELECT * FROM payment_records WHERE ref=? AND purpose='installment'",ref)
-        key,pending=invoke(assistant,ref,'accept',period=1);assert pending['status']=='waiting'
+        key,pending=accept_preview(assistant,ref);assert pending['status']=='waiting'
         preview=assistant.confirmations.get(pending['data']['confirmationRef'],detail=True)['binding']['preview']
         assert preview['report']['status']=='pass' and preview['amount']==8
         user_decision(assistant,pending['data']['confirmationRef'])
@@ -158,7 +167,9 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
                     paused.set();assert release.wait(5),'test recovery finalization was not released'
                 return outcome
             monkeypatch.setattr(Fulfillment,'finish',pause_after_saved_result)
-        assert client.call('assistant.delegation.accept',{'contractRef':ref,'period':1},operation_id=key)['status']=='accepted'
+        resumed=client.call('assistant.delegation.accept',{'contractRef':ref,'period':1},operation_id=key)
+        assert resumed['status']=='accepted',resumed
+        assert resumed['data']['job']['reference']==pending['jobRef']
         if lose_payment:
             try:
                 assert paused.wait(10),'original actual receipt was not recovered'
@@ -211,7 +222,10 @@ def test_actual_bad_delivery_fails_wasm_and_never_signs_acceptance_or_pays(platf
         key,_=invoke(assistant,ref,'start');wait_for(lambda:operation(assistant,ref,key))
         wait_for(lambda:status(assistant,ref)['data']['availablePeriods']==1)
         key,_=invoke(assistant,ref,'fetch',period=1);wait_for(lambda:operation(assistant,ref,key))
-        value=LocalClient(assistant.config.home).call('assistant.delegation.accept',{'contractRef':ref,'period':1})
+        key=uid();value=LocalClient(assistant.config.home).call('assistant.delegation.accept',{'contractRef':ref,'period':1},operation_id=key)
+        assert value['status']=='accepted',value
+        wait_for(lambda:operation(assistant,ref,key))
+        value=operation(assistant,ref,key)
         assert value['status']=='rejected' and value['data']['report']['status']=='fail',value
         assert not status(assistant,ref)['data']['card']['signatures']['7']
         assert not platform.db.rows('SELECT * FROM payment_records WHERE ref=?',ref)
@@ -256,7 +270,7 @@ def test_real_original_jiuwen_produces_native_file_and_completes_original_contra
         LocalClient(assistant.config.home).call('assistant.delegation.answer_step',{'contractRef':ref,'stepRequestDigest':objects.object_digest(sr)},operation_id=key)
         wait_for(lambda:drive(lambda:status(assistant,ref)['data']['availablePeriods']==1),timeout=180)
         key,_=invoke(assistant,ref,'fetch',period=1);wait_for(lambda:operation(assistant,ref,key))
-        key,pending=invoke(assistant,ref,'accept',period=1)
+        key,pending=accept_preview(assistant,ref)
         preview=assistant.confirmations.get(pending['data']['confirmationRef'],detail=True)['binding']['preview']
         assert preview['report']['status']=='pass' and preview['amount']==8
         user_decision(assistant,pending['data']['confirmationRef'])

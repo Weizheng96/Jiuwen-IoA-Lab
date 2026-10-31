@@ -1,0 +1,43 @@
+{
+  "scope": "Real original Jiuwen JSON observations consumed by actual L2 WASM; not full business, native web or video",
+  "model": "qwen-flash#0",
+  "verdict": "pass",
+  "observation": {
+    "files": {
+      "result.json": "sha256:2e531769f6782565083d569cf4dab535dc18770319ba511378442eef2ae2306d"
+    },
+    "interactionId": "real",
+    "jobId": "41fabbd2-f415-54d0-88cb-443b39ae0e41",
+    "observation": {
+      "expected": true
+    },
+    "requestDigest": "sha256:8fdc79e2986e9c6fe97f6d113a3a2d8d37b1f3e18872c6e9cb53e91c17524abb",
+    "sessionId": "process_cli_1a18fc62fe1_808d43eda964",
+    "state": "completed",
+    "usage": {
+      "cache_hit_rate": "0.0%",
+      "cache_tokens": 0,
+      "input_tokens": 11908,
+      "model_calls": 2,
+      "output_tokens": 101,
+      "total_tokens": 12009
+    }
+  },
+  "verifierSourceDigest": "sha256:7040edcca1a24f8c8b750c74f6e7b5039ae9f76c1f7045f19528b57e09981b5b",
+  "sources": {
+    "src/access/sdk/ioalab_sdk/runtime/observations.py": "sha256:8b97beb3acba027ff3fa80ca541fbca2e9613e4bbd02ea14a222e4126648f398",
+    "src/access/sdk/ioalab_sdk/runtime/scheduling.py": "sha256:7219f84484b577bf4f0381d6c9662027804ab30e876abcc76994caee43f777c3",
+    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "sha256:664e690bcbc0afe09aa3e07118de6f033b31267bf258ae116851a09cf3e568bd"
+  },
+  "verification": {
+    "test": "tests/test_verifier_observations.py::test_real_original_jiuwen_observation_is_judged_by_actual_l2_wasm",
+    "exitCode": 0,
+    "result": "1 passed, 9 deselected",
+    "warnings": "One existing Windows pytest temporary-cleanup permission warning"
+  },
+  "limits": [
+    "Isolated original Jiuwen model observations, not a complete real business execution",
+    "No native web menu, user approval, calendar acceptance or new film proof",
+    "Deterministic HTTP/WS lifecycle tests separately cover L2 preview, approval, rejection, expiry and original AP2 payment"
+  ]
+}

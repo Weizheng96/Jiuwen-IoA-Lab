@@ -19,6 +19,7 @@ from ..adapters import ProtocolStore,SessionTransport
 from ..adapters.transport import stable
 from ..runtime.protocol import RuntimeFault
 from ..runtime.scheduling import JobOutcome
+from ..runtime.observations import model_port
 
 
 class Trading:
@@ -43,7 +44,8 @@ class Trading:
             if self.runtime.closing.wait(seconds):raise RuntimeFault('unknown_result','Runtime closed while waiting for the original protocol result','resume_original')
         return Client(self.identity.signer,keys=Directory(fetch=transport.jwks),transport=transport,fetch=self.runtime.account.fetch_package,
             store=store,payment_provider={'id':pay,'jwksUri':pay+'/.well-known/jwks.json'},payment=payment,user=self.identity.user,
-            markets=(self.runtime.account.config['market'],),sleep=pause)
+            markets=(self.runtime.account.config['market'],),sleep=pause,
+            model=model_port(self.runtime,self.role.host,self.identity,transport.relation['id']) if isinstance(transport,SessionTransport) else None)
 
     def inspect(self,service,template_digest=None):
         values=self.public.send(self.protocol_id(service),'template.get',{'templateDigest':template_digest} if template_digest else {}).body['templates']

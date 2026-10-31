@@ -10,6 +10,22 @@ from ioalab.seed.domains import load_domains
 ROOT=Path(__file__).resolve().parents[1]
 
 
+def test_manifest_source_digests_survive_checkout_newlines_but_detect_content_changes(tmp_path,monkeypatch):
+    from tools import build_seed
+    source=tmp_path/'domains';source.mkdir()
+    monkeypatch.setattr(build_seed,'ROOT',tmp_path)
+    monkeypatch.setattr(build_seed,'SOURCE',source)
+    domain={'account':'ISP_001','label':'领域','category':{'id':'sample'},'services':[]}
+    raw=(json.dumps(domain,ensure_ascii=False,indent=2)+'\n').encode('utf-8')
+    path=source/'domain.json';path.write_bytes(raw)
+    expected=build_seed.document()
+    path.write_bytes(raw.replace(b'\n',b'\r\n'))
+    assert build_seed.document()==expected
+    domain['label']='修改后的领域'
+    path.write_bytes(json.dumps(domain,ensure_ascii=False,indent=2).encode('utf-8'))
+    assert build_seed.document()['source']!=expected['source']
+
+
 def test_configuration_reports_missing_initialization_input(tmp_path):
     from ioalab.config import Settings
     settings=Settings(data=tmp_path,autoseed=True,seed_file=None,stub=True)
