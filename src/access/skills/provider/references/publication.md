@@ -7,8 +7,8 @@
 | 接单意图 | 用户要求先不接单时，先调用provider.pause：profile | 核policyReceipt和currentPolicy.accepting=false；可在公示前暂停，不只在聊天中答应 |
 | 起草模板 | provider.template.draft：profile、terms | terms使用本页引用的原A2C业务字段；保存真实data.template，不猜版本、有效期或支付地址 |
 | 查看身份 | identity.status | 使用已配置 service profile；默认不预选分类，省略categoryId交由注册中心自动匹配 |
-| 发布验收器 | provider.verifier.publish：profile、verifierId、source，可选 reads、kind | source 是明确内容检查，不能恒真；平台打包并返回实际 id/uri/digest，不在宿主执行源码 |
-| 准备公示 | service对象：profile、name、description、tags、templates，可选categoryId | templates 是原 A2C 未签模板草稿，不自行填 provider、templateDigest、signatures；默认提案或待批准，金额为定数，验收器引用实际已发布包 |
+| 预置验收器（需要时） | provider.verifier.publish：profile、verifierId、source，可选 reads、kind | source 是明确内容检查，不能恒真；平台打包并返回实际 id/uri/digest，不在宿主执行源码 |
+| 准备公示 | service对象：profile、name、description、tags、templates，可选categoryId | templates 是原 A2C 未签模板草稿，不自行填 provider、templateDigest、signatures；默认提案或待批准，金额为定数；待批准模板使用真实验收引用，提案可在本单quote准备后给出判据 |
 | 预览 | provider.preview：service | 省略分类时先取得accepted和job引用，沿原operationId查询provider.preview直到完成，不重建操作。保存完成后返回的完整service、category、内容摘要和expectedRevision。category.status为choose_category时先请用户选择实际分类，再创建新的预览操作；没有可发布摘要时不进入publish。依错误修正草稿，不能删验收条款掩盖问题 |
 | 申请确认 | provider.publish：预览返回的完整service、contentDigest、expectedRevision，写入独立参数文件 | 先执行这一次调用；返回waiting及confirmationRef时尚未签名或公示，不能等聊天同意后才申请 |
 | 用户决定与恢复 | waiting后用{}调用runtime.open_ui；实际批准后重发上一步同一参数文件 | 页面应显示当前服务与实际分类。opened不代表批准；不要在聊天中要求“确认发布”替代页面操作。恢复原请求，不改operationId、内容或价格，核发布回执与当前修订；拒绝/过期停止 |
@@ -31,6 +31,6 @@ publication_args = {key: preview_result["data"][key]
                     for key in ("service", "contentDigest", "expectedRevision")}
 ```
 
-需要后续复用的起草回执可将脚本stdout保存为结果JSON，按字段提取原件，不重新拼写。待批准acceptance在原模板中，提案acceptance由实际本单quote给出；本地业务资源属于外置配置provider.services.<profile>.resources，不属于公开service。
+需要后续复用的起草回执可将脚本stdout保存为结果JSON，按字段提取原件，不重新拼写。待批准acceptance在原模板中；提案acceptance由实际本单quote给出，后台可复用预置引用或先用本单准备回调取得真实引用；本地业务资源属于外置配置provider.services.<profile>.resources，不属于公开service。
 
 接单配置存于本机共享配置文件。需要改变当前配置时安全停止/重启，并核平台及本机实际状态；不要调用没有配置的操作并宣称成功。已承接合同继续使用原冻结模板、权限与会话。

@@ -11,6 +11,7 @@ from a2c.template import validate,template_digest
 from a2c.errors import A2CError
 
 from ..runtime.protocol import RuntimeFault
+from .verifiers import VerifierPublisher,platform_fault
 from ..runtime.scheduling import JobHandler,JobOutcome
 
 
@@ -25,6 +26,7 @@ class ProviderRole:
 
     def bind(self, runtime):
         self.runtime = runtime
+        self.verifiers=VerifierPublisher(runtime)
         self.identities = {p.profile: p for p in runtime.identities if p.role == 'service'}
         if not self.identities:
             return {}
@@ -60,18 +62,8 @@ class ProviderRole:
             try:
                 if name=='verifier.publish':
                     self.fields(args,('profile','verifierId','source'),('reads','kind'))
-                    identity=self._identity(args['profile']);namespace='provider:'+identity.agent_id;key='verifier:'+operation
-                    record=runtime.store.checkpoint(namespace,key);fingerprint=digest(args)
-                    if record and record['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original verifier upload changed')
-                    if not record:
-                        record={'fingerprint':fingerprint,'body':{k:v for k,v in args.items() if k!='profile'}}
-                        runtime.store.checkpoint_set(namespace,key,record)
-                    if 'result' not in record:
-                        result=runtime.account.api('POST','/provider/packages',record['body'])
-                        if result.get('id')!=args['verifierId'] or result.get('uri')!='ioalab://pkg/'+result.get('digest',''):raise RuntimeFault('protocol_error','Verifier upload returned a different reference')
-                        runtime.account.fetch_package(result['uri'])
-                        record={**record,'result':result};runtime.store.checkpoint_set(namespace,key,record)
-                    return {'status':'completed','data':record['result']}
+                    identity=self._identity(args['profile'])
+                    return {'status':'completed','data':self.verifiers.publish(identity,operation,{k:v for k,v in args.items() if k!='profile'})}
                 if name == 'template.draft':
                     self.fields(args,('profile','terms'))
                     return self.prepare_template(operation,args)
@@ -95,19 +87,8 @@ class ProviderRole:
                     return self.prepare_preview(operation,args['service'])
                 self.fields(args, ('service', 'contentDigest', 'expectedRevision'), ('confirmationRef',))
                 return self.publish(operation, args)
-            except A2CError as exc:
-                raise RuntimeFault('invalid_input',exc.message,'correct_input') from None
-            except httpx.HTTPStatusError as exc:
-                try:problem = exc.response.json().get('error', {})
-                except (ValueError, AttributeError):problem = {}
-                if exc.response.status_code >= 500:
-                    raise RuntimeFault('unknown_result', 'Recover the original publication', 'resume_original') from None
-                if (not isinstance(problem,dict) or not {'code','message','recovery'}<=set(problem)
-                        or not all(isinstance(problem[key],str) and problem[key] for key in ('code','message','recovery'))):
-                    raise RuntimeFault('protocol_error','Platform returned an invalid error envelope','inspect_platform') from None
-                raise RuntimeFault(problem['code'],problem['message'],problem['recovery']) from None
-            except httpx.TransportError:
-                raise RuntimeFault('unknown_result', 'Recover the original publication', 'resume_original') from None
+            except (A2CError,httpx.HTTPError) as exc:
+                raise platform_fault(exc) from None
         return execute
 
     def configuration(self, config, *, require_category=True):

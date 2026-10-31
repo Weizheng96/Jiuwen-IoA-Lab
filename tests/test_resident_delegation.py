@@ -48,7 +48,7 @@ class QuoteHost:
 
 
 @contextmanager
-def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None):
+def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None,preload_verifier=True):
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
@@ -59,9 +59,13 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
     try:
         wait_for(lambda:provider.connection.connected and assistant.connection.connected)
         source=verifier_source or "def verify(ctx):\n    return {'status': 'pass'}\n"
-        uploaded=LocalClient(provider.config.home).call('provider.verifier.publish',{'profile':'service','verifierId':'resident_result@1.0','source':source,'kind':verifier_kind})
-        assert uploaded['status']=='completed',uploaded
-        host.verifier=uploaded['data']
+        if preload_verifier:
+            uploaded=LocalClient(provider.config.home).call('provider.verifier.publish',{'profile':'service','verifierId':'resident_result@1.0','source':source,'kind':verifier_kind})
+            assert uploaded['status']=='completed',uploaded
+            host.verifier=uploaded['data']
+        else:
+            assert formation=='proposal' and verifier_kind=='script'
+            host.verifier=None
         host.verifier_kind=verifier_kind
         if verifier_kind=='skill':host.verifier={**host.verifier,'disputeModels':['test-observation-model']}
         resources={'outputVerifier':host.verifier,'quoteAmount':9,'acceptWithin':'PT10M'}

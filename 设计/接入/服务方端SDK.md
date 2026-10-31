@@ -31,7 +31,7 @@
 | 验收源码 | 只用于打包，不在宿主导入或执行 |
 
 
-常驻配置的 provider.services 以本地 profile 为键；每项声明 instructions、skills、max_active_delegations 和 accepting，可选 resources 保存本服务已发布的验收器引用等业务数据。仅装配已配置身份与宿主；未配置专业处理规则时只提供公示，不接取业务。skills 为本机已安装的业务技能引用，不从来信加载；resources 不授予额外工具权限。模型通过本单 quote 或 decision 工具输出结构化业务决定，SDK 保存决定后复用原 A2C 拟卡/复签；价格、验收条目、服务选择不由通用模块填充。
+常驻配置的 provider.services 以本地 profile 为键；每项声明 instructions、skills、max_active_delegations 和 accepting，可选 resources 保存本服务已发布的验收器引用等业务数据。仅装配已配置身份与宿主；未配置专业处理规则时只提供公示，不接取业务。skills 为本机已安装的业务技能引用，不从来信加载；resources 不授予额外工具权限。验收器可以预先配置复用，也可在本单quote阶段按业务判据生成，再经provider.task.verifier.publish打包取得真实引用；不要求用户手工搬运每单资源。模型通过本单 quote 或 decision 工具输出结构化业务决定，SDK 保存决定后复用原 A2C 拟卡/复签；价格、验收条目、服务选择不由通用模块填充。
 
 可选 native_tools 保存本机所有者预配的原生生产工具及精确权限，例如 {"write_file":"allow"}；省略表示不启用。SDK 核对原版公开能力及明确拒绝策略；未核实工具单独报告，不把权限表缺项当作不存在或已验证。实际缺工具、配置或调用失败不得伪报完成。工具、权限、业务技能及说明一起冻结于原交互；当前服务配置改变不扩大既有合同能力。固定 Agent 自拟卡首轮包含这些工具名，拟卡/复签时全部 deny，只有原合同生产轮次按冻结权限启用，同一 Session 的定义不变。
 
@@ -77,6 +77,7 @@ provider.status额外返回当前WS核实的admissionPolicy；executionReady只�
 | 任务能力 | 输入 | 输出及限制 |
 |---|---|---|
 | `provider.task.inspect` | 运行时授予的本单 taskRef | 本单模式、原合同/提案、材料、阶段与可用能力；不返回其他任务或凭据 |
+| `provider.task.verifier.publish` | 本单verifierId、UTF-8源码source，可选reads与kind（script/skill）；源码至多64 KiB | 仅提案quote阶段可用；与管理上传共用打包、包摘要核验及原操作恢复，返回真实id/uri/digest；不执行源码、不签约、不修改公示或配置 |
 | `provider.task.quote` | 符合本单模板的确定报价、验收条目与验收时长，或单独拒绝原因 | 返回业务决定已记录；SDK 后续复用原 A2C 拟卡/签认，实际结果从原任务读取；不能绕过期限或容量提交 |
 | `provider.task.decision` | 本单待批准 taskRef、批准或拒绝及原因 | 仅处理真实 card.countersign 请求；批准前复核委托方签1、卡摘要、期限及接单资格，原子提交预留后复用 A2C 复签形成签2；拒绝返回原协议原因，不签约 |
 | `provider.task.request_step` | 已开工合同、模板声明的环节名 | 复用 A2C Provider.request_step，产生签名 stepRequest 并经原任务推送；保存等待状态，收到对应有效授权前不执行受保护动作 |
@@ -88,6 +89,8 @@ provider.status额外返回当前WS核实的admissionPolicy；executionReady只�
 宿主任务工具的本单上下文由 SDK 固定；模型不传入或更换 taskRef、UUID、签名身份及 Session。quote 的 acceptance、acceptWithin、lineItems 均以实际模板交付件名为键，拒绝报价时只提交 reason，不把说明文本混入成功报价的拒绝分支。
 
 SDK 每轮明确给出当前协议阶段、所需动作和输入 Schema；业务技能说明不改变当前阶段。调用其他阶段工具时返回准确的本单拒绝原因和允许动作，由同一轮次纠正；不能把审查已确认合同变成重新报价，也不把错误提示的改进当作新增授权。
+
+本单验收器回调由SDK绑定当前身份、作业和交互，模型不传profile、UUID或会话；同一本单同内容复用原上传记录，不因宿主调用ID改变而重复准备；每个quote作业至多准备32份包。原输入、待核上传和已取得引用由SDK保存，显式恢复先核原上传，再把已准备引用带回原Session。收到真实引用后才能填入quote；上传未知时保留原输入并结束本轮，核对后恢复，不能编造引用继续。报价决定已记录、待批准审查或生产阶段均不得再创建本单验收器；已签验收标准不能被此入口改变。
 
 quote 工具明确区分三类验收器引用，不要求每项交付同时包含三类。保存业务决定前复用 A2C 校验卡结构、包摘要与清单种类；错误返回本单准确校验原因，由原模型轮次修正，不自动删改业务条款，不因此重收费或另起委托。
 
