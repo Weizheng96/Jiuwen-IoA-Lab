@@ -2,6 +2,20 @@
 
 本包按项目[架构](../../设计/架构.md)与通用 SDK 分开安装，开发环境执行 `python -m pip install -e ./src/official`。平台核心和 SDK 不反向导入它；两个产品技能的共享环境包含本包，独立SDK用户仍按需安装。安装本包不会自动启用日程或邮箱。产物依据见 VERSION。
 
+## 官方服务资源
+
+`services/ioalab_services/` 与 `tools/ioalab_tools/` 属于同一个发行包。领域JSON与验收源码位于前者的 `assets/`，通过包资源读取；源码仓库、已安装wheel或zipimport均不依赖当前工作目录。
+
+| 入口 | 结果与边界 |
+|---|---|
+| `ioalab_services.catalog.load_domains()` / `definitions()` | 8领域50服务；默认待批准/提案；验收器只读取为源码，不在宿主执行 |
+| `ioalab_services.catalog.seed_manifest()` | 公共目录摘要及来源校验值；不含样件、生成提示和验收源码，核心只消费部署方显式传入的清单 |
+| `ioalab_services.prepare(service_id, profile=..., verifier_ref=..., payment_provider=...)` | 返回 `service`（未签公示/模板）和 `execution`（该profile的业务配置）；不登录、不发布、不调用模型 |
+
+先通过常驻SDK的 `provider.verifier.publish` 上传定义中实际验收器，取得完整引用后调用prepare。将execution保存到本机配置的 `provider.services[profile]`，按正常流程重新启动；service经 `provider.preview`、真实用户确认及 `provider.publish` 发布。通用SDK负责身份、签名、容量、长连接和履约，不为官方目录增加一套执行器。生产模型只取得格式、定价、验收引用和业务说明，不取得sample样件。
+
+资源独立安装与一项服务的接单验收不代表全部默认服务已自动上线；批量启用、续期及旧运行器替换见[开发计划](../../docs/开发计划.md)。源变更后用 `python tools/build_seed.py` 重新生成显式初始化清单。
+
 ## 本地会议工具
 
 九问装配入口读取 `host.business_tools`，只加载明确选中的已安装工厂。将[日程配置片段](../hosts/jiuwen/examples/calendar-tools.json)合入自己的本机运行配置，`profile` 对应已配置的个人助手身份；相对路径以本机运行配置文件所在目录为基准。示例的 smtp-capture 只用于回环收件测试。

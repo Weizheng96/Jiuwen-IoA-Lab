@@ -1,5 +1,5 @@
 """Official content remains validated; core seeds are idle accounts and deterministic categories."""
-from catalog import definitions,load_domains,common_source
+from ioalab_services.catalog import definitions,load_domains,common_source
 
 class _Ctx:
     def file(self,name): return b'{}'
@@ -20,7 +20,7 @@ def test_domain_files_shape():
     assert len(domains)==8 and all(5<=len(d['services'])<=10 for d in domains)
     items=definitions()
     assert len(items)==50 and len({d['id'] for d in items})==50
-    assert {'preapproval','countersign','proposal'}=={d.get('formation','preapproval') for d in items}
+    assert {'countersign','proposal'}=={d.get('formation','preapproval') for d in items}
     assert all(d['sample'] and d['verifier']['source'] for d in items)
 
 def test_seed_all_idempotent_and_taxonomy(platform):

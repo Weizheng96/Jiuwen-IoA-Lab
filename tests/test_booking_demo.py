@@ -3,7 +3,7 @@ import importlib.util
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import pytest
-from catalog import definitions
+from ioalab_services.catalog import definitions
 
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('booking_app',ROOT/'examples/booking_app.py')

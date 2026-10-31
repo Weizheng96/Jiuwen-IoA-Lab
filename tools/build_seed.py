@@ -1,31 +1,17 @@
 """Build the public initialization manifest from owned official definitions."""
 import argparse
-import hashlib
 import json
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'official-services/domains'
+sys.path.insert(0, str(ROOT / 'src/official/services'))
+from ioalab_services.catalog import seed_manifest
 OUTPUT = ROOT / 'deploy/default-seed.json'
 
 
 def document():
-    domains, sources = [], {}
-    for path in sorted(SOURCE.glob('*.json')):
-        # Owned JSON sources use Git's canonical LF bytes across checkouts.
-        # Vendored archives/wheels keep their separate exact-byte checks.
-        raw = path.read_bytes().replace(b'\r\n', b'\n')
-        domain = json.loads(raw)
-        summaries = []
-        for service in domain['services']:
-            summary = {key: service[key] for key in ('id','name','description','formation','runnable','pricing') if key in service}
-            summary['category'] = domain['category']['id']
-            summaries.append(summary)
-        domains.append({key: domain[key] for key in ('account','label','category')} | {'services': summaries})
-        sources[path.relative_to(ROOT).as_posix()] = hashlib.sha256(raw).hexdigest()
-    if not domains:
-        raise ValueError('No official domain sources')
-    return {'source': sources, 'domains': domains}
+    return seed_manifest()
 
 
 def main():

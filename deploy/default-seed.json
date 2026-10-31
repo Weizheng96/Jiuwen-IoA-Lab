@@ -1,13 +1,13 @@
 {
   "source": {
-    "official-services/domains/01-health.json": "3d93d3ca1d41637b35cc04c786336d2c808ab08b10f56416c277e8acca094b7b",
-    "official-services/domains/02-legal.json": "bbbf423777f2c7752b04207f71aec45fb81ae741dd00ef014dd1ac5e7f9002d8",
-    "official-services/domains/03-education.json": "e0c665c08fa43d79c9f166e16a67bbe1c17d48493607f06b66c89b69017717e8",
-    "official-services/domains/04-writing.json": "5da49aa9d95c6900ac8b77b246b4b123c3ecceac0f11df10dc63bfe2fa8a6481",
-    "official-services/domains/05-translate.json": "4a6931ced9d3b73f0b4f54a366653ed4873e474770777a369efbf12e0ee5f179",
-    "official-services/domains/06-travel.json": "c0c3ab2343aa4d757460f8d40d3a2bf6261eddfd7aa3a601c17c0d443fb1adb3",
-    "official-services/domains/07-office.json": "3fc634ebaff6aece78504a1642ad412782a44c4155bca100f857bee09549f4dd",
-    "official-services/domains/08-dev.json": "f10e7564f092d639e0c3bc2f47ba2907d6d40a9deca5134f722cf3f2604f86b4"
+    "src/official/services/ioalab_services/assets/domains/01-health.json": "a5bcfc22358dd622f97b28dddd9d935e507e429585c20477b1c0b22fd2efb571",
+    "src/official/services/ioalab_services/assets/domains/02-legal.json": "fd19f1d61febc96dfec4a3986596ad46aa959f25e57d0861d30e23de5c4a495e",
+    "src/official/services/ioalab_services/assets/domains/03-education.json": "99f022ef7c2d173f332dbd73c82f4a139fd86716076816a50f36ba82ffae3389",
+    "src/official/services/ioalab_services/assets/domains/04-writing.json": "392310fec59ba0d11a5c9abea01a706de35414959a9ee3327caf8c3610d7d5b3",
+    "src/official/services/ioalab_services/assets/domains/05-translate.json": "1003a8024dafc9864a3776c215614cb6081e26c042f42842a44b1c3f0f4b42d1",
+    "src/official/services/ioalab_services/assets/domains/06-travel.json": "7fa608c1bcc0612fc5a1a9c73164aaeb5ef99f4df73e3cf057ceeaf9e6394540",
+    "src/official/services/ioalab_services/assets/domains/07-office.json": "537786e1e4a6b3dcb844002843eecfe79524449cb39b26a8130458e0f798ee43",
+    "src/official/services/ioalab_services/assets/domains/08-dev.json": "d8ef0ecef4aef9e0dc9f413f85b18ff015dad496644bef5625106ce50b85dc05"
   },
   "domains": [
     {
@@ -23,8 +23,8 @@
         {
           "id": "med-reminder",
           "name": "用药提醒表工坊",
-          "description": "按药名与服药频次排一周用药提醒表：7 天、每天列每种药的服用时间与注意事项；预批准型，6 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按药名与服药频次排一周用药提醒表：7 天、每天列每种药的服用时间与注意事项；待批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "6"
@@ -34,8 +34,8 @@
         {
           "id": "checkup-brief",
           "name": "体检报告解读提纲社",
-          "description": "按体检指标名列一份解读提纲：每项指标的含义、常见影响因素与下一步建议，外加一段总体提示；预批准型，8 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按体检指标名列一份解读提纲：每项指标的含义、常见影响因素与下一步建议，外加一段总体提示；待批准型，8 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "8"
@@ -45,8 +45,8 @@
         {
           "id": "fitness-week",
           "name": "健身周计划站",
-          "description": "按目标与基础排一周训练计划：7 天、每天一个训练重点与 ≥ 3 个动作（组数 × 次数）；预批准型，7 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按目标与基础排一周训练计划：7 天、每天一个训练重点与 ≥ 3 个动作（组数 × 次数）；待批准型，7 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "7"
@@ -56,8 +56,8 @@
         {
           "id": "diet-week",
           "name": "一周减脂食谱屋",
-          "description": "按每日热量目标与忌口排一周三餐：7 天 × 3 餐，每餐菜名与估算热量，忌口食材不出现；预批准型，9 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按每日热量目标与忌口排一周三餐：7 天 × 3 餐，每餐菜名与估算热量，忌口食材不出现；待批准型，9 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "9"
@@ -105,8 +105,8 @@
         {
           "id": "contract-risks",
           "name": "合同风险清单所",
-          "description": "按合同类型与关注点列风险清单：≥ 5 条，每条写涉及条款、风险与修改建议；预批准型，10 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按合同类型与关注点列风险清单：≥ 5 条，每条写涉及条款、风险与修改建议；待批准型，10 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "10"
@@ -116,8 +116,8 @@
         {
           "id": "labor-qa",
           "name": "劳动纠纷问答亭",
-          "description": "劳动合同、加班、离职补偿类问题书面解答：答案 + 法条依据 + 建议步骤；预批准型，6 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "劳动合同、加班、离职补偿类问题书面解答：答案 + 法条依据 + 建议步骤；待批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "6"
@@ -127,8 +127,8 @@
         {
           "id": "rent-dispute",
           "name": "租房维权指南社",
-          "description": "押金、提前退租、房东违约类纠纷：出维权步骤、沟通话术与证据清单；预批准型，8 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "押金、提前退租、房东违约类纠纷：出维权步骤、沟通话术与证据清单；待批准型，8 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "8"
@@ -138,8 +138,8 @@
         {
           "id": "complaint-outline",
           "name": "起诉状提纲工坊",
-          "description": "按纠纷事实写民事起诉状提纲：原告、被告、诉讼请求、事实与理由、证据清单各一节；预批准型，12 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按纠纷事实写民事起诉状提纲：原告、被告、诉讼请求、事实与理由、证据清单各一节；待批准型，12 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "12"
@@ -187,8 +187,8 @@
         {
           "id": "mistake-explain",
           "name": "错题讲解铺",
-          "description": "讲一道错题：分步解析 ≥ 3 步、最终答案、易错点；预批准型，5 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "讲一道错题：分步解析 ≥ 3 步、最终答案、易错点；待批准型，5 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "5"
@@ -198,8 +198,8 @@
         {
           "id": "study-plan",
           "name": "学习计划台",
-          "description": "按目标排四周学习计划：每周 ≥ 3 项任务；预批准型，6 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按目标排四周学习计划：每周 ≥ 3 项任务；待批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "6"
@@ -209,8 +209,8 @@
         {
           "id": "essay-review",
           "name": "作文批改坊",
-          "description": "批改一篇中文作文：百分制评分、≥ 3 条评语、修改后的范文；预批准型，9 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "批改一篇中文作文：百分制评分、≥ 3 条评语、修改后的范文；待批准型，9 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "9"
@@ -220,8 +220,8 @@
         {
           "id": "flashcards",
           "name": "单词卡工坊",
-          "description": "按给定单词做记忆卡：每词释义与例句；预批准型，5 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按给定单词做记忆卡：每词释义与例句；待批准型，5 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "5"
@@ -269,8 +269,8 @@
         {
           "id": "wechat-posts",
           "name": "朋友圈文案工坊",
-          "description": "为小店写朋友圈文案：三条短文案，每条不超过 60 字，必须出现店名；预批准型，6 虚拟币，当天交付。",
-          "formation": "preapproval",
+          "description": "为小店写朋友圈文案：三条短文案，每条不超过 60 字，必须出现店名；待批准型，6 虚拟币，当天交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "6"
@@ -280,8 +280,8 @@
         {
           "id": "product-page",
           "name": "产品详情页文案厂",
-          "description": "按产品与卖点写详情页：标题 ≤ 30 字 + ≥ 3 个小节，卖点全部出现；预批准型，9 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按产品与卖点写详情页：标题 ≤ 30 字 + ≥ 3 个小节，卖点全部出现；待批准型，9 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "9"
@@ -291,8 +291,8 @@
         {
           "id": "headlines",
           "name": "公众号标题车间",
-          "description": "给一篇文章出 10 个备选标题，每个 ≤ 30 字且互不重复；预批准型，4 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "给一篇文章出 10 个备选标题，每个 ≤ 30 字且互不重复；待批准型，4 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "4"
@@ -302,8 +302,8 @@
         {
           "id": "video-script",
           "name": "短视频脚本坊",
-          "description": "按主题写 60 秒口播短视频脚本：≥ 5 个镜头，每镜头时间、画面、口播；预批准型，10 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按主题写 60 秒口播短视频脚本：≥ 5 个镜头，每镜头时间、画面、口播；待批准型，10 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "10"
@@ -351,8 +351,8 @@
         {
           "id": "translate-zh-en",
           "name": "中英翻译快译所",
-          "description": "把中文材料译成英文：按原文字数计价，每字 0.02 虚拟币（500 字约 10 虚拟币），可指定术语表；预批准型，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "把中文材料译成英文：按原文字数计价，每字 0.02 虚拟币（500 字约 10 虚拟币），可指定术语表；待批准型，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "0.02 * inputs.source.chars"
@@ -362,8 +362,8 @@
         {
           "id": "translate-en-zh",
           "name": "英译中快译社",
-          "description": "把一段英文译成自然的中文（≤ 1500 字符），中文占比 ≥ 60%；预批准型，7 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "把一段英文译成自然的中文（≤ 1500 字符），中文占比 ≥ 60%；待批准型，7 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "7"
@@ -373,8 +373,8 @@
         {
           "id": "glossary",
           "name": "术语表编纂处",
-          "description": "按领域编一份 20 条中英术语表，中文术语互不重复；预批准型，8 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按领域编一份 20 条中英术语表，中文术语互不重复；待批准型，8 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "8"
@@ -384,8 +384,8 @@
         {
           "id": "subtitle-translate",
           "name": "字幕翻译铺",
-          "description": "把 | 分隔的英文字幕行逐句译成中文，条数与原文一致；预批准型，9 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "把 | 分隔的英文字幕行逐句译成中文，条数与原文一致；待批准型，9 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "9"
@@ -448,8 +448,8 @@
         {
           "id": "day-tour",
           "name": "一日漫游手册社",
-          "description": "按城市与主题排一日路线：4–8 个停留点，各带时间与提示；预批准型，6 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按城市与主题排一日路线：4–8 个停留点，各带时间与提示；待批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "6"
@@ -459,8 +459,8 @@
         {
           "id": "packing-list",
           "name": "打包清单台",
-          "description": "按目的地、天数与季节列打包清单：≥ 4 类、每类 ≥ 3 件；预批准型，4 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按目的地、天数与季节列打包清单：≥ 4 类、每类 ≥ 3 件；待批准型，4 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "4"
@@ -470,8 +470,8 @@
         {
           "id": "food-map",
           "name": "美食地图工坊",
-          "description": "按城市列 8 家特色店：招牌菜、区域、人均价；预批准型，7 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按城市列 8 家特色店：招牌菜、区域、人均价；待批准型，7 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "7"
@@ -481,8 +481,8 @@
         {
           "id": "trip-budget",
           "name": "旅行预算核算处",
-          "description": "按天数、人数与总预算做分项预算表，合计不超预算；预批准型，5 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按天数、人数与总预算做分项预算表，合计不超预算；待批准型，5 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "5"
@@ -515,8 +515,8 @@
         {
           "id": "weekly-report",
           "name": "周报速成铺",
-          "description": "按你给的事项关键词生成一份工作周报：本周进展、下周计划、风险三节，每个事项都要写到；预批准型，5 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按你给的事项关键词生成一份工作周报：本周进展、下周计划、风险三节，每个事项都要写到；待批准型，5 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "5"
@@ -526,8 +526,8 @@
         {
           "id": "ppt-outline",
           "name": "PPT 大纲工坊",
-          "description": "按主题写 PPT 大纲：至少 8 页，每页标题加 2 条以上要点，可授权以你的名义上传到团队网盘；预批准型，12 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按主题写 PPT 大纲：至少 8 页，每页标题加 2 条以上要点，可授权以你的名义上传到团队网盘；待批准型，12 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "12"
@@ -537,8 +537,8 @@
         {
           "id": "meeting-minutes",
           "name": "会议纪要整理站",
-          "description": "把会议笔记整理成纪要：决议、行动项（负责人与期限）、摘要；预批准型，6 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "把会议笔记整理成纪要：决议、行动项（负责人与期限）、摘要；待批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "6"
@@ -548,8 +548,8 @@
         {
           "id": "biz-email",
           "name": "商务邮件代笔处",
-          "description": "按目的与收件人写一封商务邮件：主题 ≤ 40 字，正文 80–600 字；预批准型，4 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按目的与收件人写一封商务邮件：主题 ≤ 40 字，正文 80–600 字；待批准型，4 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "4"
@@ -608,8 +608,8 @@
         {
           "id": "sql-query",
           "name": "SQL 查询铺",
-          "description": "按表结构与问题写一条 SQL 查询并解释；预批准型，6 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按表结构与问题写一条 SQL 查询并解释；待批准型，6 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "6"
@@ -619,8 +619,8 @@
         {
           "id": "unit-tests",
           "name": "单元测试用例坊",
-          "description": "按函数说明设计 ≥ 5 条测试用例：名称、输入、期望输出；预批准型，8 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按函数说明设计 ≥ 5 条测试用例：名称、输入、期望输出；待批准型，8 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "8"
@@ -630,8 +630,8 @@
         {
           "id": "readme-draft",
           "name": "README 起草间",
-          "description": "按项目说明与特性写 README：≥ 4 节，含安装与使用，特性全部出现；预批准型，7 虚拟币，30 分钟内交付。",
-          "formation": "preapproval",
+          "description": "按项目说明与特性写 README：≥ 4 节，含安装与使用，特性全部出现；待批准型，7 虚拟币，30 分钟内交付。",
+          "formation": "countersign",
           "runnable": true,
           "pricing": {
             "price": "7"

@@ -17,8 +17,8 @@ def _port():
 
 def run_smoke():
     root=Path(__file__).resolve().parents[1]
-    sys.path[:0]=[str(root/'src/access/sdk'),str(root/'official-services'),str(root/'experiments')]
-    from catalog import definitions
+    sys.path[:0]=[str(root/'src/access/sdk'),str(root/'official-services'),str(root/'src/official/services'),str(root/'experiments')]
+    from ioalab_services.catalog import definitions
     from ioalab_sdk import LabClient
     from traffic import run_order
     ports=[_port(),_port()]
@@ -32,7 +32,7 @@ def run_smoke():
              'IOALAB_BASE_URL':base,'IOALAB_PROVIDER_PORT':str(ports[1]),'IOALAB_PROVIDER_PUBLIC_URL':service,'IOALAB_PROVIDER_DATA':str(temp/'providers')}
         logs=[]
         try:
-            commands=[[sys.executable,'-m','ioalab','serve'],[sys.executable,str(root/'official-services/serve.py'),'--only','med-reminder,triage-advice,rehab-plan']]
+            commands=[[sys.executable,'-m','ioalab','serve'],[sys.executable,str(root/'official-services/serve.py'),'--only','med-reminder,rehab-plan']]
             for i,command in enumerate(commands):
                 log=(temp/f'process-{i}.log').open('w',encoding='utf-8');logs.append(log)
                 proc=subprocess.Popen(command,cwd=root,env=env,stdout=log,stderr=log,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
@@ -51,7 +51,7 @@ def run_smoke():
             client=LabClient(base,'ISC_001','001',temp/'client',source='experiment')
             ds=definitions()
             cards=[]
-            for formation in ('preapproval','countersign','proposal'):
+            for formation in ('countersign','proposal'):
                 d=next(d for d in ds if d.get('formation','preapproval')==formation)
                 result=run_order(client,d,service+'/a2a/providers/svc-'+d['id'])
                 if result['status']!='accepted': raise RuntimeError(str(result))
@@ -61,14 +61,14 @@ def run_smoke():
                 views=[client.api('GET','/orders/'+cd) for cd in cards]
                 if all(v['state']=='completed' for v in views): break
                 time.sleep(.1)
-            else: raise RuntimeError('Provider did not close all three contracts')
+            else: raise RuntimeError('Provider did not close all default-mode contracts')
             assert not client.outbox.all('pending')
             assert all(v['signatures']['7']==[True] for v in views)
             print('  ✓ Signed evidence, payment and market completion observed',flush=True)
             print('✓ Three-process smoke passed',flush=True)
             return 0
         except Exception as exc:
-            print('✗ Smoke failed: '+str(exc),flush=True)
+            print('✗ Smoke failed: '+type(exc).__name__+': '+str(exc),flush=True)
             for log in logs: log.flush()
             for path in temp.glob('process-*.log'):
                 print(path.name+': '+path.read_text(encoding='utf-8',errors='replace')[-3000:])

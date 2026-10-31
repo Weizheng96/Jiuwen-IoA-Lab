@@ -15,12 +15,13 @@ ioalab-schedule = "ioalab_tools.schedule_cli:main"
 [project.entry-points."ioalab.business_tools"]
 calendar = "ioalab_tools.appointments:configure"
 
-[tool.setuptools]
-package-dir = {"" = "tools"}
-
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}
 
 [tool.setuptools.packages.find]
-where = ["tools"]
-include = ["ioalab_tools*"]
+where = ["tools", "services"]
+include = ["ioalab_tools*", "ioalab_services*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+ioalab_services = ["assets/domains/*.json", "assets/verifiers/*.py"]

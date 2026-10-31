@@ -98,6 +98,12 @@ def test_both_real_product_bundles_have_one_manifest_and_generated_entry(tmp_pat
             for wheel in manifest['wheels']:
                 assert hashlib.sha256(archive.read(root+'/assets/wheels/'+wheel['file'])).hexdigest()==wheel['sha256']
     assert manifests[0]==manifests[1]
+    repeated=tmp_path/'repeated'
+    result=subprocess.run([sys.executable,str(ROOT/'tools/build_access_skills.py'),'--out',str(repeated)],cwd=ROOT,capture_output=True,text=True)
+    assert result.returncode==0,result.stdout+result.stderr
+    with zipfile.ZipFile(repeated/'ioalab-assistant-skill.zip') as archive:
+        assert archive.read('ioalab-delegate/assets/runtime.json')==manifests[0]
+
 
 
 def test_new_downloads_only_serve_fixed_product_names(platform,client,tmp_path,monkeypatch):

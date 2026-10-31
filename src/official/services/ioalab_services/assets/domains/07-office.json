@@ -12,14 +12,14 @@
   {
    "id": "weekly-report",
    "name": "周报速成铺",
-   "description": "按你给的事项关键词生成一份工作周报：本周进展、下周计划、风险三节，每个事项都要写到；预批准型，5 虚拟币，30 分钟内交付。",
+   "description": "按你给的事项关键词生成一份工作周报：本周进展、下周计划、风险三节，每个事项都要写到；待批准型，5 虚拟币，30 分钟内交付。",
    "tags": [
     "周报",
     "文案",
     "办公"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "report",
     "title": "周报",
@@ -85,14 +85,14 @@
   {
    "id": "ppt-outline",
    "name": "PPT 大纲工坊",
-   "description": "按主题写 PPT 大纲：至少 8 页，每页标题加 2 条以上要点，可授权以你的名义上传到团队网盘；预批准型，12 虚拟币，30 分钟内交付。",
+   "description": "按主题写 PPT 大纲：至少 8 页，每页标题加 2 条以上要点，可授权以你的名义上传到团队网盘；待批准型，12 虚拟币，30 分钟内交付。",
    "tags": [
     "PPT",
     "办公",
     "大纲"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "outline",
     "title": "PPT 大纲",
@@ -242,14 +242,14 @@
   {
    "id": "meeting-minutes",
    "name": "会议纪要整理站",
-   "description": "把会议笔记整理成纪要：决议、行动项（负责人与期限）、摘要；预批准型，6 虚拟币，30 分钟内交付。",
+   "description": "把会议笔记整理成纪要：决议、行动项（负责人与期限）、摘要；待批准型，6 虚拟币，30 分钟内交付。",
    "tags": [
     "职场办公",
     "纪要",
     "会议"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "minutes",
     "title": "会议纪要",
@@ -350,14 +350,14 @@
   {
    "id": "biz-email",
    "name": "商务邮件代笔处",
-   "description": "按目的与收件人写一封商务邮件：主题 ≤ 40 字，正文 80–600 字；预批准型，4 虚拟币，30 分钟内交付。",
+   "description": "按目的与收件人写一封商务邮件：主题 ≤ 40 字，正文 80–600 字；待批准型，4 虚拟币，30 分钟内交付。",
    "tags": [
     "职场办公",
     "邮件",
     "商务"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "email",
     "title": "商务邮件",

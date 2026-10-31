@@ -74,14 +74,14 @@
   {
    "id": "sql-query",
    "name": "SQL 查询铺",
-   "description": "按表结构与问题写一条 SQL 查询并解释；预批准型，6 虚拟币，30 分钟内交付。",
+   "description": "按表结构与问题写一条 SQL 查询并解释；待批准型，6 虚拟币，30 分钟内交付。",
    "tags": [
     "软件开发",
     "SQL",
     "数据库"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "sql",
     "title": "SQL 查询",
@@ -169,14 +169,14 @@
   {
    "id": "unit-tests",
    "name": "单元测试用例坊",
-   "description": "按函数说明设计 ≥ 5 条测试用例：名称、输入、期望输出；预批准型，8 虚拟币，30 分钟内交付。",
+   "description": "按函数说明设计 ≥ 5 条测试用例：名称、输入、期望输出；待批准型，8 虚拟币，30 分钟内交付。",
    "tags": [
     "软件开发",
     "测试",
     "用例"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "tests",
     "title": "测试用例",
@@ -275,14 +275,14 @@
   {
    "id": "readme-draft",
    "name": "README 起草间",
-   "description": "按项目说明与特性写 README：≥ 4 节，含安装与使用，特性全部出现；预批准型，7 虚拟币，30 分钟内交付。",
+   "description": "按项目说明与特性写 README：≥ 4 节，含安装与使用，特性全部出现；待批准型，7 虚拟币，30 分钟内交付。",
    "tags": [
     "软件开发",
     "文档",
     "README"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "readme",
     "title": "README 草稿",
@@ -702,7 +702,7 @@
     "公网部署和身份认证"
    ],
    "generator": {
-    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services数组固定两项，依序使用service1Name/service1Minutes与service2Name/service2Minutes，元素键为name与minutes，禁止改变合同名称或时长；format固定ioalab.booking；allowCancel和idempotent均为true。仅使用ioa_selftest和ioa_deliver验证并交付，不生成可执行源码。",
+    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services数组固定两项，依序使用service1Name/service1Minutes与service2Name/service2Minutes，元素键为name与minutes，禁止改变合同名称或时长；format固定ioalab.booking；allowCancel和idempotent均为true。交付声明格式的预约JSON配置，不生成可执行源码。",
     "output": "{\"format\": \"ioalab.booking\", \"shop\": \"小满美甲店\", \"open\": 10, \"close\": 20, \"capacity\": 2, \"services\": [{\"name\": \"纯色美甲\", \"minutes\": 60}, {\"name\": \"延长甲\", \"minutes\": 90}], \"allowCancel\": true, \"idempotent\": true}",
     "quote_system": "本服务统一定价259虚拟币，仅输出JSON：{\"price\":259,\"summary\":\"5项配置判据的本地预约工具\"}。"
    },
@@ -832,7 +832,7 @@
     "公网部署和身份认证"
    ],
    "generator": {
-    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services数组固定两项，依序使用service1Name/service1Minutes与service2Name/service2Minutes，元素键为name与minutes，禁止改变合同名称或时长；format固定ioalab.booking；allowCancel和idempotent均为true。仅使用ioa_selftest和ioa_deliver验证并交付，不生成可执行源码。",
+    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services数组固定两项，依序使用service1Name/service1Minutes与service2Name/service2Minutes，元素键为name与minutes，禁止改变合同名称或时长；format固定ioalab.booking；allowCancel和idempotent均为true。交付声明格式的预约JSON配置，不生成可执行源码。",
     "output": "{\"format\": \"ioalab.booking\", \"shop\": \"小满美甲店\", \"open\": 10, \"close\": 20, \"capacity\": 2, \"services\": [{\"name\": \"纯色美甲\", \"minutes\": 60}, {\"name\": \"延长甲\", \"minutes\": 90}], \"allowCancel\": true, \"idempotent\": true}",
     "quote_system": "本服务统一定价299虚拟币，仅输出JSON：{\"price\":299,\"summary\":\"10项配置判据的本地预约工具\"}。"
    },

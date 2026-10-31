@@ -12,14 +12,14 @@
   {
    "id": "med-reminder",
    "name": "用药提醒表工坊",
-   "description": "按药名与服药频次排一周用药提醒表：7 天、每天列每种药的服用时间与注意事项；预批准型，6 虚拟币，30 分钟内交付。",
+   "description": "按药名与服药频次排一周用药提醒表：7 天、每天列每种药的服用时间与注意事项；待批准型，6 虚拟币，30 分钟内交付。",
    "tags": [
     "医疗健康",
     "用药",
     "提醒"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "schedule",
     "title": "一周用药提醒表",
@@ -212,14 +212,14 @@
   {
    "id": "checkup-brief",
    "name": "体检报告解读提纲社",
-   "description": "按体检指标名列一份解读提纲：每项指标的含义、常见影响因素与下一步建议，外加一段总体提示；预批准型，8 虚拟币，30 分钟内交付。",
+   "description": "按体检指标名列一份解读提纲：每项指标的含义、常见影响因素与下一步建议，外加一段总体提示；待批准型，8 虚拟币，30 分钟内交付。",
    "tags": [
     "医疗健康",
     "体检",
     "解读"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "brief",
     "title": "体检解读提纲",
@@ -312,14 +312,14 @@
   {
    "id": "fitness-week",
    "name": "健身周计划站",
-   "description": "按目标与基础排一周训练计划：7 天、每天一个训练重点与 ≥ 3 个动作（组数 × 次数）；预批准型，7 虚拟币，30 分钟内交付。",
+   "description": "按目标与基础排一周训练计划：7 天、每天一个训练重点与 ≥ 3 个动作（组数 × 次数）；待批准型，7 虚拟币，30 分钟内交付。",
    "tags": [
     "医疗健康",
     "健身",
     "训练计划"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "plan",
     "title": "健身周计划",
@@ -558,14 +558,14 @@
   {
    "id": "diet-week",
    "name": "一周减脂食谱屋",
-   "description": "按每日热量目标与忌口排一周三餐：7 天 × 3 餐，每餐菜名与估算热量，忌口食材不出现；预批准型，9 虚拟币，30 分钟内交付。",
+   "description": "按每日热量目标与忌口排一周三餐：7 天 × 3 餐，每餐菜名与估算热量，忌口食材不出现；待批准型，9 虚拟币，30 分钟内交付。",
    "tags": [
     "医疗健康",
     "饮食",
     "减脂"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "diet",
     "title": "一周减脂食谱",

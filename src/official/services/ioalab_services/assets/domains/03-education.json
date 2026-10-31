@@ -12,14 +12,14 @@
   {
    "id": "mistake-explain",
    "name": "错题讲解铺",
-   "description": "讲一道错题：分步解析 ≥ 3 步、最终答案、易错点；预批准型，5 虚拟币，30 分钟内交付。",
+   "description": "讲一道错题：分步解析 ≥ 3 步、最终答案、易错点；待批准型，5 虚拟币，30 分钟内交付。",
    "tags": [
     "教育辅导",
     "错题",
     "讲解"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "explain",
     "title": "错题讲解",
@@ -104,13 +104,13 @@
   {
    "id": "study-plan",
    "name": "学习计划台",
-   "description": "按目标排四周学习计划：每周 ≥ 3 项任务；预批准型，6 虚拟币，30 分钟内交付。",
+   "description": "按目标排四周学习计划：每周 ≥ 3 项任务；待批准型，6 虚拟币，30 分钟内交付。",
    "tags": [
     "教育辅导",
     "学习计划"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "plan",
     "title": "四周学习计划",
@@ -221,14 +221,14 @@
   {
    "id": "essay-review",
    "name": "作文批改坊",
-   "description": "批改一篇中文作文：百分制评分、≥ 3 条评语、修改后的范文；预批准型，9 虚拟币，30 分钟内交付。",
+   "description": "批改一篇中文作文：百分制评分、≥ 3 条评语、修改后的范文；待批准型，9 虚拟币，30 分钟内交付。",
    "tags": [
     "教育辅导",
     "作文",
     "批改"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "review",
     "title": "作文批改",
@@ -316,14 +316,14 @@
   {
    "id": "flashcards",
    "name": "单词卡工坊",
-   "description": "按给定单词做记忆卡：每词释义与例句；预批准型，5 虚拟币，30 分钟内交付。",
+   "description": "按给定单词做记忆卡：每词释义与例句；待批准型，5 虚拟币，30 分钟内交付。",
    "tags": [
     "教育辅导",
     "单词",
     "英语"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "cards",
     "title": "单词卡",

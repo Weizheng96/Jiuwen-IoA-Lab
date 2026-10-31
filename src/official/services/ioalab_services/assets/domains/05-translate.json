@@ -12,14 +12,14 @@
   {
    "id": "translate-zh-en",
    "name": "中英翻译快译所",
-   "description": "把中文材料译成英文：按原文字数计价，每字 0.02 虚拟币（500 字约 10 虚拟币），可指定术语表；预批准型，30 分钟内交付。",
+   "description": "把中文材料译成英文：按原文字数计价，每字 0.02 虚拟币（500 字约 10 虚拟币），可指定术语表；待批准型，30 分钟内交付。",
    "tags": [
     "翻译",
     "英语",
     "中译英"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "translation",
     "title": "译文",
@@ -89,14 +89,14 @@
   {
    "id": "translate-en-zh",
    "name": "英译中快译社",
-   "description": "把一段英文译成自然的中文（≤ 1500 字符），中文占比 ≥ 60%；预批准型，7 虚拟币，30 分钟内交付。",
+   "description": "把一段英文译成自然的中文（≤ 1500 字符），中文占比 ≥ 60%；待批准型，7 虚拟币，30 分钟内交付。",
    "tags": [
     "翻译本地化",
     "英语",
     "英译中"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "zh",
     "title": "中文译文",
@@ -158,14 +158,14 @@
   {
    "id": "glossary",
    "name": "术语表编纂处",
-   "description": "按领域编一份 20 条中英术语表，中文术语互不重复；预批准型，8 虚拟币，30 分钟内交付。",
+   "description": "按领域编一份 20 条中英术语表，中文术语互不重复；待批准型，8 虚拟币，30 分钟内交付。",
    "tags": [
     "翻译本地化",
     "术语",
     "词表"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "glossary",
     "title": "术语表",
@@ -338,14 +338,14 @@
   {
    "id": "subtitle-translate",
    "name": "字幕翻译铺",
-   "description": "把 | 分隔的英文字幕行逐句译成中文，条数与原文一致；预批准型，9 虚拟币，30 分钟内交付。",
+   "description": "把 | 分隔的英文字幕行逐句译成中文，条数与原文一致；待批准型，9 虚拟币，30 分钟内交付。",
    "tags": [
     "翻译本地化",
     "字幕",
     "英译中"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "subs",
     "title": "中文字幕",

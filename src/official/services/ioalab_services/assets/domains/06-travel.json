@@ -104,14 +104,14 @@
   {
    "id": "day-tour",
    "name": "一日漫游手册社",
-   "description": "按城市与主题排一日路线：4–8 个停留点，各带时间与提示；预批准型，6 虚拟币，30 分钟内交付。",
+   "description": "按城市与主题排一日路线：4–8 个停留点，各带时间与提示；待批准型，6 虚拟币，30 分钟内交付。",
    "tags": [
     "旅行出行",
     "一日游",
     "路线"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "tour",
     "title": "一日路线",
@@ -203,14 +203,14 @@
   {
    "id": "packing-list",
    "name": "打包清单台",
-   "description": "按目的地、天数与季节列打包清单：≥ 4 类、每类 ≥ 3 件；预批准型，4 虚拟币，30 分钟内交付。",
+   "description": "按目的地、天数与季节列打包清单：≥ 4 类、每类 ≥ 3 件；待批准型，4 虚拟币，30 分钟内交付。",
    "tags": [
     "旅行出行",
     "打包",
     "清单"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "packing",
     "title": "打包清单",
@@ -322,14 +322,14 @@
   {
    "id": "food-map",
    "name": "美食地图工坊",
-   "description": "按城市列 8 家特色店：招牌菜、区域、人均价；预批准型，7 虚拟币，30 分钟内交付。",
+   "description": "按城市列 8 家特色店：招牌菜、区域、人均价；待批准型，7 虚拟币，30 分钟内交付。",
    "tags": [
     "旅行出行",
     "美食",
     "地图"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "food",
     "title": "美食地图",
@@ -457,14 +457,14 @@
   {
    "id": "trip-budget",
    "name": "旅行预算核算处",
-   "description": "按天数、人数与总预算做分项预算表，合计不超预算；预批准型，5 虚拟币，30 分钟内交付。",
+   "description": "按天数、人数与总预算做分项预算表，合计不超预算；待批准型，5 虚拟币，30 分钟内交付。",
    "tags": [
     "旅行出行",
     "预算",
     "核算"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "budget",
     "title": "旅行预算表",

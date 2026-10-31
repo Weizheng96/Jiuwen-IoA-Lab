@@ -30,8 +30,8 @@ def main():
         started=time.monotonic();proof['captureLead']=round(started-capture_started,2);mark('本地联调：真实九问与协议；服务/日历/收件使用明确测试配置。' if config.get('fixtures') else '真实九问与IoA平台端到端交互。')
         if args.case=='delegation':
             from nine_driver import DELEGATION
-            sys.path.insert(0,str(ROOT/'official-services'))
-            from catalog import definitions
+            sys.path.insert(0,str(ROOT/'src/official/services'))
+            from ioalab_services.catalog import definitions
             sample=next(d for d in definitions() if d['id']=='med-reminder')
             scenario=DELEGATION+' 本轮具体输入spec为：'+json.dumps({sample['deliverable']['name']:sample['sample_spec']},ensure_ascii=False)+'。这是用户已提供的数据，不要改写药名或擅自替换。'
             before={o['card_digest'] for o in box.http.get(config['base']+'/api/workbench',headers={'Authorization':'Bearer '+box.token}).raise_for_status().json()['orders']}

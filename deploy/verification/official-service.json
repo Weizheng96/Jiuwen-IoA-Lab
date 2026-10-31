@@ -1,0 +1,60 @@
+{
+  "calls": [
+    {
+      "name": "provider.task.decision",
+      "status": "recorded"
+    },
+    {
+      "name": "provider.task.selftest",
+      "status": "rejected"
+    },
+    {
+      "name": "provider.task.selftest",
+      "status": "error"
+    },
+    {
+      "name": "provider.task.selftest",
+      "status": "pass"
+    },
+    {
+      "name": "provider.task.deliver",
+      "status": "delivered"
+    }
+  ],
+  "capacityReleased": true,
+  "cardDigest": "sha256:317dfedf106e9e8941e6d6fad497e772b7a74b5bab49c4a67c0abff4b697273b",
+  "closed": true,
+  "formation": "countersign",
+  "interactionId": "43a4e65b-5c67-4bca-9519-a269a3f8e7eb",
+  "model": "qwen3.5-plus#2",
+  "paymentRecords": [
+    {
+      "amount": "6.00",
+      "purpose": "installment"
+    }
+  ],
+  "reputationCompleted": 1,
+  "resourceSources": {
+    "src/official/services/ioalab_services/assets/domains/01-health.json": "a5bcfc22358dd622f97b28dddd9d935e507e429585c20477b1c0b22fd2efb571",
+    "src/official/services/ioalab_services/assets/domains/02-legal.json": "fd19f1d61febc96dfec4a3986596ad46aa959f25e57d0861d30e23de5c4a495e",
+    "src/official/services/ioalab_services/assets/domains/03-education.json": "99f022ef7c2d173f332dbd73c82f4a139fd86716076816a50f36ba82ffae3389",
+    "src/official/services/ioalab_services/assets/domains/04-writing.json": "392310fec59ba0d11a5c9abea01a706de35414959a9ee3327caf8c3610d7d5b3",
+    "src/official/services/ioalab_services/assets/domains/05-translate.json": "1003a8024dafc9864a3776c215614cb6081e26c042f42842a44b1c3f0f4b42d1",
+    "src/official/services/ioalab_services/assets/domains/06-travel.json": "7fa608c1bcc0612fc5a1a9c73164aaeb5ef99f4df73e3cf057ceeaf9e6394540",
+    "src/official/services/ioalab_services/assets/domains/07-office.json": "537786e1e4a6b3dcb844002843eecfe79524449cb39b26a8130458e0f798ee43",
+    "src/official/services/ioalab_services/assets/domains/08-dev.json": "d8ef0ecef4aef9e0dc9f413f85b18ff015dad496644bef5625106ce50b85dc05"
+  },
+  "sampleGivenToModel": false,
+  "scope": "Owned packaged service on ordinary SDK, real original Jiuwen, HTTP/WS/A2C/WASM/AP2; scripted trusted browser confirmations; not native front-end workflow, bulk defaults or film acceptance",
+  "service": "wechat-posts",
+  "sessionId": "process_cli_1a19154968e_0247cb472d73",
+  "existingSwarmConfigurationUnchanged": true,
+  "afterLeaseRaceFix": true,
+  "leaseImplementationSha256": "e3c85c3b362045e16581c7339d6777183171089dba5a290e879c8a63d3068240",
+  "previousRunCardDigest": "sha256:370864874d556f9b4f59a2f24d0ad3bcd0f676ccd07d4230f8025d7401ce418b",
+  "limits": [
+    "Scripted local browser confirmations, not native front-end operation",
+    "One owned default service, not all defaults or automatic renewal",
+    "No new demonstration film or external mail acceptance"
+  ]
+}

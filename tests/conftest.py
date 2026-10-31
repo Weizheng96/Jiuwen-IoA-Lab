@@ -46,14 +46,19 @@ def client(platform):
 def providers(platform,tmp_path_factory):
     import uvicorn
     from serve import ServiceHost,create_app
-    from catalog import definitions
-    selected=[next(d for d in definitions() if d.get('formation','preapproval')==f) for f in ('preapproval','countersign','proposal')]
+    from ioalab_services.catalog import definitions
+    from copy import deepcopy
+    items=definitions()
+    preapproval=deepcopy(next(d for d in items if d['formation']=='countersign'))
+    preapproval.update(id='protocol-preapproval-fixture',formation='preapproval')
+    selected=[preapproval,*[next(d for d in items if d['formation']==f) for f in ('countersign','proposal')]]
     port=free_port()
     ids=[d['id'] for d in selected]+['wechat-posts']
     host=ServiceHost(platform=platform.s.base_url,public_url=f'http://127.0.0.1:{port}',data=tmp_path_factory.mktemp('providers'),
                      stub=True,only=ids)
+    host.definitions.append(('ISP_008',preapproval))
     host.selected=selected
-    host.all_definitions=definitions()
+    host.all_definitions=[*items,preapproval]
     server=uvicorn.Server(uvicorn.Config(create_app(host),host='127.0.0.1',port=port,log_level='critical'))
     thread=threading.Thread(target=server.run,daemon=True);thread.start()
     wait_for(lambda:host.ready or host.error)

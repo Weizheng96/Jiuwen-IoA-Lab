@@ -2,9 +2,9 @@
 import argparse,copy,json,os,sys,time
 from pathlib import Path
 import httpx
-ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'src/access/sdk'),str(ROOT/'official-services'),str(ROOT/'experiments')]
+ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'src/access/sdk'),str(ROOT/'src/official/services'),str(ROOT/'experiments')]
 from ioalab_sdk import LabClient
-from catalog import definitions
+from ioalab_services.catalog import definitions
 from traffic import run_order
 
 def main():

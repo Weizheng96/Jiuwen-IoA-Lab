@@ -13,14 +13,14 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"src/access/sdk"))
+sys.path[:0]=[str(Path(__file__).resolve().parents[1]/part) for part in ("src/access/sdk", "src/official/services")]
 from a2c.binding import build_app, A2C_EXTENSION, AP2_EXTENSION
 from a2c.card import card_digest
 from a2c.codec import parse_duration
 from fastapi import FastAPI, HTTPException, Request
 from ioalab_sdk.provider import ProviderAgent, ServiceAccount
 from ioalab_sdk.provider_app import build_provider_app
-from catalog import load_domains
+from ioalab_services.catalog import load_domains
 from swarm import SwarmEngine
 
 

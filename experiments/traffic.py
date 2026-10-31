@@ -9,8 +9,8 @@ import hashlib
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(ROOT/'src/access/sdk'),str(ROOT/'official-services')]
-from catalog import definitions
+sys.path[:0]=[str(ROOT/'src/access/sdk'),str(ROOT/'src/official/services')]
+from ioalab_services.catalog import definitions
 from ioalab_sdk import LabClient
 
 

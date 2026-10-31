@@ -1,6 +1,6 @@
 """Seven named services from the authored nail-booking screenplay; separate from default domains."""
 from copy import deepcopy
-from catalog import definitions, materialize
+from ioalab_services.catalog import definitions, materialize
 
 BASIC_CRITERIA=['店名与容量符合合同', '可以预约并查询', '满额后拒绝新增预约', '取消后释放名额', '小程序源码与预约配置齐全']
 EXTRA_CRITERIA=['重复提交不重复占位', '连续竞争请求不超容量', '相同请求重试返回原预约', '不同时段独立计数', '重复取消不误减名额']

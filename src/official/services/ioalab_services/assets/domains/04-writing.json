@@ -12,14 +12,14 @@
   {
    "id": "wechat-posts",
    "name": "朋友圈文案工坊",
-   "description": "为小店写朋友圈文案：三条短文案，每条不超过 60 字，必须出现店名；预批准型，6 虚拟币，当天交付。",
+   "description": "为小店写朋友圈文案：三条短文案，每条不超过 60 字，必须出现店名；待批准型，6 虚拟币，当天交付。",
    "tags": [
     "文案",
     "朋友圈",
     "营销"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "posts",
     "title": "朋友圈文案",
@@ -84,14 +84,14 @@
   {
    "id": "product-page",
    "name": "产品详情页文案厂",
-   "description": "按产品与卖点写详情页：标题 ≤ 30 字 + ≥ 3 个小节，卖点全部出现；预批准型，9 虚拟币，30 分钟内交付。",
+   "description": "按产品与卖点写详情页：标题 ≤ 30 字 + ≥ 3 个小节，卖点全部出现；待批准型，9 虚拟币，30 分钟内交付。",
    "tags": [
     "文案创作",
     "电商",
     "详情页"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "page",
     "title": "详情页文案",
@@ -188,14 +188,14 @@
   {
    "id": "headlines",
    "name": "公众号标题车间",
-   "description": "给一篇文章出 10 个备选标题，每个 ≤ 30 字且互不重复；预批准型，4 虚拟币，30 分钟内交付。",
+   "description": "给一篇文章出 10 个备选标题，每个 ≤ 30 字且互不重复；待批准型，4 虚拟币，30 分钟内交付。",
    "tags": [
     "文案创作",
     "标题",
     "公众号"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "titles",
     "title": "备选标题",
@@ -275,14 +275,14 @@
   {
    "id": "video-script",
    "name": "短视频脚本坊",
-   "description": "按主题写 60 秒口播短视频脚本：≥ 5 个镜头，每镜头时间、画面、口播；预批准型，10 虚拟币，30 分钟内交付。",
+   "description": "按主题写 60 秒口播短视频脚本：≥ 5 个镜头，每镜头时间、画面、口播；待批准型，10 虚拟币，30 分钟内交付。",
    "tags": [
     "文案创作",
     "短视频",
     "脚本"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "script",
     "title": "短视频脚本",

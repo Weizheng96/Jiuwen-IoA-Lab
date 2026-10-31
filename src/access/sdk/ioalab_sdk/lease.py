@@ -9,8 +9,7 @@ class Lease:
         path=Path(path)
         path.parent.mkdir(parents=True,exist_ok=True)
         self.file=path.open('a+b')
-        if path.stat().st_size==0:
-            self.file.write(b'0');self.file.flush()
+        # Windows supports byte locks beyond EOF; no marker write may race the lock.
         until=time.monotonic()+timeout
         while True:
             try:

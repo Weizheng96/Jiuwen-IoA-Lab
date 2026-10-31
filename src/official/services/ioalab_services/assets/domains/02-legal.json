@@ -12,14 +12,14 @@
   {
    "id": "contract-risks",
    "name": "合同风险清单所",
-   "description": "按合同类型与关注点列风险清单：≥ 5 条，每条写涉及条款、风险与修改建议；预批准型，10 虚拟币，30 分钟内交付。",
+   "description": "按合同类型与关注点列风险清单：≥ 5 条，每条写涉及条款、风险与修改建议；待批准型，10 虚拟币，30 分钟内交付。",
    "tags": [
     "法律咨询",
     "合同",
     "风险"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "risks",
     "title": "合同风险清单",
@@ -120,14 +120,14 @@
   {
    "id": "labor-qa",
    "name": "劳动纠纷问答亭",
-   "description": "劳动合同、加班、离职补偿类问题书面解答：答案 + 法条依据 + 建议步骤；预批准型，6 虚拟币，30 分钟内交付。",
+   "description": "劳动合同、加班、离职补偿类问题书面解答：答案 + 法条依据 + 建议步骤；待批准型，6 虚拟币，30 分钟内交付。",
    "tags": [
     "法律咨询",
     "劳动法",
     "问答"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "answer",
     "title": "劳动问题解答",
@@ -222,14 +222,14 @@
   {
    "id": "rent-dispute",
    "name": "租房维权指南社",
-   "description": "押金、提前退租、房东违约类纠纷：出维权步骤、沟通话术与证据清单；预批准型，8 虚拟币，30 分钟内交付。",
+   "description": "押金、提前退租、房东违约类纠纷：出维权步骤、沟通话术与证据清单；待批准型，8 虚拟币，30 分钟内交付。",
    "tags": [
     "法律咨询",
     "租赁",
     "维权"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "guide",
     "title": "租房维权指南",
@@ -318,14 +318,14 @@
   {
    "id": "complaint-outline",
    "name": "起诉状提纲工坊",
-   "description": "按纠纷事实写民事起诉状提纲：原告、被告、诉讼请求、事实与理由、证据清单各一节；预批准型，12 虚拟币，30 分钟内交付。",
+   "description": "按纠纷事实写民事起诉状提纲：原告、被告、诉讼请求、事实与理由、证据清单各一节；待批准型，12 虚拟币，30 分钟内交付。",
    "tags": [
     "法律咨询",
     "诉讼",
     "文书"
    ],
    "runnable": true,
-   "formation": "preapproval",
+   "formation": "countersign",
    "deliverable": {
     "name": "outline",
     "title": "起诉状提纲",
