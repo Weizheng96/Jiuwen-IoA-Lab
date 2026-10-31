@@ -1,0 +1,89 @@
+{
+  "scope": "Original native UI import/select plus real CLI installation/start, loopback platform HTTP/WS and readonly IPC verification",
+  "platform": "http://127.0.0.1:18750",
+  "account": "xiaomei@outlook.com",
+  "nativeSession": "web_1a1912dabc4_b68f60ad465f",
+  "foregroundModel": "qwen3.5-plus#2",
+  "backgroundHostModel": "qwen-flash#0",
+  "originalWorkspaceConfigurationUnchanged": true,
+  "verificationWorkspaceConfigurationUnchanged": true,
+  "installedSkillFilesVerified": 15,
+  "bundleSha256": "191b475e17af7870f7294cdee08754f25378beebbf30a0b7ed0a26a05ed78fdb",
+  "releaseId": "d593789b5f0f7a8b2425ea14848ae535f8482856fd3c8941f160e10284bbbb95",
+  "runtime": {
+    "runtimeId": "7be4c928-ff66-4607-acfc-ea241278eb2d",
+    "bootId": "f86be961-3e66-4848-8c5b-f798e1fe6c57",
+    "pid": 43012,
+    "ipcReady": true,
+    "platformConnected": true,
+    "connectionError": null,
+    "identities": [
+      {
+        "agentId": "urn:ioalab:assistant:b06ef09b-3e2c-4a54-a215-89284c0e8bd5",
+        "bound": true,
+        "executionReady": true,
+        "name": "小美的个人助手",
+        "profile": "personal",
+        "protocolId": "urn:ioalab:assistant:b06ef09b-3e2c-4a54-a215-89284c0e8bd5",
+        "role": "assistant"
+      }
+    ],
+    "roleErrors": [],
+    "installation": {
+      "assembly": "ioalab-jiuwen",
+      "environment": "C:\\Users\\ROG\\.ioalab\\access-runtimes\\d593789b5f0f7a8b2425ea14",
+      "format": 1,
+      "releaseId": "d593789b5f0f7a8b2425ea14848ae535f8482856fd3c8941f160e10284bbbb95",
+      "versions": {
+        "a2c": "0.0.19",
+        "ioalab-jiuwen": "0.0.46",
+        "ioalab-official": "0.0.46",
+        "ioalab-sdk": "0.0.39",
+        "jiuwenswarm-process-sdk": "0.1.0"
+      }
+    }
+  },
+  "host": {
+    "available": true,
+    "model": "qwen-flash#0",
+    "protocol": "0.1",
+    "businessTools": []
+  },
+  "identityReceipt": {
+    "data": [
+      {
+        "agentId": "urn:ioalab:assistant:b06ef09b-3e2c-4a54-a215-89284c0e8bd5",
+        "bound": true,
+        "name": "小美的个人助手",
+        "profile": "personal",
+        "protocolId": "urn:ioalab:assistant:b06ef09b-3e2c-4a54-a215-89284c0e8bd5",
+        "role": "assistant"
+      }
+    ],
+    "error": null,
+    "operationId": "390bb342-62b4-48f3-a6db-96cd0e595dea",
+    "status": "completed"
+  },
+  "screenshots": [
+    {
+      "file": "docs/progress/native-onboarding-platform.jpg",
+      "sha256": "6ba150947523f7a25cd393c288c7d0e9614b2778e01e1e4ff4604f1840681bfb"
+    }
+  ],
+  "sources": {
+    "src/access/skills/_shared/ioalab.py": "sha256:5d9351aa5181cc216d8eb2a3ae1d2f76eb1738049a243c35d24c3dec52a8fda0",
+    "src/access/skills/assistant/SKILL.md": "sha256:deed7c9402736a0b5d5f53f7ccb25166f82ad62e5cc06e0e4097615cfdef785a",
+    "src/access/skills/assistant/references/setup.md": "sha256:9749a541d41c30f67373d5a4cb4f640740949d3ec2832269e8815cf74bd53936"
+  },
+  "observations": [
+    "Native overwrite replaced the entire skill directory and removed an in-package local config; external config remained",
+    "qwen-flash attempts did not execute the SDK script and were not counted as successful onboarding",
+    "The native command used the default dependency cache because the model did not set the requested cache environment variable",
+    "Initial native command timed out at60 seconds; the subsequent longer command completed the actual install/start"
+  ],
+  "limits": [
+    "Core discovery model explicitly stubbed; participant native model real",
+    "Public demo credentials only; foreground model read that config, so this does not prove private-credential isolation",
+    "Assistant startup only; no native provider publication, delegation, inbox-rule workflow or new film proof"
+  ]
+}

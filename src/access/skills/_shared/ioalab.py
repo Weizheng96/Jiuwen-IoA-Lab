@@ -109,7 +109,7 @@ def main(argv=None):
         python=ensure_runtime()
         if args.operation=='runtime.install':
             print(json.dumps({'status':'completed','data':{'python':str(python),'sharedEnvironment':True},'error':None}));return 0
-        config=(args.config or root/'settings.local.json').expanduser().resolve()
+        config=(args.config or Path.home()/'.ioalab/settings.local.json').expanduser().resolve()
         if args.operation=='runtime.web-extension':
             if not args.args_file:raise RuntimeError('Use an args-file containing the owned profile key')
             payload=json.loads(args.args_file.read_text(encoding='utf-8'))
