@@ -11,7 +11,7 @@ description: IoA Lab 服务方技能。帮助用户为自己的九问配置专�
 |---|---|
 | 安装、账号、专业技能/工具、启动诊断 | [接入设置](references/setup.md) |
 | 模板、验收器、分类、公示和接单配置 | [发布服务](references/publication.md) |
-| 查看入站任务、生产与合同授权 | [任务执行](references/execution.md) |
+| 查看/核对原任务、显式恢复、生产与合同授权 | [任务执行](references/execution.md) |
 | 完成合同后的信誉与结清 | [结清记录](references/reputation.md) |
 
 runtime.*、provider.*等是本技能脚本的操作参数，不是九问原生工具。接入时读取setup.md，用终端执行其中的完整命令；不去技能商店安装本技能，不以读取源码或写报告代替执行。

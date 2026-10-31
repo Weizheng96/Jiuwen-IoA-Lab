@@ -2,7 +2,7 @@
 
 本目录定义九问IoA实验平台的现行规范，代码、SDK、接入技能、部署、界面和演示均以此为准。目标见[核心理念](核心理念.md)，版本只见[VERSION](VERSION)。规范可以领先实现；实际差距见[开发计划](../docs/开发计划.md)，实测结果见[验证记录](../demo/verification/README.md)。
 
-依据的 A2C 设计版本：v0.0.19。合同协议以 [A2C 主仓](https://github.com/Weizheng96/AgentContractProtocol/tree/main/设计)为准，锁定依赖来源见 [SOURCE.json](../vendor/wheels/SOURCE.json)；平台不重新定义 A2C 字段、签名、期限、验收或付款依据。
+依据的 A2C 设计版本：v0.0.20。合同协议以 [A2C 主仓](https://github.com/Weizheng96/AgentContractProtocol/tree/main/设计)为准，锁定依赖来源见 [SOURCE.json](../vendor/wheels/SOURCE.json)；平台不重新定义 A2C 字段、签名、期限、验收或付款依据。
 
 ## 阅读顺序
 

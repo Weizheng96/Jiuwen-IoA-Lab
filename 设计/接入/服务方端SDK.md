@@ -53,6 +53,8 @@
 | `provider.publish` | 原预览返回的service、contentDigest、expectedRevision；可选原confirmationRef | 首次创建待确认记录并返回waiting；仅真实批准后恢复原操作才签名、市场签认及A2X登记 |
 | `provider.reputation.submit` | 所属已完成合同引用、稳定操作标识 | 核验收与付款凭证，复用 A2C Provider.close 提交结清卡，查询平台签发信誉；重复调用恢复原结果，未结清不能伪造成功日志 |
 | `provider.status` | 所属服务引用 | 公示、连接、可执行、容量、未完成任务、异常分别列示 |
+| `provider.tasks.get` | profile，可选原taskRef | 返回该服务最近至多100个本地业务任务，或指定原任务；含阶段、状态、原交互/Session及canResume、resumeReason，不返回凭据或其他身份任务 |
+| `provider.task.resume` | profile、原taskRef；共用operationId | 仅对已核实安全的验收器准备中断恢复原拟约作业；快速返回accepted及resumeReceipt、currentTask，后续查询原任务。accepted不代表拟约成功，不新建请求、签名或收费 |
 | `provider.pause` | profile，原operationId | 允许公示前暂停；经当前WS设置实际接单策略，返回policyReceipt及currentPolicy；只关闭新预留，原有效预留及合同继续 |
 | `provider.resume` | profile，原operationId | 核本机业务/工具/宿主、有效公示和当前连接后开启；返回原policyReceipt与实时currentPolicy，不把旧成功回执当作当前仍开启 |
 
@@ -90,7 +92,18 @@ provider.status额外返回当前WS核实的admissionPolicy；executionReady只�
 
 SDK 每轮明确给出当前协议阶段、所需动作和输入 Schema；业务技能说明不改变当前阶段。调用其他阶段工具时返回准确的本单拒绝原因和允许动作，由同一轮次纠正；不能把审查已确认合同变成重新报价，也不把错误提示的改进当作新增授权。
 
-本单验收器回调由SDK绑定当前身份、作业和交互，模型不传profile、UUID或会话；同一本单同内容复用原上传记录，不因宿主调用ID改变而重复准备；每个quote作业至多准备32份包。原输入、待核上传和已取得引用由SDK保存，显式恢复先核原上传，再把已准备引用带回原Session。收到真实引用后才能填入quote；上传未知时保留原输入并结束本轮，核对后恢复，不能编造引用继续。报价决定已记录、待批准审查或生产阶段均不得再创建本单验收器；已签验收标准不能被此入口改变。
+本单验收器回调由SDK绑定当前身份、作业和交互，模型不传profile、UUID或会话；同一本单同内容复用原上传记录，不因宿主调用ID改变而重复准备；每个quote作业至多准备32份包。SDK上传前复用原A2C清单校验，明确返回reads等格式错误；reads声明合同规格/材料字段路径，不是交付文件名。平台对最终包完成原A2C核验后才保存并返回引用，不生成已知无效的公示资源。原输入、待核上传和已取得引用由SDK保存，显式恢复先核原上传，再把已准备引用带回原Session。收到真实引用后才能填入quote；上传未知时保留原输入并结束本轮，核对后恢复，不能编造引用继续。报价决定已记录、待批准审查或生产阶段均不得再创建本单验收器；已签验收标准不能被此入口改变。
+
+### 原拟约任务的恢复
+
+| 检查 | 规则 |
+|---|---|
+| 查询 | 本机服务管理入口按所属profile查询原taskRef；SDK保存并返回关联，用户不手抄UUID。任务状态与恢复入队回执分别展示 |
+| 可续接证明 | 仅quote阶段、验收器上传结果未知、原宿主轮次明确返回completed或failed终局且Session已保存、尚无报价决定；SDK保存已结束轮次的事实。进程重启或上传pending本身不构成证明，普通模型异常和其他未知效果保持unknown |
+| 显式恢复 | 本机用户明确要求后调用provider.task.resume；核原任务、服务身份、交互、Session、定义摘要、原期限及可执行能力。暂停新接单不阻止已承接任务的恢复 |
+| 持久入队 | 调度器同事务保存恢复操作回执与原作业续接；相同operationId重传返回原resumeReceipt，并另列currentTask，不因后续再次unknown而重新入队；同操作指向另一任务报冲突 |
+| 再执行 | 原作业先核同内容上传，再把preparedVerifiers带回原Session。调用A2C Provider.resume_request及原finish，复用原A2C任务、请求、材料核验、拟卡费凭证与respondWithin，不重新request.submit |
+| 新轮次 | 真正调用宿主前清除上次可续接证明；若新轮次结果不明，不能沿用旧证明。SDK仍使用原会话串行、模型并发及容量约束，不提供任意任务重跑入口 |
 
 quote 工具明确区分三类验收器引用，不要求每项交付同时包含三类。保存业务决定前复用 A2C 校验卡结构、包摘要与清单种类；错误返回本单准确校验原因，由原模型轮次修正，不自动删改业务条款，不因此重收费或另起委托。
 

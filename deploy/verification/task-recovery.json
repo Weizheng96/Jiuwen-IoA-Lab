@@ -1,0 +1,228 @@
+{
+  "date": "2026-11-01",
+  "test": "tests/test_provider_task_recovery.py::test_original_jiuwen_resumes_the_original_quote_after_an_unknown_upload",
+  "result": "1 passed, 1 warning in 144.44 seconds",
+  "a2cSource": {
+    "package": "a2c",
+    "version": "0.0.20",
+    "wheel": "a2c-0.0.20-py3-none-any.whl",
+    "sha256": "4658b6976dbcc42ff9e79acc5dd8b5327036cd78203f05b34c631675261d3f30",
+    "source": {
+      "repo": "https://github.com/Weizheng96/AgentContractProtocol",
+      "commit": "c4a443fd53636328a756c3d376b61732d932b02f",
+      "subdirectory": "src",
+      "design_version": "v0.0.20"
+    },
+    "built": "2026-11-01",
+    "tool": "tools/sync_a2c.py"
+  },
+  "evidence": {
+    "closed": true,
+    "contractRef": "sha256:3d819751be26bb7096f4cd4c77cc401a07ad25fdbb3c166a3ebe757227bea0ed",
+    "firstUnknownUpload": {
+      "digest": "sha256:9c0f4f2595e70eeaf0ca864f2f4937128bc4834f698e78b2390ca3e0d3e8a4d8",
+      "id": "verify_result@1.0",
+      "uri": "ioalab://pkg/sha256:9c0f4f2595e70eeaf0ca864f2f4937128bc4834f698e78b2390ca3e0d3e8a4d8"
+    },
+    "interactionId": "bb0a05c1-4e7c-4684-978a-a81a794ca8a6",
+    "limits": [
+      "Backend model and isolated owner actions; not native frontend onboarding or new film",
+      "No external mail or Linux deployment proof"
+    ],
+    "model": "qwen3.5-plus#2",
+    "payment": "paid",
+    "proposalFeeCount": 1,
+    "quoteRounds": 2,
+    "reputationCompleted": 1,
+    "resumeReceipt": {
+      "operationId": "4487b4a6-a61c-4fee-830d-88856b2aab0e",
+      "queuedAt": 1793467184.685727,
+      "taskRef": "27f48d42-d454-50df-996d-978b033db1cf"
+    },
+    "scope": "Original Jiuwen public Process: actual unknown package upload, explicit public task continuation, same A2C task/request/fee/UUID/Session through WASM/AP2 close; isolated user confirmations",
+    "sessionId": "process_cli_1a192f8e6fc_5f71272a62a9",
+    "taskRef": "27f48d42-d454-50df-996d-978b033db1cf",
+    "wasm": {
+      "checks": [
+        [
+          {
+            "name": "交付件验证",
+            "reason": "result.json 内容符合预期",
+            "status": "pass"
+          }
+        ]
+      ],
+      "errors": [],
+      "notBefore": null,
+      "status": "pass"
+    }
+  },
+  "adverseReplay": {
+    "scope": "Actual accepted model-generated verifier challenged only through original A2C WASM runner; no model rerun or host execution",
+    "reference": {
+      "digest": "sha256:9c0f4f2595e70eeaf0ca864f2f4937128bc4834f698e78b2390ca3e0d3e8a4d8",
+      "id": "verify_result@1.0",
+      "uri": "ioalab://pkg/sha256:9c0f4f2595e70eeaf0ca864f2f4937128bc4834f698e78b2390ca3e0d3e8a4d8"
+    },
+    "originalUnknownReferenceWasUsedInSignedCard": true,
+    "packageSha256": "9c0f4f2595e70eeaf0ca864f2f4937128bc4834f698e78b2390ca3e0d3e8a4d8",
+    "deliveryFileKey": "result.json",
+    "cases": {
+      "correct": {
+        "status": "pass",
+        "checks": [
+          {
+            "name": "交付件验证",
+            "status": "pass",
+            "reason": "result.json 内容符合预期"
+          }
+        ]
+      },
+      "wrong_value": {
+        "status": "fail",
+        "checks": [
+          {
+            "name": "delivered 字段值",
+            "status": "fail",
+            "reason": "delivered 字段值应为 'actual file bytes'，实际为 'wrong'"
+          }
+        ]
+      },
+      "missing_field": {
+        "status": "fail",
+        "checks": [
+          {
+            "name": "delivered 字段存在性",
+            "status": "fail",
+            "reason": "缺少 delivered 字段"
+          }
+        ]
+      },
+      "invalid_json": {
+        "status": "fail",
+        "checks": [
+          {
+            "name": "JSON 格式",
+            "status": "fail",
+            "reason": "JSON 解析失败：Expecting value: line 1 column 1 (char 0)"
+          }
+        ]
+      },
+      "missing_file": {
+        "status": "fail",
+        "checks": [
+          {
+            "name": "文件存在性",
+            "status": "fail",
+            "reason": "未找到任何交付文件"
+          }
+        ]
+      }
+    },
+    "generatedPackage": {
+      "manifest": {
+        "entry": "verify:verify",
+        "id": "verify_result@1.0",
+        "kind": "script",
+        "reads": [],
+        "runtime": "cpython-3.13-wasi"
+      },
+      "source": "def verify(ctx):\n    \"\"\"验收 result.json 交付件：检查 delivered 字段值为固定字符串\"actual file bytes\"。\"\"\"\n    import json\n    \n    # 获取实际文件列表\n    files = ctx.files\n    if not files:\n        return {\"status\": \"fail\", \"checks\": [{\"name\": \"文件存在性\", \"status\": \"fail\", \"reason\": \"未找到任何交付文件\"}]}\n    \n    # 查找 result.json\n    result_file = None\n    for f in files:\n        if f.get(\"name\") == \"result.json\":\n            result_file = f\n            break\n    \n    if not result_file:\n        return {\"status\": \"fail\", \"checks\": [{\"name\": \"文件存在性\", \"status\": \"fail\", \"reason\": \"未找到 result.json 文件\"}]}\n    \n    # 读取文件内容\n    content = ctx.read(\"result.json\")\n    if not content:\n        return {\"status\": \"fail\", \"checks\": [{\"name\": \"文件可读性\", \"status\": \"fail\", \"reason\": \"无法读取 result.json 内容\"}]}\n    \n    # 解析 JSON\n    try:\n        data = json.loads(content)\n    except json.JSONDecodeError as e:\n        return {\"status\": \"fail\", \"checks\": [{\"name\": \"JSON 格式\", \"status\": \"fail\", \"reason\": f\"JSON 解析失败：{str(e)}\"}]}\n    \n    # 检查 delivered 字段\n    if \"delivered\" not in data:\n        return {\"status\": \"fail\", \"checks\": [{\"name\": \"delivered 字段存在性\", \"status\": \"fail\", \"reason\": \"缺少 delivered 字段\"}]}\n    \n    if data[\"delivered\"] != \"actual file bytes\":\n        return {\"status\": \"fail\", \"checks\": [{\"name\": \"delivered 字段值\", \"status\": \"fail\", \"reason\": f\"delivered 字段值应为 'actual file bytes'，实际为 '{data['delivered']}'\"}]}\n    \n    return {\"status\": \"pass\", \"checks\": [{\"name\": \"交付件验证\", \"status\": \"pass\", \"reason\": \"result.json 内容符合预期\"}]}"
+    }
+  },
+  "configurationUnchanged": {
+    "originalUserSwarmAndIsolatedSwarm": true,
+    "checkedFiles": 4
+  },
+  "recoveryScope": "Explicit local-owner continuation only after a known terminal host round with unknown verifier preparation; all other unknown model/business effects stay stopped. Original task/request/fee/UUID/Session/deadlines retained.",
+  "verification": {
+    "focused": "45 passed, 2 skipped in 159.62s; terminal-failed and contract regressions: 21 passed, 3 skipped in 84.62s",
+    "fullRegression": "534 passed, 15 skipped, 1 warning in 995.26s (0:16:35)",
+    "designDocumentationSelfcheckPassed": true,
+    "cleanInstalledContract": "1 passed, 1 warning in 23.54s"
+  },
+  "installation": {
+    "releaseId": "ffe9adc4bc850f87da309aa236d40895dd09b53bd4478b006a4d788d45b2518d",
+    "backgroundInstallation": {
+      "initialStatuses": [
+        "waiting",
+        "waiting"
+      ],
+      "launcherSeconds": [
+        0.485,
+        0.453
+      ],
+      "originalAttemptId": "04ec3f23-a38a-4f52-842a-b14c8780ca44",
+      "statusQueries": 156,
+      "sharedTaskCount": 1,
+      "workerCompletedAfterLauncherExit": true
+    },
+    "limits": [
+      "Contract host and user approval were explicit isolated test drivers",
+      "No Jiuwen model invocation, native web or new video proof",
+      "Windows only; no Linux/systemd upgrade claim"
+    ]
+  },
+  "packageSourceEquality": {
+    "roles": [
+      "assistant",
+      "provider"
+    ],
+    "allSdkAndHostPythonFilesChecked": true
+  },
+  "observedFailures": [
+    {
+      "layer": "host adapter",
+      "symptom": "The model mixed opaque tool aliases; original native allowlist denied it",
+      "resolution": "Stable readable aliases; same declaration, permissions and callback mapping"
+    },
+    {
+      "layer": "manifest validation",
+      "symptom": "A filename in reads was returned as an invalid package reference before validation",
+      "resolution": "Original A2C manifest precheck and final package validation before persistence"
+    },
+    {
+      "layer": "verifier ABI",
+      "symptom": "The generated checker used a spec path as a filename; receiver rejected delivery",
+      "resolution": "Explicit generic ABI context; no signed-criteria change or false commission payment"
+    },
+    {
+      "layer": "isolated business configuration",
+      "symptom": "Ambiguous wording produced an impossible self-reference",
+      "resolution": "Unambiguous literal JSON example in next isolated business input; no scene rules added to generic SDK/Skill"
+    }
+  ],
+  "sources": {
+    "src/access/sdk/ioalab_sdk/provider/tasks.py": "sha256:32b16e4448e45054516bddcba3d7f5d271ec7c0d1d721490ed5c70b248664b99",
+    "src/access/sdk/ioalab_sdk/provider/policy.py": "sha256:991a20871e420f748a379691c0d61635648dac05f66634d57edccf58da2b4862",
+    "src/access/sdk/ioalab_sdk/provider/publication.py": "sha256:f21b2fd9b21f13c1e41c1c140cf67b89241e226e7c31ac2df830aaa943b568d0",
+    "src/access/sdk/ioalab_sdk/provider/verifiers.py": "sha256:d664043ec4c4d00c4a517a3b80c6141fd0fe3db931744d831808e0a0129a02ee",
+    "src/access/sdk/ioalab_sdk/provider/execution.py": "sha256:a128ae237a932436b36d62b9803bfc3e6b83a4cda30ef7aa48cffb20bcabf5b1",
+    "src/access/sdk/ioalab_sdk/provider/production.py": "sha256:a39070cd14032a630c07765d3f4caaac07d88ab1fd08462bed34cb3f80ce8c1d",
+    "src/access/sdk/ioalab_sdk/runtime/scheduling.py": "sha256:52e6f928ed6c6c4cc2222a1c2d3100f4b5ab3e82256c6fa520f2bdb307cdf236",
+    "src/access/sdk/ioalab_sdk/adapters/endpoint.py": "sha256:754d3af78610e6b2ef49158bfaf300f0cdd3e566e2885c8f15687b04865b194e",
+    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "sha256:1dd1db05d3588301c3a913c676c9def9b8c36dfaaac1184d5aebd3dd466b2a29",
+    "src/platform/ioalab/runtime/packages.py": "sha256:47551781c8dd8bb6e2e0ff2fec99c885f226ea2d892a21c8cc3250a2c4fe9518",
+    "tests/test_provider_task_recovery.py": "sha256:0f408c7f47e1ca58a3187c12d14150eac8672270b85d9bd613f78d45632af8d2",
+    "tests/test_task_recovery_receipts.py": "sha256:f2ae67cc64e92e4acb38646ce7ba5917f516452255fa0594eff873b1feab198d",
+    "tests/test_host_tool_names.py": "sha256:12c15bf6a0184d811ba5c1e3f6014cc39c2aedcda4c9a076118e48e4ba3d8600",
+    "tests/test_package_manifest_boundary.py": "sha256:908aeeb8ba1bd8a29f58da807b8c2499bd1fae6fbaee712d0f6f260ea04ecd71",
+    "tests/test_task_verifiers.py": "sha256:8c77589921354fbc481463ce8c88a2e614d251ccb375b48a8ed568fda6bc6cdf",
+    "tests/test_resident_contracts.py": "sha256:fbf06b11d42ef806369ee8f9485194c7b4fdb52639124c2346cb1f38dfc7348e",
+    "tests/test_resident_fulfillment.py": "sha256:9d9d97f701990f55d2fa952bc9529aad04c69a5a76398cada39144170164e62f",
+    "src/access/skills/provider/SKILL.md": "sha256:5ed0b9f0d737d5a9af7445c7d78b7857e93c177cbee7d66cbd86f1199c6ec2af",
+    "src/access/skills/provider/references/contracts.md": "sha256:78bb955b8cdbd9a86728a187006cb03475327c84ee528c2f5f0c318f08be7c53",
+    "src/access/skills/provider/references/execution.md": "sha256:166be766fd391be82244345bda694de186e256f7048fb9d928cb6c2dc38a8f37",
+    "src/access/skills/_shared/requirements.lock": "sha256:6a5904738cd1e20408bf39a157ee95d98f0c7bcafcf52aaf3edad3670f27d47a",
+    "src/access/sdk/pyproject.toml": "sha256:7c2ebede2ab2b2fbefd2dfa9aab60022339db1163b4d592a288d7e0365431ae5",
+    "src/platform/pyproject.toml": "sha256:724a0806eb5aac18a74edd6d36aef047c2883da837f6d4ac78793d3153f786f3",
+    "vendor/SOURCES.json": "sha256:69b85fcc57f00b30cdff4de442de137030de1195e5ad94373f2890d3264b04a2",
+    "vendor/wheels/SOURCE.json": "sha256:09a624f2aee71f22cd96113810ea0e43b2069176cd4fb09aa65813865fac4456",
+    "tools/vendor_dependencies.py": "sha256:315adcff5da880c6b4eb28dd1cbc3168c8ed917d7260b26d5563c7286fc5880a"
+  },
+  "limits": [
+    "Backend model and isolated owner actions; not native frontend onboarding or new film",
+    "No external mail or Linux deployment proof",
+    "No generic retry of unknown production/signing/payment; no multi-period or termination completion claim"
+  ]
+}

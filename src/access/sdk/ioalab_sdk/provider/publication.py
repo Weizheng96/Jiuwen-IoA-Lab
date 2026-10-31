@@ -34,7 +34,7 @@ class ProviderRole:
         self.execution=ProviderExecution(self,runtime,self.host)
         registration=self.execution.bind()
         registration['jobs']['provider.preview']=JobHandler(self.run_preview,'provider-preview-v1',False)
-        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish','tools.list','template.draft','pause','resume')},**registration}
+        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish','tools.list','template.draft','pause','resume','tasks.get','task.resume')},**registration}
 
     def start(self):
         if self.execution:self.execution.start()
@@ -78,6 +78,12 @@ class ProviderRole:
                     self.fields(args,('profile',))
                     identity=self._identity(args['profile'])
                     return {'status':'completed','data':self.execution.admission_policy.change(identity,operation,name=='resume')}
+                if name=='tasks.get':
+                    self.fields(args,('profile',),('taskRef',))
+                    return {'status':'completed','data':self.execution.tasks.get(self._identity(args['profile']),args.get('taskRef'))}
+                if name=='task.resume':
+                    self.fields(args,('profile','taskRef'))
+                    return self.execution.tasks.resume(self._identity(args['profile']),args['taskRef'],operation)
                 if name == 'status':
                     self.fields(args, ('profile',))
                     identity = self._identity(args['profile'])

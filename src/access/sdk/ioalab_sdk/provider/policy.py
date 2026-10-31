@@ -72,7 +72,10 @@ class HostPolicy(DefaultPolicy):
             '报价必须给出确定金额和具体可执行验收器引用，不能宣称已签约或已交付。不得变更用户条款。'
             'quote阶段可复用业务资源或preparedVerifiers内的真实引用；缺少本单合适判据时，先用provider.task.verifier.publish打包真实Python验收源码。'
             '本单验收入口为def verify(ctx)，用ctx.read读取约定交付字节，返回status(pass/fail)及checks；按业务要求检查实际行为，不用文件存在或恒真冒充功能验收。'
-            '只有该回调成功返回的真实引用才能填入quote；上传unknown时结束本轮，不能猜引用、换内容或绕过校验。'
+            '本单新建判据必须使用回调成功返回或preparedVerifiers中的真实引用，已配置的真实验收引用也可复用；上传unknown时结束本轮，不能猜引用、换内容或绕过校验。'
+            'reads只声明spec.<deliverable>.<key>或inputs.<material>.<key>，不是文件名；仅ctx.read读取交付字节时省略reads或传[]。'
+            'ctx.files是实际文件列表，每项含name；ctx.read(name)必须用实际文件名，不能把spec路径当文件名。ctx.target是合同交付件标识，不一定是文件名；按业务约定读取文件，未约定固定名时依据ctx.files确定。'
+            '生产selftest/deliver的files字典键是实际文件名，必须与验收程序读取的名称一致。自测明确fail/error时先核对报告并修正可修改的成果，不得把失败当通过；不能修改已签判据。'
             '本回调无profile/UUID/session参数；决定已记录或其他阶段不能再打包或修改本单判据。'
             'quote中acceptance按交付件名映射{verifiers:验收器映射,notCovered:[未覆盖项]}；'
             '验收器映射只列出实际具备的种类，键可为script、skill或service，不要求同时填三类。'
@@ -144,12 +147,16 @@ class HostPolicy(DefaultPolicy):
         remaining=deadline-time.time()
         if remaining<=0:raise A2CError(OUT_OF_ORDER,'Template expired while preparing the original verifier')
         prompt=encode(prompt)
+        self.execution.tasks.clear(self.identity,self.job['id'])
         self.execution.active.add(self.job['id'])
         try:
             result=self.execution.host.run(HostTurn(self.job['id'],self.identity.agent_id,relation['id'],definition,prompt,str(workspace),remaining,
                     state['session'],on_session,lambda record:native_answer(self.runtime,self.identity.agent_id,self.job['id'],record,self.execution.stop),on_tool))
         finally:self.execution.active.discard(self.job['id'])
-        if state['uploadUnknown']:raise RuntimeFault('unknown_result','Resolve the original task verifier before continuing','resume_original')
+        if state['uploadUnknown']:
+            if result.status in ('completed','failed') and result.session_id==state['session']:
+                self.execution.tasks.wait(self.identity,self.job,state['session'],definition_hash,result.status)
+            raise RuntimeFault('unknown_result','Resolve the original task verifier before continuing','resume_original')
         if result.status!='completed' or state['decision'] is None:
             raise RuntimeFault('unknown_result','Inspect the original host decision; do not repeat it automatically')
         return state['decision']

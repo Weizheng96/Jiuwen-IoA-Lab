@@ -2,7 +2,7 @@
 # python -m pip install -r requirements.txt；普通包可使用部署方国内镜像。
 # 生产环境分别安装所属发行包，不使用本开发聚合入口。
 # Git 来源固定在 vendor；服务器安装不需要访问 GitHub。
-./vendor/wheels/a2c-0.0.19-py3-none-any.whl
+./vendor/wheels/a2c-0.0.20-py3-none-any.whl
 ./vendor/wheels/jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl
 -e ./vendor/A2X-registry
 -e ./src/platform

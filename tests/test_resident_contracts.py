@@ -220,7 +220,7 @@ def test_real_original_jiuwen_and_trusted_user_form_one_contract(platform,tmp_pa
             events.append(event);private_json(tmp_path/'public-tool-events.json',events)
     host.run=lambda turn:original_run(replace(turn,on_event=observe))
     with participants(platform,tmp_path,formation=formation,fee=1 if formation=='proposal' else 0,agent_host=host) as (provider,assistant,host,template,task):
-        allowed={'ioa_tool_'+uuid.uuid5(uuid.NAMESPACE_URL,name).hex for name in ('provider.task.quote','provider.task.decision')}
+        allowed={'ioa_provider_task_quote','ioa_provider_task_decision'}
         def drive_permissions():
             for question in provider.confirmations.list():
                 if question['kind']!='question' or question['status']!='pending':continue

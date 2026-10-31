@@ -19,7 +19,10 @@ SCHEMA='''CREATE TABLE IF NOT EXISTS runtime_jobs(
  id TEXT PRIMARY KEY,actor TEXT NOT NULL,interaction TEXT NOT NULL,session TEXT,
  handler TEXT NOT NULL,revision TEXT NOT NULL,payload TEXT NOT NULL,fingerprint TEXT NOT NULL,
  state TEXT NOT NULL,created REAL NOT NULL,deadline REAL,result TEXT,continuation TEXT);
-CREATE INDEX IF NOT EXISTS runtime_jobs_state ON runtime_jobs(state,created);'''
+CREATE INDEX IF NOT EXISTS runtime_jobs_state ON runtime_jobs(state,created);
+CREATE TABLE IF NOT EXISTS runtime_job_resumptions(
+ actor TEXT NOT NULL,id TEXT NOT NULL,job TEXT NOT NULL,continuation TEXT NOT NULL,receipt TEXT NOT NULL,
+ PRIMARY KEY(actor,id));'''
 
 
 @dataclass(frozen=True)
@@ -127,6 +130,47 @@ class Scheduler:
             row=self.store.db.execute('SELECT * FROM runtime_jobs WHERE id=?',(job,)).fetchone()
             if not row:raise RuntimeFault('not_ready','Local job does not exist')
             return self._public(row)
+
+    def records(self,actor,handlers,*,reference=None):
+        """Private role-owned job snapshots; IPC callers never select arbitrary handlers."""
+        handlers=tuple(handlers)
+        if not handlers or any(name not in self.handlers for name in handlers):raise ValueError('Installed handlers are required')
+        sql='SELECT * FROM runtime_jobs WHERE actor=? AND handler IN ('+','.join('?' for _ in handlers)+')'
+        arguments=[actor,*handlers]
+        if reference is not None:sql+=' AND id=?';arguments.append(reference)
+        with self.store.lock:rows=self.store.db.execute(sql+' ORDER BY created DESC,id DESC LIMIT 100',arguments).fetchall()
+        return [{**dict(row),'payload':json.loads(row['payload']),
+                 'continuation':json.loads(row['continuation']) if row['continuation'] else None} for row in rows]
+
+    def resumption(self,actor,operation,job):
+        with self.store.lock:
+            row=self.store.db.execute('SELECT job,receipt FROM runtime_job_resumptions WHERE actor=? AND id=?',(actor,operation)).fetchone()
+        if row and row['job']!=job:raise RuntimeFault('id_conflict','Original resume operation targets another task')
+        return json.loads(row['receipt']) if row else None
+
+    def requeue(self,job,operation,continuation):
+        """Only the installed role may call after reconciling the original effect scope."""
+        if not isinstance(continuation,dict) or not isinstance(operation,str) or not 1<=len(operation)<=128:
+            raise RuntimeFault('invalid_input','A verified original continuation and operation are required')
+        encoded=encode(continuation)
+        with self._condition:
+            with self.store.transaction() as conn:
+                row=conn.execute('SELECT * FROM runtime_jobs WHERE id=?',(job,)).fetchone()
+                if not row:raise RuntimeFault('not_ready','Original job is unavailable')
+                existing=conn.execute('SELECT job,receipt FROM runtime_job_resumptions WHERE actor=? AND id=?',(row['actor'],operation)).fetchone()
+                if existing:
+                    if existing['job']!=job:raise RuntimeFault('id_conflict','Original resume operation targets another task')
+                    return json.loads(existing['receipt'])
+                if self._draining or job in self._active:raise RuntimeFault('not_ready','Original executor has not released this job')
+                handler=self.handlers.get(row['handler'])
+                if row['state']!='unknown' or not handler or row['revision']!=handler.revision:
+                    raise RuntimeFault('id_conflict','Only the original unknown job can be continued')
+                if row['deadline'] is not None and row['deadline']<=time.time():raise RuntimeFault('expired','Original job deadline passed')
+                receipt={'taskRef':job,'operationId':operation,'queuedAt':time.time()}
+                conn.execute('INSERT INTO runtime_job_resumptions VALUES(?,?,?,?,?)',(row['actor'],operation,job,encoded,encode(receipt)))
+                conn.execute("UPDATE runtime_jobs SET state='queued',continuation=?,model_waiting=0 WHERE id=?",(encoded,job))
+            self._condition.notify_all()
+        return receipt
 
     def status(self):
         with self.store.lock:

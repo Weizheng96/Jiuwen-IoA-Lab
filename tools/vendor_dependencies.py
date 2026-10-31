@@ -25,7 +25,7 @@ MANIFEST=VENDOR/'SOURCES.json'
 def digest(blob):return hashlib.sha256(blob).hexdigest()
 def run(argv,**kwargs):return subprocess.run([str(a) for a in argv],check=True,**kwargs)
 def git(repo,*args):return subprocess.check_output(['git','-c','safe.directory='+repo.as_posix(),'-C',str(repo),*args],env={**os.environ,'GIT_LFS_SKIP_SMUDGE':'1'})
-def save(data):MANIFEST.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+def save(data):MANIFEST.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
 
 
 def unpack(raw,folder):
@@ -73,7 +73,7 @@ def main():
                 license_files.append(dest.relative_to(VENDOR).as_posix())
         if not license_files:
             note=licenses/'NOTICE.md'
-            note.write_text('# Source attribution\n\nUpstream: '+item['repository']+'\n\nCommit: '+commit+'\n\nDeclared license: '+item['license']+'. This snapshot has no standalone license text; retain the original package/source declaration.\n',encoding='utf-8')
+            note.write_text('# Source attribution\n\nUpstream: '+item['repository']+'\n\nCommit: '+commit+'\n\nDeclared license: '+item['license']+'. This snapshot has no standalone license text; retain the original package/source declaration.\n',encoding='utf-8',newline='\n')
             license_files.append(note.relative_to(VENDOR).as_posix())
         item['licenseFiles']={n:digest((VENDOR/n).read_bytes()) for n in license_files}
         if item['delivery']=='directory':

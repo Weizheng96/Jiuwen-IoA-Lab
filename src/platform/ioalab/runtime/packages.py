@@ -11,7 +11,7 @@ from typing import Any, Mapping
 
 from a2c.codec import digest_bytes
 from a2c.errors import INVALID_OBJECT, fail
-from a2c.verifier.package import build
+from a2c.verifier.package import build, load
 
 SCHEME = "ioalab://pkg/"
 MAX_PACKAGE = 256 * 1024
@@ -45,10 +45,12 @@ class PackageStore:
         if len(blob) > MAX_PACKAGE:
             fail(INVALID_OBJECT, "验收器包超过 256 KB")
         d = digest_bytes(blob)
+        reference = {"id": verifier_id, "uri": SCHEME + d, "digest": d}
+        load(blob, reference, kind)
         p = self.path(d)
         if not p.exists():
             p.write_bytes(blob)
-        return {"id": verifier_id, "uri": SCHEME + d, "digest": d}
+        return reference
 
     def check_ref(self, ref: Mapping[str, Any]) -> None:
         if not str(ref.get("uri", "")).startswith(SCHEME):

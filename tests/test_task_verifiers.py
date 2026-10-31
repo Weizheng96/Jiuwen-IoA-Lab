@@ -46,7 +46,7 @@ def test_same_task_content_reuses_one_real_upload_and_is_bound_to_its_service(au
     assert not author.confirmations.list()
 
 
-@pytest.mark.parametrize('change',['profile','interaction','source_size','kind','reads','missing_source'])
+@pytest.mark.parametrize('change',['profile','interaction','source_size','kind','reads','reads_names','missing_source'])
 def test_invalid_task_source_has_no_upload_or_pending_side_effect(author,monkeypatch,change):
     publisher=author.modules[0].verifiers;identity=author.identities[1];value=body()
     if change=='profile':value['profile']='another-service'
@@ -54,6 +54,7 @@ def test_invalid_task_source_has_no_upload_or_pending_side_effect(author,monkeyp
     elif change=='source_size':value['source']='中'*22000
     elif change=='kind':value['kind']='service'
     elif change=='reads':value['reads']={'not':'an array'}
+    elif change=='reads_names':value['reads']=['result']
     else:value.pop('source')
     monkeypatch.setattr(author.account,'api',lambda *_:pytest.fail('Invalid task reached platform'))
     with pytest.raises(RuntimeFault) as error:publisher.task(identity,'invalid-job',value)

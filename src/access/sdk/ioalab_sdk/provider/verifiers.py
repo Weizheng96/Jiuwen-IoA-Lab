@@ -4,7 +4,7 @@ import threading
 import httpx
 from a2c.codec import digest
 from a2c.errors import A2CError
-from a2c.verifier.package import load
+from a2c.verifier.package import check_manifest,load
 from jsonschema import Draft202012Validator
 
 from ..adapters.transport import stable
@@ -15,7 +15,7 @@ TASK_SOURCE_LIMIT=64*1024
 SCHEMA={'type':'object','properties':{
     'verifierId':{'type':'string','pattern':r'^[a-z][a-z0-9_]*@\d+\.\d+(\.\d+)?$','maxLength':160},
     'source':{'type':'string','minLength':1},
-    'reads':{'type':'array','maxItems':256,'items':{'type':'string','maxLength':256}},
+    'reads':{'type':'array','description':'合同字段路径，仅spec.<deliverable>.<key>或inputs.<material>.<key>；不是文件名。仅ctx.read读取文件时省略或传[]。','maxItems':256,'items':{'type':'string','maxLength':256}},
     'kind':{'enum':['script','skill']}},'required':['verifierId','source'],'additionalProperties':False}
 TASK_SCHEMA={**SCHEMA,'properties':{**SCHEMA['properties'],'source':{**SCHEMA['properties']['source'],'maxLength':TASK_SOURCE_LIMIT}}}
 
@@ -43,6 +43,9 @@ class VerifierPublisher:
         try:bounded=len(body['source'].encode('utf-8'))<=limit
         except UnicodeError:bounded=False
         if not bounded:raise RuntimeFault('invalid_input','Verifier source exceeds the UTF-8 size bound','correct_input')
+        try:check_manifest({'id':body['verifierId'],'kind':body.get('kind','script'),'runtime':'cpython-3.13-wasi',
+                           'entry':'verify:verify','reads':body.get('reads',[])},{'id':body['verifierId']},body.get('kind','script'))
+        except A2CError as exc:raise RuntimeFault('invalid_input',exc.message,'correct_input') from None
 
     def publish(self,identity,operation,body,*,limit=256*1024):
         self.validate(body,limit)

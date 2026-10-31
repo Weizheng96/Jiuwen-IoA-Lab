@@ -92,8 +92,9 @@ class ProcessHost:
         for tool in turn.definition.tools:
             name=tool.name
             if name=='ask_user' or not re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name):
-                name='ioa_tool_'+uuid.uuid5(uuid.NAMESPACE_URL,tool.name).hex
-                while name in reserved:name='ioa_tool_'+uuid.uuid5(uuid.NAMESPACE_URL,name).hex
+                base=('ioa_'+re.sub('[^A-Za-z0-9_]+','_',tool.name).strip('_'))[:50]
+                name=base
+                while name in reserved:name=base+'_'+uuid.uuid5(uuid.NAMESPACE_URL,name+tool.name).hex[:10]
                 reserved.add(name)
             aliases[name]=tool.name
             schema=copy.deepcopy(tool.input_schema)

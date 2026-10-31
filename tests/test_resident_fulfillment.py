@@ -92,8 +92,9 @@ def accept_preview(assistant,reference):
     key,started=invoke(assistant,reference,'accept',period=1)
     assert started['status']=='accepted',started
     job=started['data']['job']['reference']
-    wait_for(lambda:assistant.scheduler.get(job)['status']=='waiting')
+    wait_for(lambda:assistant.scheduler.get(job)['status'] in ('waiting','completed','rejected','failed','unknown'))
     pending=assistant.scheduler.get(job)
+    assert pending['status']=='waiting',pending
     return key,{'status':'waiting','data':pending['data'],'jobRef':job}
 
 

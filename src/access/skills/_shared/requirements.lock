@@ -1,6 +1,6 @@
 PyYAML==6.0.3
 a2a-sdk==1.0.0
-a2c==0.0.19
+a2c==0.0.20
 aiologic==0.17.1
 annotated-types==0.8.0
 anyio==4.15.1

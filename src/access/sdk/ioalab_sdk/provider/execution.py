@@ -45,6 +45,8 @@ class ProviderExecution:
         self.admission_policy=AdmissionPolicy(self)
         from .production import Production
         self.production=Production(self)
+        from .tasks import ProviderTasks
+        self.tasks=ProviderTasks(self)
 
     def bind(self):
         if not self.role.identities:return {}
@@ -246,7 +248,8 @@ class ProviderExecution:
         message=next(frame['message'] for frame in self.runtime.store.messages(identity.agent_id) if frame['message']['messageId']==job['payload']['messageId'])
         endpoint=self.context(identity,relation,job)
         if message['body']['op']=='request.submit':endpoint.provider.transport.request=message['body']['body']['request']
-        result=endpoint.finish(message) if job['handler']=='provider.a2c' else endpoint.prepare(message)
+        resume=self.tasks.require_continuation(identity,job,relation,message)
+        result=endpoint.finish(message,resume_request=resume) if job['handler']=='provider.a2c' else endpoint.prepare(message)
         if result.get('deferred'):
             self.runtime.scheduler.submit(identity.agent_id,relation['id'],'provider.a2c',job['payload'],operation_id=message['messageId'],
                 session=relation['session'],deadline=instant(message['expiresAt']),admitted=True)

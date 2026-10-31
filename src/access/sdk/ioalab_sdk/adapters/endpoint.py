@@ -67,11 +67,14 @@ class EndpointSession:
             return self.publish(message,packed)
         finally:self.save_tasks()
 
-    def finish(self,message):
+    def finish(self,message,*,resume_request=False):
         with self.lock:
             mid=message['messageId'];record=self.store.get('calls',mid)
             if record and record.get('reply') is not None:return self.publish(message,record['reply'])
             reply=self.deferred.pop(mid,None)
+            if resume_request:
+                if message['body']['op']!='request.submit':raise RuntimeFault('forbidden','Only the verified original quote can continue')
+                reply=self.provider.resume_request(stable('task',mid))
             if reply is None:raise RuntimeFault('unknown_result','The original deferred endpoint needs reconciliation')
             self.runtime.require_execution()
             try:
