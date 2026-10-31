@@ -1,0 +1,109 @@
+{
+  "date": "2026-11-01",
+  "scope": "Official deployment CLI, strict SDK publication and finite renewal",
+  "verification": {
+    "focused": "64 passed, 1 warning in 103.28s",
+    "fullRegression": "601 passed, 16 skipped, 1 warning in 1305.11s",
+    "fullGateExitCode": 0,
+    "fullGateElapsedSeconds": 1352.58,
+    "sourceInputs": 327,
+    "sourceChangesDuringRun": [],
+    "installedRegression": {
+      "result": "38 passed, 2 warnings in 48.57s",
+      "ownedModuleCount": 107,
+      "allOwnedModulesFromInstalledWheels": true,
+      "sourceResourceFiles": 176
+    }
+  },
+  "native": {
+    "closed": true,
+    "contractDigest": "sha256:47f78df7219d95388094996eea0be6483cd08e25b2b07d4ef45ff69bcbd4eaf8",
+    "elapsedSeconds": 343.2,
+    "interactionId": "c39e5760-2d0b-4775-a272-df5ad9a104d4",
+    "limits": [
+      "Windows; reused locked third-party environment",
+      "No native frontend approval/tutorial or new film",
+      "Old installer and legacy callers not migrated"
+    ],
+    "originalSwarmConfigurationsUnchanged": true,
+    "payments": [
+      {
+        "amount": "6.00",
+        "purpose": "installment"
+      }
+    ],
+    "preparedAccounts": 8,
+    "publishedServices": 50,
+    "reputationCompleted": 1,
+    "scope": "Installed official CLI prepare/authorize/serve, eight ISP runtimes, fifty published service profiles and one original Jiuwen production task; scripted owner confirmations",
+    "sessionIds": [
+      "process_cli_1a1943fef0d_5207bc96de48"
+    ],
+    "startupModelJobs": 0
+  },
+  "nativeRunWheels": {
+    "ioalab-0.0.46-py3-none-any.whl": "c7f990128291f6a55f9b0fe33ede5b81d8224f400979ca636083ad8b6e94aa14",
+    "ioalab_jiuwen-0.0.46-py3-none-any.whl": "ae42dc52facf0d0093efd498331797056572823fa09a86747c81bec8bbd6aca2",
+    "ioalab_official-0.0.46-py3-none-any.whl": "7645172ecfc1085fa98407d50539c3351eb773170a33cf59acb7860787faae27",
+    "ioalab_sdk-0.0.39-py3-none-any.whl": "280e8e6b635b4060b82670687b760c48d19f9c0224ffee29557227898f30e05f"
+  },
+  "finalInstalledPackages": {
+    "ioalab-0.0.46-py3-none-any.whl": {
+      "sha256": "c7f990128291f6a55f9b0fe33ede5b81d8224f400979ca636083ad8b6e94aa14",
+      "sourceResourceFiles": 70
+    },
+    "ioalab_jiuwen-0.0.46-py3-none-any.whl": {
+      "sha256": "ae42dc52facf0d0093efd498331797056572823fa09a86747c81bec8bbd6aca2",
+      "sourceResourceFiles": 10
+    },
+    "ioalab_official-0.0.46-py3-none-any.whl": {
+      "sha256": "c46b2c05c0d64f689f9b7555db9460dd6b25f0364cbe39283ad6d8a787b4a494",
+      "sourceResourceFiles": 37
+    },
+    "ioalab_sdk-0.0.39-py3-none-any.whl": {
+      "sha256": "280e8e6b635b4060b82670687b760c48d19f9c0224ffee29557227898f30e05f",
+      "sourceResourceFiles": 59
+    }
+  },
+  "nativeToFinalDifferences": [
+    "ioalab_services/deployment.py",
+    "ioalab_services/preparation.py"
+  ],
+  "finalPreparedStateValidation": {
+    "accounts": 8,
+    "services": 50,
+    "preparedStateAndSettingsUnchanged": true,
+    "differenceScope": "Only local completed-state and business-skill-name validation changed after the real model run; final package rechecked against the same fifty prepared services"
+  },
+  "lifecycle": {
+    "providerLoginCredits": 8,
+    "additionalProviderLoginCreditsAfterRestart": 0,
+    "allEightSdkLeasesReleased": true,
+    "originalSwarmConfigurationFilesChecked": 4,
+    "originalSwarmConfigurationsUnchanged": true
+  },
+  "coverage": {
+    "prepareHasNoPublicationOrModel": true,
+    "lostUploadAndAuthorizationRecoverOriginalOperations": true,
+    "strictPublicationCannotFallbackToUserConfirmation": true,
+    "manualTermsAndPausedAdmissionPreserved": true,
+    "twoDayRemainingTemplateRenewedToThirtyDays": true,
+    "oldSignedTemplateRetained": true,
+    "currentStateIncludesExpiredOriginals": true,
+    "sanitizedActualChildImportsWasmtime": true,
+    "credentialsExcludedFromServeEnvironment": true
+  },
+  "limits": [
+    "Windows only; no Linux/systemd acceptance",
+    "Reused locked third-party dependency environment; not fresh dependency closure proof",
+    "Owner confirmation is an explicit isolated driver, not native frontend approval/tutorial proof",
+    "Real contract completed on deployment chain; renewal-during-in-flight-contract remains to be tested explicitly",
+    "Default installer, legacy execution/rehearsal/tests and whole-group archive still pending",
+    "No new demo video or operations assistant"
+  ],
+  "observedWarnings": [
+    "Existing protected Windows pytest temporary-directory cleanup warning",
+    "A2A dispatcher-not-running warnings during isolated shutdown"
+  ],
+  "sourceEvidence": "Actual installed core/SDK/host/official modules; package contents compared after LF normalization"
+}

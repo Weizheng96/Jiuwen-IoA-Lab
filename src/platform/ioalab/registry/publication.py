@@ -5,7 +5,8 @@ import json
 import time
 
 from a2c.binding import agent_card
-from a2c.codec import digest, parse_time
+from a2c.codec import digest, parse_time,fmt_time
+from .authorizations import publication_terms
 from a2c.jws import check_fresh, verify,header_of
 from google.protobuf.json_format import MessageToDict
 
@@ -175,8 +176,11 @@ class ServicePublications:
         projection = self.db.one('SELECT * FROM registry_projection WHERE actor=?', actor)
         declaration=json.loads(row['body'])['declaration'] if row else None
         active=self.templates(actor) if row else []
+        templates=json.loads(row['templates']) if row else []
         return {'agentId': actor, 'published': bool(row), 'revision': row['revision'] if row else 0,
                 'declarationDigest': row['digest'] if row else None,
+                'publishedTermsDigest':publication_terms(declaration['protocolId'],{**declaration,'templates':templates}) if row else None,
+                'templateExpiresAt':fmt_time(min(parse_time(t['validUntil']) for t in templates)) if templates else None,
                 'indexedRevision': projection['revision'] if projection else 0,
                 'indexReady': bool(row and projection and row['revision'] == projection['revision']),
                 'categoryId': declaration['categoryId'] if declaration else None,

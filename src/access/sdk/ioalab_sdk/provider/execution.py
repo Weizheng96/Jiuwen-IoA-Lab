@@ -24,7 +24,8 @@ class ProviderExecution:
     def __init__(self,role,runtime,host):
         self.role,self.runtime,self.host=role,runtime,host
         self.configs=copy.deepcopy(runtime.config.provider.get('services',{}))
-        if set(runtime.config.provider)-{'services'} or not isinstance(self.configs,dict):raise RuntimeFault('invalid_input','Configure provider.services by local service profile')
+        if type(runtime.config.provider.get('require_publication_authorization',False)) is not bool:raise RuntimeFault('invalid_input','require_publication_authorization must be boolean')
+        if set(runtime.config.provider)-{'services','require_publication_authorization'} or not isinstance(self.configs,dict):raise RuntimeFault('invalid_input','Configure provider.services by local service profile')
         for profile,config in self.configs.items():
             if profile not in role.identities or not isinstance(config,dict) or set(config)-{'instructions','skills','resources','native_tools','max_active_delegations','accepting'} or not isinstance(config.get('instructions'),str) or not config['instructions'].strip():
                 raise RuntimeFault('invalid_input','Each service needs its local profile and professional instructions')

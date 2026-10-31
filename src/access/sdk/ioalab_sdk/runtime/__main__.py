@@ -28,7 +28,7 @@ def require_configuration(state,config,*,assembly=None):
         raise RuntimeFault('configuration_changed','The running instance uses another configuration; safely stop it before starting the edited configuration','runtime.stop')
 
 
-def start(config_path,*,timeout=15,command=None,assembly=None):
+def start(config_path,*,timeout=15,command=None,assembly=None,environment=None):
     config=RuntimeConfig.load(config_path)
     def matching(result):
         require_configuration(result['data'],config,assembly=assembly)
@@ -55,7 +55,7 @@ def start(config_path,*,timeout=15,command=None,assembly=None):
         entry=command or [sys.executable,'-m','ioalab_sdk.runtime']
         child=subprocess.Popen([*entry,'serve','--config',str(Path(config_path).resolve())],
                                cwd=Path(config_path).resolve().parent,stdin=subprocess.DEVNULL,stdout=stream,stderr=stream,
-                               creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                               creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),env=environment)
     until=time.monotonic()+timeout
     while time.monotonic()<until:
         if child.poll() is not None:

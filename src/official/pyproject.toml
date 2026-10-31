@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = ["ioalab-sdk>=0.0.39", "python-dotenv>=1,<2"]
 
 [project.scripts]
+ioalab-official = "ioalab_services.__main__:main"
 ioalab-schedule = "ioalab_tools.schedule_cli:main"
 
 [project.entry-points."ioalab.business_tools"]

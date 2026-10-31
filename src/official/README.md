@@ -14,7 +14,13 @@
 
 先通过常驻SDK的 `provider.verifier.publish` 上传定义中实际验收器，取得完整引用后调用prepare。将execution保存到本机配置的 `provider.services[profile]`，按正常流程重新启动；service经 `provider.preview`、真实用户确认及 `provider.publish` 发布。通用SDK负责身份、签名、容量、长连接和履约，不为官方目录增加一套执行器。生产模型只取得格式、定价、验收引用和业务说明，不取得sample样件。
 
-资源独立安装与一项服务的接单验收不代表全部默认服务已自动上线；批量启用、续期及旧运行器替换见[开发计划](../../docs/开发计划.md)。源变更后用 `python tools/build_seed.py` 重新生成显式初始化清单。
+部署协调器提供批量准备、公示及续期；默认安装入口和旧运行器的整体切换见[开发计划](../../docs/开发计划.md)。源变更后用 `python tools/build_seed.py` 重新生成显式初始化清单。
+
+## 官方部署协调器
+
+入口为`ioalab-official`，配置示例见[official.example.json](../../deploy/official.example.json)。`prepare --config <文件>`保存真实验收包引用和完整配置；`authorize --config <文件> --admin-password-env <口令变量名>`执行首次公示授权；`serve --config <文件>`使用已安装九问适配运行并检查续期；`status --config <文件>`只查询。管理员口令只用于首次授权进程；长期进程不继承它。
+
+已有完整配置、暂停、撤销和人工公示均保留；服务缺宿主或授权时报告原因。当前部署安装器及旧排练/测试入口仍待整体切换，进展及证据见[开发计划](../../docs/开发计划.md)。
 
 ## 本地会议工具
 

@@ -234,11 +234,16 @@ class ProviderRole:
                 if authority is None:
                     original=self.runtime.confirmations.find(binding)
                     policy=self.status(identity).get('publicationAuthorization')
-                    authority={'fingerprint':fingerprint,'revision':policy['revision'] if not original and covers(policy,identity,config,utcnow()) else None}
+                    permitted=not original and covers(policy,identity,config,utcnow())
+                    if self.runtime.config.provider.get('require_publication_authorization',False) and not permitted:
+                        raise RuntimeFault('forbidden','A matching deployment publication authorization is required','configure_publication')
+                    authority={'fingerprint':fingerprint,'revision':policy['revision'] if permitted else None}
                     self.runtime.store.checkpoint_set(namespace,authority_key,authority)
                 elif authority['fingerprint']!=fingerprint:
                     raise RuntimeFault('id_conflict','Original publication authority parameters changed')
             if authority['revision'] is None:
+                if self.runtime.config.provider.get('require_publication_authorization',False):
+                    raise RuntimeFault('forbidden','The original user-confirmed operation cannot use deployment publication authority','resolve_original_decision')
                 decision = self.runtime.confirmations.ensure(binding)
                 if decision['status'] != 'approved':
                     data={'confirmationRef': decision['reference'], 'confirmationStatus': decision['status'], 'preview': preview}
