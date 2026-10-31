@@ -68,14 +68,14 @@ def test_tampered_installer_inputs_never_create_an_environment(tmp_path,what):
     manifest={'versions':{},'constraintsSha256':hashlib.sha256(b'wrong' if what=='constraint' else lock).hexdigest(),
               'wheels':[{'file':'../outside.whl' if what=='path' else 'local.whl','sha256':hashlib.sha256(data).hexdigest()}]}
     (assets/'runtime.json').write_text(json.dumps(manifest));cache=tmp_path/'cache'
-    with pytest.raises(RuntimeError,match='checksum|path'):module.ensure_runtime(assets,cache)
+    with pytest.raises(RuntimeError,match='checksum|path'):module.installation().Release(assets,cache)
     assert not cache.exists()
 
 
 def test_unrelated_role_cannot_trigger_bootstrap_or_rpc(tmp_path,monkeypatch,capsys):
     module=bootstrap();root=tmp_path/'skill';(root/'assets').mkdir(parents=True)
     (root/'assets/skill.json').write_text('{"role":"assistant"}');module.__file__=str(root/'scripts/ioalab.py')
-    monkeypatch.setattr(module,'ensure_runtime',lambda:pytest.fail('unrelated operation installed packages'))
+    monkeypatch.setattr(module,'installation',lambda:pytest.fail('unrelated operation installed packages'))
     assert module.main(['provider.publish'])==1
     assert json.loads(capsys.readouterr().out)['status']=='rejected'
 
@@ -90,7 +90,8 @@ def test_both_real_product_bundles_have_one_manifest_and_generated_entry(tmp_pat
             assert not any('settings.local.json' in name or name.endswith('.pyc') for name in archive.namelist())
             manifests.append(archive.read(root+'/assets/runtime.json'))
             assert json.loads(archive.read(root+'/assets/skill.json'))['role']==role
-            assert archive.read(root+'/scripts/ioalab.py')==(ROOT/'src/access/skills/_shared/ioalab.py').read_bytes()
+            for entry in ('ioalab.py','installer.py'):
+                assert archive.read(root+'/scripts/'+entry)==(ROOT/'src/access/skills/_shared'/entry).read_bytes()
             assert root+'/references/setup.md' in archive.namelist()
             assert archive.read(root+'/references/shared-runtime.md')==(ROOT/'src/access/skills/_shared/references/shared-runtime.md').read_bytes()
             if role=='service':assert root+'/references/contracts.md' in archive.namelist()

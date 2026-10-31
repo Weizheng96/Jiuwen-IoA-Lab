@@ -33,10 +33,10 @@ def uid():return str(uuid.uuid4())
 
 
 @contextmanager
-def online(client,local,service):
+def online(client,local,service,*,runtimes=(None,None)):
     account,identity=service
-    a=Peer(client,{'actor':local.signer.id,'token':local.token})
-    b=Peer(client,{'actor':identity.agent_id,'token':account.token})
+    a=Peer(client,{'actor':local.signer.id,'token':local.token},runtime=runtimes[0])
+    b=Peer(client,{'actor':identity.agent_id,'token':account.token},runtime=runtimes[1])
     try:yield a,b
     finally:b.close();a.close()
 
@@ -357,7 +357,11 @@ def test_committed_admission_and_relation_survive_ordinary_message_retention(pla
     with monkeypatch.context() as patch:
         patch.setattr(platform.messaging.delivery,'clock',lambda:time.time()+90*86400)
         platform.messaging.delivery.cleanup()
-    with online(client,local,service) as (sender,receiver):
+    previous=(sender,receiver)
+    # Ordinary reconnect keeps the durable runtime IDs; inventing new IDs here
+    # races server-side close cleanup and correctly trips the competing-instance fence.
+    with online(client,local,service,runtimes=tuple(peer.runtime for peer in previous)) as (sender,receiver):
+        assert sender.generation>previous[0].generation and receiver.generation>previous[1].generation
         assert receiver.call('admission.status',{'admissionId':held['admissionId']})['state']=='committed'
         relation=client.get('/api/v1/interactions',headers={'Authorization':'Bearer '+local.token},params={'agentId':sender.actor,'originMessageId':value['messageId']}).json()
         assert relation['state']=='open' and relation['interactionId']==binding['interactionId']

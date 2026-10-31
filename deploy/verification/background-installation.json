@@ -1,0 +1,126 @@
+{
+  "scope": "Shared dependency worker, real public product CLI and original Jiuwen native isolated installation",
+  "verification": {
+    "fullRegression": "507 passed, 13 skipped, 1 warning in 833.63s (0:13:53)",
+    "focused": "47 passed; after system environment fix 25 passed; final fixture and lifecycle 12 passed",
+    "installedUpgrade": {
+      "exitCode": 0,
+      "test": "tests/test_installed_upgrade.py",
+      "result": "1 passed, 1 warning in 25.85s"
+    },
+    "coverage": [
+      "frontend returns while actual worker lock is held",
+      "two ZIP launchers share one attempt",
+      "query/business do not install or read/rewrite user files",
+      "worker environment excludes credential canaries",
+      "real Wasmtime import retains system architecture",
+      "known failure requires explicit retry",
+      "missing owner preserves unknown instead of rebuilding",
+      "damaged completed release refuses repair",
+      "partial completion marker with a live writer remains waiting"
+    ],
+    "finalFocused": "27 passed for installation/identity/configuration; 15 passed for retention reconnect and delivery fencing",
+    "designDocumentationSelfcheckPassed": true
+  },
+  "installation": {
+    "releaseId": "cc6ec9b80b1ebc1157bf39868071aefbea9a31405dedeb0b7640955779ae3632",
+    "manifest": {
+      "constraintsSha256": "8308a8450f8163bd277405fa532c7deab8318014b5d0212471617ca9d7df7f36",
+      "format": 1,
+      "sourceManifestSha256": "769073ba95db14af5dee8f7a4703919689d064ade734a3d2268a053419ad87d0",
+      "versions": {
+        "a2c": "0.0.19",
+        "ioalab-jiuwen": "0.0.46",
+        "ioalab-official": "0.0.46",
+        "ioalab-sdk": "0.0.39",
+        "jiuwenswarm-process-sdk": "0.1.0"
+      },
+      "wheels": [
+        {
+          "file": "a2c-0.0.19-py3-none-any.whl",
+          "sha256": "0613c5cd6a71983bda09283180ab6230f776b3a3e12e19ccd6a24dd535386bb2"
+        },
+        {
+          "file": "ioalab_jiuwen-0.0.46-py3-none-any.whl",
+          "sha256": "3abb21fd86e5c595fc21608bc280e1b52f48e8ca7b8fc96f3837fb2874006002"
+        },
+        {
+          "file": "ioalab_official-0.0.46-py3-none-any.whl",
+          "sha256": "093ae3d0aaa959bb80287b778c0a508975e8ff8ef6ac220dae4692554b314410"
+        },
+        {
+          "file": "ioalab_sdk-0.0.39-py3-none-any.whl",
+          "sha256": "8284d96a3e0480ffaf6368d7a98a389210914647165403530558c850f7acf2f5"
+        },
+        {
+          "file": "jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl",
+          "sha256": "f9aa6e09e21112a82e56320569c4ffea592415551d75489cfc1c51a3da5f0778"
+        }
+      ]
+    },
+    "background": {
+      "initialStatuses": [
+        "waiting",
+        "waiting"
+      ],
+      "launcherSeconds": [
+        0.437,
+        0.422
+      ],
+      "originalAttemptId": "167a0d99-b796-4769-a612-cc7251f3cbc8",
+      "statusQueries": 152,
+      "sharedTaskCount": 1,
+      "workerCompletedAfterLauncherExit": true
+    }
+  },
+  "nativeImport": {
+    "importedFileCount": 18,
+    "importMatchesBuiltProduct": true,
+    "originalSwarmConfigurationsUnchanged": true,
+    "providerBundleSha256": "8ff9a910cf9f40892aadb12379b3fa1be70e73700e49f4aae98b97904bdc13cb",
+    "releaseId": "cc6ec9b80b1ebc1157bf39868071aefbea9a31405dedeb0b7640955779ae3632"
+  },
+  "native": {
+    "session": "web_1a19241948e_da18dc726745",
+    "model": "qwen3.5-plus#2",
+    "attemptId": "c6e098a3-2d10-4016-99d4-a64318a5d96e",
+    "taskPhase": "completed",
+    "actualCompletionVerified": true,
+    "workerLockReleased": true,
+    "originalSwarmConfigurationsUnchanged": true,
+    "initialFailure": "Missing Windows processor architecture variables rejected Wasmtime import; fixed without bypassing checks",
+    "limits": [
+      "Controlled fresh cache was explicitly selected for this native test",
+      "Dependency installation only; not full provider publication, production, assistant onboarding or any new film",
+      "No private-credential isolation or external mail acceptance claim"
+    ],
+    "finalBundleReadOnlyRecheck": true,
+    "actualNativeStatusReceipt": {
+      "status": "completed",
+      "data": {
+        "stage": "installation",
+        "releaseId": "cc6ec9b80b1ebc1157bf39868071aefbea9a31405dedeb0b7640955779ae3632",
+        "requestSubmitted": false,
+        "python": "D:\\project\\Jiuwen-IoA-Lab\\data\\verification-installation-v81\\native-clean-cache\\cc6ec9b80b1ebc1157bf3986\\Scripts\\python.exe",
+        "sharedEnvironment": true
+      },
+      "error": null
+    },
+    "nativeEvidence": "Controlled cold native installation followed by final ZIP reimport and actual native runtime.install.status exit 0"
+  },
+  "sources": {
+    "src/access/skills/_shared/ioalab.py": "sha256:7382934b776b3efa2c17eef8298d1a7ca1e4383d53b1c532f96a70c7ca1fd7fe",
+    "src/access/skills/_shared/installer.py": "sha256:e303f47eeabcff80d69c788df7b6f694ea04bb2851f3626d6d0afa6b79c88bf6",
+    "src/access/skills/_shared/references/shared-runtime.md": "sha256:50137d39e80d4318fafa556d8bf96268d0fffbd0d0e336d6c47e6cbbc64828b3",
+    "tools/build_access_skills.py": "sha256:50deb2789de0445d567ee82530de3e40e674fffd54cd3c30c003fb5390ca4bf2",
+    "tools/check_bootstrap.py": "sha256:813807beb281ad27d15064065c68ee726acb433f30acb85786ea5096df6bd14d",
+    "tests/test_background_installation.py": "sha256:4a4eef1ce55b871ecd59f77ac749cb1d5b37f681744f5d1afec99852ca528ed5",
+    "tests/test_external_product_config.py": "sha256:a4798f2f0ccfa5b8f760e416ccd5af19473d7dfa8c5ee7196fb32109990f2264",
+    "tests/test_delegation_admission.py": "sha256:db7e92c8662902bf4180f4bbc06ca0a1fb8415ee01326938a0822acb9518d75b"
+  },
+  "limits": [
+    "Actual contract host/user in installed takeover test were isolated test drivers",
+    "Windows verification only; Linux deployment remains outstanding",
+    "Full development goal and four new films remain incomplete"
+  ]
+}

@@ -98,7 +98,7 @@ def test_cli_preflight_cannot_switch_to_another_boot_before_a_business_request(t
     finally:first.close();second.close()
 
 
-@pytest.mark.parametrize('corruption',['marker','ready','python'])
+@pytest.mark.parametrize('corruption',['marker','ready','python','missing_ready'])
 def test_completed_cache_is_never_repaired_under_an_existing_runtime(tmp_path,monkeypatch,corruption):
     import os
     module=bootstrap();assets=tmp_path/'assets';wheels=assets/'wheels';wheels.mkdir(parents=True)
@@ -111,5 +111,7 @@ def test_completed_cache_is_never_repaired_under_an_existing_runtime(tmp_path,mo
     (environment/'ioalab-release.json').write_text(json.dumps({'format':installation.FORMAT,'releaseId':fingerprint,'versions':{}}) if corruption!='marker' else '{}')
     if corruption!='python':
         python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python');python.parent.mkdir();python.write_bytes(b'not used')
-    monkeypatch.setattr(module.venv.EnvBuilder,'create',lambda *_:pytest.fail('overwrote a completed environment'))
-    with pytest.raises(RuntimeError,match='do not repair it in place'):module.ensure_runtime(assets,cache)
+    installer=module.installation()
+    if corruption=='missing_ready':(environment/'.ready').unlink()
+    monkeypatch.setattr(installer.venv.EnvBuilder,'create',lambda *_:pytest.fail('overwrote a completed environment'))
+    with pytest.raises(RuntimeError,match='do not repair it in place'):installer.prepare(assets,cache,launch=True,retry=True)

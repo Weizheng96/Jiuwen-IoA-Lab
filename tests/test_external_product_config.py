@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 from ioalab_sdk.runtime.files import private_json
 from test_access_products import bootstrap
@@ -23,7 +24,8 @@ def test_both_roles_share_external_default_after_skill_replacement_and_explicit_
         (root/'settings.local.json').write_text('{"username":"wrong-source"}',encoding='utf-8')
         module.__file__=str(root/'scripts/ioalab.py')
         monkeypatch.setattr(module,'Path',UserPaths)
-        monkeypatch.setattr(module,'ensure_runtime',lambda:Path(sys.executable))
+        monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda *a,**k:
+            {'status':'completed','data':{'python':sys.executable},'error':None}))
         return module,root
     def validate(module,args=()):
         assert module.main(['runtime.validate',*args])==0

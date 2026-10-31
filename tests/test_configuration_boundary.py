@@ -22,7 +22,8 @@ def product(tmp_path,monkeypatch,role):
     module=bootstrap();root=tmp_path/'skill';(root/'assets').mkdir(parents=True)
     (root/'assets/skill.json').write_text(json.dumps({'role':role}),encoding='utf-8')
     module.__file__=str(root/'scripts/ioalab.py')
-    monkeypatch.setattr(module,'ensure_runtime',lambda:Path(sys.executable))
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda *a,**k:
+        {'status':'completed','data':{'python':sys.executable},'error':None}))
     return module
 
 

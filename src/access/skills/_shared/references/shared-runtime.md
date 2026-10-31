@@ -2,7 +2,7 @@
 
 触发：完成本机角色配置后安装、启动、诊断、停止或打开确认页。流程文档通过skill_tool的relative_file_path读取。脚本路径使用原生结果中的skill_directory；若模型可见结果只含正文和目录树，则通过原生glob在默认九问工作区查找 `**/ioalab-provider/scripts/ioalab.py` 或 `**/ioalab-delegate/scripts/ioalab.py`，仅定位当前所选技能。不要从账号data_dir推断，不扫描整仓、用户目录或依赖缓存；没有唯一实际路径则请用户提供导入目录。
 
-首次runtime.start包含隔离依赖安装，终端本次调用应给足时限；宿主允许时使用300秒。不要修改九问全局配置。安装仅访问随包wheels和配置的国内镜像，不改九问或全局Python。
+普通接入从runtime.start开始；用户只要求预装依赖时必须用runtime.install，不用runtime.start，以免已安装时意外启动SDK。缺依赖时发起独立后台安装并快速返回，不需要延长九问终端时限。安装仅访问随包wheels和配置的国内镜像，不改九问或全局Python。两种技能共用同一依赖任务。
 
 ```text
 python "<skill_directory>/scripts/ioalab.py" runtime.start --config "<外置配置文件>"
@@ -10,12 +10,18 @@ python "<skill_directory>/scripts/ioalab.py" runtime.status --config "<外置配
 python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置配置文件>"
 ```
 
-runtime.start已经完成安装、配置校验及装配启动。runtime.install只用于单独预装，runtime.validate只做只读配置检查，普通接入不必另做。上述名称是本脚本参数，不是原生工具或技能商店动作。
+仅预装：`python "<skill_directory>/scripts/ioalab.py" runtime.install`；查询：`python "<skill_directory>/scripts/ioalab.py" runtime.install.status`。安装操作不需要账号配置或参数文件，也不需要手写releaseId/attemptId。
+
+依照真实回执的stage和nextAction继续：stage=installation时查询runtime.install.status；依赖completed后，普通接入再次runtime.start才会校验配置并启动SDK，随后查询runtime.status；仅预装到此结束。安装完成不代表已上线。runtime.install用于单独预装或明确失败后的显式重试，不能当查询反复调用；runtime.validate只做配置检查，普通接入不必另做。其他诊断/业务操作不触发安装。上述名称是本脚本参数，不是原生工具或技能商店动作。
 
 | 真实结果 | 下一步 |
 |---|---|
-| start返回waiting | 沿同一配置查询runtime.status；不重复启动 |
-| 工具观察超时 | 查原终端真实终态和同一实例；仍在运行则等待。只有明确终止后才重发原命令，不并行启动 |
+| waiting且stage=installation | 沿原releaseId/attemptId查询runtime.install.status；前台结束后后台继续，不再发起安装 |
+| 安装completed | 仅预装到此结束；普通接入再runtime.start并查询runtime.status，不直接重做原业务 |
+| SDK启动返回waiting | 沿同一配置查询runtime.status；不重复启动 |
+| 工具观察超时 | 查询原安装任务或同一SDK实例，核真实进程/锁和终态；不因观察超时另起任务 |
+| installation_failed | 查本次logPath并修正原因，显式runtime.install可重试；不改校验或手写完成标记 |
+| 安装unknown | 保留原环境、attemptId和日志，核对真实所有者；不自动删除、重装或运行SDK |
 | status完成 | 分别核对身份bound、platformConnected、宿主available及角色执行能力；未发布服务仍可executionReady=false |
 | configuration_changed / installation_changed | 用空JSON文件调用runtime.stop，等待实际安全停止后按原配置启动；不改data_dir或私钥 |
 | unknown | 保留原参数文件及operationId，按原角色查询/恢复；不重做签约、付款或通知 |

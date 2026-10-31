@@ -58,7 +58,8 @@ def build(output):
             shutil.copytree(shared,skill/'assets')
             (skill/'assets/skill.json').write_text(json.dumps({'role':role}),encoding='utf-8')
             (skill/'scripts').mkdir()
-            shutil.copy2(ROOT/'src/access/skills/_shared/ioalab.py',skill/'scripts/ioalab.py')
+            for entry in ('ioalab.py','installer.py'):
+                shutil.copy2(ROOT/'src/access/skills/_shared'/entry,skill/'scripts'/entry)
             destination=output/('ioalab-'+folder+'-skill.zip')
             with zipfile.ZipFile(destination,'w',zipfile.ZIP_DEFLATED) as archive:
                 for path in sorted(skill.rglob('*')):

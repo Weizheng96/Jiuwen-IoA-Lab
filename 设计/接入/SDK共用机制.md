@@ -162,13 +162,15 @@ operationId关联一次工具调用，不代表唯一业务请求；模型可能
 
 原生通知准备也由引导转交配置路径、独立参数文件和产品角色给九问适配入口；适配使用SDK统一读取，核对profile实际归属与角色，不另写配置解析器。
 
-配置完成后，经随包scripts/ioalab.py执行runtime.start；该入口统一核验清单、准备隔离依赖、校验配置并启动装配，再查询runtime.status与identity.status核实际身份、连接及宿主能力。runtime.install只用于单独预装依赖，runtime.validate只用于无业务配置检查，普通接入不要求先分别执行。引导页提供可直接运行的完整命令；runtime.*、assistant.*、provider.*是脚本操作参数，不是九问原生工具或技能商店安装动作。
+配置完成后，经随包scripts/ioalab.py执行runtime.start。依赖已安装时校验配置并启动装配；缺依赖时只发起独立安装任务并快速返回waiting，随后按nextAction查询runtime.install.status。安装完成后再调用runtime.start，查询runtime.status与identity.status核身份、连接及宿主。runtime.install用于显式预装/重试已知失败；runtime.install.status仅查询，不触发安装。runtime.validate仅做配置检查；其他业务或诊断操作不得隐式安装，依赖未就绪时返回明确前置条件。runtime.*、assistant.*、provider.*是脚本操作参数，不是九问原生工具或商店动作。
 
 普通依赖使用配置的国内包镜像，不现场拉取GitHub。检查用户已有九问的公开接口，缺少支持能力时返回具体未就绪项，不自动替换用户九问。读取脚本、清单或模型自述不能证明执行成功；须保留真实调用回执及实际状态，不根据源码推演或补写成功报告。
 
 两种技能使用同一接入发布清单固定兼容组合，同账号、同本地实例复用安装环境和常驻组件。导入另一角色技能只增加相应配置；版本不兼容时先报告，不能再启动竞争的身份库写入者。SDK、适配包、技能和示例的设计依据分别按[架构](../架构.md)记录，不把设计版本当成已实现版本。
 
-产品本机配置使用本地运行时格式，两个技能默认读取~/.ioalab/settings.local.json；用户由settings.example.json创建该外置文件，不放在会被原生导入覆盖的技能目录中。脚本可通过--config指定其他配置，第二个技能继续复用同一文件及data_dir。配置与SDK持久数据目录也分开；分发和升级不携带或重建用户本机文件。不再回退读取技能目录中的旧位置。两个技能的公共脚本维护一份源，构建时生成各包的 scripts/ioalab.py；共用源及说明归 src/access/skills/_shared，已生成分发内容不另行手改。公共启动说明维护在_shared/references/shared-runtime.md，构建到两个产品的references/shared-runtime.md；角色setup页只保留自己的配置与业务差异。首次runtime.start含依赖安装，应使用宿主允许的足够终端时限（例如300秒）；超时先核对原终端的真实终态及同一实例状态，仍运行则等待，不因观察超时并行启动或清理。明确终止后才重发原调用；不得修改九问全局设置来延长时限。
+产品本机配置使用本地运行时格式，两个技能默认读取~/.ioalab/settings.local.json；用户由settings.example.json创建该外置文件，不放在会被原生导入覆盖的技能目录中。脚本可通过--config指定其他配置，第二个技能继续复用同一文件及data_dir。配置与SDK持久数据目录也分开；分发和升级不携带或重建用户本机文件。不再回退读取技能目录中的旧位置。两个技能的公共脚本维护一份源，构建时生成各包的 scripts/ioalab.py；共用源及说明归 src/access/skills/_shared，已生成分发内容不另行手改。公共启动说明维护在_shared/references/shared-runtime.md，构建到两个产品的references/shared-runtime.md；角色setup页只保留自己的配置与业务差异。安装生命周期由共用scripts/installer.py负责，ioalab.py仅路由操作和转交用户文件路径；两脚本各只有一份共用源，随包生成。安装按依赖清单摘要releaseId共用一次尝试，以attemptId区分已知失败后的显式重试；不建立IoA交互或读取账号配置。前台短期启动锁防止重复创建，后台安装锁证明当前所有权，PID/任务文件不能独立证明存活。等待阶段返回stage=installation、原releaseId/attemptId、日志路径和下一步，明确requestSubmitted=false，原业务参数文件不回写。查询不创建任务；前台退出或工具观察超时不终止后台任务，不通过修改九问全局时限解决。后台仅继承必要系统环境和明确的包镜像配置，不继承平台/模型/通知凭据。
+
+完成须核清单、wheels、依赖版本和pip check，再发布安装标记；标记与实际包不符拒绝原地覆盖。安装锁已释放且记录为明确failed时，修正原因后可显式runtime.install重试；记录仍为进行中但无实际所有者时返回unknown，保留环境和日志，不因PID缺失自动重新安装、删缓存或运行SDK。完成和失败的元数据只表达依赖安装，不代表SDK启动或业务就绪。
 
 共用依赖约束在开发环境验证后随源发布，构建不通过读取服务器上已安装的参与方包来推导版本；平台构建技能包无需先把 Process SDK 装进核心环境。更改依赖时更新锁文件并补做隔离安装，两个包仍使用同一份清单。
 
