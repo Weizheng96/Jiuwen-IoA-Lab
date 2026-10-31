@@ -49,7 +49,8 @@
 | `provider.configure` | 本地服务配置 | 配置草稿与缺项，不自动发布或修改已有合同 |
 | `provider.validate` | 配置草稿引用 | 业务工具、宿主、模板/包、模式、身份和容量检查结果 |
 | `provider.verifier.publish` | profile、verifierId、source，可选 reads、kind | 通过平台的确定性打包通道上传验收器源码，返回真实包引用；不在宿主执行源码，同操作恢复原内容 |
-| `provider.publish` | 通过检查的配置、可信确认引用 | 本地签名、市场签认、A2X 登记/刷新各自的真实结果 |
+| `provider.preview` | service：profile、名称、说明、标签、未签模板及可选categoryId | 实际分类、完整service、contentDigest、expectedRevision；可发布时nextAction指向provider.publish申请确认，不创建批准记录 |
+| `provider.publish` | 原预览返回的service、contentDigest、expectedRevision；可选原confirmationRef | 首次创建待确认记录并返回waiting；仅真实批准后恢复原操作才签名、市场签认及A2X登记 |
 | `provider.reputation.submit` | 所属已完成合同引用、稳定操作标识 | 核验收与付款凭证，复用 A2C Provider.close 提交结清卡，查询平台签发信誉；重复调用恢复原结果，未结清不能伪造成功日志 |
 | `provider.status` | 所属服务引用 | 公示、连接、可执行、容量、未完成任务、异常分别列示 |
 | `provider.pause` | 所属服务引用 | 拒绝新的委托，保留既有任务的授权、交付、验收和恢复 |
@@ -59,7 +60,7 @@
 
 模板起草的terms直接使用原A2C字段：formation、deliverables、deadlines、pricing及可选inputs、acceptance、authorizableSteps、samples、extensions；不新建一套合同字段。a2cVersion、kind、validUntil、provider、templateDigest、signatures和pricing.paymentProviders由SDK持有，不由模型猜测。支持原协议多交付件及两种普通接入模式；价格、规格、判据、期限、环节与金额权重由业务决定，SDK不代填。普通起草不上传sample，不执行验收器。相同操作和参数恢复原模板与有效期，异参数返回冲突；要重新起草使用新操作。官方定义转换与本入口共用协议元信息构造，不复制算价或验收逻辑。
 
-公示调用分为 `provider.preview` 和 `provider.publish`：预览输入本地profile、名称、说明、标签、可选categoryId和未签模板草稿。SDK取得注册中心分类预览后，保存并返回完整解析后的service、category、内容摘要及当前预期修订；省略分类时，preview通过持久的非模型本地作业请求平台，RPC先返回accepted和job引用，不占用所属用户的模型名额，也不持共享锁等分类模型。原操作重传在作业完成后返回已保存结果；不能确定分类时只返回待选择和实际选项，不产生可发布摘要。publish使用预览返回的完整service，绑定同一内容摘要和操作，先取得本机用户的真实确认，再生成 provider 模板签名和声明证明，保存完整请求后上传。用户确认页包含实际分类路径。签署前只按已确定categoryId复核当前叶类及路径，不重新调用匹配模型；类别已删除时拒绝发布；待确认记录绑定的路径发生变化时拒绝沿用原确认，重新预览并确认。模型的confirmed字段不是授权。回执丢失时恢复已保存请求及原平台操作，不能重新生成签名时间、模板期限或更换分类。返回分别列出 publicationReceipt 和 currentPublication，避免把旧成功回执当成当前修订。
+公示调用分为 `provider.preview` 和 `provider.publish`：预览输入本地profile、名称、说明、标签、可选categoryId和未签模板草稿。SDK取得注册中心分类预览后，保存并返回完整解析后的service、category、内容摘要及当前预期修订；省略分类时，preview通过持久的非模型本地作业请求平台，RPC先返回accepted和job引用，不占用所属用户的模型名额，也不持共享锁等分类模型。原操作重传在作业完成后返回已保存结果；不能确定分类时只返回待选择和实际选项，不产生可发布摘要。可发布的preview返回nextAction={operation:provider.publish,purpose:request_confirmation}；不能确定分类时没有此动作。publish使用预览返回的完整service、contentDigest和expectedRevision，首次调用创建绑定原操作的待确认记录，返回waiting、confirmationRef及nextAction={operation:runtime.open_ui,purpose:collect_user_decision}；此时尚未签名或公示。按[共用确认流程](SDK共用机制.md#用户确认)取得本机用户真实决定后重发原操作，才生成provider模板签名和声明证明，保存完整请求后上传。拒绝或过期不执行新效果。用户确认页包含实际分类路径。签署前只按已确定categoryId复核当前叶类及路径，不重新调用匹配模型；类别已删除时拒绝发布；待确认记录绑定的路径发生变化时拒绝沿用原确认，重新预览并确认。模型的confirmed字段不是授权。回执丢失时恢复已保存请求及原平台操作，不能重新生成签名时间、模板期限或更换分类。返回分别列出 publicationReceipt 和 currentPublication，避免把旧成功回执当成当前修订。
 
 ## 入站接单与任务工具
 

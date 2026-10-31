@@ -24,6 +24,6 @@ runtime.start已经完成安装、配置校验及装配启动。runtime.install�
 
 角色操作需要先写UTF-8 JSON参数文件，即使输入为空也用{}；调用格式为 `python "<skill_directory>/scripts/ioalab.py" <operation> --config "<外置配置文件>" --args-file "<参数文件>"`。参数文件必须独立于账号配置和SDK数据，不能把settings.local.json当作args-file；由SDK统一读取，不自行改脚本解析编码。SDK在参数文件中保留operationId，恢复必须复用原文件；改变已提交内容使用新文件/新操作。runtime.start/status及identity.status按上方命令执行。
 
-需要用户确认时，用{}参数调用runtime.open_ui，请用户在本机受控页面核对完整预览并确认，再恢复原角色操作。不能用模型confirmed、自写批准记录或普通RPC代替真实用户。
+需要确认的角色操作先按流程调用一次；返回waiting和真实confirmationRef后，用独立的{}参数文件调用runtime.open_ui，请用户在本机受控页核对并决定，再重发原角色参数文件。申请确认本身不执行受保护动作，不要在创建待确认对象之前要求用户在聊天中“确认”。opened=true只表示浏览器打开，不证明页面有记录或用户已批准；没有待确认内容时回查原角色操作。拒绝/过期按真实结果停止。不能用模型confirmed、自写批准记录或普通RPC代替真实用户。
 
 配置由用户或本机脚本读取；模型不得读取配置正文来检查密码，也不在聊天和日志输出凭据。只汇报实际stdout回执及缺项，不读源码推演成功，不写报告或长期记忆充当安装。业务包安装不等于启用工具，权限只来自用户明确配置。

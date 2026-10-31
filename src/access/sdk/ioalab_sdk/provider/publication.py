@@ -197,6 +197,7 @@ class ProviderRole:
     @staticmethod
     def preview(identity, config, revision, category=None):
         return {'profile': identity.profile, 'contentDigest': digest(config), 'expectedRevision': revision,
+                'nextAction': {'operation': 'provider.publish', 'purpose': 'request_confirmation'},
                 'preview': {'name': config['name'], 'description': config['description'], 'tags': config['tags'],
                             'categoryId': config['categoryId'], **({'categoryPath':category['categoryPath']} if category else {}), 'templateCount': len(config['templates']),
                             'templates': config['templates'], 'protocolId': identity.protocol_id,
@@ -237,8 +238,9 @@ class ProviderRole:
                        'stage': 'provider.publish', 'action': 'service.publish', 'preview': preview}
             decision = self.runtime.confirmations.ensure(binding)
             if decision['status'] != 'approved':
-                return {'status': 'waiting' if decision['status'] == 'pending' else 'rejected',
-                        'data': {'confirmationRef': decision['reference'], 'confirmationStatus': decision['status'], 'preview': preview}}
+                data={'confirmationRef': decision['reference'], 'confirmationStatus': decision['status'], 'preview': preview}
+                if decision['status']=='pending':data['nextAction']={'operation':'runtime.open_ui','purpose':'collect_user_decision'}
+                return {'status': 'waiting' if decision['status'] == 'pending' else 'rejected', 'data':data}
             if args.get('confirmationRef') not in (None, decision['reference']):
                 raise RuntimeFault('id_conflict', 'Use the original publication confirmation')
             self.runtime.confirmations.claim(decision['reference'], binding)

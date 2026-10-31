@@ -156,7 +156,7 @@ def test_unmatched_preview_has_no_publishable_digest_and_manual_selection_remain
         job=first['data']['job']['reference'];wait_for(lambda:runtime.scheduler.get(job)['status']=='completed')
         result=client.call('provider.preview',{'service':service},operation_id=operation)['data']
         assert result['category']['status']=='choose_category' and result['readyToPublish'] is False
-        assert 'contentDigest' not in result and 'service' not in result
+        assert 'contentDigest' not in result and 'service' not in result and 'nextAction' not in result
         manual=client.call('provider.preview',{'service':{**service,'categoryId':'cat_dev'}})
         assert manual['status']=='completed' and manual['data']['service']['categoryId']=='cat_dev'
         assert client.call('provider.preview',{'service':{**service,'categoryId':'missing'}})['error']['code']=='category_required'

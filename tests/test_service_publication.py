@@ -210,12 +210,20 @@ def test_resident_publish_needs_user_channel_and_recovers_lost_reply_after_resta
         config_service={'profile':'service','name':'普通用户专业服务','description':'使用本机业务技能提供软件开发服务','tags':['开发'],
                         'categoryId':platform.discovery.categories()[0]['id'],'templates':[draft(platform)]}
         checked=client.call('provider.preview',{'service':config_service})
-        assert checked['status']=='completed'
-        args={'service':config_service,'contentDigest':checked['data']['contentDigest'],'expectedRevision':checked['data']['expectedRevision']}
+        assert checked['status']=='completed' and not runtime.confirmations.list()
+        args={key:checked['data'][key] for key in ('service','contentDigest','expectedRevision')}
         operation=uid()
-        waiting=client.call('provider.publish',args,operation_id=operation)
+        waiting=client.call(checked['data']['nextAction']['operation'],args,operation_id=operation)
         assert waiting['status']=='waiting'
+        reference=waiting['data']['confirmationRef']
+        assert runtime.confirmations.get(reference)['status']=='pending'
+        assert client.call('provider.publish',args,operation_id=operation)['data']['confirmationRef']==reference
+        opened=[]
+        monkeypatch.setattr(runtime.user_ui,'open',lambda:(opened.append(True) or True))
+        assert client.call(waiting['data']['nextAction']['operation'],{})['data']=={'opened':True}
+        assert opened==[True] and runtime.confirmations.get(reference)['status']=='pending'
         identity=runtime.identities[1]
+        assert runtime.store.checkpoint('provider:'+identity.agent_id,'publish:'+operation) is None
         assert service_status(runtime.account,identity)['revision']==0
         assert client.call('provider.publish',{**args,'confirmed':True},operation_id=operation)['status']=='rejected'
         user_decision(runtime,waiting['data']['confirmationRef'])

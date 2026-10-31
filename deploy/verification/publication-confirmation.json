@@ -1,0 +1,101 @@
+{
+  "scope": "Executable service publication confirmation flow; actual native request reached pending, not completed publication",
+  "verification": {
+    "focused": "42 passed, 1 skipped, 1 pre-existing temporary cleanup warning in 40.68s",
+    "fullTests": "487 passed, 13 skipped, 1 pre-existing temporary cleanup warning in 781.49s",
+    "installedUpgrade": {
+      "exitCode": 0,
+      "test": "tests/test_installed_upgrade.py",
+      "result": "1 passed, 1 warning in 26.34s"
+    }
+  },
+  "installation": {
+    "releaseId": "236dbc4e9afaf0bd7b39a01f9f2eff1f8ebff87145e65eebaa75a987aea1ad0c",
+    "manifest": {
+      "constraintsSha256": "8308a8450f8163bd277405fa532c7deab8318014b5d0212471617ca9d7df7f36",
+      "format": 1,
+      "sourceManifestSha256": "769073ba95db14af5dee8f7a4703919689d064ade734a3d2268a053419ad87d0",
+      "versions": {
+        "a2c": "0.0.19",
+        "ioalab-jiuwen": "0.0.46",
+        "ioalab-official": "0.0.46",
+        "ioalab-sdk": "0.0.39",
+        "jiuwenswarm-process-sdk": "0.1.0"
+      },
+      "wheels": [
+        {
+          "file": "a2c-0.0.19-py3-none-any.whl",
+          "sha256": "0613c5cd6a71983bda09283180ab6230f776b3a3e12e19ccd6a24dd535386bb2"
+        },
+        {
+          "file": "ioalab_jiuwen-0.0.46-py3-none-any.whl",
+          "sha256": "3abb21fd86e5c595fc21608bc280e1b52f48e8ca7b8fc96f3837fb2874006002"
+        },
+        {
+          "file": "ioalab_official-0.0.46-py3-none-any.whl",
+          "sha256": "093ae3d0aaa959bb80287b778c0a508975e8ff8ef6ac220dae4692554b314410"
+        },
+        {
+          "file": "ioalab_sdk-0.0.39-py3-none-any.whl",
+          "sha256": "a4516341baca3b59e8a02caacac80c55eab1ae34ae456081b7aeeb44d933e6ef"
+        },
+        {
+          "file": "jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl",
+          "sha256": "f9aa6e09e21112a82e56320569c4ffea592415551d75489cfc1c51a3da5f0778"
+        }
+      ]
+    }
+  },
+  "nativeImport": {
+    "importedFileCount": 17,
+    "importMatchesBuiltProduct": true,
+    "originalSwarmConfigurationsUnchanged": true,
+    "providerBundleSha256": "b0420085d9c70d5b168919070b184b0ed72fce27b13807b086e1ad377e605e79",
+    "releaseId": "236dbc4e9afaf0bd7b39a01f9f2eff1f8ebff87145e65eebaa75a987aea1ad0c"
+  },
+  "native": {
+    "session": "web_1a191f9566c_6a517a450f22",
+    "model": "qwen3.5-plus#2",
+    "releaseId": "236dbc4e9afaf0bd7b39a01f9f2eff1f8ebff87145e65eebaa75a987aea1ad0c",
+    "stableRuntimeIdentity": true,
+    "stableServiceIdentity": true,
+    "platformConnected": true,
+    "hostAvailable": true,
+    "confirmation": {
+      "status": "pending",
+      "action": "service.publish",
+      "profileName": "码上飞",
+      "categoryId": "cat_dev",
+      "formation": "proposal",
+      "proposalFee": 0
+    },
+    "publicationCompleted": false,
+    "publicationRevision": 0,
+    "originalSwarmConfigurationsUnchanged": true,
+    "settingsReadByNativeModel": true,
+    "credentialsInThisAttempt": "Public demonstration account only",
+    "limits": [
+      "Waiting does not prove actual user approval or completed publication",
+      "Native model read the full account settings despite Skill instructions; private-credential isolation not accepted",
+      "Generated verifier is not evidence of miniapp business functionality",
+      "No new film or external mail result"
+    ]
+  },
+  "sources": {
+    "src/access/sdk/ioalab_sdk/provider/publication.py": "sha256:54365318a4a3250ccad8e2d3f36e3d60c69c602eeaab902f2433917da5217fda",
+    "src/access/skills/provider/references/publication.md": "sha256:7c80e903b4b42ee741acd3b95637d25f0603d585b29c939791c30be49e11a589",
+    "src/access/skills/assistant/references/inbox-rules.md": "sha256:98f03394e18c5119ef1a3aa91edf507f2084ea39b550dd8f1f9dd2bc51c4d9b6",
+    "src/access/skills/_shared/references/shared-runtime.md": "sha256:97cd3d8ed62ba187b6693ab99cb52b870482d1d526336eabc9843e6e972aab5d",
+    "tests/test_service_publication.py": "sha256:c03f123b841925139549cb8bcd6c1280513abe981af78061fb64a3a34db97d3b",
+    "tests/test_category_preview.py": "sha256:2796042285fc3935b8a217853ecca162d5407b8af3150927ba7647d146270304"
+  },
+  "limits": [
+    "Waiting does not prove actual user approval or completed publication",
+    "Native model read the full account settings despite Skill instructions; private-credential isolation not accepted",
+    "Generated verifier is not evidence of miniapp business functionality",
+    "No new film or external mail result",
+    "Native text claiming no new delegations were accepted is not a programmatic pause receipt; accepting remains true in configuration",
+    "Windows owner page was not inspected; browser opening is not user approval",
+    "No Linux or complete product acceptance"
+  ]
+}
