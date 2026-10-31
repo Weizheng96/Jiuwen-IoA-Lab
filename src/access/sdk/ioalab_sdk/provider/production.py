@@ -15,6 +15,7 @@ from ..runtime.scheduling import JobOutcome
 from ..runtime.protocol import RuntimeFault,encode
 from ..adapters.transport import stable
 from ..adapters.reports import report
+from .policy import definition_digest
 
 
 FILE={'type':'object','properties':{'mediaType':{'type':'string'},'text':{'type':'string'},'bytesBase64':{'type':'string'},'artifactPath':{'type':'string'}},'required':['mediaType'],'oneOf':[{'required':[key]} for key in ('text','bytesBase64','artifactPath')],'additionalProperties':False}
@@ -92,11 +93,11 @@ class Production:
         identity=self.execution.role.identities[job['payload']['profile']];relation=self.runtime.store.interaction(interaction_id=job['interaction'])
         endpoint=self.execution.context(identity,relation,job);provider=endpoint.provider;cd=job['payload']['cardDigest'];card=provider.card(cd)
         template=provider.template(card['templateDigest']);definition=provider.policy.definition(template);workspace=self.workspace(identity,relation)
-        definition_digest=digest({'instructions':definition.instructions,'tools':[tool.policy() for tool in definition.tools],'skills':list(definition.skills)})
-        if relation['details'].get('definitionDigest')!=definition_digest:raise RuntimeFault('identity_conflict','Restore the original production agent definition')
+        definition_hash=definition_digest(definition)
+        if relation['details'].get('definitionDigest')!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original production agent definition')
         state={'outcome':None}
         def session(value):
-            self.runtime.store.bind_session(relation['id'],value,definition_digest);self.runtime.scheduler.bind_session(job['id'],value)
+            self.runtime.store.bind_session(relation['id'],value,definition_hash);self.runtime.scheduler.bind_session(job['id'],value)
         def invoke(name,args,call):
             self.runtime.require_execution()
             if state['outcome']:return {'status':'rejected','error':{'code':'forbidden','message':'本轮已交付或等待授权，请结束本轮'}}
@@ -125,10 +126,10 @@ class Production:
                 saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
                 self.sync(endpoint,cd)
                 return result
-        prompt=encode({'phase':'production','card':card,'period':job['payload']['period'],'materials':{name:base64.b64encode(data).decode() for name,data in provider.materials(cd).items()},'steps':provider.store.get('cards',cd).get('steps',[]),
+        prompt=encode({'phase':'production','card':card,'period':job['payload']['period'],'artifactDirectory':str(workspace/'artifacts'),'materials':{name:base64.b64encode(data).decode() for name,data in provider.materials(cd).items()},'steps':provider.store.get('cards',cd).get('steps',[]),
                        'instruction':'按合同和已配置业务能力生产。需要用户批准的环节先调用provider.task.request_step并结束本轮；交付前可selftest，deliver取得回执后结束本轮。不得把文字当交付或自行批准环节。'})
         self.execution.active.add(job['id'])
-        try:result=self.execution.host.run(HostTurn(job['id'],identity.agent_id,relation['id'],definition,prompt,str(workspace),300,relation['session'],session,lambda value:native_answer(self.runtime,identity.agent_id,job['id'],value,self.execution.stop),invoke))
+        try:result=self.execution.host.run(HostTurn(job['id'],identity.agent_id,relation['id'],definition,prompt,str(workspace),300,relation['session'],session,lambda value:native_answer(self.runtime,identity.agent_id,job['id'],value,self.execution.stop),invoke,allow_native_tools=True))
         finally:self.execution.active.discard(job['id'])
         if result.status!='completed' or state['outcome'] is None:raise RuntimeFault('unknown_result','Inspect original production; do not rerun unknown business')
         return JobOutcome(state['outcome'],{'cardDigest':cd,'period':job['payload']['period']},relation['session'])

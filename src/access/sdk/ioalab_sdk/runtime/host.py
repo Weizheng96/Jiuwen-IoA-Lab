@@ -25,6 +25,7 @@ class AgentDefinition:
     instructions: str
     tools: tuple[ToolBinding,...]
     skills: tuple=()
+    native_tools: tuple[tuple[str,str],...]=()
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class HostTurn:
     on_interaction: Callable|None=field(default=None,repr=False)
     on_tool: Callable|None=field(default=None,repr=False)
     on_event: Callable|None=field(default=None,repr=False)
+    allow_native_tools: bool=False
 
 
 @dataclass(frozen=True)

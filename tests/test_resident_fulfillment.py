@@ -1,6 +1,9 @@
 """Complete resident lifecycle using real HTTP/WS, original A2C/AP2 and WASM."""
 import copy
 import json
+import os
+from pathlib import Path
+from dataclasses import replace
 import time
 import uuid
 import threading
@@ -17,6 +20,8 @@ from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.protocol import stamp
 from test_resident_delegation import participants,QuoteHost
 from test_resident_contracts import candidate,confirm,status
+from test_resident_delegation import request,terminal
+from ioalab_sdk.runtime.files import private_json
 from test_assistant_role import user_decision
 import test_resident_delegation as assembly
 from conftest import wait_for
@@ -211,3 +216,66 @@ def test_actual_bad_delivery_fails_wasm_and_never_signs_acceptance_or_pays(platf
         assert not status(assistant,ref)['data']['card']['signatures']['7']
         assert not platform.db.rows('SELECT * FROM payment_records WHERE ref=?',ref)
         assert platform.market.market.store.get('ledger',ref) is None
+
+
+@pytest.mark.skipif(not os.environ.get('IOALAB_REAL_JIUWEN_DATA_DIR'),reason='requires explicitly configured original Jiuwen/model')
+def test_real_original_jiuwen_produces_native_file_and_completes_original_contract(platform,tmp_path,monkeypatch):
+    from ioalab_jiuwen.process import ProcessHost
+    configure_template(monkeypatch)
+    host=ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'))
+    assert host.probe()['available'],host.capabilities()
+    events=[];turns=[];original=host.run
+    def event(value):
+        if value.get('event_type') in ('chat.tool_call','chat.tool_result','interaction.requested'):
+            events.append(value);private_json(tmp_path/'native-production-events.json',events)
+    def execute(turn):
+        turns.append(turn)
+        return original(replace(turn,on_event=event))
+    host.run=execute
+    business={'native_tools':{'write_file':'allow'},'instructions':
+        '本测试业务为生产结构化摘要。报价使用resources.outputVerifier作为script，报价9，验收PT10M；审查用decision。'
+        '生产第一轮，若steps为空，先用provider.task.request_step请求real_name，之后结束本轮。'
+        '收到真实granted后，用原生write_file在输入artifactDirectory目录中生成result.json，内容为{"delivered":"actual file bytes"}。'
+        '以files={"result.json":{"artifactPath":"result.json","mediaType":"application/json"}}调用selftest，pass后deliver。'
+        '不使用text替代文件，不修改验收器，不自行批准，不需要补充业务信息。交付或等待后结束本轮。'}
+    with participants(platform,tmp_path,agent_host=host,verifier_source=VERIFIER,business=business) as (provider,assistant,host,template,task):
+        def drive(check):
+            pending=[value for value in provider.confirmations.list() if value['status']=='pending']
+            assert not pending,{'unexpectedNativeQuestions':pending}
+            return check()
+        started,_=request(assistant,provider,template,task);quote_ref=started['data']['quoteRef']
+        wait_for(lambda:drive(lambda:terminal(assistant,quote_ref)),timeout=180)
+        result=terminal(assistant,quote_ref);assert result['status']=='completed',result
+        selected,_,_=confirm(assistant,result['data']);ref=selected['data']['contractRef']
+        wait_for(lambda:drive(lambda:status(assistant,ref)),timeout=180)
+        assert status(assistant,ref)['data']['formed']
+        key,_=invoke(assistant,ref,'start');wait_for(lambda:operation(assistant,ref,key))
+        wait_for(lambda:drive(lambda:status(assistant,ref)['data']['stepRequest']),timeout=180)
+        sr=status(assistant,ref)['data']['stepRequest'];key,pending=invoke(assistant,ref,'answer_step',stepRequestDigest=objects.object_digest(sr))
+        user_decision(assistant,pending['data']['confirmationRef'],decision='answer',answers=[{'selected_options':['allow']}])
+        LocalClient(assistant.config.home).call('assistant.delegation.answer_step',{'contractRef':ref,'stepRequestDigest':objects.object_digest(sr)},operation_id=key)
+        wait_for(lambda:drive(lambda:status(assistant,ref)['data']['availablePeriods']==1),timeout=180)
+        key,_=invoke(assistant,ref,'fetch',period=1);wait_for(lambda:operation(assistant,ref,key))
+        key,pending=invoke(assistant,ref,'accept',period=1)
+        preview=assistant.confirmations.get(pending['data']['confirmationRef'],detail=True)['binding']['preview']
+        assert preview['report']['status']=='pass' and preview['amount']==8
+        user_decision(assistant,pending['data']['confirmationRef'])
+        LocalClient(assistant.config.home).call('assistant.delegation.accept',{'contractRef':ref,'period':1},operation_id=key)
+        wait_for(lambda:operation(assistant,ref,key));assert operation(assistant,ref,key)['status']=='completed'
+        wait_for(lambda:status(assistant,ref)['data']['closed'])
+        actual=status(assistant,ref)['data'];assert actual['payment']=='paid'
+        production=[turn for turn in turns if json.loads(turn.input)['phase']=='production']
+        assert len(production)==2 and len({turn.session_id for turn in production})==1
+        file=Path(production[-1].workspace)/'artifacts/result.json'
+        assert json.loads(file.read_text(encoding='utf-8'))=={'delivered':'actual file bytes'}
+        calls=[value['payload'].get('tool',{}) for value in events if value.get('event_type')=='chat.tool_call']
+        assert any(call.get('name')=='write_file' for call in calls),calls
+        assert all(turn.definition.native_tools==(('write_file','allow'),) for turn in turns)
+        assert not turns[0].allow_native_tools and all(turn.allow_native_tools for turn in production)
+        assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',actual['admissionId'])['state']=='released'
+        assert platform.market.reputation(provider.identities[0].protocol_id)['completed']==1
+        report={'scope':'Real original Jiuwen production, native write_file, same Session, original A2C/AP2/WASM and scripted trusted browser confirmations; not native web visibility or video',
+                'model':host.capabilities()['model'],'interactionId':actual['interactionId'],'sessionId':production[-1].session_id,'cardDigest':ref,
+                'nativeFileCreated':True,'contentVerifier':'expected-delivery-content','payment':'paid','closed':True,'reputationCompleted':1,
+                'paymentRecords':platform.db.rows('SELECT purpose,amount FROM payment_records WHERE ref=? ORDER BY purpose',ref)}
+        if os.environ.get('IOALAB_REAL_FULFILLMENT_REPORT'):private_json(Path(os.environ['IOALAB_REAL_FULFILLMENT_REPORT']),report)

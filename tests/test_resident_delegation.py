@@ -48,7 +48,7 @@ class QuoteHost:
 
 
 @contextmanager
-def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None):
+def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None):
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
@@ -64,8 +64,9 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
         host.verifier=uploaded['data']
         resources={'outputVerifier':host.verifier,'quoteAmount':9,'acceptWithin':'PT10M'}
         instructions='本隔离测试的专业能力是提供摘要交付。当前请求可直接报价，无须补充需求。请使用业务资源outputVerifier作script验收器，quoteAmount作确定报价，acceptWithin作验收时长。'
-        prole.execution.configs['service'].update(resources=resources,instructions=instructions)
-        value['provider']['services']['service'].update(resources=resources,instructions=instructions);private_json(pconfig,value)
+        professional={'resources':resources,'instructions':instructions,**(business or {})}
+        prole.execution.configs['service'].update(professional)
+        value['provider']['services']['service'].update(professional);private_json(pconfig,value)
         definition={'formation':formation,'deliverable':{'name':'result'},'pricing':{'proposalFee':fee,'price':'9'},
                     'verifier':{'id':'resident_result@1.0','source':source}}
         from types import SimpleNamespace

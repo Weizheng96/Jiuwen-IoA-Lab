@@ -1,5 +1,6 @@
 """Service ingress and per-interaction original Providers on the shared runtime."""
 import copy
+import re
 import threading
 import time
 import httpx
@@ -24,13 +25,16 @@ class ProviderExecution:
         self.configs=copy.deepcopy(runtime.config.provider.get('services',{}))
         if set(runtime.config.provider)-{'services'} or not isinstance(self.configs,dict):raise RuntimeFault('invalid_input','Configure provider.services by local service profile')
         for profile,config in self.configs.items():
-            if profile not in role.identities or not isinstance(config,dict) or set(config)-{'instructions','skills','resources','max_active_delegations','accepting'} or not isinstance(config.get('instructions'),str) or not config['instructions'].strip():
+            if profile not in role.identities or not isinstance(config,dict) or set(config)-{'instructions','skills','resources','native_tools','max_active_delegations','accepting'} or not isinstance(config.get('instructions'),str) or not config['instructions'].strip():
                 raise RuntimeFault('invalid_input','Each service needs its local profile and professional instructions')
             if type(config.get('max_active_delegations',1)) is not int or not 1<=config.get('max_active_delegations',1)<=1000 or type(config.get('accepting',True)) is not bool:
                 raise RuntimeFault('invalid_input','Configure bounded active delegations and accepting flag')
             if not isinstance(config.get('skills',[]),list) or any(not isinstance(skill,str) or not skill for skill in config.get('skills',[])):
                 raise RuntimeFault('invalid_input','Use installed local business skill references')
             if not isinstance(config.get('resources',{}),dict) or len(encode(config.get('resources',{})).encode())>65536:raise RuntimeFault('invalid_input','Use bounded local business resource metadata')
+            native=config.get('native_tools',{})
+            if not isinstance(native,dict) or len(native)>64 or any(not isinstance(name,str) or not re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name) or name=='ask_user' or level not in ('allow','ask','deny') for name,level in native.items()):
+                raise RuntimeFault('invalid_input','Use exact installed native tool names and allow, ask or deny permissions')
         self.stop=threading.Event();self.changed=threading.Event();self.thread=None
         self.active=set();self.contexts={};self.lock=threading.RLock()
         self.public=A2ATransport(http=lambda:httpx.AsyncClient(timeout=20,trust_env=False))
@@ -53,11 +57,16 @@ class ProviderExecution:
     def wake(self):self.changed.set()
 
     def ready(self,profile):
-        return bool(profile in self.configs and self.published.get(profile,0)>time.time() and self.host and self.host.capabilities().get('available') and self.thread and self.thread.is_alive())
+        return bool(profile in self.configs and not self.tool_errors(profile) and self.published.get(profile,0)>time.time() and self.host and self.host.capabilities().get('available') and self.thread and self.thread.is_alive())
+
+    def tool_errors(self,profile):
+        catalog=self.host.capabilities().get('nativeTools',{}) if self.host else {}
+        return [name for name,level in self.configs.get(profile,{}).get('native_tools',{}).items() if level!='deny' and (name not in catalog or catalog[name]=='deny')]
 
     def status(self,profile):
         return {'configured':profile in self.configs,'hostAvailable':bool(self.host and self.host.capabilities().get('available')),
                 'executionReady':self.ready(profile),'publicationValidUntil':self.published.get(profile),
+                'unavailableNativeTools':self.tool_errors(profile),
                 'errors':self.errors.get('profile:'+profile),'blockedRequests':len(self.errors)}
 
     def close(self):
@@ -201,7 +210,7 @@ class ProviderExecution:
             config=store.get('context','config')
             if config is None:
                 if identity.profile not in self.configs:raise RuntimeFault('not_ready','Restore the original local service configuration')
-                config={key:self.configs[identity.profile].get(key,[] if key=='skills' else {} if key=='resources' else '') for key in ('instructions','skills','resources')};store.put('context','config',config)
+                config={key:self.configs[identity.profile].get(key,[] if key=='skills' else {} if key in ('resources','native_tools') else '') for key in ('instructions','skills','resources','native_tools')};store.put('context','config',config)
             transport=SessionTransport(self.runtime,identity,relation['id'],aid,relation['peer'],public=self.public)
             provider=Provider(identity.signer,market=self.runtime.account.config['market'],keys=Directory(fetch=transport.jwks),transport=transport,
                 fetch=self.runtime.account.fetch_package,store=store,ap2_key=identity.payment,name=identity.name)

@@ -32,6 +32,12 @@ def quote_schema(template):
     return {**QUOTE,'properties':{**properties,'reason':{'type':'string','description':'仅在拒绝报价时提供，不能与成功报价的三个字段同时提交。'}}}
 
 
+def definition_digest(definition):
+    value={'instructions':definition.instructions,'tools':[tool.policy() for tool in definition.tools],'skills':list(definition.skills)}
+    if definition.native_tools:value['nativeTools']=dict(definition.native_tools)
+    return digest(value)
+
+
 class HostPolicy(DefaultPolicy):
     def __init__(self,execution,identity,relation,provider,job,config,admission):
         self.execution,self.runtime,self.identity,self.relation,self.provider,self.job,self.config,self.admission=execution,execution.runtime,identity,relation,provider,job,config,admission
@@ -67,7 +73,7 @@ class HostPolicy(DefaultPolicy):
             '每项使用完整{id,uri,digest}引用，只有skill引用才带disputeModels，不编造模型名；包种类须与所选键一致。'
             'acceptWithin按交付件名给出ISO8601时长，lineItems按交付件名给出确定数值。收到recorded后结束，不重复提交。'
             'production阶段按原合同生产，可使用request_step、selftest、deliver；请求用户授权或交付后结束本轮，不自行批准环节。\n'+self.config['instructions']+
-            '\n本服务业务资源：'+encode(self.config.get('resources',{})),tools,tuple(self.config.get('skills',[])))
+            '\n本服务业务资源：'+encode(self.config.get('resources',{})),tools,tuple(self.config.get('skills',[])),tuple(sorted(self.config.get('native_tools',{}).items())))
         return definition
 
     def decide(self,phase,template,subject,materials):
@@ -76,11 +82,11 @@ class HostPolicy(DefaultPolicy):
         if previous:return previous['decision']
         relation=self.runtime.store.interaction(interaction_id=self.relation['id'])
         schema=quote_schema(template);definition=self.definition(template);tools=definition.tools
-        definition_digest=digest({'instructions':definition.instructions,'tools':[t.policy() for t in tools],'skills':list(definition.skills)})
-        if relation['details'].get('definitionDigest',definition_digest)!=definition_digest:raise RuntimeFault('identity_conflict','Restore the original service skill and tool definition')
+        definition_hash=definition_digest(definition)
+        if relation['details'].get('definitionDigest',definition_hash)!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original service skill and tool definition')
         state={'session':relation['session'],'decision':None}
         def on_session(session):
-            self.runtime.store.bind_session(relation['id'],session,definition_digest)
+            self.runtime.store.bind_session(relation['id'],session,definition_hash)
             self.runtime.scheduler.bind_session(self.job['id'],session);state['session']=session
         def on_tool(name,args,call):
             self.runtime.require_execution()

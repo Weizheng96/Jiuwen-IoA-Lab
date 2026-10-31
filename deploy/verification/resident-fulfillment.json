@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-31",
+  "test": "tests/test_resident_fulfillment.py::test_real_original_jiuwen_produces_native_file_and_completes_original_contract",
+  "result": "1 passed, 5 deselected in 96.03 seconds",
+  "evidence": {
+    "cardDigest": "sha256:556bbadf31585fbf4e8bef82d96180b7a81443640b4e2f1949f4ff9235a02b46",
+    "closed": true,
+    "contentVerifier": "expected-delivery-content",
+    "interactionId": "c91fd1b0-1b38-41d4-8a13-6f9ce0e2aa47",
+    "model": "qwen-flash#0",
+    "nativeFileCreated": true,
+    "payment": "paid",
+    "paymentRecords": [
+      {
+        "amount": "1.00",
+        "purpose": "deposit"
+      },
+      {
+        "amount": "8.00",
+        "purpose": "installment"
+      }
+    ],
+    "reputationCompleted": 1,
+    "scope": "Real original Jiuwen production, native write_file, same Session, original A2C/AP2/WASM and scripted trusted browser confirmations; not native web visibility or video",
+    "sessionId": "process_cli_1a18f39f3cc_38a7d971cd15"
+  },
+  "sourceSha256": {
+    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "f493dd1265fdaca6d1366811b91d5625a6675479bb80872facb55ac6bae42954",
+    "src/access/sdk/ioalab_sdk/runtime/host.py": "90f5e0e74a56cee0f59622deed264caafcee208536e55d8e53d7ca1227a76a5b",
+    "src/access/sdk/ioalab_sdk/provider/execution.py": "82baa08516a5149ce0c1aa9d252977c27366c106e25215139605f8ae5f103006",
+    "src/access/sdk/ioalab_sdk/provider/policy.py": "69331eecba2f3449d09b21be1ca630a4c539f9dc5ddc2f0275f15b442680a722",
+    "src/access/sdk/ioalab_sdk/provider/production.py": "fa4b571a56b31547e31a2371d6740b9c3f88a1bccfb8512ad6ba5c72f3834a9b",
+    "src/access/sdk/ioalab_sdk/assistant/fulfillment.py": "169776b6cc1569fb741366afab38e390d62420555343b24069dc02acd8b9f493",
+    "src/platform/ioalab/delegation/contracts.py": "9d908abd05b593b3ff399a7d3995d762b4b2ea3b4f18687d04acdc13c55097d2",
+    "tests/test_resident_fulfillment.py": "1afb4bbdb875296182fc3be8b5993fa683c5a850de4da9a6171305349c7b7a2a"
+  }
+}

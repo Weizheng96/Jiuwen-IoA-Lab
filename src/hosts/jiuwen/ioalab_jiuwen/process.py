@@ -45,19 +45,21 @@ class ProcessHost:
             client=self._client()
             capabilities=await client.query('protocol.capabilities',deadline_seconds=30)
             models=await client.query('model.list',deadline_seconds=45)
-            return capabilities,models
-        try:capabilities,models=asyncio.run(execute())
+            permissions=await client.query('permission.get',deadline_seconds=45)
+            return capabilities,models,permissions
+        try:capabilities,models,permissions=asyncio.run(execute())
         except Exception as exc:
             self._capabilities={'available':False,'reason':'Jiuwen capability query failed','errorType':type(exc).__name__}
             return self.capabilities()
         caps=capabilities.get('data') or {};catalog=models.get('data') or {}
         choices={model.get('selection_key') for model in catalog.get('models',[]) if model.get('selection_key')}
         selected=self.model or catalog.get('current_selection')
-        required=('custom_agent','host_tools','session_resume','interaction_callback')
-        available=capabilities.get('status')=='completed' and models.get('status')=='completed' and selected in choices and all(caps.get('features',{}).get(key) for key in required)
+        required=('custom_agent','host_tools','session_resume','interaction_callback','run_permissions')
+        available=capabilities.get('status')=='completed' and models.get('status')=='completed' and permissions.get('status')=='completed' and selected in choices and all(caps.get('features',{}).get(key) for key in required)
         self.model=selected
         self._capabilities={'available':bool(available),'model':selected,'protocol':caps.get('schema_version'),
                             'features':caps.get('features',{}),'notify':self.notifier is not None,
+                            'nativeTools':{value['name']:value['level'] for value in (permissions.get('data') or {}).get('effective',{}).get('tools',[])},
                             'reason':None if available else 'Configure a supported original Jiuwen runtime and model selection'}
         return self.capabilities()
 
@@ -68,8 +70,14 @@ class ProcessHost:
         originals=[tool.name for tool in turn.definition.tools]
         if len(set(originals))!=len(originals) or any(not isinstance(name,str) or not 1<=len(name)<=128 for name in originals):
             raise RuntimeFault('invalid_input','Local tool names must be distinct bounded strings')
+        native=dict(turn.definition.native_tools)
+        if len(native)!=len(turn.definition.native_tools) or len(native)>64 or any(not isinstance(name,str) or not re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name) or name in originals or name=='ask_user' or level not in ('allow','ask','deny') for name,level in native.items()):
+            raise RuntimeFault('invalid_input','Native tools require distinct exact owner-configured names and permissions')
+        catalog=self._capabilities.get('nativeTools',{})
+        if any(level!='deny' and (name not in catalog or catalog[name]=='deny') for name,level in native.items()):
+            raise RuntimeFault('not_ready','Restore the originally configured native production tools and host permissions','configure_host')
         aliases={};declarations=[];metadata=set()
-        reserved=set(originals)|{'ask_user'}
+        reserved=set(originals)|set(native)|{'ask_user'}
         for tool in turn.definition.tools:
             name=tool.name
             if name=='ask_user' or not re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name):
@@ -89,9 +97,11 @@ class ProcessHost:
         mapping={original:name for name,original in aliases.items() if name!=original}
         instructions=turn.definition.instructions+('\nLocal tool aliases: '+str(mapping) if mapping else '')
         definition={'name':turn.definition.name,'instructions':instructions,
-                    'tools':names+(['ask_user'] if turn.on_interaction else [])}
+                    'tools':names+list(native)+(['ask_user'] if turn.on_interaction else [])}
+        permissions={**{name:'allow' for name in names},**{name:level if turn.allow_native_tools else 'deny' for name,level in native.items()}}
         request={'mode':'agent.work.normal','request_id':request_id,'input':turn.input,'agent':definition,
                  'model':self.model,'host_tools':declarations,
+                 'permissions':{'tools':permissions},
                  'workspace':{'cwd':str(workspace),'project_dir':str(workspace)},
                  'timeout_seconds':turn.timeout_seconds,'max_turns':16}
         if turn.definition.skills:request['skills']=list(turn.definition.skills)
@@ -99,7 +109,9 @@ class ProcessHost:
         path=workspace/'runs'/(request_id+'.json')
         record={'operationId':turn.operation_id,'requestId':request_id,'sessionId':turn.session_id,'state':'prepared',
                 'definitionDigest':digest({'agent':definition,'skills':list(turn.definition.skills),
-                                          'tools':[tool.policy() for tool in turn.definition.tools]}),
+                                          'tools':[tool.policy() for tool in turn.definition.tools],
+                                          'nativeTools':native}),
+                'nativeToolsEnabled':turn.allow_native_tools,
                 'createdAt':datetime.now(timezone.utc).isoformat()}
         private_json(path,record)
         observed_session=[turn.session_id]
