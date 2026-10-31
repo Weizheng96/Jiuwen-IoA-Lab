@@ -11,6 +11,7 @@ from a2c.template import validate,template_digest
 from a2c.errors import A2CError
 
 from ..runtime.protocol import RuntimeFault
+from ..runtime.scheduling import JobHandler,JobOutcome
 
 
 class ProviderRole:
@@ -28,7 +29,9 @@ class ProviderRole:
             return {}
         from .execution import ProviderExecution
         self.execution=ProviderExecution(self,runtime,self.host)
-        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish')},**self.execution.bind()}
+        registration=self.execution.bind()
+        registration['jobs']['provider.preview']=JobHandler(self.run_preview,'provider-preview-v1',False)
+        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish')},**registration}
 
     def start(self):
         if self.execution:self.execution.start()
@@ -77,9 +80,7 @@ class ProviderRole:
                     return {'status': 'completed', 'data': {**self.status(identity),'localExecution':self.execution.status(identity.profile)}}
                 if name == 'preview':
                     self.fields(args, ('service',))
-                    identity, config = self.configuration(args['service'])
-                    current = self.status(identity)
-                    return {'status': 'completed', 'data': self.preview(identity, config, current['revision'])}
+                    return self.prepare_preview(operation,args['service'])
                 self.fields(args, ('service', 'contentDigest', 'expectedRevision'), ('confirmationRef',))
                 return self.publish(operation, args)
             except A2CError as exc:
@@ -94,15 +95,16 @@ class ProviderRole:
                 raise RuntimeFault('unknown_result', 'Recover the original publication', 'resume_original') from None
         return execute
 
-    def configuration(self, config):
-        if not isinstance(config, dict) or set(config) != {'profile', 'name', 'description', 'tags', 'categoryId', 'templates'}:
-            raise RuntimeFault('invalid_input', 'Service configuration requires profile, name, description, tags, categoryId and template drafts')
+    def configuration(self, config, *, require_category=True):
+        fields={'profile','name','description','tags','templates'}
+        if not isinstance(config,dict) or not fields<=set(config) or set(config)-fields-{'categoryId'}:
+            raise RuntimeFault('invalid_input','Service needs profile, name, description, tags, template drafts and optional categoryId')
         identity = self._identity(config['profile'])
         for field, maximum in [('name', 120), ('description', 8000)]:
             if not isinstance(config[field], str) or not 1 <= len(config[field].strip()) <= maximum:
                 raise RuntimeFault('invalid_input', 'Configure a bounded service ' + field)
-        if not isinstance(config['categoryId'], str) or not config['categoryId']:
-            raise RuntimeFault('category_required', 'Choose a category from provider.categories')
+        if ('categoryId' in config or require_category) and (not isinstance(config.get('categoryId'),str) or not config['categoryId']):
+            raise RuntimeFault('category_required','Use the complete resolved service returned by provider.preview')
         if not isinstance(config['tags'], list) or len(config['tags']) > 20 or any(not isinstance(t, str) or not 1 <= len(t) <= 80 for t in config['tags']):
             raise RuntimeFault('invalid_input', 'Configure bounded service tags')
         drafts = config['templates']
@@ -120,14 +122,52 @@ class ProviderRole:
                 raise RuntimeFault('invalid_input', 'Use proposal/countersign templates and the configured platform payment provider')
         return identity, copy.deepcopy(config)
 
+    def prepare_preview(self,operation,service):
+        identity,config=self.configuration(service,require_category=False)
+        namespace='provider:'+identity.agent_id;key='preview:'+operation;fingerprint=digest(config)
+        with self.lock:
+            old=self.runtime.store.checkpoint(namespace,key)
+            if old:
+                if old['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original preview input changed')
+                if 'result' in old:return {'status':'completed','data':old['result']}
+            else:self.runtime.store.checkpoint_set(namespace,key,{'fingerprint':fingerprint,'config':config})
+        if 'categoryId' not in config:
+            job=self.runtime.scheduler.submit(identity.agent_id,'publication-preview:'+operation,'provider.preview',{'operationId':operation},operation_id=operation)
+            return {'status':job['status'] if job['status'] in ('failed','unknown') else 'accepted','data':{'job':job}}
+        return {'status':'completed','data':self.compute_preview(identity,operation,config)}
+
+    def run_preview(self,job):
+        identity=next(identity for identity in self.identities.values() if identity.agent_id==job['actor'])
+        operation=job['payload']['operationId']
+        record=self.runtime.store.checkpoint('provider:'+identity.agent_id,'preview:'+operation)
+        return JobOutcome('completed',record.get('result') or self.compute_preview(identity,operation,record['config']))
+
+    def compute_preview(self,identity,operation,config):
+        namespace='provider:'+identity.agent_id;key='preview:'+operation;fingerprint=digest(config)
+        request={name:config[name] for name in ('name','description','tags','categoryId') if name in config}
+        category=self.runtime.account.api('POST','/services/category-preview',request)
+        if category.get('status')=='matched':
+            if not isinstance(category.get('categoryId'),str) or not category.get('categoryPath') or category['categoryPath'][-1]['id']!=category['categoryId']:
+                raise RuntimeFault('protocol_error','Invalid actual category preview')
+            config={**config,'categoryId':category['categoryId']}
+            result={**self.preview(identity,config,self.status(identity)['revision'],category),'service':config,'category':category}
+        elif category.get('status')=='choose_category':result={'profile':identity.profile,'category':category,'readyToPublish':False}
+        else:raise RuntimeFault('protocol_error','Invalid category matching outcome')
+        with self.lock:
+            old=self.runtime.store.checkpoint(namespace,key)
+            if old and old['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Concurrent preview input changed')
+            if old and 'result' in old:result=old['result']
+            else:self.runtime.store.checkpoint_set(namespace,key,{**(old or {}),'fingerprint':fingerprint,'result':result})
+        return result
+
     def status(self, identity):
         return self.runtime.account.api('GET', '/services/' + quote(identity.agent_id, safe='') + '/status')
 
     @staticmethod
-    def preview(identity, config, revision):
+    def preview(identity, config, revision, category=None):
         return {'profile': identity.profile, 'contentDigest': digest(config), 'expectedRevision': revision,
                 'preview': {'name': config['name'], 'description': config['description'], 'tags': config['tags'],
-                            'categoryId': config['categoryId'], 'templateCount': len(config['templates']),
+                            'categoryId': config['categoryId'], **({'categoryPath':category['categoryPath']} if category else {}), 'templateCount': len(config['templates']),
                             'templates': config['templates'], 'protocolId': identity.protocol_id,
                             'notice': '发布仅公示资料；连接、容量和执行就绪分别检查'}}
 
@@ -157,7 +197,10 @@ class ProviderRole:
             revision = args['expectedRevision']
             if type(revision) is not int or revision < 0 or args['contentDigest'] != digest(config):
                 raise RuntimeFault('id_conflict', 'Use the current preview digest and expected revision')
-            preview = self.preview(identity, config, revision)['preview']
+            category=self.runtime.account.api('POST','/services/category-preview',{name:config[name] for name in ('name','description','tags','categoryId')})
+            if category.get('status')!='matched' or category.get('categoryId')!=config['categoryId']:
+                raise RuntimeFault('category_required','The previewed category is no longer available')
+            preview = self.preview(identity, config, revision, category)['preview']
             binding = {'actor': identity.agent_id, 'operationId': operation,
                        'subject': {'contentDigest': args['contentDigest'], 'expectedRevision': revision},
                        'stage': 'provider.publish', 'action': 'service.publish', 'preview': preview}

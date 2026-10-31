@@ -124,7 +124,9 @@ class Platform:
         self.identities.enrollment=EnrollmentRegistry(self.db,settings,legacy_keys=saved_keys,legacy_certificates=certificates)
         from .web.identity import public_service_app
         from .registry.publication import ServicePublications
+        from .registry.categories import CategoryPreview
         from .operations import ServiceOperations
+        self.category_preview=CategoryPreview(self.discovery.categories,lambda service,categories:self.llm.classify_category(service,categories))
         self.publications=ServicePublications(self.db,self.identities,self.discovery.categories)
         from .files import PrivateFiles
         self.files=PrivateFiles(self.db,self.identities,settings.data/'private-files')

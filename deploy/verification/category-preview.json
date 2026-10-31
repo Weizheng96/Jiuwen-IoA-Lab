@@ -1,0 +1,34 @@
+{
+  "scope": "Actual platform HTTP category preview with configured model and actual A2X tree; not native Jiuwen onboarding or film",
+  "model": "qwen-flash",
+  "categoryId": "cat_dev",
+  "categoryPath": [
+    {
+      "id": "root",
+      "name": "全部服务"
+    },
+    {
+      "id": "cat_dev",
+      "name": "软件开发"
+    }
+  ],
+  "reason": "服务描述中提到‘按需求设计和交付微信小程序源码与部署说明’，涉及代码开发与技术文档，属于软件开发范畴。",
+  "taxonomyDigest": "sha256:2177a348f2fc66d9bb3acdbac9b766e0844507fddad096ff9fbff6de8bccfd78",
+  "sources": {
+    "src/platform/ioalab/registry/categories.py": "sha256:58a5b9ea2b371eeb2335bf654486335ec23109225d56d844bfc6b6a540c3186f",
+    "src/platform/ioalab/market/taxonomy.py": "sha256:d31a4113e524b751f42ecc625a986f84c3424f9855bcaf62a6fba206c0f110c9",
+    "src/platform/ioalab/runtime/llm.py": "sha256:bf5f82e7c09068250dc94778dbb5e50b6d29433361ad0140459ef705c1af40e7",
+    "src/access/sdk/ioalab_sdk/provider/publication.py": "sha256:c76bbe8bafba7b3cf833d680d4cad408cb8ec059c6d511426a0ae4ad75704a82"
+  },
+  "publicationUnchanged": true,
+  "verification": {
+    "test": "tests/test_category_preview.py::test_real_configured_platform_model_classifies_public_capability_via_http",
+    "exitCode": 0,
+    "result": "1 passed, 15 deselected"
+  },
+  "limits": [
+    "Classification is advisory; missing, ambiguous or failed decisions still require manual selection",
+    "No native Jiuwen onboarding, human publication approval or new film proof",
+    "Separate deterministic HTTP/WS tests verify frozen preview, restart, current path confirmation and original signed publication"
+  ]
+}

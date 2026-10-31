@@ -60,6 +60,10 @@ def build_router(platform, current_user):
     def service_categories(uid=Depends(sdk_user)):
         return {'categories':platform.discovery.categories()}
 
+    @router.post('/services/category-preview')
+    def category_preview(body:dict,uid=Depends(sdk_user)):
+        return platform.category_preview.preview(body)
+
     @router.post('/services/{agentId}/publications')
     def service_publish(agentId:str,body:dict,uid=Depends(sdk_user)):
         return platform.service_operations.publish(uid,agentId,body)

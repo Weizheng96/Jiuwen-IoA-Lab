@@ -78,8 +78,21 @@ def categories(tdir: Path) -> list[dict]:
     """管理员页用：各叶类及其服务数。"""
     tax = json.loads((tdir / "taxonomy.json").read_text(encoding="utf-8"))
     cls = json.loads((tdir / "class.json").read_text(encoding="utf-8"))["categories"]
-    return [{"id": cid, "name": cls.get(cid, {}).get("name", cid), "services": node.get("services", [])}
-            for cid, node in tax["categories"].items() if cid != "root"]
+    result = []
+    def visit(cid, path):
+        if cid in {part['id'] for part in path}:
+            raise ValueError('Invalid cyclic A2X taxonomy')
+        node = tax['categories'][cid]
+        current = cls.get(cid, {})
+        path = [*path, {'id': cid, 'name': current.get('name', cid)}]
+        if node.get('children'):
+            for child in node['children']:visit(child, path)
+        elif cid != tax['root']:
+            result.append({'id': cid, 'name': current.get('name', cid),
+                           'description': current.get('description', ''), 'decision_rule': current.get('decision_rule', ''),
+                           'path': path, 'isFallback': cid == MISC['id'], 'services': node.get('services', [])})
+    visit(tax['root'], [])
+    return result
 
 
 def _write(p: Path, obj) -> None:
