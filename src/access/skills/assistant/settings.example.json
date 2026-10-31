@@ -3,6 +3,7 @@
   "username": "your-account",
   "password_env": "IOALAB_ACCESS_PASSWORD",
   "data_dir": "~/.ioalab/instances/main",
+  "user_browser": null,
   "identities": [{"key": "personal", "role": "assistant", "name": "我的个人助手"}],
   "max_model_runs": 2,
   "assistant": {},

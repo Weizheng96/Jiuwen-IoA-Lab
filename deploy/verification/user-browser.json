@@ -1,0 +1,71 @@
+{
+  "date": "2026-11-01",
+  "scope": "Owner-configured browser launch, real local IPC/user-channel authorization boundaries and shipped Windows product installation",
+  "verification": {
+    "focused": "29 passed, 1 warning in 21.61s",
+    "fullRegression": "558 passed, 16 skipped, 1 warning in 1219.17s (0:20:19)",
+    "designDocumentationSelfcheckPassed": true,
+    "installedContractAndNewConfiguration": "1 passed, 1 warning in 24.67s",
+    "developerSkill": "jiuwen-swarm quick_validate passed"
+  },
+  "browserChoice": {
+    "default": "system browser",
+    "optionalField": "user_browser",
+    "value": "absolute installed executable path or null",
+    "frozenInConfigurationDigest": true,
+    "requiresSafeRestart": true,
+    "shell": false,
+    "rpcAcceptsLaunchArguments": false,
+    "opensDoNotApprove": true,
+    "launchFailureDoesNotFallBack": true,
+    "entryAuthorityReturnedToModel": false
+  },
+  "installation": {
+    "releaseId": "4ae9e5895983c438e1867312d1480d1f9876d01ebcd62b2852ec6042b5e39ff1",
+    "backgroundInstallation": {
+      "initialStatuses": [
+        "waiting",
+        "waiting"
+      ],
+      "launcherSeconds": [
+        0.437,
+        0.469
+      ],
+      "originalAttemptId": "dba73ccd-c19e-436a-a36e-16dbd6102e04",
+      "statusQueries": 138,
+      "sharedTaskCount": 1,
+      "workerCompletedAfterLauncherExit": true
+    },
+    "limits": [
+      "Contract host and user approval were explicit isolated test drivers",
+      "No Jiuwen model invocation, native web or new video proof",
+      "Windows only; no Linux/systemd upgrade claim"
+    ]
+  },
+  "packageSourceEquality": {
+    "sdkAndHostPython": true,
+    "sharedGuidanceAndSettings": true,
+    "bootstrapAndInstaller": true
+  },
+  "configurationUnchanged": {
+    "originalUserSwarmAndIsolatedSwarm": true,
+    "checkedFiles": 4
+  },
+  "sources": {
+    "src/access/sdk/ioalab_sdk/runtime/config.py": "sha256:3b9457cca35a87e0323e8762260df1e8db0c015da5c6c86963a8d97a33a016da",
+    "src/access/sdk/ioalab_sdk/runtime/resident.py": "sha256:5db890e9c26b29c07874f24b742c64f0de721b74817749e47955dff3c8490d10",
+    "src/access/sdk/ioalab_sdk/runtime/user_ui.py": "sha256:cd4ec825c8caef4be00511af0dd2cee2ec90bd1cc14732abd5eb3ff2c3469896",
+    "src/access/skills/_shared/references/shared-runtime.md": "sha256:51fce5f2105f099ac440ae8af1a0716600b38c14529b732d09f5e663fdcfa4da",
+    "src/access/skills/assistant/settings.example.json": "sha256:68c8e9dc63eb690e7797f4e12db659513cd0b15e72520521ac36ca9fdab44d8a",
+    "src/access/skills/provider/settings.example.json": "sha256:b78e599efc4295f4466d708d8b43a6f1370f69cd05cf0da371cfda854fe457bc",
+    "tests/test_user_browser.py": "sha256:bfe06b333e9a0148625f5258fde15d398b57d238238924126507e8d23622ef3e",
+    "tests/test_installed_upgrade.py": "sha256:36202de050b53da2370ce4b95c900cba856e06902709f3a4a47f2b230ed26963",
+    "tools/build_access_skills.py": "sha256:50deb2789de0445d567ee82530de3e40e674fffd54cd3c30c003fb5390ca4bf2"
+  },
+  "limits": [
+    "Browser launcher is an explicit isolated test double; approval uses a scripted real HTTP user channel",
+    "No real browser extension connection, original native frontend confirmation, human decision or new video acceptance",
+    "No Linux browser or systemd deployment proof; local WSL enumeration returned no distributions",
+    "Complete ordinary onboarding, miniapp production, termination, legacy entry migration and other goal work remain"
+  ]
+}

@@ -38,11 +38,12 @@ class RuntimeConfig:
     assistant: dict=field(default_factory=dict)
     provider: dict=field(default_factory=dict)
     host: dict=field(default_factory=dict)
+    user_browser: str|None=None
 
     def public_summary(self):
         value={'platform':self.platform,'username':self.username,'dataDir':str(self.home),'identities':list(self.identities),
                'maxModelRuns':self.max_model_runs,'maxPendingRequests':self.max_pending_requests,
-               'assistant':self.assistant,'provider':self.provider,'host':self.host}
+               'assistant':self.assistant,'provider':self.provider,'host':self.host,'userBrowser':self.user_browser}
         return {'configurationDigest':digest(value),'dataDir':str(self.home),'identities':list(self.identities)}
 
     @classmethod
@@ -53,7 +54,7 @@ class RuntimeConfig:
     @classmethod
     def from_mapping(cls,path,value):
         allowed={'platform_url','username','password','password_env','data_dir','identities',
-                 'max_model_runs','max_pending_requests','assistant','provider','host'}
+                 'max_model_runs','max_pending_requests','assistant','provider','host','user_browser'}
         def invalid(message):raise RuntimeFault('invalid_input',message,'configure')
         if not isinstance(value,dict) or set(value)-allowed:invalid('Unknown common runtime configuration fields')
         for key in ('platform_url','username'):
@@ -69,6 +70,16 @@ class RuntimeConfig:
             password=os.environ.get(key)
         else:password=value.get('password')
         if not isinstance(password,str) or not password:invalid('Configure local account credentials')
+        browser=value.get('user_browser')
+        if browser is not None:
+            if not isinstance(browser,str) or not 1<=len(browser)<=8192 or not Path(browser).is_absolute():
+                invalid('user_browser requires an absolute browser executable path without arguments')
+            try:
+                executable=Path(browser).resolve(strict=True)
+                valid=executable.is_file() and (executable.suffix.lower()=='.exe' if os.name=='nt' else os.access(executable,os.X_OK))
+            except (OSError,ValueError,RuntimeError):valid=False
+            if not valid:invalid('user_browser must reference an existing executable file')
+            browser=str(executable)
         home=data_directory(path,value)
         profiles=value.get('identities')
         if not isinstance(profiles,list) or not 1<=len(profiles)<=64:invalid('Configure one to 64 local identity profiles')
@@ -90,4 +101,4 @@ class RuntimeConfig:
             if not isinstance(value.get(key,{}),dict):invalid(key+' configuration must be an object')
         return cls(platform,value['username'].strip(),password,home.resolve(),tuple(dict(p) for p in profiles),
                    value.get('max_model_runs',2),value.get('max_pending_requests',128),
-                   value.get('assistant',{}),value.get('provider',{}),value.get('host',{}))
+                   value.get('assistant',{}),value.get('provider',{}),value.get('host',{}),user_browser=browser)

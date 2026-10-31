@@ -5,6 +5,7 @@ import hmac
 from importlib.resources import files
 import json
 import secrets
+import subprocess
 import threading
 import time
 from urllib.parse import urlsplit
@@ -15,8 +16,8 @@ from .protocol import RuntimeFault
 
 
 class UserUi:
-    def __init__(self,confirmations,*,clock=time.time):
-        self.confirmations,self.clock=confirmations,clock
+    def __init__(self,confirmations,*,browser=None,clock=time.time):
+        self.confirmations,self.clock,self.browser=confirmations,clock,browser
         self._authority=confirmations.user_channel()
         self._entries={};self._sessions={};self._lock=threading.RLock()
         self.origin=None
@@ -31,7 +32,18 @@ class UserUi:
         return self.origin+'/user#'+token
 
     def open(self):
-        return bool(webbrowser.open(self.entry_url()))
+        url=self.entry_url()
+        try:
+            if self.browser:
+                subprocess.Popen([self.browser,url],shell=False,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,close_fds=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                return True
+            if not webbrowser.open(url):
+                raise RuntimeFault('not_ready','The local user browser could not be opened','configure_browser')
+            return True
+        except (OSError,webbrowser.Error):
+            # OS errors can contain the one-time URL; never return them over RPC.
+            raise RuntimeFault('not_ready','The local user browser could not be opened','configure_browser') from None
 
     def _session(self,request):
         cookie=SimpleCookie()

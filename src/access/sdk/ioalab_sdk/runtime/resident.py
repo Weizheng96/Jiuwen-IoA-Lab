@@ -59,7 +59,7 @@ class ResidentRuntime:
             self.scheduler=Scheduler(self.store,job_handlers,max_models=config.max_model_runs,max_pending=config.max_pending_requests,
                                      can_dispatch=lambda:self.connection.connected)
             self.connection.on_delivery=self._wake_roles
-            self.user_ui=UserUi(self.confirmations)
+            self.user_ui=UserUi(self.confirmations,browser=config.user_browser)
             self.ipc=IpcServer(config.home,self.store.runtime_id,self.call,user_ui=self.user_ui)
         except BaseException:
             self.close()

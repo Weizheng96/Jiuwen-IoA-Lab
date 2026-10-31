@@ -22,6 +22,14 @@ def test_installed_release_restarts_with_original_identity_contract_authorizatio
         result=subprocess.run([python,'-I','-m','ioalab_sdk.runtime',*args],cwd=tmp_path,env=environment,
                               capture_output=True,timeout=30)
         return result.returncode,json.loads(result.stdout)
+    # Prove the shipped CLI accepts the new owner-only option outside source paths.
+    validation=tmp_path/'browser-validation.json';unstarted=tmp_path/'not-started'
+    private_json(validation,{'platform_url':platform.s.base_url,'username':'validation-only','password':'private-test-value',
+        'data_dir':str(unstarted),'identities':[{'key':'personal','role':'assistant','name':'助手'}],
+        'user_browser':str(Path(python).resolve())})
+    code,validated=command('validate','--config',str(validation))
+    assert code==0 and validated['status']=='completed' and not unstarted.exists()
+    assert 'private-test-value' not in json.dumps(validated) and 'password' not in json.dumps(validated)
     with participants(platform,tmp_path) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task);formed,_,_=confirm(assistant,quote);reference=formed['data']['contractRef']
         wait_for(lambda:status(assistant,reference))
