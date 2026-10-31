@@ -126,7 +126,7 @@ permission.get 只反映原版命名权限及规则，不能当作完整工具�
 
 ## 本地业务工具
 
-业务工具以SDK的ToolBinding描述名称、输入Schema、副作用类别、实现修订及可选requires_steps；BusinessTools返回一组绑定和关闭回调。普通SDK仅接收注入的绑定，不导入具体业务包。装配入口按本机host.business_tools配置加载已安装包在ioalab.business_tools组登记的工厂：每项含factory、profile、options；工厂名是注册名，不是Python路径，profile必须属于本实例。没有配置时不加载；重名、未知包或能力缺失明确拒绝。工厂只校验和构造本地工具，不认证身份、初始化空日程或执行业务。
+业务工具以SDK的ToolBinding描述名称、输入Schema、副作用类别、实现修订及可选requires_steps；BusinessTools返回一组绑定，以及可选start、status、close资源回调；构造无副作用，取得本地实例所有权后启动，status只读且有界，作业停止后关闭。普通SDK仅接收注入的绑定，不导入具体业务包。装配入口按本机host.business_tools配置加载已安装包在ioalab.business_tools组登记的工厂：每项含factory、profile、options；工厂名是注册名，不是Python路径，profile必须属于本实例。没有配置时不加载；重名、未知包或能力缺失明确拒绝。工厂只校验和构造本地工具，不认证身份、初始化空日程或执行业务。
 
 工具限定在所配置profile；助手工具须在已确认收信规则中列出，服务方工具只在本单生产阶段开放。SDK提供固定operationId、agentId、messageId、interactionId、sessionId；服务方另含contractRef和period。输入不得替换上下文。工具前保存调用原件，重复原调用恢复结果，异输入冲突；未知效果阻止新的写入，不自动重调。规则/会话保存工具策略摘要，后续缺失或变更须恢复原定义或重新确认，不扩展在途权限。requires_steps仅用于服务方工具，调用前须有本卡本期对应环节的原有效同意，不接受模型自称已获准。
 
