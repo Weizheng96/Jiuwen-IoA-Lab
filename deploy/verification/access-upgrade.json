@@ -1,0 +1,58 @@
+{
+  "scope": "Clean Windows product install from both ZIPs; installed SDK HTTP/WS takeover after safe stop with actual A2C contract and AP2 proposal fee; contract formed but not started",
+  "releaseId": "10515b17d4fca00fe383bfcff453b5bf68425dfdba0891e96a1a691dd9322f34",
+  "manifest": {
+    "constraintsSha256": "8308a8450f8163bd277405fa532c7deab8318014b5d0212471617ca9d7df7f36",
+    "format": 1,
+    "sourceManifestSha256": "769073ba95db14af5dee8f7a4703919689d064ade734a3d2268a053419ad87d0",
+    "versions": {
+      "a2c": "0.0.19",
+      "ioalab-jiuwen": "0.0.46",
+      "ioalab-official": "0.0.46",
+      "ioalab-sdk": "0.0.39",
+      "jiuwenswarm-process-sdk": "0.1.0"
+    },
+    "wheels": [
+      {
+        "file": "a2c-0.0.19-py3-none-any.whl",
+        "sha256": "0613c5cd6a71983bda09283180ab6230f776b3a3e12e19ccd6a24dd535386bb2"
+      },
+      {
+        "file": "ioalab_jiuwen-0.0.46-py3-none-any.whl",
+        "sha256": "7fbd0805eac8cc914597fbc43f93eb3da43e80e68a53711ef889c94d02e68c81"
+      },
+      {
+        "file": "ioalab_official-0.0.46-py3-none-any.whl",
+        "sha256": "f38a46b70cf9e2ef9165e6b0970173e8b23c5398a088d150ef883b4efa6b9aa2"
+      },
+      {
+        "file": "ioalab_sdk-0.0.39-py3-none-any.whl",
+        "sha256": "b81efec1e851001559f60371250bfb2a8a6b2828aef95536a54207ab09c2f46b"
+      },
+      {
+        "file": "jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl",
+        "sha256": "f9aa6e09e21112a82e56320569c4ffea592415551d75489cfc1c51a3da5f0778"
+      }
+    ]
+  },
+  "verification": {
+    "exitCode": 0,
+    "test": "tests/test_installed_upgrade.py",
+    "result": "1 passed, 1 warning in 22.66s"
+  },
+  "sources": {
+    "src/access/sdk/ioalab_sdk/runtime/installation.py": "sha256:84b86cf43f4f1c9974a0a8e9a924f8e360a4742d32de4d7de8bdee09fbe2ac82",
+    "src/access/sdk/ioalab_sdk/runtime/__main__.py": "sha256:b1cd772368ef0fe31bf38f3867cc0ff8ca4452056a72c22a534db5d9af99bbbd",
+    "src/access/sdk/ioalab_sdk/runtime/ipc.py": "sha256:a64e15a20ece265352300a986fd88a23f908d40e2c81d6185338924793275fc7",
+    "src/access/sdk/ioalab_sdk/runtime/resident.py": "sha256:52f240ef80331b9059eec81c88fdc5ba8a5cc1089d7d50f731872af3af6f6aa3",
+    "src/access/skills/_shared/ioalab.py": "sha256:2357cc9a470c2b980ca395e4f87c898ed3486fc1f5153892a166af64b1dd803b",
+    "tools/build_access_skills.py": "sha256:7b7ec1392546ce339cd7ae87846737b07418e086ac86f4a0df4d52f954693e87",
+    "tests/test_installed_upgrade.py": "sha256:7014eff4d6484c9e585207abac51bebe8bb910aa63b5217188ef0c692803b5db"
+  },
+  "limits": [
+    "Contract host and user approval were explicit isolated test drivers",
+    "No Jiuwen model invocation, native web or new video proof",
+    "Windows only; no Linux/systemd upgrade claim",
+    "Does not cover upgrading a running production/model task or every contract phase"
+  ]
+}

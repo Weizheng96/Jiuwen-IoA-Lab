@@ -10,12 +10,13 @@ from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from ioalab_sdk.runtime.__main__ import start
 from ioalab_sdk.runtime.ipc import public_error
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime.protocol import RuntimeFault,configure_stdio
 from .process import ProcessHost
 from .tools import ConfiguredTools
 
 
 def main(argv=None):
+    configure_stdio()
     parser=argparse.ArgumentParser(prog='ioalab-jiuwen')
     parser.add_argument('command',choices=('start','serve'))
     parser.add_argument('--config',type=Path,required=True)
@@ -23,7 +24,7 @@ def main(argv=None):
     runtime=tools=None
     try:
         if args.command=='start':
-            result=start(args.config,command=[sys.executable,'-m','ioalab_jiuwen'])
+            result=start(args.config,command=[sys.executable,'-m','ioalab_jiuwen'],assembly='ioalab-jiuwen')
             print(json.dumps(result,ensure_ascii=False))
             return 0 if result['status'] in ('completed','waiting') else 1
         config=RuntimeConfig.load(args.config)
@@ -32,7 +33,7 @@ def main(argv=None):
         host=ProcessHost.from_config(host_config,base_dir=args.config.resolve().parent)
         personal=next((item['key'] for item in config.identities if item['role']=='assistant'),None)
         module=AssistantRole(host,tools.for_profile(personal))
-        runtime=ResidentRuntime(config,modules=(module,ProviderRole(host,tools.by_profile)),host_status=host.capabilities)
+        runtime=ResidentRuntime(config,modules=(module,ProviderRole(host,tools.by_profile)),host_status=host.capabilities,assembly='ioalab-jiuwen')
         if not host.probe()['available']:raise RuntimeFault('not_ready','Jiuwen model/capability probe did not pass','configure_host')
         runtime.run()
     except RuntimeFault as exc:

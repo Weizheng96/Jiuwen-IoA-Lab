@@ -15,7 +15,7 @@ python -m ioalab_sdk.runtime call identity.status --home <配置中的数据目�
 python -m ioalab_sdk.runtime call runtime.stop --home <配置中的数据目录> --args-file <已创建的空JSON参数文件>
 ```
 
-start 复用已运行实例；启动仍在进行时报告 waiting，不重新创建竞争实例。状态分别报告 IPC、账号、身份、连接和执行能力，不能将进程运行当作业务完成。stop 在参数文件保存目标实例及原操作标识，等待实际轮次收敛并保留数据。运行数据、配置、端点凭据与日志均不入库。SDK 还提供 `ioalab-access` 命令，行为与模块入口一致。
+start 同时核对账号、配置和安装信息后复用已运行实例；启动仍在进行时报告 waiting，不重新创建竞争实例。状态分别报告 IPC、账号、身份、连接和执行能力，不能将进程运行当作业务完成。stop 在参数文件保存目标实例及原操作标识，等待实际轮次收敛并保留数据。运行数据、配置、端点凭据与日志均不入库。SDK 还提供 `ioalab-access` 命令，行为与模块入口一致。installation_changed要求安全停止后按原目录启动当前安装；普通业务调用也核对安装及同一bootId，instance_changed时先查实际实例。诊断与停止仍可使用，不删除身份或合同。自管环境先停止再升级，不支持源码热替换。
 
 ## 助手收信设置与通信
 

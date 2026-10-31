@@ -15,11 +15,13 @@ from .session import AccountSession
 from .store import RuntimeStore
 from .confirmations import Confirmations
 from .user_ui import UserUi
+from .installation import current as current_installation
 
 
 class ResidentRuntime:
-    def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=(),modules=()):
+    def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=(),modules=(),assembly=None):
         self.config=config
+        self.installation=current_installation(assembly)
         self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=None
         self.identities=[]
         self.operations=dict(operations or {})
@@ -88,6 +90,7 @@ class ResidentRuntime:
                            or profile in getattr(module,'identities',{})))
         return {'runtimeId':self.store.runtime_id,'bootId':self.ipc.boot_id,'pid':os.getpid(),
                 'configurationDigest':self.config.public_summary()['configurationDigest'],
+                'installation':self.installation,
                 'ipcReady':bool(self.ipc.thread and self.ipc.thread.is_alive()),
                 'account':self.account.status(),'platformConnected':connected,
                 'connectionError':public_error(self.connection.error) if self.connection.error else None,

@@ -12,19 +12,21 @@ from ..lease import Lease
 from .config import RuntimeConfig
 from .files import private_json,read_json,prepare_home
 from .ipc import LocalClient,public_error
-from .protocol import RuntimeFault
+from .protocol import RuntimeFault,configure_stdio
+from .installation import require_matching,SAFE_CALLS
 
 
 READ_ONLY={'runtime.status','identity.status','operations.get'}
 
 
-def start(config_path,*,timeout=15,command=None):
+def start(config_path,*,timeout=15,command=None,assembly=None):
     config=RuntimeConfig.load(config_path)
     expected=config.public_summary()['configurationDigest']
     def matching(result):
         account=result['data']['account']
         if account['username']!=config.username or account['platform']!=config.platform:
             raise RuntimeFault('identity_conflict','Running instance belongs to another configured account')
+        require_matching(result['data'].get('installation'),assembly=assembly)
         if result['data'].get('configurationDigest')!=expected:
             raise RuntimeFault('configuration_changed','The running instance uses another configuration; safely stop it before starting the edited configuration','runtime.stop')
         return result
@@ -63,6 +65,7 @@ def start(config_path,*,timeout=15,command=None):
 
 
 def main(argv=None):
+    configure_stdio()
     parser=argparse.ArgumentParser(prog='ioalab-access')
     commands=parser.add_subparsers(dest='command',required=True)
     for name in ('serve','start','validate'):
@@ -95,6 +98,10 @@ def main(argv=None):
                 values['bootId']=client.call('runtime.status')['data']['bootId']
             values['operationId']=operation
             if args.args_file:private_json(args.args_file,values)
+            if args.operation not in SAFE_CALLS:
+                state=client.call('runtime.status')['data'];installation=state.get('installation')
+                require_matching(installation,assembly=installation.get('assembly') if isinstance(installation,dict) else None)
+                client=LocalClient(args.home,boot_id=state['bootId'])
             result=client.call(args.operation,{key:value for key,value in values.items() if key!='operationId'},operation_id=operation)
         print(json.dumps(result,ensure_ascii=False))
         return 1 if result.get('status') in ('rejected','failed','unknown') else 0

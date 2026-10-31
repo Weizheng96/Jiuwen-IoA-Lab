@@ -54,7 +54,19 @@ def ensure_runtime(assets=None,cache=None):
     cache=Path(cache or os.environ.get('IOALAB_ACCESS_CACHE') or Path.home()/'.ioalab/access-runtimes').expanduser().resolve()
     cache.mkdir(parents=True,exist_ok=True)
     envdir=cache/fingerprint[:24];python=envdir/('Scripts/python.exe' if os.name=='nt' else 'bin/python');ready=envdir/'.ready'
-    def installed():return ready.is_file() and python.is_file() and ready.read_text()==fingerprint
+    marker=envdir/'ioalab-release.json'
+    identity={'format':'ioalab.access-installation/1','releaseId':fingerprint,'versions':manifest['versions']}
+    def installed():
+        if not ready.exists():return False
+        try:
+            valid=(not ready.is_symlink() and not marker.is_symlink() and python.is_file() and ready.stat().st_size<=128
+                   and marker.stat().st_size<=32768 and ready.read_text(encoding='utf-8')==fingerprint
+                   and json.loads(marker.read_text(encoding='utf-8'))==identity)
+        except (OSError,ValueError):valid=False
+        if not valid:raise RuntimeError('Completed access environment identity changed; preserve running data and inspect this cache, do not repair it in place')
+        verified=invoke(python,['-c','from ioalab_sdk.runtime.installation import current; value=current(); assert value["releaseId"]=='+repr(fingerprint)+' and value["environment"]=='+repr(str(envdir))])
+        if verified.returncode:raise RuntimeError('Installed access packages do not match this completed release; preserve it and inspect the cache')
+        return True
     if installed():return python
     with install_lock(cache/(fingerprint[:24]+'.install.lock')):
         if installed():return python
@@ -73,13 +85,14 @@ def ensure_runtime(assets=None,cache=None):
                 subprocess.run([str(python),'-I','-c',checks],env=env,check=True,stdout=stream,stderr=subprocess.STDOUT)
                 subprocess.run([str(python),'-I','-m','pip','check'],env=env,check=True,stdout=stream,stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError:raise RuntimeError('Installation did not finish; inspect the local log: '+str(log)) from None
-        staged=envdir/'.ready.tmp';staged.write_text(fingerprint);staged.replace(ready)
+        staged=envdir/'ioalab-release.tmp';staged.write_text(json.dumps(identity,sort_keys=True)+'\n',encoding='utf-8');staged.replace(marker)
+        staged=envdir/'.ready.tmp';staged.write_text(fingerprint,encoding='utf-8');staged.replace(ready)
     return python
 
 
 def invoke(python,arguments):
     env={key:value for key,value in os.environ.items() if key not in ('PYTHONPATH','PYTHONHOME','PYTHONUSERBASE')}
-    return subprocess.run([str(python),'-I',*arguments],env={**env,'PYTHONUTF8':'1','PYTHONNOUSERSITE':'1'},capture_output=True,text=True,encoding='utf-8')
+    return subprocess.run([str(python),'-I','-X','utf8',*arguments],env={**env,'PYTHONUTF8':'1','PYTHONNOUSERSITE':'1'},capture_output=True,text=True,encoding='utf-8')
 
 
 def main(argv=None):

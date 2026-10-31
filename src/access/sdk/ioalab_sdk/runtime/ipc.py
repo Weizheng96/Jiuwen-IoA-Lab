@@ -137,8 +137,8 @@ class IpcServer:
 
 
 class LocalClient:
-    def __init__(self,home,*,timeout=10):
-        self.home,self.timeout=Path(home),timeout
+    def __init__(self,home,*,timeout=10,boot_id=None):
+        self.home,self.timeout,self.boot_id=Path(home),timeout,boot_id
 
     def call(self,operation,arguments=None,*,operation_id=None):
         if arguments is not None and not isinstance(arguments,dict):raise RuntimeFault('invalid_input','Local arguments must be an object')
@@ -154,6 +154,8 @@ class LocalClient:
             raise RuntimeFault('protocol_error','Local endpoint must be a credential-free loopback address')
         if not all(isinstance(descriptor.get(key),str) and descriptor[key] for key in ('token','bootId','runtimeId')):
             raise RuntimeFault('protocol_error','Local endpoint identity is incomplete')
+        if self.boot_id is not None and descriptor['bootId']!=self.boot_id:
+            raise RuntimeFault('instance_changed','The checked runtime instance changed; inspect it before another business call','runtime.status',operation_id=operation_id)
         payload={'operation':operation,'operationId':operation_id,'arguments':arguments or {}}
         if len(encode(payload).encode())>LIMIT:raise RuntimeFault('invalid_input','Local request exceeds 128 KiB')
         wait=(arguments or {}).get('waitSeconds',0)

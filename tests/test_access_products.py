@@ -92,8 +92,9 @@ def test_both_real_product_bundles_have_one_manifest_and_generated_entry(tmp_pat
             assert json.loads(archive.read(root+'/assets/skill.json'))['role']==role
             assert archive.read(root+'/scripts/ioalab.py')==(ROOT/'src/access/skills/_shared/ioalab.py').read_bytes()
             assert root+'/references/setup.md' in archive.namelist()
+            assert any('/assets/wheels/ioalab_official-' in name for name in archive.namelist())
             manifest=json.loads(manifests[-1])
-            assert set(manifest['versions'])=={'a2c','ioalab-sdk','ioalab-jiuwen','jiuwenswarm-process-sdk'}
+            assert set(manifest['versions'])=={'a2c','ioalab-sdk','ioalab-jiuwen','ioalab-official','jiuwenswarm-process-sdk'}
             for wheel in manifest['wheels']:
                 assert hashlib.sha256(archive.read(root+'/assets/wheels/'+wheel['file'])).hexdigest()==wheel['sha256']
     assert manifests[0]==manifests[1]

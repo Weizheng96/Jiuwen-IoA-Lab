@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sqlite3
 
+from ioalab_sdk.runtime.protocol import configure_stdio
 from .appointments import appointment_records
 from .schedule import LocalSchedule,configured
 
@@ -22,6 +23,7 @@ def legacy_records(home):
 
 
 def main(argv=None):
+    configure_stdio()
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command',choices=['init','show','replace'])
     parser.add_argument('--file',type=Path,help='the schedule_file selected in local business-tool configuration')

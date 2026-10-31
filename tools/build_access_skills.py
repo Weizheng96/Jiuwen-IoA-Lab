@@ -21,13 +21,13 @@ def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def build(output):
     output=Path(output).resolve();output.mkdir(parents=True,exist_ok=True)
-    projects=[ROOT/'src/access/sdk',ROOT/'src/hosts/jiuwen']
+    projects=[ROOT/'src/access/sdk',ROOT/'src/hosts/jiuwen',ROOT/'src/official']
     with tempfile.TemporaryDirectory(prefix='ioa-access-skills-') as temporary:
         temporary=Path(temporary);shared=temporary/'shared';wheels=shared/'wheels';wheels.mkdir(parents=True)
         for project in projects:build_wheel(project,wheels)
         sources=json.loads((ROOT/'vendor/SOURCES.json').read_text(encoding='utf-8'))
-        versions={'ioalab-sdk':(projects[0]/'VERSION').read_text().strip().removeprefix('v'),
-                  'ioalab-jiuwen':(projects[1]/'VERSION').read_text().strip().removeprefix('v')}
+        versions={tomllib.loads((project/'pyproject.toml').read_text(encoding='utf-8'))['project']['name']:
+                  (project/'VERSION').read_text().strip().removeprefix('v') for project in projects}
         for name in ('a2c','jiuwenswarm-process-sdk'):
             component=next(value for value in sources['components'] if value['id']==name)
             info=component['wheelInfo'];original=ROOT/'vendor'/info['file']
@@ -67,5 +67,5 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--out',type=Path,default=ROOT/'dist')
     parser.add_argument('--update-lock',action='store_true',help='refresh the shared release lock from a verified development environment')
     args=parser.parse_args()
-    if args.update_lock:(ROOT/'src/access/skills/_shared/requirements.lock').write_text(constraints([ROOT/'src/access/sdk',ROOT/'src/hosts/jiuwen']),encoding='utf-8')
+    if args.update_lock:(ROOT/'src/access/skills/_shared/requirements.lock').write_text(constraints([ROOT/'src/access/sdk',ROOT/'src/hosts/jiuwen',ROOT/'src/official']),encoding='utf-8')
     for path in build(args.out):print(path)

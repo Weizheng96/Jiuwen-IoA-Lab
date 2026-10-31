@@ -9,6 +9,13 @@ class RuntimeFault(Exception):
         self.code, self.recovery, self.operation_id = code, recovery, operation_id
 
 
+def configure_stdio():
+    """Keep structured CLI output independent of shell code pages and -I."""
+    import sys
+    for stream in (sys.stdout,sys.stderr):
+        if hasattr(stream,'reconfigure'):stream.reconfigure(encoding='utf-8',errors='strict')
+
+
 def encode(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
 
