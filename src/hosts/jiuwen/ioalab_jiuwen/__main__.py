@@ -12,6 +12,7 @@ from ioalab_sdk.runtime.__main__ import start
 from ioalab_sdk.runtime.ipc import public_error
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from .process import ProcessHost
+from .tools import ConfiguredTools
 
 
 def main(argv=None):
@@ -19,16 +20,19 @@ def main(argv=None):
     parser.add_argument('command',choices=('start','serve'))
     parser.add_argument('--config',type=Path,required=True)
     args=parser.parse_args(argv)
-    runtime=None
+    runtime=tools=None
     try:
         if args.command=='start':
             result=start(args.config,command=[sys.executable,'-m','ioalab_jiuwen'])
             print(json.dumps(result,ensure_ascii=False))
             return 0 if result['status'] in ('completed','waiting') else 1
         config=RuntimeConfig.load(args.config)
-        host=ProcessHost.from_config(config.host,base_dir=args.config.resolve().parent)
-        module=AssistantRole(host)
-        runtime=ResidentRuntime(config,modules=(module,ProviderRole(host)),host_status=host.capabilities)
+        host_config=dict(config.host);specs=host_config.pop('business_tools',[])
+        tools=ConfiguredTools(specs,config.identities,home=config.home,base_dir=args.config.resolve().parent)
+        host=ProcessHost.from_config(host_config,base_dir=args.config.resolve().parent)
+        personal=next((item['key'] for item in config.identities if item['role']=='assistant'),None)
+        module=AssistantRole(host,tools.for_profile(personal))
+        runtime=ResidentRuntime(config,modules=(module,ProviderRole(host,tools.by_profile)),host_status=host.capabilities)
         if not host.probe()['available']:raise RuntimeFault('not_ready','Jiuwen model/capability probe did not pass','configure_host')
         runtime.run()
     except RuntimeFault as exc:
@@ -39,7 +43,9 @@ def main(argv=None):
         print(json.dumps({'status':'failed','data':None,'error':{'code':'not_ready','type':type(exc).__name__,'recovery':'inspect_local_configuration'}}))
         return 1
     finally:
+        # Business resources must outlive active runtime jobs, even if shutdown fails.
         if runtime:runtime.close()
+        if tools:tools.close()
     return 0
 
 

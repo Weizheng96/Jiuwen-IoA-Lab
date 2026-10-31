@@ -42,7 +42,7 @@ def main():
     import os,sys
     sys.path[:0]=[str(ROOT/'src/access/sdk'),str(ROOT/'deploy')]
     from configure_assistant import read_env
-    from ioalab_sdk.calendar import address
+    from ioalab_tools.calendar import address
     for key,value in read_env(args.env).items():
         if key.startswith('IOALAB_'):os.environ[key]=value
     spec=importlib.util.spec_from_file_location('notification_assistant',ROOT/'personal-assistant/assistant.py')

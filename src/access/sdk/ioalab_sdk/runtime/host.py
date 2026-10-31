@@ -11,12 +11,20 @@ class ToolBinding:
     invoke: Callable=field(repr=False)
     effect: str='none'
     revision: str='1'
+    requires_steps: tuple[str,...]=()
 
     def declaration(self):
         return {'name':self.name,'description':self.description,'input_schema':self.input_schema}
 
     def policy(self):
-        return {**self.declaration(),'effect':self.effect,'revision':self.revision}
+        return {**self.declaration(),'effect':self.effect,'revision':self.revision,
+                **({'requiresSteps':list(self.requires_steps)} if self.requires_steps else {})}
+
+
+@dataclass(frozen=True)
+class BusinessTools:
+    bindings: tuple[ToolBinding,...]
+    close: Callable|None=field(default=None,repr=False)
 
 
 @dataclass(frozen=True)

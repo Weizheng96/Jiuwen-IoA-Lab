@@ -4,7 +4,7 @@ import json
 import re
 import httpx
 import pytest
-from ioalab_sdk.agentmail import AgentMailNotification
+from ioalab_tools.agentmail import AgentMailNotification
 
 
 def test_native_invitation_uses_organizer_calendar_and_stable_client_id():

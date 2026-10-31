@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from ioalab_sdk.calendar import GraphCalendar, OutlookSMTPAuth, SMTPNotification, SMTP_SCOPES
+from ioalab_tools.calendar import GraphCalendar, OutlookSMTPAuth, SMTPNotification, SMTP_SCOPES
 
 
 def device_transport(*,mail='other@example.test',access='new-access',requests=None):

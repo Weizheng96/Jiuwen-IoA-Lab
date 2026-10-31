@@ -1,0 +1,63 @@
+{
+  "scope": "Original Jiuwen, actual installed calendar factory, HTTP/WS resident roles and real loopback SMTP; scripted local-browser user confirmation",
+  "model": "qwen-flash#0",
+  "interactionId": "c1eb4c1b-023a-4b86-9737-9ece8a7a551a",
+  "sessionId": "process_cli_1a1900df76e_6d9660c8da33",
+  "first": {
+    "inviteSubmitted": false,
+    "reason": "busy",
+    "status": "conflict",
+    "suggestedEnd": "2026-11-02T11:00:00+08:00",
+    "suggestedStart": "2026-11-02T10:30:00+08:00",
+    "timeZone": "Asia/Shanghai"
+  },
+  "second": {
+    "calendar": "awaiting_acceptance",
+    "inviteSubmitted": true,
+    "reservationId": "feef5acbc2725b41aecf0180b5eecf41",
+    "status": "invite_submitted"
+  },
+  "smtpMessages": 1,
+  "originalToolReceipts": {
+    "first": {
+      "status": "conflict",
+      "reason": "busy",
+      "inviteSubmitted": false,
+      "suggestedStart": "2026-11-02T10:30:00+08:00",
+      "suggestedEnd": "2026-11-02T11:00:00+08:00",
+      "timeZone": "Asia/Shanghai"
+    },
+    "second": {
+      "status": "invite_submitted",
+      "reservationId": "feef5acbc2725b41aecf0180b5eecf41",
+      "inviteSubmitted": true,
+      "calendar": "awaiting_acceptance"
+    }
+  },
+  "reservationState": "submitted",
+  "invitationReceipt": {
+    "status": "invite_submitted",
+    "calendar": "awaiting_acceptance",
+    "uid": "ioa-feef5acbc2725b41aecf0180b5eecf41@jiuwen-ioa-lab",
+    "recipient": "owner@example.test",
+    "transport": "smtp-capture"
+  },
+  "sources": {
+    "src/official/tools/ioalab_tools/appointments.py": "sha256:29d09e74b7c1208fc443db8f0333a8a443c20caf90846e5ba1d6ddd58c5a6e8c",
+    "src/hosts/jiuwen/ioalab_jiuwen/tools.py": "sha256:f1f7d849216d10a5bf626c8a9c98ad6a2e9300d67cfce0345fa40d7e021209af",
+    "src/access/sdk/ioalab_sdk/assistant/role.py": "sha256:a8323ded370688497c14be9bb4fb9626631c4cda9f54adc7b24bead4253a17f1"
+  },
+  "hostRounds": 3,
+  "messageJobs": 2,
+  "limits": [
+    "No external email delivery",
+    "No Outlook acceptance",
+    "No native web menu or new film proof"
+  ],
+  "verification": {
+    "test": "tests/test_business_tools.py::test_resident_meeting_conflict_retry_same_uuid_session_and_real_smtp_capture",
+    "exitCode": 0,
+    "result": "2 passed, 3 deselected",
+    "warnings": "One existing Windows pytest temporary-cleanup permission warning"
+  }
+}

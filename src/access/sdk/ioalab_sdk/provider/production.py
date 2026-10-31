@@ -95,26 +95,36 @@ class Production:
         template=provider.template(card['templateDigest']);definition=provider.policy.definition(template);workspace=self.workspace(identity,relation)
         definition_hash=definition_digest(definition)
         if relation['details'].get('definitionDigest')!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original production agent definition')
+        business=self.execution.business_tools(identity.profile,provider.policy.config.get('businessTools',[]))
         state={'outcome':None}
         def session(value):
             self.runtime.store.bind_session(relation['id'],value,definition_hash);self.runtime.scheduler.bind_session(job['id'],value)
         def invoke(name,args,call):
             self.runtime.require_execution()
             if state['outcome']:return {'status':'rejected','error':{'code':'forbidden','message':'本轮已交付或等待授权，请结束本轮'}}
-            if name not in {tool.name for tool in tools()}:return {'status':'rejected','error':{'code':'forbidden','message':'当前为production阶段，仅可调用本单生产工具'}}
+            if name not in ({tool.name for tool in tools()}|set(business)):return {'status':'rejected','error':{'code':'forbidden','message':'当前为production阶段，仅可调用本单生产工具'}}
             key=job['id']+':'+call;fingerprint=digest({'name':name,'args':args})
             with endpoint.lock,provider.transport.operation(stable('production-tool',key)):
                 if state['outcome']:return {'status':'rejected','error':{'code':'forbidden','message':'本轮已交付或等待授权，请结束本轮'}}
                 old=endpoint.store.get('production_calls',key)
                 if old:
                     if old['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original production tool input changed')
-                    if old.get('result') is not None:return old['result']
+                    if 'result' in old:return old['result']
                     raise RuntimeFault('unknown_result','Reconcile the original production effect without repeating it')
                 current=provider.store.get('cards',cd)
                 if any(item['answer'] is None or not item['answer'].get('granted') for item in current.get('steps',[])):
                     return {'status':'rejected','error':{'code':'forbidden','message':'用户尚未同意当前受保护环节'}}
-                endpoint.store.put('production_calls',key,{'fingerprint':fingerprint,'name':name,'args':args,'cardDigest':cd})
-                if name.endswith('request_step'):
+                tool=business.get(name)
+                context={'operationId':stable('production-tool',key),'agentId':identity.agent_id,'messageId':job['payload'].get('messageId') or provider.store.get('production',cd)['messageId'],
+                         'interactionId':relation['id'],'sessionId':relation['session'],'contractRef':cd,'period':job['payload']['period'],'peerAgentId':relation['peer']}
+                if tool:
+                    if next(Draft202012Validator(tool.input_schema).iter_errors(args),None):return {'status':'rejected','error':{'code':'invalid_input','message':'业务工具输入不符合已配置格式'}}
+                    for step in tool.requires_steps:
+                        answer=next((item.get('answer') for item in reversed(current.get('steps',[])) if item['request']['step']==step and item['request']['period']==job['payload']['period']),None)
+                        if not answer or not answer.get('granted'):return {'status':'rejected','error':{'code':'requires_authorization','message':'业务动作需要本卡本期的真实环节同意：'+step}}
+                endpoint.store.put('production_calls',key,{'fingerprint':fingerprint,'name':name,'args':args,'cardDigest':cd,'context':context})
+                if tool:pass
+                elif name.endswith('request_step'):
                     if next(Draft202012Validator(STEP).iter_errors(args),None):raise RuntimeFault('invalid_input','Use a declared step name')
                     result={'status':'waiting','stepRequest':provider.request_step(cd,args['step'])};state['outcome']='waiting'
                 else:
@@ -122,10 +132,20 @@ class Production:
                     if not name.endswith('selftest'):
                         endpoint.store.put('production_files',key,{name:{'bytesBase64':base64.b64encode(data).decode(),'mediaType':media} for name,(data,media) in values.items()})
                         delivered=provider.deliver(cd,values);result={'status':'delivered','card':delivered};state['outcome']='completed'
-                if not name.endswith('selftest'):
+                if not tool and not name.endswith('selftest'):
                     saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
                     self.sync(endpoint,cd)
                     return result
+            if tool:
+                try:
+                    result=tool.invoke(args,context);encode(result)
+                except Exception:
+                    state['outcome']='unknown'
+                    self.execution.host.cancel(job['id'])
+                    raise
+                with endpoint.lock:
+                    saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
+                return result
             target=deliverable_of(template,job['payload']['period'])
             result=report(run_target(acceptance_of(template,card)[target]['verifiers'],fetch=self.runtime.account.fetch_package,template=template,card=card,target=target,files={name:data for name,(data,_) in values.items()},period=job['payload']['period'],anchored_at=None,model=provider.model))
             with endpoint.lock:

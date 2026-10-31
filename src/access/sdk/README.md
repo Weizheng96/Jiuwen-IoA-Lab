@@ -23,6 +23,7 @@ start 复用已运行实例；启动仍在进行时报告 waiting，不重新创
 
 | 操作 | 参数 |
 |---|---|
+| `assistant.tools.list` | 空参数；只列本机实际装配的业务工具策略 |
 | `assistant.rules.draft` | declaration（name、description、inputSchema、outputSchema、allowedSenders、tools）、instructions |
 | `assistant.rules.validate/preview` | draftRef；只检查，不执行工具或发布 |
 | `assistant.rules.publish` | draftRef、contentDigest、expectedRevision；首次返回待确认摘要 |
@@ -33,11 +34,11 @@ start 复用已运行实例；启动仍在进行时报告 waiting，不重新创
 | `assistant.messaging.status` | messageRef 或 interactionRef；waitSeconds 可选且不超过30秒 |
 | `assistant.messaging.close` | messageRef 或 interactionRef，reason 可选 |
 
-本机用户页确认后，重复原发布调用即可完成发布。模型不能通过 RPC 批准；修改摘要或内容必须重新确认。发布冻结本地 Markdown、工具权限及修订，平台只接收接口声明。入站只运行对应已确认规则与工具；同一交互固定实际 Session。等待原生用户问题时保留原进程、释放模型名额；回答后重新申请名额。未知外部效果阻止该交互继续执行，须核实原操作。当前可选宿主入口不自动装配日程、邮件等业务工具。
+本机用户页确认后，重复原发布调用即可完成发布。模型不能通过 RPC 批准；修改摘要或内容必须重新确认。发布冻结本地 Markdown、工具权限及修订，平台只接收接口声明。入站只运行对应已确认规则与工具；同一交互固定实际 Session。等待原生用户问题时保留原进程、释放模型名额；回答后重新申请名额。未知外部效果阻止该交互继续执行，须核实原操作。可选宿主按本机显式配置装配[官方日程/邮件工具](../../official/README.md)，不会因安装通用技能自动启用邮箱权限。
 
 ## 委托授权入口
 
-同一常驻调用格式支持授权、发现、候选与具体合同确认。两种成约方式复用原 A2C Client/Provider；开工与完整履约仍待切换，不回退旧命令绕过门禁。
+同一常驻调用格式支持授权、发现、候选与具体合同确认。两种成约方式复用原 A2C Client/Provider；常驻链路已支持正常履约、真实环节、WASM 验收与 AP2 付款，旧官方入口和完整异常矩阵仍按开发计划迁移。
 
 | 操作 | 参数及真实结果 |
 |---|---|
@@ -65,9 +66,10 @@ materials 以模板材料名为键，每项提供 text 或 bytesBase64，可选 
 
 | 操作 | 参数及结果 |
 |---|---|
+| `provider.tools.list` | profile；只列该服务身份实际装配的业务工具及环节要求 |
 | `provider.categories` | 空参数；返回当前可选 A2X 类别 |
-| `provider.preview` | service 配置（profile、name、description、tags、categoryId、templates）；模板为未签 A2C 草稿；返回 contentDigest 和 expectedRevision |
-| `provider.publish` | 相同 service、contentDigest、expectedRevision；本机用户确认后重复原操作；返回原 publicationReceipt 与当前 currentPublication |
+| `provider.preview` | service 配置（profile、name、description、tags、categoryId、templates）；模板为未签 A2C 草稿；自动分类时返回可查询任务，完成后取得实际 service、分类路径、contentDigest 和 expectedRevision |
+| `provider.publish` | 预览完成后解析的原 service、contentDigest、expectedRevision；本机用户确认后重复原操作；返回原 publicationReceipt 与当前 currentPublication |
 | `provider.verifier.publish` | profile、verifierId、source，可选 reads、kind；上传确定性验收器包并返回实际引用，不在宿主执行源码 |
 | `provider.status` | profile；分别查看当前公示与 localExecution，不将公示成功当作业务就绪 |
 

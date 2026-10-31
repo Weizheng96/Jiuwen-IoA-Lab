@@ -11,9 +11,6 @@ from .client import LabClient
 
 def main(argv=None):
     argv=list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0]=='schedule':
-        from .schedule_cli import main as schedule_main
-        return schedule_main(argv[1:])
     if argv and argv[0]=='mail':
         from .message_cli import main as mail_main
         return mail_main(argv[1:])

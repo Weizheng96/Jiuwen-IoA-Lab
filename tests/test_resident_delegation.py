@@ -48,11 +48,11 @@ class QuoteHost:
 
 
 @contextmanager
-def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None):
+def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None):
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
-    private_json(pconfig,value);host=agent_host or QuoteHost();prole=ProviderRole(host)
+    private_json(pconfig,value);host=agent_host or QuoteHost();prole=ProviderRole(host,provider_tools)
     provider=ResidentRuntime(RuntimeConfig.load(pconfig),modules=(prole,),host_status=host.capabilities).start()
     aconfig,_=configuration(platform,tmp_path/'assistant',service=False);avalue=read_json(aconfig);avalue['max_model_runs']=models;private_json(aconfig,avalue);arole=AssistantRole(assistant_host)
     assistant=ResidentRuntime(RuntimeConfig.load(aconfig),modules=(arole,)).start()
@@ -84,7 +84,7 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
         published=prpc.call('provider.publish',args,operation_id=operation);assert published['status']=='completed',published
         template=published['data']['publicationReceipt']['templates'][0]
         # Apply the saved professional configuration by the normal runtime restart.
-        provider.close();prole=ProviderRole(host)
+        provider.close();prole=ProviderRole(host,provider_tools)
         provider=ResidentRuntime(RuntimeConfig.load(pconfig),modules=(prole,),host_status=host.capabilities).start()
         wait_for(lambda:provider.connection.connected)
         try:wait_for(lambda:prole.ready('service'))

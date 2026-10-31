@@ -15,7 +15,8 @@ from ..runtime.scheduling import JobHandler,JobOutcome
 
 
 class ProviderRole:
-    def __init__(self,host=None):
+    def __init__(self,host=None,tools_by_profile=None):
+        self.tools_by_profile={profile:dict(tools) for profile,tools in (tools_by_profile or {}).items()}
         self.host,self.execution=host,None
         self.runtime = None
         self.identities = {}
@@ -31,7 +32,7 @@ class ProviderRole:
         self.execution=ProviderExecution(self,runtime,self.host)
         registration=self.execution.bind()
         registration['jobs']['provider.preview']=JobHandler(self.run_preview,'provider-preview-v1',False)
-        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish')},**registration}
+        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish','tools.list')},**registration}
 
     def start(self):
         if self.execution:self.execution.start()
@@ -74,6 +75,10 @@ class ProviderRole:
                 if name == 'categories':
                     self.fields(args, ())
                     return {'status': 'completed', 'data': runtime.account.api('GET', '/services/categories')}
+                if name=='tools.list':
+                    self.fields(args,('profile',))
+                    identity=self._identity(args['profile'])
+                    return {'status':'completed','data':{'tools':[tool.policy() for tool in self.execution.business_tools(identity.profile).values()]}}
                 if name == 'status':
                     self.fields(args, ('profile',))
                     identity = self._identity(args['profile'])

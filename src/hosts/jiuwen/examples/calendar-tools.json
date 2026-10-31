@@ -1,0 +1,20 @@
+{
+  "host": {
+    "business_tools": [
+      {
+        "factory": "calendar",
+        "profile": "personal",
+        "options": {
+          "calendar": {"backend": "local", "schedule_file": "owner-schedule.json"},
+          "notification": {
+            "transport": "smtp-capture",
+            "host": "127.0.0.1",
+            "port": 1025,
+            "sender": "notice@example.test"
+          },
+          "recipient": "owner@example.test"
+        }
+      }
+    ]
+  }
+}

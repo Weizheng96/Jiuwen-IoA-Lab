@@ -36,8 +36,11 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path):
         assert 'ioalab_sdk/provider.py' not in archive.namelist()
         assert 'ioalab_sdk/provider/publication.py' in archive.namelist()
         assert not any(name.startswith('ioalab_tools/') for name in archive.namelist())
+        assert not {'ioalab_sdk/calendar.py','ioalab_sdk/agentmail.py','ioalab_sdk/schedule.py','ioalab_sdk/schedule_cli.py'}.intersection(archive.namelist())
     with zipfile.ZipFile(next(wheels.glob('ioalab_official-*.whl'))) as archive:
-        assert 'ioalab_tools/handlers.py' in archive.namelist()
+        assert {'ioalab_tools/handlers.py','ioalab_tools/appointments.py','ioalab_tools/calendar.py','ioalab_tools/agentmail.py','ioalab_tools/schedule_cli.py'}.issubset(archive.namelist())
+        entries=archive.read(next(name for name in archive.namelist() if name.endswith('.dist-info/entry_points.txt'))).decode()
+        assert 'calendar = ioalab_tools.appointments:configure' in entries and 'ioalab-schedule = ioalab_tools.schedule_cli:main' in entries
     environment = tmp_path/'installed'
     venv.EnvBuilder(with_pip=True).create(environment)
     python = environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')

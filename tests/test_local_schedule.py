@@ -7,10 +7,10 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 import pytest
-from ioalab_sdk.schedule import LocalSchedule, instant
+from ioalab_tools.schedule import LocalSchedule, instant
 from ioalab_tools.handlers import AssistantHandlers
 from ioalab_sdk.messaging import MailboxClient
-from ioalab_sdk.calendar import SMTPNotification
+from ioalab_tools.calendar import SMTPNotification
 from _support import new_user, PASSWORD
 from test_assistant import appointment
 
@@ -96,7 +96,7 @@ def test_schedule_cli_works_offline_and_keeps_pending_records(tmp_path):
     env={**os.environ,'PYTHONUTF8':'1','PYTHONPATH':str(root/'src/access/sdk'),'IOALAB_HOME':str(tmp_path)}
     for key in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_SCHEDULE_FILE'):env.pop(key,None)
     def run(command):
-        output=subprocess.run([sys.executable,'-m','ioalab_sdk.cli','schedule',command],env=env,capture_output=True,text=True,encoding='utf-8',timeout=15)
+        output=subprocess.run([sys.executable,'-m','ioalab_tools.schedule_cli',command],env=env,capture_output=True,text=True,encoding='utf-8',timeout=15)
         assert output.returncode==0,output.stdout+output.stderr
         return json.loads(output.stdout)
     initial=run('init')

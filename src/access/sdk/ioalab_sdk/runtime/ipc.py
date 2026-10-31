@@ -156,10 +156,12 @@ class LocalClient:
             raise RuntimeFault('protocol_error','Local endpoint identity is incomplete')
         payload={'operation':operation,'operationId':operation_id,'arguments':arguments or {}}
         if len(encode(payload).encode())>LIMIT:raise RuntimeFault('invalid_input','Local request exceeds 128 KiB')
+        wait=(arguments or {}).get('waitSeconds',0)
+        budget=max(self.timeout,wait+5) if type(wait) in (int,float) and 0<wait<=30 else self.timeout
         try:
             response=httpx.post(descriptor['url']+'/v1/call',json=payload,
                 headers={'Authorization':'Bearer '+descriptor['token'],'X-Ioa-Instance':descriptor['bootId']},
-                timeout=self.timeout,trust_env=False)
+                timeout=budget,trust_env=False)
         except httpx.TransportError:
             raise RuntimeFault('unknown_result','Local response unavailable; keep the original operation',
                                'resume_original',operation_id=operation_id) from None

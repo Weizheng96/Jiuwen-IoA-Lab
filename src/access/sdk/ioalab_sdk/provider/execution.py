@@ -50,6 +50,16 @@ class ProviderExecution:
                         'provider.control':JobHandler(self.run,'provider-control-v1',False,control=True),
                         'provider.production':JobHandler(self.production.run,'provider-production-v1',True,self.model_available)},'profiles':list(self.configs)}
 
+    def business_tools(self,profile,expected=None):
+        available=self.role.tools_by_profile.get(profile,{})
+        if expected is None:return dict(available)
+        selected={}
+        for policy in expected:
+            name=policy['name'];tool=available.get(name)
+            if not tool or tool.policy()!=policy:raise RuntimeFault('not_ready','Restore the original business tool definitions','restore_tools')
+            selected[name]=tool
+        return selected
+
     def model_available(self):return bool(self.host and self.host.capabilities().get('available'))
 
     def start(self):
@@ -220,7 +230,8 @@ class ProviderExecution:
             config=store.get('context','config')
             if config is None:
                 if identity.profile not in self.configs:raise RuntimeFault('not_ready','Restore the original local service configuration')
-                config={key:self.configs[identity.profile].get(key,[] if key=='skills' else {} if key in ('resources','native_tools') else '') for key in ('instructions','skills','resources','native_tools')};store.put('context','config',config)
+                config={key:self.configs[identity.profile].get(key,[] if key=='skills' else {} if key in ('resources','native_tools') else '') for key in ('instructions','skills','resources','native_tools')}
+                config['businessTools']=[tool.policy() for tool in self.business_tools(identity.profile).values()];store.put('context','config',config)
             transport=SessionTransport(self.runtime,identity,relation['id'],aid,relation['peer'],public=self.public)
             provider=Provider(identity.signer,market=self.runtime.account.config['market'],keys=Directory(fetch=transport.jwks),transport=transport,
                 fetch=self.runtime.account.fetch_package,store=store,ap2_key=identity.payment,name=identity.name,

@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import ValidationError
-from .lease import Lease
+from ioalab_sdk.lease import Lease
 
 DEFAULT_RULES = {"weekdays": [0, 1, 2, 3, 4], "startHour": 9, "endHour": 18,
                  "minMinutes": 15, "maxMinutes": 120, "leadMinutes": 30, "daysAhead": 30}

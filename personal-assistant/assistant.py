@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src/access/sdk'))
 from ioalab_sdk.messaging import MailboxClient
 from ioalab_tools.handlers import AssistantHandlers
-from ioalab_sdk.calendar import GraphCalendar,SMTPNotification,OutlookSMTPAuth
+from ioalab_tools.calendar import GraphCalendar,SMTPNotification,OutlookSMTPAuth
 
 def graph(home):
     return GraphCalendar(os.getenv('IOALAB_GRAPH_CLIENT_ID',''),home/'calendar-token.json',os.getenv('IOALAB_RECIPIENT_EMAIL','zhengw.cc@outlook.com'))
@@ -16,7 +16,7 @@ def graph(home):
 def calendar_source(home):
     backend=os.getenv('IOALAB_CALENDAR_BACKEND','graph')
     if backend=='local':
-        from ioalab_sdk.schedule import configured
+        from ioalab_tools.schedule import configured
         return configured(home)
     if backend=='graph':return graph(home) if os.getenv('IOALAB_GRAPH_CLIENT_ID') else None
     raise ValueError('IOALAB_CALENDAR_BACKEND must be local or graph')
@@ -24,7 +24,7 @@ def calendar_source(home):
 def notification(home,*,transport=None):
     transport=transport or os.getenv('IOALAB_NOTIFICATION_TRANSPORT','smtp')
     if transport=='agentmail':
-        from ioalab_sdk.agentmail import AgentMailNotification
+        from ioalab_tools.agentmail import AgentMailNotification
         return AgentMailNotification(os.environ['IOALAB_SMTP_FROM'],os.environ['IOALAB_SMTP_PASSWORD'])
     if transport!='smtp':raise ValueError('IOALAB_NOTIFICATION_TRANSPORT must be smtp or agentmail')
     auth=os.getenv('IOALAB_SMTP_AUTH','password').lower()
@@ -47,7 +47,7 @@ def main():
             if key.startswith('IOALAB_'):os.environ[key]=value
     home=Path(os.environ.get('IOALAB_HOME','data/personal-assistant')).resolve()
     if args.command in ('schedule-init','schedule-show'):
-        from ioalab_sdk.schedule_cli import main as schedule_main
+        from ioalab_tools.schedule_cli import main as schedule_main
         os.environ['IOALAB_HOME']=str(home)
         schedule_main([args.command.removeprefix('schedule-')]);return
     if args.command=='calendar-login':

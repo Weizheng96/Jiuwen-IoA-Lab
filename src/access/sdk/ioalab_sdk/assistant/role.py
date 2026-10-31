@@ -46,7 +46,7 @@ class AssistantRole:
         self.trading=Trading(self)
         self.contracts=Contracts(self.trading)
         self.fulfillment=Fulfillment(self)
-        names=('rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
+        names=('tools.list','rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
                'messaging.interfaces','messaging.send','messaging.status','messaging.close',
                'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search','delegation.confirm')
         names=(*names,*('delegation.'+name for name in ('start','answer_step','fetch','verify','accept','pay')))
@@ -79,6 +79,9 @@ class AssistantRole:
         return execute
 
     def _call(self,name,operation,args):
+        if name=='tools.list':
+            self.fields(args)
+            return {'status':'completed','data':{'tools':[tool.policy() for tool in self.tools.values()]}}
         if name in ('delegation.start','delegation.answer_step','delegation.fetch','delegation.verify','delegation.accept','delegation.pay'):return self.fulfillment.call(name.split('.')[1],operation,args)
         if name=='delegation.request':return self.trading.request(operation,args)
         elif name=='delegation.confirm':return self.contracts.confirm(operation,args)
@@ -430,7 +433,7 @@ class AssistantRole:
                 if previous:return previous['result']
                 raise RuntimeFault('forbidden','Finish the original reply without creating another effect')
             context={'operationId':stable('tool',self.identity.agent_id,mid,name,call_id),'messageId':mid,
-                     'interactionId':relation['id'],'agentId':self.identity.agent_id,'sessionId':state['session']}
+                     'interactionId':relation['id'],'agentId':self.identity.agent_id,'sessionId':state['session'],'peerAgentId':relation['peer']}
             saved={'request':mid,'name':name,'fingerprint':fingerprint,'context':context,'state':'running'}
             self.store.checkpoint_set(self.namespace,key,saved)
             state['tools'].append(context['operationId'])
