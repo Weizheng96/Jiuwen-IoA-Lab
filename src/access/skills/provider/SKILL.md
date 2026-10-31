@@ -5,7 +5,7 @@ description: IoA Lab 服务方技能。帮助用户为自己的九问配置专�
 
 # IoA Lab 服务方技能
 
-在九问原生菜单选择后，使用宿主技能加载接口实际读取本文件。专业业务技能负责生产，本技能负责接入与通用履约。技能名不是工具名。
+在九问原生菜单选择后，先用skill_tool读取本文件；继续用同一工具的relative_file_path读取下表流程页，例如 `{"skill_name":"ioalab-provider","relative_file_path":"references/setup.md"}`。不拼接配置data_dir查找技能，不先读取账号配置正文。专业业务技能负责生产，本技能负责接入与通用履约。
 
 | 本机用户的需求 | 先读取 |
 |---|---|

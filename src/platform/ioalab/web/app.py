@@ -10,6 +10,8 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -43,7 +45,7 @@ def create_app(platform: Platform) -> FastAPI:
                 origin = request.headers.get("origin") or request.headers.get("referer") or ""
                 host = request.headers.get("host", "")
                 if origin and host and __import__("urllib.parse",fromlist=["urlsplit"]).urlsplit(origin).netloc != host:
-                    return JSONResponse({"error": "跨站请求被拒绝"}, status_code=403)
+                    return JSONResponse({'error':LabError('forbidden','跨站请求被拒绝').public()},status_code=403)
             return await call_next(request)
 
     app.add_middleware(OriginCheck)
@@ -51,7 +53,7 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.exception_handler(A2CError)
     async def _a2c_error(request: Request, exc: A2CError):
-        return JSONResponse({"error": str(exc), "code": getattr(exc, "code", "")}, status_code=400)
+        return JSONResponse({'error':LabError('invalid_input',str(exc)).public()},status_code=400)
 
     @app.exception_handler(LabError)
     async def lab_error(request,exc):
@@ -61,7 +63,24 @@ def create_app(platform: Platform) -> FastAPI:
     @app.exception_handler(KeyError)
     @app.exception_handler(TypeError)
     async def invalid_request(request, exc):
-        return JSONResponse({"error":"Invalid request fields"},status_code=400)
+        return JSONResponse({'error':LabError('invalid_input','Invalid request fields').public()},status_code=400)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_structure(request,exc):
+        return JSONResponse({'error':LabError('invalid_input','Invalid request structure').public()},status_code=422)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request,exc):
+        code=('unknown_result' if exc.status_code>=500 else 'forbidden' if exc.status_code in (401,403) else
+              'not_found' if exc.status_code==404 else 'id_conflict' if exc.status_code==409 else 'invalid_input')
+        recovery='reconcile_result' if exc.status_code>=500 else 'reauthenticate' if exc.status_code==401 else 'correct_input'
+        message=exc.detail if isinstance(exc.detail,str) else 'Request rejected'
+        return JSONResponse({'error':LabError(code,message,recovery=recovery).public()},status_code=exc.status_code,headers=exc.headers)
+
+    @app.exception_handler(Exception)
+    async def server_failure(request,exc):
+        logging.getLogger(__name__).error('Unhandled platform request',exc_info=exc)
+        return JSONResponse({'error':LabError('unknown_result','Platform operation needs verification',recovery='reconcile_result').public()},status_code=500)
 
     # ── 会话 ──────────────────────────────────────────────────────────
     def subject(request: Request) -> str | None:

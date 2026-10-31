@@ -44,7 +44,7 @@ async function api(path, body, method) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const d = await r.json();
-  if (!r.ok) { const problem=d.error||d.detail; const error=Error((problem&&problem.message)||problem||"请求失败"); error.status=r.status; throw error; }
+  if (!r.ok) { const error=Error(d.error?.message||"请求失败"); error.status=r.status; throw error; }
   return d;
 }
 const badge = (s) =>

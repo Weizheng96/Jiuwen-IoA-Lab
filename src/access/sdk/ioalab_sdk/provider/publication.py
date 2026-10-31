@@ -32,7 +32,7 @@ class ProviderRole:
         self.execution=ProviderExecution(self,runtime,self.host)
         registration=self.execution.bind()
         registration['jobs']['provider.preview']=JobHandler(self.run_preview,'provider-preview-v1',False)
-        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish','tools.list')},**registration}
+        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish','tools.list','template.draft')},**registration}
 
     def start(self):
         if self.execution:self.execution.start()
@@ -53,7 +53,7 @@ class ProviderRole:
     @staticmethod
     def fields(args, required, optional=()):
         if not set(required).issubset(args) or set(args) - set(required) - set(optional):
-            raise RuntimeFault('invalid_input', 'Use the documented provider operation fields')
+            raise RuntimeFault('invalid_input', 'Use the documented provider operation fields','correct_input')
 
     def _handler(self, name):
         def execute(runtime, operation, args):
@@ -72,6 +72,9 @@ class ProviderRole:
                         runtime.account.fetch_package(result['uri'])
                         record={**record,'result':result};runtime.store.checkpoint_set(namespace,key,record)
                     return {'status':'completed','data':record['result']}
+                if name == 'template.draft':
+                    self.fields(args,('profile','terms'))
+                    return self.prepare_template(operation,args)
                 if name == 'categories':
                     self.fields(args, ())
                     return {'status': 'completed', 'data': runtime.account.api('GET', '/services/categories')}
@@ -89,21 +92,27 @@ class ProviderRole:
                 self.fields(args, ('service', 'contentDigest', 'expectedRevision'), ('confirmationRef',))
                 return self.publish(operation, args)
             except A2CError as exc:
-                raise RuntimeFault('invalid_input',exc.message) from None
+                raise RuntimeFault('invalid_input',exc.message,'correct_input') from None
             except httpx.HTTPStatusError as exc:
                 try:problem = exc.response.json().get('error', {})
                 except (ValueError, AttributeError):problem = {}
                 if exc.response.status_code >= 500:
                     raise RuntimeFault('unknown_result', 'Recover the original publication', 'resume_original') from None
-                raise RuntimeFault(problem.get('code', 'invalid_input'), problem.get('message', 'Platform rejected publication')) from None
+                if (not isinstance(problem,dict) or not {'code','message','recovery'}<=set(problem)
+                        or not all(isinstance(problem[key],str) and problem[key] for key in ('code','message','recovery'))):
+                    raise RuntimeFault('protocol_error','Platform returned an invalid error envelope','inspect_platform') from None
+                raise RuntimeFault(problem['code'],problem['message'],problem['recovery']) from None
             except httpx.TransportError:
                 raise RuntimeFault('unknown_result', 'Recover the original publication', 'resume_original') from None
         return execute
 
     def configuration(self, config, *, require_category=True):
         fields={'profile','name','description','tags','templates'}
-        if not isinstance(config,dict) or not fields<=set(config) or set(config)-fields-{'categoryId'}:
-            raise RuntimeFault('invalid_input','Service needs profile, name, description, tags, template drafts and optional categoryId')
+        if not isinstance(config,dict):
+            raise RuntimeFault('invalid_input','Service must be an object','correct_input')
+        missing,unknown=fields-set(config),set(config)-fields-{'categoryId'}
+        if missing or unknown:
+            raise RuntimeFault('invalid_input',f'Service fields: missing={sorted(missing)}, unknown={sorted(unknown)}; use profile, name, description, tags, templates and optional categoryId','correct_input')
         identity = self._identity(config['profile'])
         for field, maximum in [('name', 120), ('description', 8000)]:
             if not isinstance(config[field], str) or not 1 <= len(config[field].strip()) <= maximum:
@@ -112,7 +121,10 @@ class ProviderRole:
             raise RuntimeFault('category_required','Use the complete resolved service returned by provider.preview')
         if not isinstance(config['tags'], list) or len(config['tags']) > 20 or any(not isinstance(t, str) or not 1 <= len(t) <= 80 for t in config['tags']):
             raise RuntimeFault('invalid_input', 'Configure bounded service tags')
-        drafts = config['templates']
+        self.validate_templates(config['templates'],identity)
+        return identity, copy.deepcopy(config)
+
+    def validate_templates(self,drafts,identity):
         if not isinstance(drafts, list) or not 1 <= len(drafts) <= 16:
             raise RuntimeFault('invalid_input', 'Configure one to 16 unsigned template drafts')
         # The caller does not choose signing identities or supply signatures.
@@ -125,7 +137,21 @@ class ProviderRole:
             payment=self.runtime.account.config['pay']
             if template['formation'] not in ('proposal', 'countersign') or template['pricing'].get('paymentProviders') != [{'id':payment,'jwksUri':payment+'/.well-known/jwks.json'}]:
                 raise RuntimeFault('invalid_input', 'Use proposal/countersign templates and the configured platform payment provider')
-        return identity, copy.deepcopy(config)
+
+    def prepare_template(self,operation,args):
+        from ..templates import draft_from_terms
+        identity=self._identity(args['profile'])
+        namespace='provider:'+identity.agent_id;key='template:'+operation;fingerprint=digest(args)
+        with self.lock:
+            previous=self.runtime.store.checkpoint(namespace,key)
+            if previous:
+                if previous['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original template terms changed')
+                return {'status':'completed','data':{'template':previous['template']}}
+            payment=self.runtime.account.config['pay']
+            template=draft_from_terms(args['terms'],payment_provider={'id':payment,'jwksUri':payment+'/.well-known/jwks.json'})
+            self.validate_templates([template],identity)
+            self.runtime.store.checkpoint_set(namespace,key,{'fingerprint':fingerprint,'template':template})
+        return {'status':'completed','data':{'template':template}}
 
     def prepare_preview(self,operation,service):
         identity,config=self.configuration(service,require_category=False)

@@ -20,7 +20,14 @@ def local_targets(path):
             continue
         target = unquote(target.split("#", 1)[0])
         if target:
-            yield target, (path.parent / target).resolve()
+            resolved=(path.parent/target).resolve()
+            # Product references generated from the one shared source at build time.
+            for role in ('assistant','provider'):
+                references=ROOT/'src/access/skills'/role/'references'
+                if resolved.is_relative_to(references) and not resolved.exists():
+                    shared=ROOT/'src/access/skills/_shared/references'/resolved.relative_to(references)
+                    if shared.is_file():resolved=shared
+            yield target,resolved
 
 
 def current_documents():

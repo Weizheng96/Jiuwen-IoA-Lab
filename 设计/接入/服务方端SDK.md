@@ -45,6 +45,7 @@
 
 | 操作 | 输入 | 输出及边界 |
 |---|---|---|
+| `provider.template.draft` | profile、terms（原A2C模板的业务字段） | 完整未签模板；SDK补协议版本、kind、当前时间起30天的有效期及实际平台支付声明，复用原A2C校验，不报价、不签署或发布 |
 | `provider.configure` | 本地服务配置 | 配置草稿与缺项，不自动发布或修改已有合同 |
 | `provider.validate` | 配置草稿引用 | 业务工具、宿主、模板/包、模式、身份和容量检查结果 |
 | `provider.verifier.publish` | profile、verifierId、source，可选 reads、kind | 通过平台的确定性打包通道上传验收器源码，返回真实包引用；不在宿主执行源码，同操作恢复原内容 |
@@ -55,6 +56,8 @@
 | `provider.resume` | 所属服务引用 | 对账与就绪检查后重新允许新预留；不能仅因进程已启动就称可接单 |
 
 运行时启动/停止使用公共 `runtime.start/stop`。服务发布的各阶段有独立回执，部分失败恢复原操作；不能因 A2X 已显示就宣称模板签认或模型执行已就绪。模板更新和官方续期规则见[注册中心](../组件/注册中心.md)。
+
+模板起草的terms直接使用原A2C字段：formation、deliverables、deadlines、pricing及可选inputs、acceptance、authorizableSteps、samples、extensions；不新建一套合同字段。a2cVersion、kind、validUntil、provider、templateDigest、signatures和pricing.paymentProviders由SDK持有，不由模型猜测。支持原协议多交付件及两种普通接入模式；价格、规格、判据、期限、环节与金额权重由业务决定，SDK不代填。普通起草不上传sample，不执行验收器。相同操作和参数恢复原模板与有效期，异参数返回冲突；要重新起草使用新操作。官方定义转换与本入口共用协议元信息构造，不复制算价或验收逻辑。
 
 公示调用分为 `provider.preview` 和 `provider.publish`：预览输入本地profile、名称、说明、标签、可选categoryId和未签模板草稿。SDK取得注册中心分类预览后，保存并返回完整解析后的service、category、内容摘要及当前预期修订；省略分类时，preview通过持久的非模型本地作业请求平台，RPC先返回accepted和job引用，不占用所属用户的模型名额，也不持共享锁等分类模型。原操作重传在作业完成后返回已保存结果；不能确定分类时只返回待选择和实际选项，不产生可发布摘要。publish使用预览返回的完整service，绑定同一内容摘要和操作，先取得本机用户的真实确认，再生成 provider 模板签名和声明证明，保存完整请求后上传。用户确认页包含实际分类路径。签署前只按已确定categoryId复核当前叶类及路径，不重新调用匹配模型；类别已删除时拒绝发布；待确认记录绑定的路径发生变化时拒绝沿用原确认，重新预览并确认。模型的confirmed字段不是授权。回执丢失时恢复已保存请求及原平台操作，不能重新生成签名时间、模板期限或更换分类。返回分别列出 publicationReceipt 和 currentPublication，避免把旧成功回执当成当前修订。
 

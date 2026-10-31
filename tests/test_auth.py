@@ -68,11 +68,11 @@ def test_admin_requires_password_and_rate_limit(platform):
             # 错口令 400；5 次之后同一 IP 被限速（仍是 400，但理由不同）
             for _ in range(5):
                 r = c.post("/api/admin/login", json={"password": "wrong"})
-                assert r.status_code == 400 and "口令错误" in r.json()["error"]
+                assert r.status_code == 400 and "口令错误" in r.json()["error"]["message"]
             r = c.post("/api/admin/login", json={"password": "wrong"})
-            assert r.status_code == 400 and "频繁" in r.json()["error"]
+            assert r.status_code == 400 and "频繁" in r.json()["error"]["message"]
             r = c.post("/api/admin/login", json={"password": "test"})       # 限速期间对的口令也进不去
-            assert r.status_code == 400 and "频繁" in r.json()["error"]
+            assert r.status_code == 400 and "频繁" in r.json()["error"]["message"]
             pf.auth.rate.hits.clear()
             r = c.post("/api/admin/login", json={"password": "test"})
             assert r.status_code == 200 and COOKIE in c.cookies

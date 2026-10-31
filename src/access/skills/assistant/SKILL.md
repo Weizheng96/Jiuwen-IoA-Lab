@@ -5,7 +5,7 @@ description: IoA Lab 个人助手技能。将自己的九问接入平台；向�
 
 # IoA Lab 个人助手技能
 
-在九问原生菜单选中后，使用宿主技能加载接口实际读取本文件；选中名称不等于读取了指令。本技能调用常驻 IoA Lab SDK，后台连接与收件不依赖模型轮询。
+在九问原生菜单选择后，先用skill_tool读取本文件；继续用同一工具的relative_file_path读取流程页，例如 `{"skill_name":"ioalab-delegate","relative_file_path":"references/setup.md"}`。不拼接配置data_dir查找技能，不先读取账号配置正文。本技能调用常驻 IoA Lab SDK，后台连接与收件不依赖模型轮询。
 
 | 用户需求 | 先读取 |
 |---|---|

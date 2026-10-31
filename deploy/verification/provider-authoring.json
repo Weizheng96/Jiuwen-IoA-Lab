@@ -1,0 +1,58 @@
+{
+  "scope": "Original A2C template drafting and one HTTP error contract; native provider setup remains incomplete",
+  "verification": {
+    "automated": "Final full checks passed: 470 tests passed, 13 skipped, 1 old temporary-directory cleanup warning; 688.95 seconds. Design, documentation and repository selfcheck passed.",
+    "tests": [
+      "tests/test_provider_authoring.py",
+      "tests/test_access_products.py",
+      "tests/test_auth.py"
+    ]
+  },
+  "native": {
+    "model": "qwen3.5-plus#2",
+    "originalConfigurationHashesUnchanged": true,
+    "importedFileCount": 17,
+    "importMatchesBuiltProduct": true,
+    "providerBundleSha256": "e6b22f11b29c1dbcf78ed38265a5564ed8ad0bdd3aecc02c0081d314d6f8f044",
+    "sdkConnected": true,
+    "hostAvailable": true,
+    "serviceIdentityPreserved": true,
+    "templateAndUploadScope": "Observed in the preceding native attempt; final bundle was reimported and final SDK reconnected, but role calls remain blocked by bootstrap configuration parsing",
+    "templateDraftingObserved": true,
+    "verifierUploadObserved": true,
+    "publicationCompleted": false,
+    "finalSettingsValidatedBySDK": true,
+    "settingsUTF8BOM": true,
+    "bootstrapStatusCall": {
+      "exitCode": 1,
+      "result": {
+        "status": "rejected",
+        "data": null,
+        "error": {
+          "code": "not_ready",
+          "message": "Check the local bundle/configuration; JSONDecodeError"
+        }
+      }
+    },
+    "runtimeSafelyStopped": true
+  },
+  "sources": {
+    "src/access/sdk/ioalab_sdk/provider/publication.py": "sha256:550b509d2f2b9b75e7ebfc4d4f9a268aaa78625c680d9162fbdd42212154aae9",
+    "src/access/sdk/ioalab_sdk/templates.py": "sha256:637361bca6fb57c3a27984060c8b6a1c6c93ccf9caa272d599eb23bd3b9ea1a4",
+    "src/access/skills/provider/SKILL.md": "sha256:183f6208ac7adf6bf97462f57421aded6c71fcc2b339394a544b839e3937e86c",
+    "src/access/skills/provider/references/contracts.md": "sha256:8744d5aa4e6bfe3a8871066edd51d0b872d62939ad04ebc8257a065035fc8ccd",
+    "src/access/skills/provider/references/publication.md": "sha256:1c39348cf2ad54549b37af9a76e0a42351b7adf10af79acc02a39248446c4f91",
+    "src/access/skills/_shared/ioalab.py": "sha256:5d9351aa5181cc216d8eb2a3ae1d2f76eb1738049a243c35d24c3dec52a8fda0",
+    "src/access/skills/_shared/references/shared-runtime.md": "sha256:7c390e5e644cca393c85220191243680bfa938004b5c2f799a06ec0083de90e1",
+    "src/platform/ioalab/web/app.py": "sha256:90d024b8394277bb9aaeaf7a29663922ec4e9e69d053d451dc1d968e655ebb6a",
+    "tests/test_provider_authoring.py": "sha256:fefc44d23484db79db035001e83f557391f9cf747da037cda3dae88a9b060c4f",
+    "tests/test_access_products.py": "sha256:4f228e9bcab258ce9582f6e8d1c79ee8af8a537ec3c73d58daa7047c8190301d",
+    "tests/test_auth.py": "sha256:b8c91d7aa78bd6e90be7c38e5048f7859e68649fb12d86a26a05bcf8deb6de56"
+  },
+  "limits": [
+    "Native category preview, owner publication approval and production have not completed",
+    "The bootstrap still re-parses configuration differently from the SDK; consolidate ownership before claiming onboarding complete",
+    "Demonstration credentials are public; private-credential handling requires separate verification",
+    "No new film, external email, Outlook acceptance or original Swarm modification is evidenced"
+  ]
+}

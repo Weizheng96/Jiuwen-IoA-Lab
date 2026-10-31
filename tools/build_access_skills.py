@@ -51,6 +51,10 @@ def build(output):
         for folder,name,role in [('assistant','ioalab-delegate','assistant'),('provider','ioalab-provider','service')]:
             skill=temporary/name
             shutil.copytree(ROOT/'src/access/skills'/folder,skill,ignore=shutil.ignore_patterns('settings.local.json','__pycache__','*.pyc','assets','scripts'))
+            for page in (ROOT/'src/access/skills/_shared/references').glob('*.md'):
+                target=skill/'references'/page.name
+                if target.exists():raise ValueError('Shared reference has more than one source: '+page.name)
+                shutil.copy2(page,target)
             shutil.copytree(shared,skill/'assets')
             (skill/'assets/skill.json').write_text(json.dumps({'role':role}),encoding='utf-8')
             (skill/'scripts').mkdir()
