@@ -1,0 +1,69 @@
+{
+  "scope": "Original Jiuwen, actual installed calendar factory, HTTP/WS resident roles and real loopback SMTP; scripted local-browser user confirmation",
+  "model": "qwen-flash#0",
+  "interactionId": "c0d0f2ee-8737-4d6d-ba2b-9d350a26ca80",
+  "sessionId": "process_cli_1a19114acbb_93eac7888b91",
+  "first": {
+    "inviteSubmitted": false,
+    "reason": "busy",
+    "status": "conflict",
+    "suggestedEnd": "2026-11-02T11:00:00+08:00",
+    "suggestedStart": "2026-11-02T10:30:00+08:00",
+    "timeZone": "Asia/Shanghai"
+  },
+  "second": {
+    "calendar": "awaiting_acceptance",
+    "inviteSubmitted": true,
+    "reservationId": "b68f0695bdbd59e3a3533961106c120c",
+    "status": "invite_submitted"
+  },
+  "smtpMessages": 1,
+  "originalToolReceipts": {
+    "first": {
+      "status": "conflict",
+      "reason": "busy",
+      "inviteSubmitted": false,
+      "suggestedStart": "2026-11-02T10:30:00+08:00",
+      "suggestedEnd": "2026-11-02T11:00:00+08:00",
+      "timeZone": "Asia/Shanghai"
+    },
+    "second": {
+      "status": "invite_submitted",
+      "reservationId": "b68f0695bdbd59e3a3533961106c120c",
+      "inviteSubmitted": true,
+      "calendar": "awaiting_acceptance"
+    }
+  },
+  "reservationState": "submitted",
+  "invitationReceipt": {
+    "status": "invite_submitted",
+    "calendar": "awaiting_acceptance",
+    "uid": "ioa-b68f0695bdbd59e3a3533961106c120c@jiuwen-ioa-lab",
+    "recipient": "owner@example.test",
+    "transport": "smtp-capture"
+  },
+  "sources": {
+    "src/official/tools/ioalab_tools/appointments.py": "sha256:1276c12016b499d5317d737b93d5f9caa9054b30dcc2ad75dae661c68750c949",
+    "src/hosts/jiuwen/ioalab_jiuwen/tools.py": "sha256:6f92ba4cb6af779d008619b716fe04ffe73a37b25e8b4eb8dd665c73dcdf8019",
+    "src/access/sdk/ioalab_sdk/assistant/role.py": "sha256:a8323ded370688497c14be9bb4fb9626631c4cda9f54adc7b24bead4253a17f1"
+  },
+  "hostRounds": 2,
+  "messageJobs": 2,
+  "limits": [
+    "No external email delivery",
+    "No Outlook acceptance",
+    "No native web menu or new film proof"
+  ],
+  "verification": {
+    "focused": "10 passed, 1 skipped: tests/test_appointment_source.py tests/test_business_tools.py tests/test_business_cli.py",
+    "realJiuwen": "1 passed: real=true resident meeting conflict/retry test",
+    "deterministicCoverage": [
+      "new model call ID reuses the original decision",
+      "same message changed input rejected",
+      "new message in same interaction can reschedule",
+      "concurrency, restart, reserved-before-send and unknown effects"
+    ],
+    "warning": "Existing Windows pytest temporary-cleanup ACL warning",
+    "limits": "The real model did not deliberately generate a duplicate call; adversarial repeats use explicit test doubles."
+  }
+}

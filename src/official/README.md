@@ -30,7 +30,7 @@ ioalab-schedule replace --file <schedule_file> --args-file <修改文件>
 
 工具目录通过 `assistant.tools.list` 或服务方的 `provider.tools.list` 查询。`calendar.book` 按主人安排原子预留，冲突返回建议；成功仅返回 `invite_submitted` 与 `awaiting_acceptance`。`calendar.status` 只读取本交互已有预约。受理接口仍需用户检查并确认后发布，不因安装工具而自动开放收件。
 
-预约及邀请回执位于安排文件旁的 `<文件名>.ioa/appointments.sqlite`。同一文件共用预留与锁；重复操作恢复原回执，未知结果保留预留并停止重发。不要删除该目录来解除占用；缺失的既有库或来源不匹配会阻止自动预约。日程、预约库与通知凭据均不入库。
+预约及邀请回执位于安排文件旁的 `<文件名>.ioa/appointments.sqlite`。同一文件共用预留与锁；同一消息重复调用恢复原回执，即使模型换了工具调用ID；修改时间须由发起方发送同交互的新消息。未知结果保留预留并停止重发。不要删除该目录来解除占用；缺失的既有库或来源不匹配会阻止自动预约。日程、预约库与通知凭据均不入库。
 
 ## 迁移边界
 

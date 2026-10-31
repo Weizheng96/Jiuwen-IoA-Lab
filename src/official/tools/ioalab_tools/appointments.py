@@ -32,7 +32,7 @@ def appointment_records(source):
     if not root.exists():return {}
     marker=root/'source.json';database=root/'appointments.sqlite'
     if not marker.is_file() or json.loads(marker.read_text(encoding='utf-8'))!={'format':'ioalab.appointments/1','source':str(source)}:
-        raise RuntimeFault('identity_conflict','Reservation storage needs explicit migration')
+        raise RuntimeFault('identity_conflict','Reservation source does not match the selected schedule')
     if not database.is_file():raise RuntimeFault('not_ready','Restore the original reservation database; do not initialize empty storage')
     connection=sqlite3.connect(database.as_uri()+'?mode=ro',uri=True,timeout=10)
     try:return {key:json.loads(value) for key,value in connection.execute('SELECT operation,body FROM appointments')}
@@ -54,7 +54,7 @@ class Appointments:
         marker=self.root/'source.json'
         if self.root.exists():
             if not marker.is_file() or json.loads(marker.read_text(encoding='utf-8'))!=self.identity:
-                raise RuntimeFault('identity_conflict','Reservation storage needs explicit migration')
+                raise RuntimeFault('identity_conflict','Reservation source does not match the selected schedule')
             if not (self.root/'appointments.sqlite').is_file():
                 raise RuntimeFault('not_ready','Restore the original reservation database; do not initialize empty storage')
         else:
@@ -121,10 +121,15 @@ class Appointments:
         fingerprint=digest({'input':args,**{key:context[key] for key in ('agentId','messageId','interactionId')}})
         with Lease(self.lock,timeout=30):
             self._initialize();records=self.records();old=records.get(operation)
+            if old is None:
+                operation,old=next(((key,item) for key,item in records.items()
+                                    if all(item['context'][field]==context[field] for field in ('agentId','interactionId','messageId'))),
+                                   (operation,None))
             if old:
                 if old['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original reservation input changed')
                 if old.get('result'):return old['result']
                 if old['state'] in ('sending','unknown'):raise RuntimeFault('unknown_result','Inspect the original invitation receipt; automatic resend is disabled','reconcile_invitation')
+                context=old['context']
             if any(key!=operation and item['context']['agentId']==context['agentId'] and item['context']['interactionId']==context['interactionId'] and item['state'] in ('sending','unknown') for key,item in records.items()):
                 raise RuntimeFault('unknown_result','This interaction has an unresolved invitation','reconcile_invitation')
             session=self.calendar.session() if hasattr(self.calendar,'session') else nullcontext(self.calendar)
@@ -179,7 +184,7 @@ def configure(options,*,home,profile,base_dir):
         calendar=GraphCalendar(source['client_id'],path(source['token_file']),recipient)
         if not calendar.path.is_file():raise RuntimeFault('not_ready','Authorize the configured calendar before starting its tool')
     else:raise RuntimeFault('invalid_input','Choose an explicit local schedule or Graph calendar')
-    if (calendar.path.parent/'mailbox.sqlite').exists():raise RuntimeFault('identity_conflict','Migrate old mailbox reservations before activating this calendar')
+    if (calendar.path.parent/'mailbox.sqlite').exists():raise RuntimeFault('identity_conflict','Existing mailbox reservations require review; select a separate schedule or restore the original storage')
     allowed={'transport','sender','host','port','username_env','password_env','api_key_env','credentials_file'}
     if set(notice)-allowed:raise RuntimeFault('invalid_input','Notification credentials must use local variable references')
     local=dotenv_values(path(notice['credentials_file']),interpolate=False) if notice.get('credentials_file') else {}
@@ -196,6 +201,6 @@ def configure(options,*,home,profile,base_dir):
     required=options.get('requires_steps',[])
     if not isinstance(required,list) or any(not isinstance(step,str) or not step for step in required):raise RuntimeFault('invalid_input','Use declared step names')
     service=Appointments(calendar,notification,recipient,rules=options.get('rules'))
-    revision='calendar-1:'+digest(options)
-    return BusinessTools((ToolBinding('calendar.book','检查主人安排及预留；冲突返回建议，不冲突则预留并提交邀请。返回invite_submitted只表示等待本人接受。',INPUT,service.book,'notification',revision,tuple(required)),
+    revision='calendar-2:'+digest(options)
+    return BusinessTools((ToolBinding('calendar.book','每条来信只按原输入决定一次预约；冲突返回建议，须发送方用新消息改约。不冲突则预留并提交邀请；invite_submitted只表示等待本人接受。',INPUT,service.book,'notification',revision,tuple(required)),
                           ToolBinding('calendar.status','查询本交互既有预约，不重发邀请。',STATUS,service.status,'none',revision)),service.close)

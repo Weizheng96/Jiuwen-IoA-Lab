@@ -102,6 +102,7 @@ class CalendarHost:
         payload=json.loads(turn.input.split('\n',1)[1])['input']
         actual=turn.on_tool('calendar.book',payload,'original-book')
         assert turn.on_tool('calendar.book',payload,'original-book')==actual
+        assert turn.on_tool('calendar.book',payload,'model-repeated-book')==actual
         turn.on_tool('ioa_reply',{'output':actual},'original-reply')
         return HostResult('completed',session,{'explicitTestDouble':True})
 
