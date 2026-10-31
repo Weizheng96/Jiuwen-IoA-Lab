@@ -48,7 +48,7 @@ class QuoteHost:
 
 
 @contextmanager
-def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None,preload_verifier=True):
+def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None,preload_verifier=True,template_terms=None):
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
@@ -77,7 +77,12 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
                     'verifier':{'id':'resident_result@1.0','source':source,'kind':verifier_kind,**({'disputeModels':['test-observation-model']} if verifier_kind=='skill' else {})}}
         from types import SimpleNamespace
         def upload(**args):return host.verifier
-        template=template_from_definition(definition,packages=SimpleNamespace(put=upload),payment_provider=platform.payment_provider)
+        if template_terms is None:
+            template=template_from_definition(definition,packages=SimpleNamespace(put=upload),payment_provider=platform.payment_provider)
+        else:
+            drafted=LocalClient(provider.config.home).call('provider.template.draft',{'profile':'service','terms':template_terms(host.verifier)})
+            assert drafted['status']=='completed',drafted
+            template=drafted['data']['template']
         service={'profile':'service','name':'用户配置的专业服务','description':'业务决定来自本机原版宿主的已配置技能','tags':['开发'],
                  'categoryId':platform.discovery.categories()[0]['id'],'templates':[template]}
         prpc=LocalClient(provider.config.home);checked=prpc.call('provider.preview',{'service':service})

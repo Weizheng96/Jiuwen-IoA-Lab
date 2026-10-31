@@ -1,9 +1,11 @@
 """Opt-in background product installation and real contract takeover through public SDK calls."""
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -65,10 +67,24 @@ def install_products(folder):
     return python,manifests[0],proof
 
 
+@contextmanager
+def verification_workspace():
+    folder=Path(tempfile.mkdtemp(prefix='ioalab-clean-install-'))
+    try:yield folder
+    except BaseException:
+        print('Verification did not complete; preserved original workspace: '+str(folder),file=sys.stderr,flush=True)
+        raise
+    else:
+        target=folder.resolve()
+        if (target.parent!=Path(tempfile.gettempdir()).resolve() or not target.name.startswith('ioalab-clean-install-')
+                or folder.is_symlink()):raise RuntimeError('Verification workspace changed; preserve it without cleanup')
+        shutil.rmtree(target)
+
+
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--report',type=Path);args=parser.parse_args(argv)
-    with tempfile.TemporaryDirectory(prefix='ioalab-clean-install-') as temporary:
-        folder=Path(temporary);python,manifest,background=install_products(folder)
+    with verification_workspace() as folder:
+        python,manifest,background=install_products(folder)
         for entry in ('ioalab_sdk.runtime','ioalab_jiuwen','ioalab_tools.schedule_cli'):
             subprocess.run([str(python),'-I','-m',entry,'--help'],check=True,cwd=folder,capture_output=True,text=True)
         subprocess.run([str(python),'-I','-c','import importlib.util as u; from ioalab_sdk.runtime.installation import current; assert current()["releaseId"]; assert u.find_spec("ioalab") is None; assert u.find_spec("jiuwenswarm") is None; assert u.find_spec("ioalab_tools") is not None'],check=True,cwd=folder)
@@ -76,7 +92,7 @@ def main(argv=None):
             env={**os.environ,'PYTHONUTF8':'1','IOALAB_STUB':'1','IOALAB_INSTALLED_ACCESS_PYTHON':str(python)},
             capture_output=True,text=True,encoding='utf-8',timeout=240)
         print(result.stdout,end='');print(result.stderr,end='',file=sys.stderr)
-        if result.returncode:return result.returncode
+        if result.returncode:raise RuntimeError('Installed contract verification failed; preserve its original workspace')
         if args.report:
             sources=['src/access/sdk/ioalab_sdk/runtime/installation.py','src/access/sdk/ioalab_sdk/runtime/__main__.py',
                      'src/access/sdk/ioalab_sdk/runtime/ipc.py','src/access/sdk/ioalab_sdk/runtime/resident.py',

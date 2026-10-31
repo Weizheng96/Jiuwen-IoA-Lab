@@ -1,0 +1,140 @@
+{
+  "date": "2026-11-01",
+  "test": "tests/test_resident_multiperiod.py::test_original_jiuwen_completes_two_periods_in_the_same_session",
+  "result": "1 passed, 1 warning in 172.12 seconds",
+  "evidence": {
+    "capacityReleased": true,
+    "closed": true,
+    "contractRef": "sha256:343f1e3bea5321ad8c1f03317ed4af18a8eb3e2ba3bc51fccdc63209736e3d11",
+    "deliveryFiles": {
+      "1": {
+        "part": "draft"
+      },
+      "2": {
+        "part": "release"
+      }
+    },
+    "formation": "proposal",
+    "interactionId": "231bf329-0204-4a7a-90a5-028e8d5fb7e3",
+    "limits": [
+      "Public backend SDK and original A2C/WASM/AP2; owner confirmations are isolated test drivers",
+      "Configured prepublished verifier; not per-request checker generation, native frontend, actual miniapp, Linux or new film"
+    ],
+    "model": "qwen3.5-plus#2",
+    "paymentRecords": [
+      {
+        "amount": "1.00",
+        "period": 0,
+        "purpose": "deposit"
+      },
+      {
+        "amount": "4.00",
+        "period": 1,
+        "purpose": "installment"
+      },
+      {
+        "amount": "4.00",
+        "period": 2,
+        "purpose": "installment"
+      }
+    ],
+    "periods": 2,
+    "productionRounds": 4,
+    "reputationCompleted": 1,
+    "scenario": "normal",
+    "scope": "Original Jiuwen public Process completes two sequential A2C periods, each real user gate/WASM/AP2 in one UUID/task/Session",
+    "sessionId": "process_cli_1a19328423f_e7e972215351",
+    "taskId": "46e2ce52-0dc1-5710-9f08-3ff3c53bfbd9",
+    "wasmReports": [
+      {
+        "checks": [
+          [
+            {
+              "name": "current-period-content",
+              "pass": true
+            }
+          ]
+        ],
+        "errors": [],
+        "notBefore": null,
+        "status": "pass"
+      },
+      {
+        "checks": [
+          [
+            {
+              "name": "current-period-content",
+              "pass": true
+            }
+          ]
+        ],
+        "errors": [],
+        "notBefore": null,
+        "status": "pass"
+      }
+    ]
+  },
+  "verification": {
+    "multiperiodFocused": "10 passed in 250.19s before adding shared optional native driver; final full gate covers final source",
+    "backgroundInstallation": "14 passed in 3.46s",
+    "fullRegression": "546 passed, 16 skipped, 1 warning in 1249.14s (0:20:49)",
+    "designDocumentationSelfcheckPassed": true,
+    "cleanInstalledContract": "1 passed, 1 warning in 23.42s"
+  },
+  "installation": {
+    "releaseId": "999b7ade8d1cbf7fd7362a18274b77e5ab406f2fef460688abc3367ee4b63542",
+    "backgroundInstallation": {
+      "initialStatuses": [
+        "waiting",
+        "waiting"
+      ],
+      "launcherSeconds": [
+        0.422,
+        0.438
+      ],
+      "originalAttemptId": "ae61515f-cb6d-49ce-9c16-65d45e010c3a",
+      "statusQueries": 136,
+      "sharedTaskCount": 1,
+      "workerCompletedAfterLauncherExit": true
+    },
+    "limits": [
+      "Contract host and user approval were explicit isolated test drivers",
+      "No Jiuwen model invocation, native web or new video proof",
+      "Windows only; no Linux/systemd upgrade claim"
+    ]
+  },
+  "packageSourceEquality": {
+    "sdkAndHostPython": true,
+    "bothRoleMarkdown": true,
+    "bootstrapAndInstallerScripts": true
+  },
+  "configurationUnchanged": {
+    "originalUserSwarmAndIsolatedSwarm": true,
+    "checkedFiles": 4
+  },
+  "readRecoveryBoundary": "Only HTTP transport failure with no current-period signature 6 or cached bytes is a known failed read; original failed operation remains stable, a new read stays on original contract/task/period. Existing receipt or unknown business effect is not retried or re-signed.",
+  "installationMetadata": "Readers and atomic replacement share a bounded metadata lock; pip is outside the lock; corrupted metadata stays unknown even with a live installation owner.",
+  "verificationWorkspace": {
+    "successCleanupVerified": true,
+    "failurePreservationVerified": true,
+    "scope": "Isolated helper success/failure branches; no user data or live participant workspace was deleted"
+  },
+  "sources": {
+    "src/access/sdk/ioalab_sdk/assistant/fulfillment.py": "sha256:243865e0f40c509ddca256b2487343e6e2b4eba41da1e67e4d7b772be0fc8726",
+    "src/access/sdk/ioalab_sdk/adapters/transport.py": "sha256:b0ea272efa51470d447bfeedcaaaf17f8dc47a0707c08d8d1d5fa416135f1c34",
+    "src/access/sdk/ioalab_sdk/provider/production.py": "sha256:a39070cd14032a630c07765d3f4caaac07d88ab1fd08462bed34cb3f80ce8c1d",
+    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "sha256:1dd1db05d3588301c3a913c676c9def9b8c36dfaaac1184d5aebd3dd466b2a29",
+    "src/access/skills/assistant/references/delegation.md": "sha256:b270cb83a58bc276e36f2456dd1b467de5b4f14f39bf979deda1b82cc97205dd",
+    "src/access/skills/_shared/installer.py": "sha256:e6d5aab671b9fa5a9d8b79ac02a518e02f5dcd1e06919493ff02008bd7c13f3f",
+    "src/access/skills/_shared/ioalab.py": "sha256:7382934b776b3efa2c17eef8298d1a7ca1e4383d53b1c532f96a70c7ca1fd7fe",
+    "tests/test_resident_multiperiod.py": "sha256:778dce5d5d26b30d0db48ca48e4bf5837308166c974704044fac8078d13eecfe",
+    "tests/test_resident_delegation.py": "sha256:1a2cc851e8434f39340455e63419d4e2459bbfed87e944a2572b939882ca7c09",
+    "tests/test_background_installation.py": "sha256:83a1ab6931759ff29145b2930b18f38b1fa1ab025e58c8a99cb84e4fbecbbd70",
+    "tools/check_bootstrap.py": "sha256:dccce010ad2531852b8b73c1afd2dd1915344a256134d76dc926603fc1232412"
+  },
+  "limits": [
+    "Public backend SDK and original A2C/WASM/AP2; owner confirmations are isolated test drivers",
+    "Configured prepublished verifier; not per-request checker generation, native frontend, actual miniapp, Linux or new film",
+    "No termination or complete fault-matrix claim"
+  ]
+}

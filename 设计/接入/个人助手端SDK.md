@@ -31,10 +31,12 @@ prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 ca
 | `assistant.delegation.verify` | 合同、里程碑及交付引用 | 本地运行卡载验收器取得报告；不签署接受 |
 | `assistant.delegation.accept` | 交付、验收阶段的可信确认引用 | 复用原 Client.accept 复验、签7、通知及通过后的分期付款；各项分别返回，失败或不明确时不伪造通过 |
 | `assistant.delegation.pay` | contractRef、原付款用途和期次 | 在授权内恢复相应原 AP2 付款与通知，不重验收、不重复扣款；不能根据自然语言“通过”付款 |
-
-verify与accept的预览均异步返回原作业引用。accept通过预览后给出waiting及真实确认引用；批准后使用同一operationId调用accept，续接原作业。具体预览、复验及恢复顺序见[A2C适配](A2C适配.md)；不要求一次模型工具调用等待全部验收。
 | `assistant.delegation.status` | 任务或合同引用 | 原协议状态、候选、等待事项、验收与付款分别列示 |
 | `assistant.delegation.terminate/dispute` | 合同引用、原因及所需确认/证据 | A2C 解除流程或争议受理引用；不直接修改为结束或执行裁定付款 |
+
+verify与accept的预览均异步返回原作业引用。accept通过预览后给出waiting及真实确认引用；批准后使用同一operationId调用accept，续接原作业。具体预览、复验及恢复顺序见[A2C适配](A2C适配.md)；不要求一次模型工具调用等待全部验收。
+
+期次从1开始，对应原模板deliverables的顺序。每期取件、验收确认和付款使用独立operationId；同一期重传恢复原动作，不能借用其他期次的确认或回执。status分别返回availablePeriods、acceptedPeriods及原付款凭证；部分期次完成只显示部分付款，不声明整单结清。各期应付金额来自原卡derived.periods，不以逐项报价或模型文字另算。取件网络中断只有在原记录证明尚未签6及缓存时才给出failed/retry_read；重新读取须使用新的本地操作，保留原失败回执，具体边界见[A2C适配](A2C适配.md#多期履约)。
 
 request 的结构化输入为 taskRef、service（稳定 agentId）、templateDigest、spec 和可选 materials。materials 以材料名为键，每项含 text 或 bytesBase64（二选一）及可选声明 spec，不接收任意本机路径。SDK 先核已授权任务和模板，再创建原 A2C 未签对象。提案的预审材料在对外授权前取得本机可信确认；无材料不增加该确认。返回 quoteRef 及本地任务，status 使用 quoteRef 查询实际报价或原失败；取得提案不表示已选择合同。
 

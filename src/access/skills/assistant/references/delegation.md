@@ -15,6 +15,8 @@
 | 验收与付款 | verify：contractRef、period；accept：contractRef、period | 异步作业先返回引用；accept取得通过报告后进入waiting，展示真实预览和应付款额。取得本期独立确认后用同一operationId重发accept，原Client.accept复验、通知及AP2，分别查实际验收与付款结果 |
 | 结束核对 | assistant.delegation.status：contractRef；pay：contractRef、period 只核原付款恢复 | 核实际付款和 closed；unknown 先查询原操作/原凭证，不重签验收或重付，不把“已验收”当“已付款” |
 
+多期合同按模板顺序逐期取件、验收及付款；每期使用独立的验收确认和操作文件，不把首期同意当作全单同意。状态中的部分付款不表示结清。取件若明确返回failed且error.recovery=retry_read，SDK已核本期尚无签6和缓存；可在原请求内以新的本地读取操作重试一次，再失败则报告网络未就绪；原失败操作重传仍返回原结果，不额外要求用户批准读取。unknown或已有签收时先核原凭证，不换操作强制重签。
+
 spec 是按模板交付件名组织的需求对象；materials 按模板材料名组织，提供 text 或 bytesBase64 及可选 spec。材料不得超出用户已授权范围。服务、模板、报价及合同引用从实际结果获取，不能编造 ID。
 
 status 也可附原 operationId 查询履约动作。报价/合同/动作引用用途不同；脚本参数文件中的 operationId 是同一操作的恢复键，不是新交易请求。readonly 业务查询也按脚本参数格式创建文件。

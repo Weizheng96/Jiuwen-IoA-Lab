@@ -147,3 +147,45 @@ def test_metadata_alone_never_proves_running_or_ready(tmp_path,phase):
     result=installer.prepare(assets,cache,launch=True,retry=True)
     assert result['status']=='unknown' and result['data']['attemptId']==job['attemptId']
     assert json.loads(release.task.read_text())==job and not release.envdir.exists()
+
+
+def test_install_metadata_reader_and_writer_share_one_snapshot_lock(tmp_path,monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    _,installer,assets,cache=bundle(tmp_path)
+    reader,writer=installer.Release(assets,cache),installer.Release(assets,cache)
+    original=state(reader,'launching');reader.save(original)
+    reading=threading.Event();release_read=threading.Event();writing=threading.Event()
+    read_text=Path.read_text
+    def held_read(path,*args,**kwargs):
+        if path!=reader.task:return read_text(path,*args,**kwargs)
+        with path.open('r',encoding='utf-8') as stream:
+            reading.set();assert release_read.wait(5),'test did not release original reader'
+            return stream.read()
+    monkeypatch.setattr(Path,'read_text',held_read)
+    updated={**original,'phase':'installing','pid':os.getpid()}
+    def write():writing.set();writer.save(updated)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first=pool.submit(reader.state);second=None
+        try:
+            assert reading.wait(5)
+            second=pool.submit(write);assert writing.wait(5)
+            # Keep the real file handle open; replacement must wait for its snapshot.
+            assert not second.done(),'writer replaced metadata while its reader held the snapshot'
+            assert not threading.Event().wait(.1)
+            assert not second.done(),'writer bypassed metadata reader ownership'
+        finally:release_read.set()
+        assert first.result(timeout=5)==original
+        second.result(timeout=5)
+    assert writer.state()==updated
+
+
+def test_corrupt_install_metadata_is_not_trusted_even_with_a_live_worker_lock(tmp_path):
+    _,installer,assets,cache=bundle(tmp_path);release=installer.Release(assets,cache)
+    job=state(release);release.save(job)
+    changed={**job,'logPath':str(tmp_path/'wrong-log')};release.task.write_text(json.dumps(changed),encoding='utf-8')
+    before=release.task.read_bytes()
+    with installer.lock(release.install_lock):
+        result=installer.prepare(assets,cache,launch=True,retry=True)
+    assert result['status']=='unknown' and result['error']['code']=='unknown_result'
+    assert release.task.read_bytes()==before and not release.envdir.exists()

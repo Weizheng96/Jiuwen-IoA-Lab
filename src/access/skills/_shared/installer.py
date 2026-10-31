@@ -82,29 +82,32 @@ class Release:
         self.python=self.envdir/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
         self.ready=self.envdir/'.ready';self.marker=self.envdir/'ioalab-release.json'
         self.launch_lock=self.cache/(prefix+'.launch.lock');self.install_lock=self.cache/(prefix+'.install.lock')
+        self.metadata_lock=self.cache/(prefix+'.metadata.lock')
         self.task=self.cache/(prefix+'.install.json')
         self.identity={'format':'ioalab.access-installation/1','releaseId':self.id,'versions':self.manifest['versions']}
 
     def log(self,attempt):return self.cache/(self.id[:24]+'.'+attempt+'.install.log')
 
     def save(self,state):
-        staged=self.task.with_suffix('.tmp')
-        staged.write_text(json.dumps(state,sort_keys=True)+'\n',encoding='utf-8')
-        if os.name!='nt':os.chmod(staged,0o600)
-        staged.replace(self.task)
+        with lock(self.metadata_lock,timeout=3):
+            staged=self.task.with_suffix('.tmp')
+            staged.write_text(json.dumps(state,sort_keys=True)+'\n',encoding='utf-8')
+            if os.name!='nt':os.chmod(staged,0o600)
+            staged.replace(self.task)
 
     def state(self):
         if not self.task.exists():return None
         try:
-            if self.task.is_symlink() or self.task.stat().st_size>32768:raise ValueError()
-            value=json.loads(self.task.read_text(encoding='utf-8'))
-            if (not isinstance(value,dict) or value.get('releaseId')!=self.id
-                    or value.get('phase') not in ('launching','installing','failed','completed')
-                    or str(uuid.UUID(value['attemptId']))!=value['attemptId']
-                    or value.get('logPath')!=str(self.log(value['attemptId']))):raise ValueError()
-            return value
-        except (OSError,ValueError,KeyError,TypeError,AttributeError):
-            raise Uncertain('Installation metadata changed; preserve this cache and inspect its logs') from None
+            with lock(self.metadata_lock,timeout=3):
+                if self.task.is_symlink() or self.task.stat().st_size>32768:raise ValueError()
+                value=json.loads(self.task.read_text(encoding='utf-8'))
+                if (not isinstance(value,dict) or value.get('releaseId')!=self.id
+                        or value.get('phase') not in ('launching','installing','failed','completed')
+                        or str(uuid.UUID(value['attemptId']))!=value['attemptId']
+                        or value.get('logPath')!=str(self.log(value['attemptId']))):raise ValueError()
+                return value
+        except (Busy,OSError,ValueError,KeyError,TypeError,AttributeError) as exc:
+            raise Uncertain('Installation metadata changed ('+type(exc).__name__+'); preserve this cache and inspect its logs') from None
 
     def installed(self):
         if not self.ready.exists():

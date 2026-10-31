@@ -1,6 +1,8 @@
 """Original Client lifecycle with durable operations and real stage-specific users."""
 import base64
 import threading
+
+import httpx
 from urllib.parse import urlencode
 
 from a2c import objects
@@ -157,8 +159,15 @@ class Fulfillment:
                 result={'receipt':original['card']['fulfillment']['receipt']} if original.get('state')=='started' else client.start(client.card(ref))
             elif name=='answer_step':result={'stepAuthorization':client.answer_step(ref,record['granted'])}
             elif name=='fetch':
-                cached=client.store.get('cards',ref).get('deliveries',{}).get(str(args['period']))
-                files={name:base64.b64decode(data) for name,data in cached.items()} if cached is not None else client.fetch_delivery(ref,args['period'])
+                try:
+                    cached=client.store.get('cards',ref).get('deliveries',{}).get(str(args['period']))
+                    files={name:base64.b64decode(data) for name,data in cached.items()} if cached is not None else client.fetch_delivery(ref,args['period'])
+                except httpx.TransportError:
+                    actual=client.store.get('cards',ref)
+                    if str(args['period']) not in actual.get('deliveries',{}) and len(actual['card']['signatures']['6'])<args['period']:
+                        error=RuntimeFault('not_ready','Delivery bytes unavailable before receipt signing; request a new read','retry_read')
+                        return self.finish(operation,record,{'period':args['period'],'error':public_error(error)},state='failed')
+                    raise
                 result={'period':args['period'],'files':{name:{'digest':digest_bytes(data),'size':len(data)} for name,data in files.items()}}
             elif name=='verify':
                 try:result={'period':args['period'],'report':report(client.verify(ref,args['period']))}
