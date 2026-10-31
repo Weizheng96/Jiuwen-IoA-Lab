@@ -186,14 +186,11 @@ def test_budget_write_failure_rolls_back_fee_and_capacity_and_public_ap2_cannot_
         assert sender.call('ap2.pay',payload,operation)['op']=='ap2.pay'
 
 
-def test_expiry_pausing_and_close_prevent_fee_while_committed_unknown_keeps_capacity(platform,client,local_client,service,monkeypatch):
+def test_expiry_and_close_prevent_fee_after_admission(platform,client,local_client,service,monkeypatch):
     local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
         configure(receiver);binding=opened(sender,receiver,value);reserved=receiver.call('admission.reserve',binding)
         payload={'admissionId':reserved['admissionId'],'ap2':fee_body(local,service[1],template,value)}
-        receiver.call('admission.configure',{'expectedRevision':1,'maxActiveDelegations':1,'accepting':False})
-        assert sender.call('ap2.pay',payload,ok=False)['code']=='not_ready'
-        receiver.call('admission.configure',{'expectedRevision':2,'maxActiveDelegations':1,'accepting':True})
         with monkeypatch.context() as patch:
             patch.setattr(platform.admissions,'clock',lambda:time.time()+121)
             assert sender.call('ap2.pay',payload,ok=False)['code']=='expired'

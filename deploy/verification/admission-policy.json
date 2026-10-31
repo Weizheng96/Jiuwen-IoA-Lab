@@ -1,0 +1,121 @@
+{
+  "scope": "Platform-owned admission policy with recoverable pause/resume; original native pause verified through installed public SDK",
+  "verification": {
+    "full": "494 passed, 13 skipped, 1 warning in 853.71s",
+    "designDocumentationSelfcheckPassed": true,
+    "correctedPauseCases": "2 passed, 1 warning in 11.32s",
+    "installedUpgrade": {
+      "exitCode": 0,
+      "test": "tests/test_installed_upgrade.py",
+      "result": "1 passed, 1 warning in 27.10s"
+    },
+    "coverage": [
+      "pause before publication",
+      "unready resume rejected",
+      "publication and same-configuration restart preserve pause",
+      "capacity-only configuration update preserves current switch",
+      "original resume receipt does not reopen a later pause",
+      "concurrent same operation and rejected revision are not rebased",
+      "lost reply and local commit failure recover after restart",
+      "atomic checkpoint rollback",
+      "paused new intents rejected without fee or model",
+      "preexisting held fee commit continues",
+      "original contract step authorization, WASM, installment payment and close continue while paused"
+    ]
+  },
+  "installation": {
+    "releaseId": "cc6ec9b80b1ebc1157bf39868071aefbea9a31405dedeb0b7640955779ae3632",
+    "manifest": {
+      "constraintsSha256": "8308a8450f8163bd277405fa532c7deab8318014b5d0212471617ca9d7df7f36",
+      "format": 1,
+      "sourceManifestSha256": "769073ba95db14af5dee8f7a4703919689d064ade734a3d2268a053419ad87d0",
+      "versions": {
+        "a2c": "0.0.19",
+        "ioalab-jiuwen": "0.0.46",
+        "ioalab-official": "0.0.46",
+        "ioalab-sdk": "0.0.39",
+        "jiuwenswarm-process-sdk": "0.1.0"
+      },
+      "wheels": [
+        {
+          "file": "a2c-0.0.19-py3-none-any.whl",
+          "sha256": "0613c5cd6a71983bda09283180ab6230f776b3a3e12e19ccd6a24dd535386bb2"
+        },
+        {
+          "file": "ioalab_jiuwen-0.0.46-py3-none-any.whl",
+          "sha256": "3abb21fd86e5c595fc21608bc280e1b52f48e8ca7b8fc96f3837fb2874006002"
+        },
+        {
+          "file": "ioalab_official-0.0.46-py3-none-any.whl",
+          "sha256": "093ae3d0aaa959bb80287b778c0a508975e8ff8ef6ac220dae4692554b314410"
+        },
+        {
+          "file": "ioalab_sdk-0.0.39-py3-none-any.whl",
+          "sha256": "8284d96a3e0480ffaf6368d7a98a389210914647165403530558c850f7acf2f5"
+        },
+        {
+          "file": "jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl",
+          "sha256": "f9aa6e09e21112a82e56320569c4ffea592415551d75489cfc1c51a3da5f0778"
+        }
+      ]
+    }
+  },
+  "nativeImport": {
+    "importedFileCount": 17,
+    "importMatchesBuiltProduct": true,
+    "originalSwarmConfigurationsUnchanged": true,
+    "providerBundleSha256": "a22b01fd5a073bfbfeec2fb3025ae467b900cbbe9524ab70abeb839c94e05cf3",
+    "releaseId": "cc6ec9b80b1ebc1157bf39868071aefbea9a31405dedeb0b7640955779ae3632"
+  },
+  "native": {
+    "session": "web_1a19215e97f_9fe58f09bcb3",
+    "model": "qwen3.5-plus#2",
+    "releaseId": "cc6ec9b80b1ebc1157bf39868071aefbea9a31405dedeb0b7640955779ae3632",
+    "installedOriginalOperationReplay": true,
+    "policyReceipt": {
+      "accepting": false,
+      "active": 0,
+      "maxActiveDelegations": 2,
+      "revision": 1,
+      "service": "svc-dcf2221e-99ae-477a-9145-9b252b812a09"
+    },
+    "currentPolicy": {
+      "accepting": false,
+      "active": 0,
+      "maxActiveDelegations": 2,
+      "revision": 1,
+      "service": "svc-dcf2221e-99ae-477a-9145-9b252b812a09"
+    },
+    "configurationAccepting": true,
+    "platformConnected": true,
+    "hostAvailable": true,
+    "stableRuntimeIdentity": true,
+    "stableServiceIdentity": true,
+    "originalSwarmConfigurationsUnchanged": true,
+    "publicationCompleted": false,
+    "limits": [
+      "Native installation initially timed out and the model retried before starting runtime; ordinary onboarding usability is not fully accepted",
+      "Pause does not withdraw publication; the native narrative is not proof of directory removal",
+      "Public demonstration account only; no private-credential isolation claim",
+      "No completed native publication, actual miniapp production, external mail, Linux or new film result"
+    ]
+  },
+  "sources": {
+    "src/access/sdk/ioalab_sdk/provider/admission.py": "sha256:acbd24aa3c2d76b57a1c8ed5427ce1f4f52e1e6bc43eb732187759f3263d4440",
+    "src/access/sdk/ioalab_sdk/provider/execution.py": "sha256:383b928dbd6603617199271b76e61f830e9021ddd0b22ada216de199f253a4e0",
+    "src/access/sdk/ioalab_sdk/provider/publication.py": "sha256:31f0a952f329adc716e050d6af66b388fb3296d115ac42796390f9864afba304",
+    "src/access/sdk/ioalab_sdk/runtime/store.py": "sha256:803afd1d5957f4f330a7059cdbd0d72c72cc9eb2e38152049350eb9bba0b49f7",
+    "src/platform/ioalab/delegation/admission.py": "sha256:43e634ceb812d2c3d87b6af8633e11c1a4895d55d19279c7572ce37dbd345201",
+    "src/access/skills/provider/references/setup.md": "sha256:0203b8243b55e2ce696f37fde8d138088ba6e63ce16a5ce46969eb903307c6c2",
+    "src/access/skills/provider/references/publication.md": "sha256:ffbf22457df3eb4f82b24aa78f6d819832c661c9e42b8ced9563f03ed71dca3f",
+    "tests/test_provider_admission.py": "sha256:e1faa26dd6c057ab405b51222c386a2ec1ce5936b1c4d865076ae36dbb176e0c",
+    "tests/test_delegation_admission.py": "sha256:33a54f05968999ea9b69318f68971bb5696b1b332eedca3432746d44f46848e1",
+    "tests/test_resident_fulfillment.py": "sha256:8e5d3c00fb4e93a2bf8c89a5cfc6c10bafa2d843137e682f98118a0108f42541"
+  },
+  "limits": [
+    "Native installation initially timed out and the model retried before starting runtime; ordinary onboarding usability is not fully accepted",
+    "Pause does not withdraw publication; the native narrative is not proof of directory removal",
+    "Public demonstration account only; no private-credential isolation claim",
+    "No completed native publication, actual miniapp production, external mail, Linux or new film result"
+  ]
+}

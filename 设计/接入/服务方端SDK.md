@@ -53,8 +53,16 @@
 | `provider.publish` | 原预览返回的service、contentDigest、expectedRevision；可选原confirmationRef | 首次创建待确认记录并返回waiting；仅真实批准后恢复原操作才签名、市场签认及A2X登记 |
 | `provider.reputation.submit` | 所属已完成合同引用、稳定操作标识 | 核验收与付款凭证，复用 A2C Provider.close 提交结清卡，查询平台签发信誉；重复调用恢复原结果，未结清不能伪造成功日志 |
 | `provider.status` | 所属服务引用 | 公示、连接、可执行、容量、未完成任务、异常分别列示 |
-| `provider.pause` | 所属服务引用 | 拒绝新的委托，保留既有任务的授权、交付、验收和恢复 |
-| `provider.resume` | 所属服务引用 | 对账与就绪检查后重新允许新预留；不能仅因进程已启动就称可接单 |
+| `provider.pause` | profile，原operationId | 允许公示前暂停；经当前WS设置实际接单策略，返回policyReceipt及currentPolicy；只关闭新预留，原有效预留及合同继续 |
+| `provider.resume` | profile，原operationId | 核本机业务/工具/宿主、有效公示和当前连接后开启；返回原policyReceipt与实时currentPolicy，不把旧成功回执当作当前仍开启 |
+
+### 接单策略的归属与恢复
+
+平台admission策略是实际状态；本地accepting和max_active_delegations是用户配置输入。SDK保存上次已处理的配置快照；首次应用两个字段，后续只应用相对上次配置明确改变的字段，未改变字段保留平台现值。pause/resume明确改变开关，公示前暂停同样保存已见配置，发布、重连或同配置重启不能重新启用。容量降低不取消已有占用。
+
+策略写入前保存原操作、配置快照及expectedRevision；未知时恢复同一WS请求，取得终局前不越过它执行另一次策略写入。原回执、已处理配置快照和清除待处理记录同事务保存。重复原操作返回原policyReceipt，并另外读取currentPolicy；不重放旧开关。并发策略修改用平台修订检查拒绝覆盖，不能读新修订后悄悄重做失败操作。
+
+provider.status额外返回当前WS核实的admissionPolicy；executionReady只表示执行能力，不等同接单开关。原意向重传由平台恢复已有预留，SDK不能因当前暂停而把已取得预留的同单误判成新单。失败返回实际原因，未取得真实回执不能宣称已暂停或恢复。
 
 运行时启动/停止使用公共 `runtime.start/stop`。服务发布的各阶段有独立回执，部分失败恢复原操作；不能因 A2X 已显示就宣称模板签认或模型执行已就绪。模板更新和官方续期规则见[注册中心](../组件/注册中心.md)。
 

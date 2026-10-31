@@ -205,7 +205,7 @@ class Admissions:
         if intent['started'] is None:raise LabError('forbidden','Obtain the original start permit before reserving',status=403)
         original,scope=self._eligible(conn,intent)
         policy=self.policy(conn,actor)
-        if not policy['accepting']:raise LabError('not_ready','Service is not accepting new delegations',status=409)
+        if not policy['accepting']:raise LabError('service_paused','Service is not accepting new delegations',status=409)
         if policy['active']>=policy['maxActiveDelegations']:raise LabError('capacity_full','All service admission slots are occupied',status=409)
         until=min(self.clock()+120,intent['expires'],parse_time(original['template']['validUntil']).timestamp(),parse_time(scope['expiresAt']).timestamp())
         identifier=str(uuid.uuid5(uuid.NAMESPACE_URL,'ioa-admission:'+payload['interactionId']))
@@ -216,7 +216,6 @@ class Admissions:
     def _held(self,conn,row):
         if row['state']!='held' or row['hold_until']<=self.clock():raise LabError('expired','Original unpaid admission is no longer eligible',status=409)
         if not self.active(conn,row['service']):raise LabError('not_ready','Service execution connection is offline',status=409)
-        if not self.policy(conn,row['service'])['accepting']:raise LabError('not_ready','Service paused new commitments',status=409)
         return self._eligible(conn,self.intent(conn,row['origin']))
 
     def _commit(self,conn,actor,payload):

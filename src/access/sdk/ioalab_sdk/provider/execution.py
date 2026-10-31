@@ -41,6 +41,8 @@ class ProviderExecution:
         self.public=A2ATransport(http=lambda:httpx.AsyncClient(timeout=20,trust_env=False))
         self.published={};self.refresh=set(self.configs)
         self.errors={}
+        from .admission import AdmissionPolicy
+        self.admission_policy=AdmissionPolicy(self)
         from .production import Production
         self.production=Production(self)
 
@@ -117,12 +119,7 @@ class ProviderExecution:
         return values
 
     def configure(self,identity):
-        config=self.configs[identity.profile]
-        state=self.runtime.connection.call(identity.agent_id,'admission.status',{},operation_id=stable('status',identity.agent_id,time.time()))
-        if state['maxActiveDelegations']==config.get('max_active_delegations',1) and state['accepting']==config.get('accepting',True):return
-        self.runtime.connection.call(identity.agent_id,'admission.configure',{'expectedRevision':state['revision'],
-            'maxActiveDelegations':config.get('max_active_delegations',1),'accepting':config.get('accepting',True)},
-            operation_id=stable('policy',identity.agent_id,state['revision'],config.get('max_active_delegations',1),config.get('accepting',True)))
+        return self.admission_policy.initialize(identity)
 
     def scan(self):
         with self.lock:
@@ -136,6 +133,8 @@ class ProviderExecution:
             except Exception as exc:
                 self.published.pop(profile,None)
                 self.errors['profile:'+profile]={'code':getattr(exc,'code','not_ready'),'type':type(exc).__name__}
+                if isinstance(exc,RuntimeFault) and exc.code=='unknown_result':
+                    with self.lock:self.refresh.add(profile)
         for profile,identity in self.role.identities.items():
             for frame in self.runtime.store.messages(identity.agent_id):
                 value=frame['message'];kind=value.get('kind')
@@ -146,7 +145,7 @@ class ProviderExecution:
                     else:self.schedule(identity,value)
                 except RuntimeFault as exc:
                     self.errors[value['messageId']]={'code':exc.code}
-                    if kind=='delegation.intent' and exc.code in ('capacity_full','expired','closed','forbidden'):
+                    if kind=='delegation.intent' and exc.code in ('capacity_full','expired','closed','forbidden','not_ready','service_paused'):
                         self.reject(identity,value,exc.code)
                 except httpx.HTTPError:self.errors[value['messageId']]={'code':'platform_unavailable'}
         for endpoint in list(self.contexts.values()):
@@ -157,7 +156,6 @@ class ProviderExecution:
         namespace='provider-inbox:'+identity.agent_id;mid=message['messageId']
         saved=self.runtime.store.checkpoint(namespace,mid)
         if saved:return
-        if not self.configs[identity.profile].get('accepting',True):return self.reject(identity,message,'service_paused')
         if instant(message['expiresAt'])<=time.time():return self.reject(identity,message,'expired')
         self.configure(identity)
         opened=self.runtime.store.prepare_open(identity.agent_id,mid)

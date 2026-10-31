@@ -4,6 +4,7 @@
 
 | 步骤 | operation 与参数 | 检查 |
 |---|---|---|
+| 接单意图 | 用户要求先不接单时，先调用provider.pause：profile | 核policyReceipt和currentPolicy.accepting=false；可在公示前暂停，不只在聊天中答应 |
 | 起草模板 | provider.template.draft：profile、terms | terms使用本页引用的原A2C业务字段；保存真实data.template，不猜版本、有效期或支付地址 |
 | 查看身份 | identity.status | 使用已配置 service profile；默认不预选分类，省略categoryId交由注册中心自动匹配 |
 | 发布验收器 | provider.verifier.publish：profile、verifierId、source，可选 reads、kind | source 是明确内容检查，不能恒真；平台打包并返回实际 id/uri/digest，不在宿主执行源码 |

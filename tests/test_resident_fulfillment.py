@@ -104,6 +104,9 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
     with participants(platform,tmp_path,formation=formation,fee=1 if formation=='proposal' else 0,agent_host=ProductionHost(),verifier_source=VERIFIER) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task);selected,_,_=confirm(assistant,quote);ref=selected['data']['contractRef']
         wait_for(lambda:status(assistant,ref));assert status(assistant,ref)['data']['formed']
+        paused=LocalClient(provider.config.home).call('provider.pause',{'profile':'service'})
+        assert paused['status']=='completed' and paused['data']['currentPolicy']['accepting'] is False
+        assert paused['data']['currentPolicy']['active']==1
         # Withdraw new candidate eligibility without deleting the original offer.
         offered=platform.publications.templates;actor=provider.identities[0].agent_id
         monkeypatch.setattr(platform.publications,'templates',lambda service:[] if service==actor else offered(service))

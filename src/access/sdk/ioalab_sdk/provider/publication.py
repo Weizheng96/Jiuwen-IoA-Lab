@@ -32,7 +32,7 @@ class ProviderRole:
         self.execution=ProviderExecution(self,runtime,self.host)
         registration=self.execution.bind()
         registration['jobs']['provider.preview']=JobHandler(self.run_preview,'provider-preview-v1',False)
-        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish','tools.list','template.draft')},**registration}
+        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish','tools.list','template.draft','pause','resume')},**registration}
 
     def start(self):
         if self.execution:self.execution.start()
@@ -82,10 +82,14 @@ class ProviderRole:
                     self.fields(args,('profile',))
                     identity=self._identity(args['profile'])
                     return {'status':'completed','data':{'tools':[tool.policy() for tool in self.execution.business_tools(identity.profile).values()]}}
+                if name in ('pause','resume'):
+                    self.fields(args,('profile',))
+                    identity=self._identity(args['profile'])
+                    return {'status':'completed','data':self.execution.admission_policy.change(identity,operation,name=='resume')}
                 if name == 'status':
                     self.fields(args, ('profile',))
                     identity = self._identity(args['profile'])
-                    return {'status': 'completed', 'data': {**self.status(identity),'localExecution':self.execution.status(identity.profile)}}
+                    return {'status': 'completed', 'data': {**self.status(identity),'localExecution':self.execution.status(identity.profile),'admissionPolicy':self.execution.admission_policy.read(identity)}}
                 if name == 'preview':
                     self.fields(args, ('service',))
                     return self.prepare_preview(operation,args['service'])

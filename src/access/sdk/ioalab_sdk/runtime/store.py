@@ -89,6 +89,12 @@ class RuntimeStore:
         with self.lock:
             return {row[0]:json.loads(row[1]) for row in self.db.execute('SELECT key,value FROM runtime_checkpoints WHERE namespace=?',(namespace,)).fetchall()}
 
+    def checkpoint_update(self,namespace,values,*,remove=()):
+        with self.transaction() as conn:
+            for key,value in values.items():
+                conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',(namespace,key,encode(value)))
+            for key in remove:conn.execute('DELETE FROM runtime_checkpoints WHERE namespace=? AND key=?',(namespace,key))
+
     def checkpoint_delete(self,namespace,key):
         with self.transaction() as conn:conn.execute('DELETE FROM runtime_checkpoints WHERE namespace=? AND key=?',(namespace,key))
 
