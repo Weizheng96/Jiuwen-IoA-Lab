@@ -9,7 +9,7 @@ OPS=set(LABELS)|{op+'.result' for op in LABELS}|{'participant.activity','delegat
     'discovery.search','discovery.compared','message.queued','message.started','message.processing','message.completed','message.failed','message.unknown','message.audit',
     'order.proposed','order.signed','order.started','order.fetched','order.verified','order.accepted',
     'order.completed','order.client-terminated','order.arbitrated','identity.roles_changed'}
-FIELDS={'source','trust','evidenceTrust','messageId','interactionId','originMessageId','kind','protocolOp',
+FIELDS={'stale','source','trust','evidenceTrust','messageId','interactionId','originMessageId','kind','protocolOp',
     'assistant','provider','state','total','periods','formation','name','templates','external','username',
     'displayName','agentId','generation','targetId','interface','phase'}
 OUTCOMES={'ok','error','queued','delivered','processing','completed','failed','rejected','unknown','expired',

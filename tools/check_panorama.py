@@ -1,6 +1,7 @@
 """Offline browser regression: real admin DOM/renderer, no model, accounts or server API."""
 
 import json
+import re
 import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -28,7 +29,7 @@ def main():
             page.on("pageerror", lambda e: errors.append(str(e)))
             for script in ("admin.js", "admin_messages.js"):
                 page.route(
-                    "**/static/" + script,
+                    re.compile(r'.*/static/'+re.escape(script)+r'(?:\?.*)?$'),
                     lambda route: route.fulfill(status=200, body=""),
                 )
             page.clock.install(time=0)
@@ -67,11 +68,17 @@ def main():
             page.keyboard.press("Escape")
             assert page.locator("#mapInfo").is_hidden()
             page.evaluate(
-                "Panorama.restore([{assistant:'assistant-a',provider:'service',cd:'sha256:closed',state:'已结清',sigs:{1:true,2:true,3:true,4:[true],5:[true],6:[true],7:[true]}}])"
+                "Panorama.restore([{assistant:'assistant-a',provider:'service',cd:'sha256:closed',state:'已结清',events:[],sigs:{1:true,2:true,3:true,4:[true],5:[true],6:[true],7:[true]}}])"
             )
             assert (
                 page.locator("#pnWires > *").count() == 0
             ), "Closed history must never create a persistent connection"
+            page.evaluate("Panorama.apply({seq:998,op:'order.started',sender:'assistant-a',cardDigest:'sha256:closed',detail:{stale:true,evidenceTrust:'verified',signatures:{1:true,4:[],5:[],6:[],7:[]}}})")
+            page.clock.run_for(250)
+            page.evaluate("Panorama.tick(Clock.now())")
+            assert page.evaluate("Panorama.N.asst['assistant-a'].state") == "已结清 ✓"
+            assert page.locator("#pnWires > *").count() == 0
+            assert "迟报" in page.locator("#pnLogRows").inner_text()
             page.evaluate(
                 "cases.byCard['sha256:second']={assistant:'assistant-b',provider:'service'};Panorama.apply({seq:1,op:'delivery.anchor',sender:'service',receiver:'market',cardDigest:'sha256:second',detail:{}})"
             )
@@ -141,7 +148,7 @@ def main():
                         "equal widths",
                         "protocol component focus",
                         "observer hidden",
-                        "closed history has no wires",
+                        "closed history has no wires", "late reports preserve closed state and show no wires",
                         "queue does not fabricate delivery",
                         "processing draws receive",
                         "zero residual paths",

@@ -14,7 +14,7 @@ const Panorama = (() => {
   const Anims = [], Timers = [];
   const flowStats={delegation:0,p2p:0,other:0};let eventFamily='other',eventInitiator='';
   const logRows=[],logSeen=new Set();let logPaused=false,logDirty=false,logPaintAt=0;
-  const logLabels={'discovery.search':'发现服务','order.proposed':'收到合约卡草案','order.signed':'确认合同','work.start':'开始履约','delivery.anchor':'交付存证','delivery.fetch':'获取交付','order.verified':'本地验收','order.accepted':'确认验收','transfer':'虚拟币付款','reputation.append':'记录信誉','message.queued':'发送消息','message.processing':'收取消息','message.completed':'处理完成','message.rejected':'处理拒绝'};
+  const logLabels={'order.started':'开工报告','discovery.search':'发现服务','order.proposed':'收到合约卡草案','order.signed':'确认合同','work.start':'开始履约','delivery.anchor':'交付存证','delivery.fetch':'获取交付','order.verified':'本地验收','order.accepted':'确认验收','transfer':'虚拟币付款','reputation.append':'记录信誉','message.queued':'发送消息','message.processing':'收取消息','message.completed':'处理完成','message.rejected':'处理拒绝'};
   function ensureLog(){
     if($('pnLog'))return;
     const box=document.createElement('aside');box.id='pnLog';box.className='pn-log';
@@ -34,7 +34,7 @@ const Panorama = (() => {
     const key=ev.seq??('event-'+logRows.length),at=Number(ev.at)||Date.now()/1000;
     const who=ev.op.startsWith('message.')?Names.of(ev.op==='message.queued'?ev.sender:ev.receiver):A?Names.of(A.id):Names.of(ev.sender||'market');
     const extra=ev.op.startsWith('message.')?NetworkMap.messageLabel(ev.detail?.interface||''):ev.cardDigest?ev.cardDigest.slice(-10):'';
-    logRows.push({key,family:eventFamily,time:new Date(at*1000).toLocaleTimeString('zh-CN',{hour12:false,timeZone:'Asia/Shanghai'}),text:who+' · '+action+(extra?' · '+extra:'')});logSeen.add(key);
+    logRows.push({key,family:eventFamily,time:new Date(at*1000).toLocaleTimeString('zh-CN',{hour12:false,timeZone:'Asia/Shanghai'}),text:who+' · '+(ev.detail?.stale?'迟报 · ':'')+action+(extra?' · '+extra:'')});logSeen.add(key);
     if(logRows.length>200)logSeen.delete(logRows.shift().key);
     logDirty=true;
   }
@@ -160,6 +160,7 @@ const Panorama = (() => {
     quiet = !money_;                                               // 历史事件：只恢复状态，不画脉冲、不闪
     const cardCase=ev.cardDigest&&cases.byCard[ev.cardDigest];
     const A = (cardCase&&N.asst[cardCase.assistant]) || N.asst[s] || N.asst[r] || N.asst[d.assistant] || (N.byUser[s] && N.asst[N.byUser[s]]) || (N.byUser[r] && N.asst[N.byUser[r]]) || null;
+    if(d.stale){recordLog(ev,A);quiet=false;eventFamily='other';return;}
     if(d.evidenceTrust==='verified'&&d.signatures&&d.source!=='resident'){
       if(d.signatures['5']?.some(Boolean)&&ev.cardDigest)anchoredCards.add(ev.cardDigest);
       if(A)Object.entries(d.signatures).forEach(([k,value])=>sig(A,k,Array.isArray(value)?value.some(Boolean):!!value));

@@ -3,6 +3,7 @@ from a2c.card import card_digest
 from a2c.errors import CARD_INVALID, fail
 from a2c.slots import verify_card
 from .store import jdump, jload, now
+from .observation.contracts import extends
 
 
 def party(platform, uid, card):
@@ -50,24 +51,23 @@ def observe(platform, uid, body):
         if card:
             old = conn.execute("SELECT detail,state FROM orders WHERE card_digest=?", (cd,)).fetchone()
             oldcard = jload(old["detail"]).get("card") if old else None
-            def count(value):
-                return {k: sum(bool(x) for x in v) if isinstance(v, list) else int(bool(v)) for k, v in value["signatures"].items()}
-            counts = count(card)
-            stale = bool(oldcard and any(counts[k] < n for k, n in count(oldcard).items()))
+            stale = bool(oldcard and not extends(oldcard,card))
+            if stale and not extends(card,oldcard):
+                fail(CARD_INVALID,'Observation signature chain conflicts with the original contract snapshot')
+            state = "started" if card["fulfillment"].get("receipt") else "forming"
+            ended = platform.market.market.store.get("ledger", cd)
+            if ended:
+                state = ended.get("outcome", state)
+            elif old and old["state"] in ("completed", "arbitrated", "client-terminated"):
+                state = old["state"]
+            evidence={'assistant':client['id'],'provider':card['provider'],'state':state,
+                      'signatures':{k:[bool(x) for x in v] if isinstance(v,list) else bool(v) for k,v in card['signatures'].items()},
+                      'total':str(card['derived']['total']),'periods':len(card['derived']['periods']),'formation':template['formation']}
             if not stale:
-                state = "started" if card["fulfillment"].get("receipt") else "forming"
-                ended = platform.market.market.store.get("ledger", cd)
-                if ended:
-                    state = ended.get("outcome", state)
-                elif old and old["state"] in ("completed", "arbitrated", "client-terminated"):
-                    state = old["state"]
                 conn.execute("INSERT INTO orders (card_digest,need_id,owner_id,assistant_id,provider_id,template_digest,formation,total,state,phase,created,updated,detail) "
                              "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(card_digest) DO UPDATE SET state=excluded.state,phase=excluded.phase,updated=excluded.updated,detail=excluded.detail",
                              (cd, None, client["owner_id"], client["id"], card["provider"], card["templateDigest"], template["formation"],
                               str(card["derived"]["total"]), state, op, now(), now(), jdump({"card": card, "source": source, "trust": "verified"})))
-                evidence={'assistant':client['id'],'provider':card['provider'],'state':state,
-                          'signatures':{k:[bool(x) for x in v] if isinstance(v,list) else bool(v) for k,v in card['signatures'].items()},
-                          'total':str(card['derived']['total']),'periods':len(card['derived']['periods']),'formation':template['formation']}
         if source=='provider':
             service=platform._agent_of_provider(actor)
             meta=jload(service['meta']);meta['lastSeen']=now()
@@ -77,9 +77,10 @@ def observe(platform, uid, body):
                                    if isinstance(data.get(k),int) and data[k]>=0}
             conn.execute('UPDATE agents SET meta=? WHERE id=?',(jdump(meta),service['id']))
         conn.execute("INSERT INTO observations (id,owner_id,at) VALUES (?,?,?)", (eid, uid, now()))
-    if not stale:
-        platform.bus.emit("observation", op, sender=actor, receiver=card.get("provider", "") if card and source != "provider" else "",
-                          card_digest=cd,period=body.get('detail',{}).get('period'),outcome=str(body.get('detail',{}).get('status','')),
-                          detail={"source": source, "trust": "reported", "evidenceTrust":"verified" if card else None,
-                                  **evidence,"data": body.get("detail", {})})
+        event=platform.bus.record_in(conn,"observation",op,sender=actor,
+                    receiver=card.get("provider", "") if card and source != "provider" else "",
+                    card_digest=cd,period=body.get('detail',{}).get('period'),outcome=str(body.get('detail',{}).get('status','')),
+                    detail={"source":source,"trust":"reported","evidenceTrust":"verified" if card else None,
+                            **evidence,"stale":stale,"data":body.get("detail",{})})
+    platform.bus.publish(event)
     return {"ok": True, "stale": stale}

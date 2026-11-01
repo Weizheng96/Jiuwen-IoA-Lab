@@ -231,7 +231,7 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/admin/runs")
     async def runs(_: str = Depends(require_admin)):
-        return [p.name for p in sorted((s.data / "runs").iterdir()) if p.is_dir()]
+        return sorted({platform.bus.run_id,*[row['run_id'] for row in platform.db.rows('SELECT DISTINCT run_id FROM events')]})
 
     @app.get("/api/admin/orders")
     async def admin_orders(_: str = Depends(require_admin)):
@@ -336,10 +336,10 @@ def create_app(platform: Platform) -> FastAPI:
     async def replay(run: str, _: str = Depends(require_admin)):
         if Path(run).name != run or run in (".", ".."):
             raise HTTPException(400)
-        p = s.data / "runs" / run / "events.jsonl"
-        if not p.exists():
-            raise HTTPException(404)
-        return [event_view(json.loads(l)) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+        rows=platform.db.rows('SELECT * FROM events WHERE run_id=? ORDER BY seq',run)
+        if not rows and run!=platform.bus.run_id:raise HTTPException(404)
+        for row in rows:row['detail']=jload(row['detail'])
+        return [event_view(row) for row in rows]
 
     @app.websocket("/ws/admin")
     async def ws_admin(ws: WebSocket):

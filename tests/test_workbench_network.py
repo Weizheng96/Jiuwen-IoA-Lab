@@ -10,14 +10,20 @@ def test_personal_network_does_not_disclose_other_activity(platform,client,local
     other=new_user(platform)
     marker='another-users-private-search'
     platform.bus.emit('observation','discovery.search',sender=other['id'],detail={'query':marker})
-    local_client.observe('discovery.compared',reason='OWN-PRIVATE-COMPARISON')
+    local_client.observe('discovery.compared',reason='OWN-PRIVATE-COMPARISON',stale='UNTRUSTED-STALE-FLAG')
+    platform.bus.emit('observation','order.started',sender=local_client.signer.id,
+                      detail={'stale':True,'query':'OWN-PRIVATE-LATE-REPORT'})
     response=client.get('/api/workbench',headers={'Authorization':'Bearer '+local_client.token})
     assert response.status_code==200
     data=response.json()
     assert marker not in response.text and other['id'] not in response.text
     assert 'OWN-PRIVATE-COMPARISON' not in response.text  # no raw reported detail
     assert any(e['op']=='discovery.compared' for e in data['events'])
-    assert all(set(e)<={'seq','at','op','card_digest','period','outcome','source','trust'} for e in data['events'])
+    assert all(set(e)<={'seq','at','op','card_digest','period','outcome','source','trust','stale'} for e in data['events'])
+    assert all(type(e['stale']) is bool for e in data['events'])
+    assert next(e for e in data['events'] if e['op']=='discovery.compared')['stale'] is False
+    assert next(e for e in data['events'] if e['op']=='order.started')['stale'] is True
+    assert 'UNTRUSTED-STALE-FLAG' not in response.text and 'OWN-PRIVATE-LATE-REPORT' not in response.text
     catalog=client.get('/api/catalog',headers={'Authorization':'Bearer '+local_client.token}).json()
     assert all(set(s)=={'id','name','status','category','description','url','published','indexReady','connected','templateAvailable','accepting','activeDelegations','maxActiveDelegations'} for s in catalog)
 

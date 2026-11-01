@@ -1,0 +1,99 @@
+{
+  "status": "passed",
+  "scope": "Delayed verified observations, original database history and installed bootstrap administrator probe",
+  "fullGates": {
+    "passed": 753,
+    "skipped": 31,
+    "frozenInputs": 739,
+    "unchangedCodeInputs": true,
+    "seconds": 1647.72
+  },
+  "windowsInstalled": {
+    "bootstrapAdministrator": {
+      "cookieChannel": true,
+      "explicitSeed": true,
+      "internalAccounts": 10
+    },
+    "administratorPackage": {
+      "installedModule": true,
+      "packagedPresets": true,
+      "missingMailDisablesMeeting": true,
+      "entryPointPresent": true,
+      "windowsCannotInvokeLinuxRootPreparation": true
+    },
+    "HTTPAndWebSocketRegression": {
+      "realHTTP": true,
+      "realWebSocket": true,
+      "sameIdentityAfterRestart": true,
+      "sameCreditAfterRestart": true,
+      "releasedOriginalWriter": true,
+      "threeBoots": [
+        "bb99b413-c39e-4296-a885-ffeba7dc2ac0",
+        "573f6b71-5d4d-44c8-a9d0-bc1610ee0f9c",
+        "aabfceed-5efc-418a-9be8-9f90d40647a8"
+      ],
+      "explicitLoginRecovery": true,
+      "reauthenticationCreditedOnce": true
+    }
+  },
+  "sourceAndBothTargetWheelPayloads": {
+    "src/platform/ioalab/events.py": "9ad4f680500fb140c0be0030c9503693bb6fe331bc91ddfe3010fcb664a90cff",
+    "src/platform/ioalab/observation/contracts.py": "deb11ee460a0496239a93e246a01b32302271d7c01e8a1d6b006b95d9ab5d0b7",
+    "src/platform/ioalab/observation/events.py": "cb1107399ca8ce333a64e246f60142fbbef362c60b9c2d89fc3d14f8653592d8",
+    "src/platform/ioalab/participants.py": "4b68cf1eab33455790d245bcbbb79071d4bf91b4ae3831a4f1d359409e20dafa",
+    "src/platform/ioalab/web/app.py": "f051d0328e15eedb5753797f52c5e06b37ba544ac2375b43d17b417b224a5463",
+    "src/platform/ioalab/web/workbench.py": "dc49ecaddc31378186eaeb673cd73912ef80af29a816f31370e09e2e53a63132",
+    "src/platform/ioalab/web/static/admin.html": "e75609278b50f6ae1d30493daeb5f7e901a34180efbbfa9d1f2feeedd04df409",
+    "src/platform/ioalab/web/static/index.html": "cd1034275a9ba4ea33f4e345de7712308390b9e54cdf737c5f2bccea1c5b5164",
+    "src/platform/ioalab/web/static/network.js": "f17a7487faad11db06f5a9292e43aaf91112e00a7b4292386f2148309b31acb2",
+    "src/platform/ioalab/web/static/panorama.js": "ed6dfe751320e1ad8fc3c3e95c9b89cee9f7d82d3ae4989d1462eef618789e93"
+  },
+  "targetReleases": {
+    "windows-x86_64": "dccf15a845d9689de9d189f135ff8731375305f0c7576be36669670abbc96fb3",
+    "linux-x86_64": "aad66cbbe1f68bd11f135a25a108001c9b563d932ad37fb3194601d257294d6c"
+  },
+  "offlineBrowser": {
+    "actualRenderer": true,
+    "checks": [
+      "equal widths",
+      "protocol component focus",
+      "observer hidden",
+      "closed history has no wires",
+      "late reports preserve closed state and show no wires",
+      "queue does not fabricate delivery",
+      "processing draws receive",
+      "zero residual paths"
+    ],
+    "usesUserBrowser": false
+  },
+  "verified": {
+    "signedDeliveryBeforeClientStartReport": true,
+    "lateHistoryRetainedWithoutProjectionRegression": true,
+    "sameEventIDRetainsOneHistoryRow": true,
+    "acknowledgementAndEventRollbackTogether": true,
+    "publicationFailureDoesNotLoseCommittedHistory": true,
+    "databaseReplayWithoutJSONL": true,
+    "missingOrReplacedReceiptCannotRegressSnapshot": true,
+    "sameLengthSignatureForkNotAnExtension": true,
+    "closedNodeNotReopenedOrAnimatedByLateReport": true,
+    "workbenchStaleIsBooleanAndReportedDetailRemainsPrivate": true,
+    "bootstrapCookieDoesNotCreateOrCreditAnAdminUser": true
+  },
+  "linux": {
+    "previousRun": 41288401944,
+    "previousConclusion": "failure",
+    "previousRegression": "Verified older snapshot incorrectly discarded its first report",
+    "previousDeploymentProbe": "Bootstrap administrator incorrectly attempted ordinary user login",
+    "newSourceNeedsPublishedLinuxCI": true
+  },
+  "callsModel": false,
+  "sendsMail": false,
+  "notProven": [
+    "Native owner confirmation or new browser connection",
+    "Complete default installation or systemd upgrade",
+    "Default assistant live model and web delivery",
+    "Complete ordinary native UI tutorial",
+    "Four new films",
+    "Later operations assistant and final README"
+  ]
+}

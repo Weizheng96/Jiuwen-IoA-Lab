@@ -47,14 +47,31 @@ class EventBus:
 
     def emit(self, kind: str, op: str, *, sender: str = "", receiver: str = "", card_digest: str | None = None,
              period: int | None = None, amount: Any = None, outcome: str = "", detail: Mapping[str, Any] | None = None) -> dict:
-        at = time.time()
+        event = self._record(lambda sql, values: self.db.run(sql, *values), kind, op,
+                             sender=sender, receiver=receiver, card_digest=card_digest,
+                             period=period, amount=amount, outcome=outcome, detail=detail)
+        return self.publish(event)
+
+    def record_in(self, connection, kind, op, **kwargs):
+        """Record with its original domain transaction; caller publishes after commit."""
+        if connection is not self.db.conn or not connection.in_transaction:
+            raise RuntimeError('An original application transaction is required for this event')
+        return self._record(connection.execute, kind, op, **kwargs)
+
+    def _record(self, insert, kind, op, *, sender='', receiver='', card_digest=None,
+                period=None, amount=None, outcome='', detail=None):
+        at, run = time.time(), self.run_id
         d = {k: v for k, v in dict(detail or {}).items() if v is not None}
-        cur = self.db.run("INSERT INTO events (at, run_id, kind, op, sender, receiver, card_digest, period, amount, outcome, detail) "
-                          "VALUES (?,?,?,?,?,?,?,?,?,?,?)", at, self.run_id, kind, op, sender, receiver, card_digest, period,
-                          None if amount is None else str(amount), outcome, jdump(d))
-        ev = {"seq": cur.lastrowid, "at": at, "run": self.run_id, "kind": kind, "op": op, "label": LABELS.get(op, op),
+        cur = insert("INSERT INTO events (at, run_id, kind, op, sender, receiver, card_digest, period, amount, outcome, detail) "
+                     "VALUES (?,?,?,?,?,?,?,?,?,?,?)", (at, run, kind, op, sender, receiver, card_digest, period,
+                     None if amount is None else str(amount), outcome, jdump(d)))
+        ev = {"seq": cur.lastrowid, "at": at, "run": run, "kind": kind, "op": op, "label": LABELS.get(op, op),
               "sender": sender, "receiver": receiver, "cardDigest": card_digest, "period": period,
               "amount": None if amount is None else str(amount), "outcome": outcome, "detail": d}
+        return ev
+
+    def publish(self, ev):
+        """Publish an already persisted event; never insert a second history row."""
         with self.lock:
             self.buffer.append(ev)
             if self._file is None:

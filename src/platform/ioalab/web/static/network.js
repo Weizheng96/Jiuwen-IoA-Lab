@@ -77,7 +77,7 @@ window.IoaNetwork = (() => {
   function ownEvents(){
     const events=latest.events||[];
     if(lastSeq!==null){
-      events.filter(e=>e.seq>lastSeq).forEach(e=>{
+      events.filter(e=>e.seq>lastSeq&&!e.stale).forEach(e=>{
         const op=e.op,a=el('assistant'),provider=latest.orders.find(o=>o.card_digest===e.card_digest)?.provider_id;
         const main=latest.orders.find(o=>o.card_digest===selectedOrder)||latest.orders[0];
         const s=provider&&provider!==main?.provider_id?[...document.querySelectorAll('[data-provider-url]')].find(n=>n.dataset.providerUrl===provider)||el('service'):el('service');

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from decimal import Decimal
+from http.cookiejar import CookieJar
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ import socket
 import subprocess
 import sys
 import time
-from urllib.request import Request, build_opener, ProxyHandler
+from urllib.request import Request, build_opener, ProxyHandler, HTTPCookieProcessor
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,22 @@ def http(base, path, body=None, *, cookie=None):
     if cookie: request.add_header('Cookie', cookie)
     with build_opener(ProxyHandler({})).open(request, timeout=5) as response:
         return json.load(response)
+
+
+
+def seed_accounts(base, password):
+    """Bootstrap administrator is a separate cookie channel, not a user account."""
+    cookies = CookieJar()
+    opener = build_opener(ProxyHandler({}), HTTPCookieProcessor(cookies))
+    def post(path, value):
+        request = Request(base + path, data=json.dumps(value).encode('utf-8'),
+                          headers={'Content-Type':'application/json'})
+        with opener.open(request, timeout=15) as response:
+            return json.load(response)
+    post('/api/admin/login', {'password':password})
+    if not any(cookie.name == 'ioalab_session' for cookie in cookies):
+        raise RuntimeError('Bootstrap administrator did not receive its required session cookie')
+    return post('/api/admin/seed', {})
 
 
 def rpc(python, home, operation, arguments=None):
@@ -152,8 +169,7 @@ with Lease(Path(sys.argv[1])/'client.lock',timeout=0):pass
 '''
             run([sdk_python, '-I', '-c', code, home], cwd=layout.state, log=layout.private/'released.log')
             # Explicit isolated seeding: the core never runs an internal assistant.
-            administrator=http(base,'/api/auth/login',{'username':'admin','password':'isolated-verification-password'})
-            seeded=http(base,'/api/admin/seed',{},cookie='ioalab_session='+administrator['token'])
+            seeded=seed_accounts(base,'isolated-verification-password')
             assert seeded['isc']>=1
             command=[str(sdk_python),'-I',str(ROOT/'experiments/verify_admin_assistant.py'),
                      '--output',str(layout.state/'admin-preset-probe'),

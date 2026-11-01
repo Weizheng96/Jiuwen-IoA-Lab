@@ -23,6 +23,8 @@ def fingerprint(value):return hashlib.sha256(value.encode('utf-8')).hexdigest()
 
 
 def extends(previous,current):
+    receipt=previous.get('fulfillment',{}).get('receipt')
+    if receipt and current.get('fulfillment',{}).get('receipt')!=receipt:return False
     for key,old in previous['signatures'].items():
         new=current['signatures'][key]
         if isinstance(old,list):

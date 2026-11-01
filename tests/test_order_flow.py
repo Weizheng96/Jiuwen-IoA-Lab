@@ -21,3 +21,30 @@ def test_order_flow(platform,providers,local_client):
     assert view['state']=='completed' and view['signatures']['7']==[True]
     assert [e['seq'] for e in view['events']]==sorted(e['seq'] for e in view['events'])
     assert {'order.started','order.fetched','order.verified','order.accepted'}<={e['op'] for e in view['events']}
+
+
+def test_delayed_start_observation_preserves_history_without_reverting_verified_card(platform,providers,local_client,monkeypatch):
+    from copy import deepcopy
+    original=local_client.observe
+    delayed=[]
+    def later(op,cd=None,**detail):
+        if op=='order.started':
+            # The provider can report its signed delivery before the client's
+            # receipt snapshot reaches the core. Wait for that real report.
+            wait_for(lambda:platform.order_detail(cd)['card']['signatures']['4'])
+            before=deepcopy(platform.order_detail(cd)['card'])
+            assert before['signatures']['4']
+            original(op,cd,**detail)
+            after=platform.order_detail(cd)['card']
+            assert after['signatures']['4']==before['signatures']['4']
+            events=platform.order_detail(cd)['events']
+            matching=[e for e in events if e['op']=='order.started']
+            assert len(matching)==1
+            from ioalab.store import jload
+            assert jload(matching[0]['detail'])['stale'] is True
+            delayed.append(cd)
+        else:original(op,cd,**detail)
+    monkeypatch.setattr(local_client,'observe',later)
+    definition=providers.selected[0]
+    result=run_order(local_client,definition,providers.public_url+'/a2a/providers/svc-'+definition['id'])
+    assert delayed==[result['cardDigest']]

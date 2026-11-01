@@ -32,7 +32,7 @@ def build_router(platform,current_user,require_admin,require_auditor):
             row['detail']=jload(row['detail']);event=event_view(row)
             safe.append({'seq':event['seq'],'at':event['at'],'op':event['op'],'card_digest':event['cardDigest'],
                 'period':event['period'],'outcome':event['outcome'],'source':event['detail'].get('source','platform'),
-                'trust':event['detail'].get('trust','platform')})
+                'trust':event['detail'].get('trust','platform'),'stale':bool(event['detail'].get('stale',False))})
         return {'account':account,'roles':platform.auth.roles(uid),'wallet':str(platform.wallets.balance(uid)),
             'identities':platform.db.rows('SELECT id,name,role,status FROM agents WHERE owner_id=?',uid),
             'orders':[row for row in contracts if row['owner_id']==uid],
