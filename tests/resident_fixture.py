@@ -1,5 +1,6 @@
 """Explicit test assembly for a real resident process; never installed as a product."""
 import os
+import signal
 from pathlib import Path
 import sys
 import time
@@ -24,7 +25,10 @@ def main():
         value=runtime.scheduler.submit(runtime.identities[0].agent_id,args['interaction'],'fixture',args.get('payload',{}),
                     operation_id=operation,session=args.get('session'))
         return {'status':'accepted' if value['status']=='queued' else value['status'],'data':value}
-    runtime=ResidentRuntime(RuntimeConfig.load(sys.argv[1]),operations={'test.enqueue':enqueue},
+    def request_signal(runtime,operation,args):
+        signal.raise_signal(signal.SIGTERM)
+        return {'status':'accepted','data':{'signalRequested':True}}
+    runtime=ResidentRuntime(RuntimeConfig.load(sys.argv[1]),operations={'test.enqueue':enqueue,'test.signal':request_signal},
                             jobs={'fixture':JobHandler(work,'fixture-v1')})
     try:runtime.run()
     finally:runtime.close()

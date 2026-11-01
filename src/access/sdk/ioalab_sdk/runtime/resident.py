@@ -1,5 +1,6 @@
 """Single local owner. Host and role operations are injected by the assembly entry."""
 import os
+import signal
 import threading
 import time
 
@@ -57,7 +58,7 @@ class ResidentRuntime:
                 job_handlers.update(registration.get('jobs',{}))
                 self.ready_profiles.update(registration.get('profiles',()))
             self.scheduler=Scheduler(self.store,job_handlers,max_models=config.max_model_runs,max_pending=config.max_pending_requests,
-                                     can_dispatch=lambda:self.connection.connected)
+                                     can_dispatch=lambda:self.connection.connected and not self.stop_requested.is_set())
             self.connection.on_delivery=self._wake_roles
             self.user_ui=UserUi(self.confirmations,browser=config.user_browser)
             self.ipc=IpcServer(config.home,self.store.runtime_id,self.call,user_ui=self.user_ui)
@@ -158,9 +159,21 @@ class ResidentRuntime:
             return {'operationId':operation_id,'status':'unknown' if exc.code=='unknown_result' else 'rejected','data':None,'error':public_error(exc)}
 
     def run(self):
-        self.start()
-        while not (self.stop_requested.is_set() and self.scheduler.idle):
-            time.sleep(.1)
+        previous={}
+        try:
+            if threading.current_thread() is threading.main_thread():
+                for sig in (signal.SIGINT,signal.SIGTERM):
+                    previous[sig]=signal.signal(sig,lambda *_:self.stop_requested.set())
+            self.start()
+            while True:
+                if self.stop_requested.is_set():
+                    self.scheduler.drain()
+                    if self.scheduler.idle:break
+                time.sleep(.1)
+        finally:
+            try:self.close()
+            finally:
+                for sig,handler in previous.items():signal.signal(sig,handler)
 
     def close(self):
         if self._closed:return

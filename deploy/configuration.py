@@ -48,8 +48,66 @@ def model(value):
             'api_key': text(value['api_key'], 'model.api_key'), 'provider': 'OpenAI'}
 
 
+def mailbox(value, field):
+    import re
+    value = text(value, field)
+    if len(value) > 254 or not re.fullmatch(r'[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+', value):
+        raise ValueError('Invalid deployment mailbox: ' + field)
+    return value
+
+
+def notification(value, *, mode):
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError('Use an explicit notification object or null')
+    transport = value.get('transport')
+    allowed = {'transport', 'sender', 'api_key'} if transport == 'agentmail' else {'transport', 'sender', 'host', 'port', 'username', 'password'}
+    if set(value) - allowed or transport not in ('agentmail', 'smtp', 'smtp-capture'):
+        raise ValueError('Choose an explicit AgentMail or SMTP notification transport')
+    if transport == 'smtp-capture' and mode != 'dev':
+        raise ValueError('SMTP capture is only available in explicit development mode')
+    result = {'transport': transport, 'sender': mailbox(value.get('sender'), 'notification.sender')}
+    if transport == 'agentmail':
+        result['api_key'] = text(value.get('api_key'), 'notification.api_key')
+    else:
+        host = text(value.get('host'), 'notification.host')
+        if any(c.isspace() for c in host) or any(c in host for c in '/\\@?#'):
+            raise ValueError('Use a notification host name, without a URL or credentials')
+        result.update(host=host, port=integer(value.get('port', 587), 'notification.port', 1, 65535),
+                      username=value.get('username', ''), password=value.get('password', ''))
+        if not isinstance(result['username'], str) or not isinstance(result['password'], str) or bool(result['username']) != bool(result['password']):
+            raise ValueError('SMTP authentication requires both username and password')
+        for field in ('username', 'password'):
+            if result[field]: text(result[field], 'notification.' + field)
+        if transport == 'smtp-capture' and host not in ('localhost', '127.0.0.1', '::1'):
+            raise ValueError('SMTP capture must use a loopback receiver')
+    return result
+
+
+def admin_assistant(value, *, mode):
+    value = {} if value is None else value
+    if not isinstance(value, dict) or set(value) - {'enabled', 'recipient', 'notification'} or type(value.get('enabled', True)) is not bool:
+        raise ValueError('Use the documented administrator assistant configuration')
+    return {'enabled': value.get('enabled', True),
+            'recipient': mailbox(value.get('recipient', 'zhengw.cc@outlook.com'), 'admin_assistant.recipient'),
+            'notification': notification(value.get('notification'), mode=mode)}
+
+
+def swarm_ports(value, core_port):
+    result = {'agent_server': 18902, 'gateway': 18900, 'web': 18901, 'frontend': 18753}
+    if value is not None:
+        if not isinstance(value, dict) or set(value) - set(result):
+            raise ValueError('Use the four documented Swarm port names')
+        result.update(value)
+    for key, port in result.items(): integer(port, 'swarm_ports.' + key, 1, 65535)
+    if len(set(result.values())) != 4 or core_port in result.values():
+        raise ValueError('Swarm ports must be distinct from each other and the core port')
+    return result
+
+
 def validate(value):
-    allowed = {'public_url', 'bind', 'port', 'mode', 'pypi_index', 'model', 'admin_password', 'max_model_runs', 'isc_count'}
+    allowed = {'public_url', 'bind', 'port', 'mode', 'pypi_index', 'model', 'admin_password', 'max_model_runs', 'isc_count', 'admin_assistant', 'swarm_ports'}
     if not isinstance(value, dict) or 'public_url' not in value or set(value) - allowed:
         raise ValueError('Use the documented deployment JSON fields')
     result = {'public_url': url(value['public_url'], 'public_url', root=True),
@@ -74,6 +132,8 @@ def validate(value):
             raise ValueError('Trial administrator password requires at least 12 characters')
     elif not isinstance(result['admin_password'], str):
         raise ValueError('Invalid deployment field: admin_password')
+    result['admin_assistant'] = admin_assistant(value.get('admin_assistant'), mode=result['mode'])
+    result['swarm_ports'] = swarm_ports(value.get('swarm_ports'), result['port'])
     return result
 
 

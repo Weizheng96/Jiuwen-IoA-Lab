@@ -223,3 +223,16 @@ def test_process_input_uses_stdin_and_error_does_not_echo_secrets(installed, tmp
     assert MODEL['api_key'] not in str(error.value) + str(calls[0][0])
     assert json.loads(calls[0][1]['input']) == MODEL
     assert not list(workspace.home.iterdir())
+
+
+def test_venv_python_link_keeps_its_own_installation_prefix(installed,tmp_path):
+    import sys
+    installed.unlink()
+    try:installed.symlink_to(sys.executable)
+    except OSError as exc:
+        if os.name=='nt' and exc.winerror==1314:
+            pytest.skip('No Windows symlink privilege; Linux CI exercises original venv links')
+        raise
+    instance=Workspace(installed,tmp_path/'owned-workspace',uuid.uuid4().hex)
+    assert instance.installation_id==digest({'unit':'swarm','fixture':1})
+    assert instance.python==installed

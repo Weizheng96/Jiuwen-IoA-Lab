@@ -1,0 +1,43 @@
+{
+  "status": "passed",
+  "scope": "Deployment prerequisites, SDK signal drain and bound-address reachability",
+  "fullGates": {
+    "passed": 707,
+    "skipped": 31,
+    "frozenInputs": 723,
+    "unchangedInputs": true,
+    "seconds": 1508.09
+  },
+  "windows": {
+    "isolatedBuilder": true,
+    "installedCoreAndParticipant": true,
+    "HTTP": true,
+    "WebSocket": true,
+    "identityPreservedOnRestart": true,
+    "noRepeatedLoginCredit": true,
+    "executionWriterReleased": true
+  },
+  "releases": {
+    "windows-x86_64": "15fd9d00b5203c042f0b99390fab514720935cf04e6b1df7a6cde3aaa78e63bb",
+    "linux-x86_64": "df9ecabc967308af8b3704812623f98f974228cb2294679eb4a0e1af0772f55e"
+  },
+  "installedEnvironmentIds": {
+    "core": "51740b2648872e9894d8ad3f575c048552b6b502fec9018d945882ed52878161",
+    "participant": "b6ae972a9e8feb5329bba9ca48d7a9457cf500a530c0e7f1cedc4b8e220d0bca"
+  },
+  "sourceAndWheelPayloads": {
+    "src/platform/ioalab/config.py": "cd30f7620a2041203824f30bf9185413ef5ba43da164375f54c8f5b7277bf15c",
+    "src/access/sdk/ioalab_sdk/runtime/resident.py": "9386b77afe893c47468619697f2c6a96d0aeedbd0ba2fb920296b066b9799ea5"
+  },
+  "linux": {
+    "realInstallJob": "deployment",
+    "localRecordDoesNotProveLinuxInstallation": true,
+    "symbolicLinkAndPOSIXSignalChecks": "Separate Linux CI evidence; local Windows privilege skips are explicit"
+  },
+  "notYetVerified": [
+    "Complete default installer and systemd upgrade",
+    "Default administrator business presets"
+  ],
+  "callsProductionModel": false,
+  "sendsMail": false
+}

@@ -254,7 +254,7 @@ def test_process_crash_retains_unknown_effect_and_does_not_repeat_it(platform,tm
         original=local.call('test.enqueue',arguments,operation_id=operation)['data']['reference']
         wait_for(lambda:receipt.exists() and receipt.read_text(encoding='utf-8').strip()==original)
         assert query(local)['scheduler']['active']==1
-        os.kill(status['pid'],signal.SIGTERM)
+        child.kill()  # Deliberate abrupt crash; SIGTERM now requests a graceful drain.
         child.wait(timeout=10)
     with process(config,fixture=True) as (_,local,status):
         reference={'kind':'job','id':original}

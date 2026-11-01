@@ -11,15 +11,10 @@ import uuid
 from .configuration import load as load_configuration, model as validate_model
 from .environment import Environment, writer
 from .release import digest, linked, read_json
+from .processes import child_environment
 
 FORMAT = 'ioalab.owned-swarm/1'
 PHASES = {'initializing', 'workspace', 'awaiting_model', 'configuring', 'configured', 'ready'}
-OS_ENV = {'PATH', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP', 'USERPROFILE',
-          'HOME', 'APPDATA', 'LOCALAPPDATA', 'PROGRAMDATA', 'HOMEDRIVE', 'HOMEPATH',
-          'PROCESSOR_ARCHITECTURE', 'PROCESSOR_ARCHITEW6432', 'NUMBER_OF_PROCESSORS',
-          'USERNAME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
-          'REQUESTS_CA_BUNDLE', 'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY'}
-
 
 def path_without_links(value):
     path = Path(value).expanduser().absolute()
@@ -86,7 +81,7 @@ class Workspace:
         except (ValueError, TypeError, AttributeError):
             raise ValueError('Use a recorded deployment UUID in lowercase hex format') from None
         self.python = Path(python).absolute()
-        prefix = self.python.resolve().parent.parent
+        prefix = self.python.parent.parent.resolve()
         installation = read_json(prefix / 'deployment.json')
         if (installation.get('identity', {}).get('unit') != 'swarm'
                 or installation.get('environmentId') != digest(installation.get('identity'))
@@ -100,7 +95,7 @@ class Workspace:
         if not self.python.is_file() or not self.command.is_file():
             raise ValueError('The verified Swarm entry points are missing')
         self.owner = {'format': FORMAT, 'deploymentId': deployment_id, 'workspace': str(self.home)}
-        self.environment = {key: value for key, value in os.environ.items() if key.upper() in OS_ENV}
+        self.environment = child_environment()
         self.environment.update(PYTHONUTF8='1', PYTHONNOUSERSITE='1', JIUWENSWARM_DATA_DIR=str(self.home),
                                 JIUWENSWARM_CONFIG_DIR=str(self.home / 'config'))
 

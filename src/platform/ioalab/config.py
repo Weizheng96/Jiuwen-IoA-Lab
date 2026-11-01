@@ -75,8 +75,7 @@ class Settings:
     @property
     def public_url(self) -> str:
         """对外地址：参与方 id（市场 · 支付方 · 服务方 URL）、模板与 A2X 索引都内嵌它。首次 init 后不可改（Platform 校验）。"""
-        host = self.bind if self.bind not in ("0.0.0.0", "::", "") else "127.0.0.1"
-        return self.public_url_env or f"http://{host}:{self.port}"
+        return self.public_url_env or self.local_url
 
     @property
     def base_url(self) -> str:
@@ -84,8 +83,10 @@ class Settings:
 
     @property
     def local_url(self) -> str:
-        """进程内各参与方互相调用走回环（Nginx 后面不绕圈）。"""
-        return f"http://127.0.0.1:{self.port}"
+        """内部调用使用实际监听地址；通配监听转换为同地址族回环。"""
+        host = {"0.0.0.0": "127.0.0.1", "": "127.0.0.1", "::": "::1"}.get(self.bind, self.bind)
+        authority = f"[{host}]" if ":" in host else host
+        return f"http://{authority}:{self.port}"
 
     @property
     def welcome_credit(self) -> str:

@@ -14,6 +14,7 @@ import uuid
 import venv
 
 from .release import UNITS, current_target, digest, linked, load, pins, read_json, regular
+from .processes import child_environment
 
 
 def atomic(path, value):
@@ -55,13 +56,6 @@ def writer(path):
         os.close(descriptor)
 
 
-def worker_environment():
-    environment = {key: value for key, value in os.environ.items()
-                   if not key.upper().startswith(('PIP_', 'UV_', 'PYTHON'))}
-    environment.update(PYTHONUTF8='1', PYTHONNOUSERSITE='1', PIP_CONFIG_FILE=os.devnull)
-    return environment
-
-
 def mirror(value):
     url = urlsplit(value)
     if url.scheme != 'https' or not url.hostname or url.username or url.password or url.query or url.fragment:
@@ -71,7 +65,7 @@ def mirror(value):
 
 def execute(python, args, folder, log):
     with log.open('ab') as output:
-        subprocess.run([str(python), '-I', *map(str, args)], cwd=folder, env=worker_environment(),
+        subprocess.run([str(python), '-I', *map(str, args)], cwd=folder, env=child_environment(),
                        stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, check=True)
 
 
