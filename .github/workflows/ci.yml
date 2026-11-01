@@ -51,5 +51,8 @@ jobs:
           name: linux-installed-deployment
           path: |
             ${{ runner.temp }}/ioalab-deployment/report.json
-            ${{ runner.temp }}/ioalab-deployment/**/*.log
+            ${{ runner.temp }}/ioalab-deployment/state/.deployment/*.log
+            ${{ runner.temp }}/ioalab-deployment/runtime/build/*/*.log
+            ${{ runner.temp }}/ioalab-deployment/runtime/envs/*/*.log
+          include-hidden-files: true
           if-no-files-found: warn
