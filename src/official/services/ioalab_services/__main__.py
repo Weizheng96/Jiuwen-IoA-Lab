@@ -2,8 +2,6 @@
 import argparse
 import json
 import os
-import signal
-import threading
 from pathlib import Path
 
 from ioalab_sdk.runtime.protocol import RuntimeFault,configure_stdio
@@ -14,10 +12,12 @@ from .deployment import Deployment
 def main(argv=None):
     configure_stdio()
     parser=argparse.ArgumentParser(prog='ioalab-official')
-    parser.add_argument('command',choices=('prepare','authorize','serve','status'))
+    parser.add_argument('command',choices=('prepare','authorize','serve','status','stop'))
     parser.add_argument('--config',type=Path,required=True)
     parser.add_argument('--admin-password-env')
+    parser.add_argument('--wait-seconds',type=float)
     args=parser.parse_args(argv)
+    if args.wait_seconds is not None and (args.command!='stop' or not 0<=args.wait_seconds<=30):parser.error('--wait-seconds is only for stop and must be between zero and thirty')
     if (args.command=='authorize')!=bool(args.admin_password_env):parser.error('--admin-password-env is required only for authorize')
     try:
         deployment=Deployment(args.config)
@@ -30,25 +30,15 @@ def main(argv=None):
         elif args.command=='status':
             from .coordinator import status
             result=status(deployment)
+        elif args.command=='stop':
+            from .lifecycle import stop
+            result=stop(deployment,wait_seconds=args.wait_seconds or 0)
         else:
-            from .coordinator import tick,connected
+            from .lifecycle import serve
             environment=deployment.environment()
             os.environ.clear();os.environ.update(environment)
-            stop=threading.Event()
-            for sig in (signal.SIGINT,signal.SIGTERM):signal.signal(sig,lambda *_:stop.set())
-            with deployment.lock():
-                try:
-                    while not stop.is_set():
-                        print(json.dumps(tick(deployment),ensure_ascii=False),flush=True)
-                        stop.wait(60)
-                finally:
-                    for account in deployment.state(prepared=True)['accounts']:
-                        try:
-                            ipc,live=connected(deployment,account,launch=False)
-                            ipc.call('runtime.stop',{'bootId':live['bootId']})
-                        except RuntimeFault:pass
-            return 0
-        print(json.dumps(result,ensure_ascii=False));return 0
+            return serve(deployment)
+        print(json.dumps(result,ensure_ascii=False));return 0 if result['status']=='completed' else 2 if result['status']=='waiting' else 1
     except RuntimeFault as exc:
         print(json.dumps({'status':'rejected','error':public_error(exc)},ensure_ascii=False));return 1
     except Exception as exc:

@@ -55,7 +55,7 @@ IoA Lab SDK 是一个软件包，分为[个人助手端 SDK](个人助手端SDK.
 
 runtime.start同时核账号、非凭据配置摘要及installation；旧进程缺该信息、宿主装配不同、安装前缀或发布摘要改变，均返回installation_changed，要求显式安全停止后用原配置/数据目录启动。不能启动第二个写入者或删除状态来消除不兼容。
 
-产品技能/CLI的普通角色或业务调用先核当前受认证运行状态的installation，再将请求固定到同一bootId；核对后实例发生切换时返回instance_changed，不向新实例发送业务。runtime.status、identity.status、confirmations.get、operations.get、runtime.open_ui和runtime.stop保留为旧实例诊断及安全停止入口，不由此开放新的业务效果。停止仍绑定实际bootId。
+产品技能/CLI的普通角色或业务调用先核当前受认证运行状态的installation，再将请求固定到同一bootId；核对后实例发生切换时返回instance_changed，不向新实例发送业务。runtime.status、identity.status、confirmations.get、operations.get、runtime.open_ui和runtime.stop保留为旧实例诊断及安全停止入口，不由此开放新的业务效果。停止仍绑定实际bootId。runtime.stop的completed只表示调度器当前无活动作业，不证明IPC、连接和目录写入者已全部释放；升级方仍需核对对应目录的OS锁，不得以答复或描述符消失替代。排空期间，仅由调度器认证为当前运行中、未等待用户的原作业上下文可继续执行工具；上下文须属于本实例且仍在活动集合中，异步工具回调保留该上下文。队列、已结束、等待用户或其他实例的上下文不能取得许可；平台连接、原授权、工具范围和期限照常核验，不通过普通RPC提供排空豁免。
 
 未经过产品安装器的自管环境报告实际安装前缀、SDK及装配包版本，releaseId为空；不得冒充已核验发布。自管环境执行显式停止后升级，不支持对活跃进程原地热替换源码或依赖。安装信息只用于兼容核对，不代替身份认证、用户授权或工具权限。
 

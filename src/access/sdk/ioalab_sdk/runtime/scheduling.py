@@ -180,6 +180,15 @@ class Scheduler:
             return {'states':counts,'active':len(self._active),'draining':self._draining,'maxModelRuns':self.max_models,
                     'maxPendingRequests':self.max_pending,'waitingForUser':user_waits,'error':self.error}
 
+    def executing_current_job(self):
+        """Only an actually running callback may finish while this scheduler drains."""
+        current=CURRENT_JOB.get()
+        if not current or current[0] is not self:return False
+        with self._condition,self.store.lock:
+            if current[1] not in self._active:return False
+            row=self.store.db.execute('SELECT state,model_waiting FROM runtime_jobs WHERE id=?',(current[1],)).fetchone()
+            return bool(row and row['state']=='running' and not row['model_waiting'])
+
     def require_model(self,actor,interaction):
         current=CURRENT_JOB.get()
         if not current or current[0] is not self:raise RuntimeFault('forbidden','Model observations require the current local model job')

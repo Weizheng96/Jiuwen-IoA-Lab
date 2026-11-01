@@ -76,7 +76,7 @@ class ResidentRuntime:
         for module in self.modules:module.wake()
 
     def require_execution(self):
-        if not self.connection.connected or self.stop_requested.is_set():
+        if not self.connection.connected or (self.stop_requested.is_set() and not self.scheduler.executing_current_job()):
             raise RuntimeFault('not_ready','A current execution connection is required','restore_connection')
 
     def status(self):

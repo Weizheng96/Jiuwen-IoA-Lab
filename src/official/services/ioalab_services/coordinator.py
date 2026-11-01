@@ -30,12 +30,13 @@ def public_reply(reply):
             'currentRevision':current.get('revision'),'indexReady':current.get('indexReady'),'error':reply.get('error')}
 
 
-def tick(deployment,*,launch=True,clock=time.time):
+def tick(deployment,*,launch=True,clock=time.time,stop_event=None):
     state=deployment.state(prepared=True)
     path=deployment.home/'publications.json'
     publications=read_json(path) if path.exists() else {}
     accounts=[]
     for account,entry in state['accounts'].items():
+        if stop_event is not None and stop_event.is_set():return {'status':'waiting','stopping':True,'accounts':accounts,'allServicesReady':False}
         row={'account':account,'services':[]};accounts.append(row)
         try:
             ipc,live=connected(deployment,account,launch=launch)
@@ -47,11 +48,13 @@ def tick(deployment,*,launch=True,clock=time.time):
                 raise RuntimeFault('not_ready','Restore the original host and platform connection')
         except RuntimeFault as exc:row['error']=public_error(exc);continue
         for identity in entry['identities']:
+            if stop_event is not None and stop_event.is_set():return {'status':'waiting','stopping':True,'accounts':accounts,'allServicesReady':False}
             profile=identity['profile'];actor=identity['agentId'];item={'profile':profile,'agentId':actor};row['services'].append(item)
             try:
                 status=ipc.call('provider.status',{'profile':profile})
                 if status['status']!='completed':raise RuntimeFault('not_ready','The service status query is incomplete')
                 status=status['data'];item['current']=status
+                if stop_event is not None and stop_event.is_set():return {'status':'waiting','stopping':True,'accounts':accounts,'allServicesReady':False}
                 original=publications.get(actor)
                 if original and original['status'] in ('unknown','accepted','running'):
                     reply=ipc.call('provider.publish',original['args'],operation_id=original['operationId'])
@@ -77,6 +80,7 @@ def tick(deployment,*,launch=True,clock=time.time):
                 for template in renewed['templates']:template['validUntil']=fmt_time(datetime.fromtimestamp(clock(),timezone.utc)+timedelta(days=30))
                 preview=ipc.call('provider.preview',{'service':renewed})
                 if preview['status']!='completed':raise RuntimeFault('not_ready','The original SDK publication preview is incomplete')
+                if stop_event is not None and stop_event.is_set():return {'status':'waiting','stopping':True,'accounts':accounts,'allServicesReady':False}
                 args={k:preview['data'][k] for k in ('service','contentDigest','expectedRevision')}
                 original={'operationId':str(uuid.uuid4()),'args':args,'status':'unknown','basis':basis}
                 publications[actor]=original;private_json(path,publications)

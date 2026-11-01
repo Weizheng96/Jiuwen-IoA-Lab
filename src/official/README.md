@@ -20,6 +20,8 @@
 
 入口为`ioalab-official`，配置示例见[official.example.json](../../deploy/official.example.json)。`prepare --config <文件>`保存真实验收包引用和完整配置；`authorize --config <文件> --admin-password-env <口令变量名>`执行首次公示授权；`serve --config <文件>`使用已安装九问适配运行并检查续期；`status --config <文件>`只查询。管理员口令只用于首次授权进程；长期进程不继承它。
 
+正常停止通过服务管理器通知协调器，协调器等待原SDK释放执行目录；`stop --config <文件> --wait-seconds 30`用于协调器已停后的独立恢复。返回waiting时保留原实例继续核对，不强杀；CLI退出码0为已释放、2为仍在等待、1为拒绝或失败。它不代表合同已经结清。
+
 已有完整配置、暂停、撤销和人工公示均保留；服务缺宿主或授权时报告原因。当前部署安装器及旧排练/测试入口仍待整体切换，进展及证据见[开发计划](../../docs/开发计划.md)。
 
 ## 本地会议工具
