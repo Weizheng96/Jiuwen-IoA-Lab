@@ -13,6 +13,9 @@ from ..store import jload
 def build_router(platform, current_user):
     router = APIRouter(prefix="/api/v1")
 
+    def sdk_user(request:Request):
+        return platform.identities.bearer(request.headers.get('authorization',''))
+
     @router.post("/token")
     def token(body: dict, request: Request):
         return platform.login(body.get('username',''),body.get('password',''),ip=request.client.host,
@@ -28,13 +31,11 @@ def build_router(platform, current_user):
                 'expiresAt':datetime.fromtimestamp(until,timezone.utc).isoformat().replace('+00:00','Z'),'credited':False}
 
     @router.get("/me")
-    def me(uid=Depends(current_user)):
+    def me(uid=Depends(sdk_user)):
         user = platform.db.one("SELECT id,username,display_name,kind FROM users WHERE id=?", uid)
         return {**user, "wallet": str(platform.wallets.balance(uid)),
                 "roles":platform.auth.roles(uid), "identities":platform.identities.list_owned(uid)}
 
-    def sdk_user(request:Request):
-        return platform.identities.bearer(request.headers.get('authorization',''))
 
     @router.post('/files/{agentId}')
     async def file_upload(agentId:str,operationId:str,name:str,digest:str,request:Request,uid=Depends(sdk_user)):

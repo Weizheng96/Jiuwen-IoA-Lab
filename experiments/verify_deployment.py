@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from decimal import Decimal
 import json
 import os
 from pathlib import Path
@@ -43,6 +44,33 @@ print(json.dumps(LocalClient(sys.argv[1],timeout=2).call(sys.argv[2],json.loads(
     return json.loads(result.stdout)
 
 
+def account_login(python, config, home):
+    result = subprocess.run([str(python), '-I', '-m', 'ioalab_sdk.runtime', 'login', '--config', str(config)],
+                            cwd=Path(home).parent, env=child_environment(), capture_output=True, timeout=25)
+    if result.returncode: raise RuntimeError('Installed explicit login failed; retain its original account state')
+    value = json.loads(result.stdout)
+    if value['status'] != 'completed' or not value['data']['authenticated']:
+        raise RuntimeError('Installed explicit login did not prove authentication')
+    return value['data']
+
+
+def invalidate_verification_credential(python, config, home, log):
+    # Only the new isolated experiment calls this SDK-owned fault; no product backdoor.
+    code = """import sys
+from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.config import RuntimeConfig
+from ioalab_sdk.runtime.session import AccountSession
+config=RuntimeConfig.load(sys.argv[1])
+with Lease(config.home/'client.lock',timeout=0):
+    session=AccountSession(config.platform,config.username,config.password,config.home,connect=False)
+    try:
+        session.account.update(token='invalid-isolated-verification-credential',expiresAt='2000-01-01T00:00:00Z')
+        session.cache.put('session','current',session.account)
+    finally:session.close()
+"""
+    run([python, '-I', '-c', code, config], cwd=Path(home).parent, log=log)
+
+
 def await_status(python, home, child, timeout=45):
     until = time.monotonic() + timeout
     while True:
@@ -71,7 +99,7 @@ def exercise(layout, release, installations, report):
     base = 'http://127.0.0.1:' + str(port)
     env = {**child_environment(), 'IOALAB_MODE':'dev', 'IOALAB_BIND':'127.0.0.1', 'IOALAB_PORT':str(port),
            'IOALAB_PUBLIC_URL':base, 'IOALAB_DATA':str(layout.state/'core'), 'IOALAB_AUTOSEED':'0',
-           'IOALAB_ADMIN_PASSWORD':'isolated-verification-password', 'A2C_CACHE_DIR':str(layout.state/'cache')}
+           'IOALAB_ADMIN_PASSWORD':'isolated-verification-password', 'IOALAB_LOGIN_CREDIT':'100', 'A2C_CACHE_DIR':str(layout.state/'cache')}
     sdk = None; status = None
     with (layout.private/'core.log').open('w', encoding='utf-8') as core_log:
         core = subprocess.Popen([str(core_python), '-I', '-m', 'ioalab', 'serve'],
@@ -92,8 +120,10 @@ def exercise(layout, release, installations, report):
             save(config, {'platform_url':base, 'username':user, 'password':'verification-password',
                           'data_dir':str(home), 'identities':[{'key':'personal', 'role':'assistant',
                                                              'name':'Isolated verification assistant'}]})
+            initial = account_login(sdk_python, config, home)
+            assert initial['newLogin']
             identities = None; boots = []; balances = []
-            for attempt in range(2):
+            for attempt in range(3):
                 with (layout.private/('sdk-' + str(attempt) + '.log')).open('w', encoding='utf-8') as sdk_log:
                     sdk = subprocess.Popen([str(sdk_python), '-I', '-m', 'ioalab_sdk.runtime', 'serve', '--config', str(config)],
                                            cwd=layout.state, env=child_environment(), stdout=sdk_log, stderr=sdk_log)
@@ -105,7 +135,14 @@ def exercise(layout, release, installations, report):
                     stopped = rpc(sdk_python, home, 'runtime.stop', {'bootId':status['bootId']})
                     assert stopped['status'] in ('waiting', 'completed')
                     assert sdk.wait(timeout=30) == 0
-            assert boots[0] != boots[1] and balances[0] == balances[1]
+                if attempt == 0:
+                    invalidate_verification_credential(sdk_python, config, home, layout.private/'credential-fault.log')
+                    restored = account_login(sdk_python, config, home)
+                    repeated = account_login(sdk_python, config, home)
+                    assert restored['newLogin'] and not repeated['newLogin']
+                    assert restored['operationId'] == repeated['operationId']
+            assert len(set(boots)) == 3 and balances[1] == balances[2]
+            assert Decimal(balances[1]) == Decimal(balances[0]) + Decimal('100')
             assert not (home/'runtime.json').exists()
             code = '''import sys
 from pathlib import Path
@@ -115,6 +152,7 @@ with Lease(Path(sys.argv[1])/'client.lock',timeout=0):pass
             run([sdk_python, '-I', '-c', code, home], cwd=layout.state, log=layout.private/'released.log')
             report['runtime'] = {'HTTP':True, 'WebSocket':True, 'stableActivatedEntry':True,
                                  'sameIdentityAfterRestart':True, 'sameCreditAfterRestart':True,
+                                 'explicitLoginRecovery':True, 'reauthenticationCreditedOnce':True,
                                  'originalExecutionLockReleased':True}
         finally:
             if sdk is not None and sdk.poll() is None:

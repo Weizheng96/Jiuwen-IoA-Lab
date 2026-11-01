@@ -24,7 +24,12 @@ python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置�
 | 安装unknown | 保留原环境、attemptId和日志，核对真实所有者；不自动删除、重装或运行SDK |
 | status完成 | 分别核对身份bound、platformConnected、宿主available及角色执行能力；未发布服务仍可executionReady=false |
 | configuration_changed / installation_changed | 用空JSON文件调用runtime.stop，等待实际安全停止后按原配置启动；不改data_dir或私钥 |
+| authenticate | 核对本机账号配置；原实例存在时先正常runtime.stop并核释放，再调用account.login，成功后runtime.start；不换data_dir或删除账号库 |
 | unknown | 保留原参数文件及operationId，按原角色查询/恢复；不重做签约、付款或通知 |
+
+账号恢复：`python "<skill_directory>/scripts/ioalab.py" account.login --config "<外置配置文件>"`。此命令不需要args-file，由SDK持同一实例锁，只恢复账号会话，不启动九问、模型或业务。有效凭据复用不赠币；明确失效时才新登录。原登录未知时恢复同一标识，结果仍未知或输入已变则保留现场，不改密码/操作标识后反复请求。已明确拒绝后可修正本机配置并再次显式登录；newLogin只表示本次是否建立新的登录操作，不能据历史credited推定再次到账。普通重启不暗中重登。
+
+有效凭据可在当前SDK上用独立{}参数文件调用account.refresh；不赠币，失败不自动密码登录。先按实际状态区分认证、连接和宿主能力，不能通过登录重试修复模型或发布错误。
 
 两个角色默认共用~/.ioalab/settings.local.json，也可用同一个--config指定其他外置文件。配置不要放在技能目录或data_dir中；原生覆盖导入会替换技能目录。data_dir保管稳定身份、原Session和业务，依赖缓存是另一个目录，不得删除运行数据来修复安装。
 

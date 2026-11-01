@@ -2,6 +2,10 @@
 from pathlib import Path
 from urllib.parse import urlsplit
 import os
+import hashlib
+import hmac
+import json
+import secrets
 import time
 import uuid
 
@@ -51,17 +55,17 @@ class AccountSession:
         return self.account.get('token','')
 
     def _connect(self):
-        with self.cache.transaction():
-            cached=self.cache.get('session','current')
-            pending=self.cache.get('session','pending')
-            if cached and pending and cached.get('operationId')==pending['operationId']:
-                self.cache.delete('session','pending')
-                pending=None
-            if cached and not pending:self.account=cached
-        if self.token:
-            self._check_account()
-        else:
-            self.login()
+        self.login()
+
+    def _bind_owner(self,identifier):
+        if not isinstance(identifier,str) or not identifier:
+            raise RuntimeFault('protocol_error','Account response has no immutable owner identifier')
+        owner=self.cache.get('meta','owner_id')
+        cached=self.cache.get('session','current') or {}
+        known={value for value in (owner,cached.get('id'),self.account.get('id')) if value is not None}
+        if known and known!={identifier}:
+            raise RuntimeFault('identity_conflict','Account response differs from the immutable local owner')
+        if owner is None:self.cache.put('meta','owner_id',identifier)
 
     def _check_account(self):
         try:
@@ -73,8 +77,10 @@ class AccountSession:
         except httpx.TransportError:
             if self._offline():return
             raise
-        if account.get('username')!=self.username:
+        if (account.get('username')!=self.username or not account.get('id')
+                or self.account.get('id') and account['id']!=self.account['id']):
             raise RuntimeFault('identity_conflict','Saved credentials belong to another account')
+        with self.cache.transaction():self._bind_owner(account['id'])
         self.account.update({key:account[key] for key in ('id','username','kind','display_name')})
         self.verified=True
 
@@ -83,28 +89,86 @@ class AccountSession:
         expires=self.account.get('expiresAt')
         return bool(self.allow_offline and self.token and expires and instant(expires)>time.time())
 
+    def _login_parameters(self,*,create=False):
+        key=self.cache.get('meta','login_input_key')
+        if key is None and create:
+            key=secrets.token_hex(32);self.cache.put('meta','login_input_key',key)
+        if not isinstance(key,str) or len(key)!=64 or any(c not in '0123456789abcdef' for c in key):
+            raise RuntimeFault('result_unknown','Original login input binding is unavailable; preserve the account state','inspect_original_login')
+        body=json.dumps({'username':self.username,'password':self._password},sort_keys=True,separators=(',',':'))
+        return hmac.new(bytes.fromhex(key),b'ioa-login-input\0'+body.encode(),hashlib.sha256).hexdigest()
+
+    @staticmethod
+    def _pending_login(value):
+        if value is None:return None
+        if (not isinstance(value,dict) or set(value)!={'operationId','parameters','phase'}
+                or not isinstance(value['operationId'],str) or not 1<=len(value['operationId'])<=128
+                or value['phase'] not in ('pending','rejected')
+                or not isinstance(value['parameters'],str) or len(value['parameters'])!=64):
+            raise RuntimeFault('result_unknown','Original pending login cannot be verified; preserve it','inspect_original_login')
+        return value
+
+    def _retire_rejection(self,pending):
+        self.cache.put('login-attempts',pending['operationId'],pending)
+        self.cache.delete('session','pending')
+
+    def authenticate(self):
+        """Explicit login only; valid credentials and unknown requests are reused."""
+        with self.cache.transaction():
+            cached=self.cache.get('session','current')
+            pending=self._pending_login(self.cache.get('session','pending'))
+            references={record['operationId'] for record in (cached,pending) if record and record.get('operationId')}
+            if pending and pending['phase']=='rejected':
+                self._retire_rejection(pending);pending=None
+            may_reauthenticate=bool(cached and cached.get('token') and pending is None)
+        try:result=self.login()
+        except RuntimeFault as exc:
+            if exc.code!='authenticate' or not may_reauthenticate:raise
+            result=self.login(new_operation=True)
+        return {**result,'newLogin':self.account.get('operationId') not in references}
+
     def login(self,*,new_operation=False):
         with self.cache.transaction():
             cached=self.cache.get('session','current')
             pending=self.cache.get('session','pending')
+            if cached and isinstance(pending,dict) and cached.get('operationId')==pending.get('operationId'):
+                self.cache.delete('session','pending');pending=None
+            pending=self._pending_login(pending)
             if new_operation:
+                if pending and pending['phase']=='rejected':
+                    self._retire_rejection(pending);pending=None
                 if pending:
-                    raise RuntimeFault('result_unknown','Recover the pending login before starting another','recover_operation')
-                pending={'operationId':str(uuid.uuid4())}
-            elif cached and not pending:
-                self.account=cached
+                    raise RuntimeFault('result_unknown','Recover the pending login before starting another','recover_operation',operation_id=pending['operationId'])
+                pending={'operationId':str(uuid.uuid4()),'parameters':self._login_parameters(create=True),'phase':'pending'}
+            elif cached and not pending:self.account=cached
+            if pending and pending['phase']=='rejected':
+                raise RuntimeFault('authenticate','Credentials were rejected; correct local configuration and explicitly log in again','account.login',operation_id=pending['operationId'])
             if not self.token or new_operation or pending:
-                pending=pending or {'operationId':str(uuid.uuid4())}
+                pending=pending or {'operationId':str(uuid.uuid4()),'parameters':self._login_parameters(create=True),'phase':'pending'}
+                if not hmac.compare_digest(pending['parameters'],self._login_parameters()):
+                    raise RuntimeFault('result_unknown','Original pending login input changed; preserve the original operation','inspect_original_login',operation_id=pending['operationId'])
                 self.cache.put('session','pending',pending)
         if pending is None:
             self._check_account()
             return self.status()
-        response=self.http.post(self.base+'/api/v1/token',json={'username':self.username,'password':self._password,**pending})
-        response.raise_for_status()
+        response=self.http.post(self.base+'/api/v1/token',json={'username':self.username,'password':self._password,'operationId':pending['operationId']})
+        try:response.raise_for_status()
+        except httpx.HTTPStatusError:
+            try:error=response.json().get('error',{})
+            except (ValueError,AttributeError):error={}
+            known=(response.status_code==400 and isinstance(error,dict) and error.get('code')=='invalid_input'
+                   or response.status_code==401 and isinstance(error,dict) and error.get('code') in ('authenticate','forbidden'))
+            if known:
+                with self.cache.transaction():
+                    if self.cache.get('session','pending')==pending:
+                        self.cache.put('session','pending',{**pending,'phase':'rejected'})
+                raise RuntimeFault('authenticate','Credentials were rejected; correct local configuration and explicitly log in again','account.login',operation_id=pending['operationId']) from None
+            raise
         account=response.json()
-        if account.get('username')!=self.username or not account.get('token'):
+        if not isinstance(account,dict) or account.get('username')!=self.username or not account.get('token') or not account.get('id'):
             raise RuntimeFault('protocol_error','Login did not return the configured account')
         with self.cache.transaction():
+            self._bind_owner(account['id'])
             self.cache.put('session','current',account)
             if self.cache.get('session','pending')==pending:self.cache.delete('session','pending')
         self.account=account
@@ -117,9 +181,11 @@ class AccountSession:
         renewed=response.json()
         if renewed.get('id')!=self.account.get('id') or renewed.get('credited') is not False:
             raise RuntimeFault('protocol_error','Credential renewal returned a conflicting account result')
-        self.account.update(renewed)
+        with self.cache.transaction():
+            self._bind_owner(renewed['id'])
+            self.account.update(renewed)
+            self.cache.put('session','current',self.account)
         self.verified=True
-        self.cache.put('session','current',self.account)
         return self.status()
 
     def bearer(self):
@@ -158,7 +224,7 @@ class AccountSession:
         expires=self.account.get('expiresAt')
         return {'id':self.account.get('id'),'username':self.username,'platform':self.base,
                 'authenticated':bool(self.token) and (not expires or instant(expires)>time.time()),
-                'verifiedOnline':self.verified,'expiresAt':expires}
+                'verifiedOnline':self.verified,'expiresAt':expires,'operationId':self.account.get('operationId')}
 
     def close(self):
         self.http.close()

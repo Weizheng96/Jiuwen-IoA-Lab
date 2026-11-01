@@ -78,7 +78,7 @@ def test_scope_authentication_signature_time_and_original_parameters_are_enforce
     local=local_client;payload=authorization(local);operation=uid()
     assert client.post('/api/v1/scopes',json={'operationId':operation,**payload}).status_code==401
     stranger=new_user(platform)
-    assert client.post('/api/v1/scopes',headers={'Authorization':'Bearer '+platform.auth.bearer(stranger['id'])},json={'operationId':operation,**payload}).status_code==403
+    assert client.post('/api/v1/scopes',headers={'Authorization':'Bearer '+platform.auth.bearer(stranger['id'],restricted=True)},json={'operationId':operation,**payload}).status_code==403
     bad=copy.deepcopy(payload);bad['context']['budget']='999999.00'
     assert register(client,local,bad).status_code==400
     attacker=Signer('not-the-owner',ed25519.Ed25519PrivateKey.generate())

@@ -251,5 +251,9 @@ def test_valid_bearer_required_for_refresh_and_enrollment(platform,client):
     user=new_user(platform)
     response=client.post('/api/auth/login',json=login_body(user['username']))
     assert response.status_code==200
+    browser={'Authorization':'Bearer '+response.json()['token']}
+    assert client.post('/api/v1/token/refresh',headers=browser,json={}).status_code==401
+    assert client.post('/api/v1/identity/challenge',headers=browser,json={'operationId':uid(),'role':'service','agentId':'svc-'+uid()}).status_code==401
+    assert client.post('/api/v1/connections/ticket',headers=browser,json={'agentIds':['not-a-grant']}).status_code==401
     assert client.post('/api/v1/token/refresh',json={}).status_code==401
     assert client.post('/api/v1/identity/challenge',json={'operationId':uid(),'role':'service','agentId':'svc-'+uid()}).status_code==401

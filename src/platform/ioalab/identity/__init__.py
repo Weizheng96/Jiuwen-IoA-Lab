@@ -93,7 +93,7 @@ class IdentityDirectory:
         if not isinstance(authorization,str) or not authorization.startswith('Bearer '):
             raise LabError('forbidden','SDK Bearer authentication is required',status=401)
         subject=self.auth.verify(authorization[7:].strip())
-        if not subject or subject=='admin':
+        if not isinstance(subject,str) or not subject.startswith('assistant:'):
             raise LabError('forbidden','SDK authentication expired or is invalid',status=401,recovery='authenticate')
         owner=subject.removeprefix('assistant:')
         if not self.db.one('SELECT id FROM users WHERE id=?',owner):

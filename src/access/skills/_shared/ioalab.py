@@ -26,14 +26,17 @@ def main(argv=None):
     args=parser.parse_args(argv);root=Path(__file__).resolve().parents[1]
     try:
         role=json.loads((root/'assets/skill.json').read_text(encoding='utf-8'))['role']
-        prefixes=('runtime.','identity.','confirmations.','operations.','assistant.' if role=='assistant' else 'provider.')
+        prefixes=('runtime.','identity.','account.','confirmations.','operations.','assistant.' if role=='assistant' else 'provider.')
         if role not in ('assistant','service') or not args.operation.startswith(prefixes):raise RuntimeError('Choose an operation belonging to this product role')
         prepared=installation().prepare(root/'assets',launch=args.operation in ('runtime.start','runtime.install'),retry=args.operation=='runtime.install')
         if args.operation in ('runtime.install','runtime.install.status') or prepared['status']!='completed':
             print(json.dumps(prepared,ensure_ascii=False));return 0 if prepared['status'] in ('completed','waiting') else 1
         python=Path(prepared['data']['python'])
         config=(args.config or Path.home()/'.ioalab/settings.local.json').expanduser().resolve()
-        if args.operation=='runtime.web-extension':
+        if args.operation=='account.login':
+            if args.args_file:raise RuntimeError('account.login uses only the local configuration; omit args-file')
+            result=invoke(python,['-m','ioalab_sdk.runtime','login','--config',str(config)])
+        elif args.operation=='runtime.web-extension':
             if not args.args_file:raise RuntimeError('Use an args-file containing the owned profile key')
             result=invoke(python,['-m','ioalab_jiuwen','web-extension','--config',str(config),
                 '--args-file',str(args.args_file.expanduser().resolve()),'--role',role])

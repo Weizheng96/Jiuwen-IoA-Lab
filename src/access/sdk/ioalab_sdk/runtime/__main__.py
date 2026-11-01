@@ -71,7 +71,7 @@ def main(argv=None):
     configure_stdio()
     parser=argparse.ArgumentParser(prog='ioalab-access')
     commands=parser.add_subparsers(dest='command',required=True)
-    for name in ('serve','start','validate'):
+    for name in ('serve','start','validate','login'):
         item=commands.add_parser(name)
         item.add_argument('--config',type=Path,required=True)
     call=commands.add_parser('call')
@@ -88,7 +88,10 @@ def main(argv=None):
             runtime=ResidentRuntime(RuntimeConfig.load(args.config),modules=(AssistantRole(),ProviderRole()))
             runtime.run()
             return 0
-        if args.command=='validate':result={'status':'completed','data':RuntimeConfig.load(args.config).public_summary(),'error':None}
+        if args.command=='login':
+            from .authentication import login
+            result=login(args.config)
+        elif args.command=='validate':result={'status':'completed','data':RuntimeConfig.load(args.config).public_summary(),'error':None}
         elif args.command=='start':result=start(args.config)
         else:
             if args.operation not in READ_ONLY and not args.args_file:
@@ -111,7 +114,7 @@ def main(argv=None):
         print(json.dumps(result,ensure_ascii=False))
         return 1 if result.get('status') in ('rejected','failed','unknown') else 0
     except RuntimeFault as exc:
-        print(json.dumps({'operationId':exc.operation_id,'status':'unknown' if exc.code=='unknown_result' else 'rejected',
+        print(json.dumps({'operationId':exc.operation_id,'status':'unknown' if exc.code in ('unknown_result','result_unknown') else 'rejected',
                           'data':None,'error':public_error(exc)},ensure_ascii=False))
         return 1
     except KeyboardInterrupt:return 130

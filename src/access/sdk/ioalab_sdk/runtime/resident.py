@@ -32,7 +32,7 @@ class ResidentRuntime:
         self.stop_requested=threading.Event()
         self.closing=threading.Event()
         self._closed=False
-        reserved={'runtime.status','runtime.stop','runtime.open_ui','identity.status','operations.get','operations.resume','confirmations.get'}
+        reserved={'runtime.status','runtime.stop','runtime.open_ui','identity.status','operations.get','operations.resume','confirmations.get','account.refresh'}
         if set(self.operations)&reserved or not all(callable(handler) for handler in self.operations.values()):
             raise ValueError('Register explicit non-reserved role operations')
         try:
@@ -125,6 +125,10 @@ class ResidentRuntime:
             if operation=='runtime.status':
                 if args:raise RuntimeFault('invalid_input','Status takes no arguments')
                 data=self.status()
+            elif operation=='account.refresh':
+                if args:raise RuntimeFault('invalid_input','Credential renewal takes no model parameters')
+                if self.stop_requested.is_set():raise RuntimeFault('closed','Runtime is draining')
+                data=self.account.refresh()
             elif operation=='identity.status':
                 if args:raise RuntimeFault('invalid_input','Identity status takes no arguments')
                 data=[p.public() for p in self.identities]

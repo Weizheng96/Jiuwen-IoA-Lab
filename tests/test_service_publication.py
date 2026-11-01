@@ -91,7 +91,7 @@ def test_upload_checks_bound_identity_signature_category_and_ordinary_template_p
     url=account.base+'/api/v1/services/'+identity.agent_id+'/publications'
     assert account.http.post(url,json=body).status_code==401
     stranger=new_user(platform)
-    assert account.http.post(url,headers={'Authorization':'Bearer '+platform.auth.bearer(stranger['id'])},json=body).status_code==403
+    assert account.http.post(url,headers={'Authorization':'Bearer '+platform.auth.bearer(stranger['id'],restricted=True)},json=body).status_code==403
     bad=copy.deepcopy(body);bad['declaration']['protocolId']='http://untrusted.invalid/private'
     assert submit(account,identity,bad).status_code==403
     bad=copy.deepcopy(body);bad['declaration']['name']='未经原签名允许的修改'

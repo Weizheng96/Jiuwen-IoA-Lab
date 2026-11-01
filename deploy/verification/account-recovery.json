@@ -1,0 +1,64 @@
+{
+  "status": "passed",
+  "scope": "Explicit account login, original request recovery and restricted SDK credential scope",
+  "fullGates": {
+    "passed": 729,
+    "skipped": 31,
+    "frozenInputs": 727,
+    "unchangedInputs": true,
+    "seconds": 1444.92
+  },
+  "windowsInstalled": {
+    "realHTTP": true,
+    "realWebSocket": true,
+    "sameIdentityAfterRestart": true,
+    "sameCreditAfterRestart": true,
+    "releasedOriginalWriter": true,
+    "threeBoots": [
+      "3852289c-617d-479f-8888-7d3328dbe223",
+      "4b92b823-03f8-4e02-a602-6a98f3be232a",
+      "46f1784d-a8cb-4726-b6f4-93b8e3fc0bc0"
+    ],
+    "explicitLoginRecovery": true,
+    "reauthenticationCreditedOnce": true
+  },
+  "environmentIds": {
+    "core": "0fe382430bdb01640847cbf39218f4d077788619b38086d96c4da0d9148fbe3b",
+    "participant": "d17b71defb8f299723df3b1bbc43306f94a64e645050d80a38d805220dd1854f"
+  },
+  "targetReleases": {
+    "windows-x86_64": "600ec3918f44764ad755ab0a150437d99a99b0310cdb01e5fa7eba8a079e74ad",
+    "linux-x86_64": "5c144a86c0b49c9731957e6695a7177cc0093254a2d74c2eac595dbdb4008301"
+  },
+  "sourceAndWheelPayloads": {
+    "src/platform/ioalab/identity/__init__.py": "34b9f63e539a9b9d1b73b81f8fc8b4d2e31291724e18500d9ed83374035812cc",
+    "src/platform/ioalab/web/api_v1.py": "0a67f97cca56ca871a52efeccdf9dd68e9c5236e4a37fc18ec2d0dc771c295f1",
+    "src/access/sdk/ioalab_sdk/runtime/session.py": "a211d959b39a98883c6b9678c8fc93463248800ba7ec491beb8b2479e73446d0",
+    "src/access/sdk/ioalab_sdk/runtime/authentication.py": "380e49fd5dcf70ce1bb11c9c80b84feea6da92bef9c0e652e8cc1ebd7d9c8c86",
+    "src/access/sdk/ioalab_sdk/runtime/resident.py": "4b7d54c17699127c1942bf324584e39fa27320a2c5b6f22227b521efea2e764b",
+    "src/access/sdk/ioalab_sdk/runtime/__main__.py": "1223bf999243ae8e9a989db1294e960ba1492fbce643db71bea15c8a44e2bd25"
+  },
+  "verified": {
+    "sameAccountWriterLock": true,
+    "noIdentityOrBusinessStoreLoadForLogin": true,
+    "validCacheDoesNotLoginOrCreditAgain": true,
+    "lostLoginResponseReusesOriginalOperation": true,
+    "pendingInputCannotBeChanged": true,
+    "rejectedCredentialRequiresExplicitIntent": true,
+    "immutableOwnerSurvivesTokenRowLoss": true,
+    "browserSessionIsNotSDKCredential": true,
+    "bothProductSkillsShareInstalledSDKRoute": true,
+    "residentRefreshDoesNotCredit": true
+  },
+  "linux": {
+    "priorIndependentProof": "linux-installed-release.json",
+    "newCredentialRecoveryRequiresNewCI": true
+  },
+  "notProven": [
+    "Complete default installation and systemd upgrade",
+    "Default administrator preset",
+    "Ordinary native UI tutorial and four new films"
+  ],
+  "callsModel": false,
+  "sendsMail": false
+}
