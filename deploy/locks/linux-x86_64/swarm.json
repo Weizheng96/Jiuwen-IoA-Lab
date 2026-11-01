@@ -1,0 +1,9 @@
+{
+  "format": "ioalab.deployment-lock/1",
+  "inputSha256": "6668a39fae7e9952726f89dc50907d7c9762321a660deb5399507e07f8228485",
+  "lockSha256": "9cbde6ee188d79f7780ddacf4f4f88457b795bf3a5c19cd23d4c151dca72f149",
+  "python": "3.11",
+  "resolver": "uv 0.9.21 (0dc9556ad 2025-12-30)",
+  "target": "linux-x86_64",
+  "unit": "swarm"
+}

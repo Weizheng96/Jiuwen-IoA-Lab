@@ -23,6 +23,7 @@ def main():
                           ('Current documentation links',[sys.executable,'tools/check_docs.py']),
                           ('Official service definitions',[sys.executable,'tools/check_services.py']),
                           ('Vendored deployment inputs',[sys.executable,'tools/check_vendor.py']),
+                          ('Production target locks',[sys.executable,'-m','tools.check_deployment']),
                           ('Public initialization manifest',[sys.executable,'tools/build_seed.py','--check']),
                           ('Three-process smoke',[sys.executable,'tools/smoke.py'])]:
         result=subprocess.run(command,cwd=ROOT,env=ENV,capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=300)
