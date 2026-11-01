@@ -1,0 +1,79 @@
+{
+  "status": "passed",
+  "scope": "Fixed administrator business-assistant preparation, original-operation recovery and installed package",
+  "fullGates": {
+    "passed": 747,
+    "skipped": 31,
+    "frozenInputs": 736,
+    "unchangedCodeInputs": true,
+    "seconds": 1550.48
+  },
+  "windowsInstalled": {
+    "installedModule": true,
+    "packagedPresets": true,
+    "missingMailDisablesMeeting": true,
+    "entryPointPresent": true,
+    "windowsCannotInvokeLinuxRootPreparation": true
+  },
+  "HTTPAndWebSocketRegression": {
+    "realHTTP": true,
+    "realWebSocket": true,
+    "sameIdentityAfterRestart": true,
+    "sameCreditAfterRestart": true,
+    "releasedOriginalWriter": true,
+    "threeBoots": [
+      "854766ff-8d2f-4ce0-bad0-a6014b42d2ed",
+      "f7b65aac-4d0c-4d75-afbe-86e21a25979b",
+      "a46ffce9-7b73-4db6-a162-df5feace08ad"
+    ],
+    "explicitLoginRecovery": true,
+    "reauthenticationCreditedOnce": true
+  },
+  "sourceAndWheelPayloads": {
+    "src/official/admin-assistant/ioalab_admin_assistant/__init__.py": "ec59b010920375e3014eda33fa73935e28c5c4fd40571342b783914152029b2e",
+    "src/official/admin-assistant/ioalab_admin_assistant/__main__.py": "725f9aec86cb9208dde46ca5e29180cd84931bab8238c028e4c3c6ac28db2354",
+    "src/official/admin-assistant/ioalab_admin_assistant/deployment.py": "c3adde9983c4b6a9b998933a4529221b58c5710b5f6d7448e0f6c38ef7227098",
+    "src/official/admin-assistant/ioalab_admin_assistant/preparation.py": "cd28305668d1dbaa19ec7ec21c63ef8d24235e525f9cd6596a3f7a97e520ab6c",
+    "src/official/admin-assistant/ioalab_admin_assistant/presets.json": "d3de307eb6ff31bece3b5209f3d89e78a519aee4f571a2078f98296d2a84491f",
+    "src/official/admin-assistant/ioalab_admin_assistant/presets.py": "f63d7be0438c2f60575538b1c068d233a50548cda3abcd72ff6cbafa002dc8bc"
+  },
+  "targetReleases": {
+    "windows-x86_64": "60582ca22941656c95ddf0ea2708166574042ebf1cf2608638a4ac4b53fdeae5",
+    "linux-x86_64": "1902d8b9f4783ca466191a68d390b07aa982573401084d2fec9661ee919f78a0"
+  },
+  "verified": {
+    "fixedISC001AndTwoPackagedInterfaces": true,
+    "sameSDKRuleConfirmationAndPublication": true,
+    "noHostReceiverSchedulerOrBusinessInvocationDuringPreparation": true,
+    "lostPublicationReplyResumesOriginalOperation": true,
+    "interruptedDecisionKeepsOriginalReference": true,
+    "expiredDecisionIsNotReplaced": true,
+    "changedDraftDoesNotReceivePresetPermission": true,
+    "finalConfigWriteBothCrashBoundariesRecover": true,
+    "completedPreparationPreservesOperatorEdits": true,
+    "missingOriginalScheduleAndIdentityAreNotReinitialized": true,
+    "noMailConfigurationDisablesMeeting": true,
+    "stateInspectionDoesNotLoginOrWrite": true
+  },
+  "linux": {
+    "priorSourceCommit": "75a71ea1a2f57ad64874255bed81ba1d3147da43",
+    "priorRun": 41284859848,
+    "priorJobsSucceeded": true,
+    "priorFullTests": {
+      "passed": 741,
+      "skipped": 19
+    },
+    "priorInstalledAccountRecoveryPassed": true,
+    "newRootPresetProbeConnectedToCI": true,
+    "currentRootPresetRequiresPublishedCI": true
+  },
+  "callsModel": false,
+  "sendsMail": false,
+  "notProven": [
+    "Full default installation or systemd upgrade",
+    "Default assistant live model and web delivery",
+    "Complete ordinary native UI tutorial",
+    "Four new films",
+    "Later operations assistant and final README"
+  ]
+}

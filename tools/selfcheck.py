@@ -39,7 +39,7 @@ def main():
             if isinstance(node,ast.ImportFrom) and (node.module or '') in ('a2c.client','a2c.provider'):
                 imports.append(str(path.relative_to(ROOT)))
             names=[node.module] if isinstance(node,ast.ImportFrom) and not node.level else [name.name for name in node.names] if isinstance(node,ast.Import) else []
-            if any(name and (name.startswith(('jiuwenswarm','openjiuwen')) or name.split('.')[0] in ('ioalab_sdk','ioalab_jiuwen','ioalab_tools','ioalab_services')) for name in names):
+            if any(name and (name.startswith(('jiuwenswarm','openjiuwen')) or name.split('.')[0] in ('ioalab_sdk','ioalab_jiuwen','ioalab_tools','ioalab_services','ioalab_admin_assistant')) for name in names):
                 imports.append(str(path.relative_to(ROOT)))
     ok('Core imports no participant SDK or agent runtime',not imports)
     imports=[]
@@ -47,7 +47,7 @@ def main():
         tree=ast.parse(path.read_text(encoding='utf-8'))
         for node in ast.walk(tree):
             names=[node.module] if isinstance(node,ast.ImportFrom) and not node.level else [name.name for name in node.names] if isinstance(node,ast.Import) else []
-            if any(name and name.split('.')[0] in ('ioalab','ioalab_jiuwen','ioalab_tools','ioalab_services') for name in names):imports.append(str(path.relative_to(ROOT)))
+            if any(name and name.split('.')[0] in ('ioalab','ioalab_jiuwen','ioalab_tools','ioalab_services','ioalab_admin_assistant') for name in names):imports.append(str(path.relative_to(ROOT)))
     ok('Core SDK imports no platform, host implementation or official tools',not imports)
     if imports:print('\n'.join(imports))
     hits=[]

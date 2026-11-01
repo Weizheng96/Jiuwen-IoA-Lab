@@ -97,7 +97,8 @@ assert not set(actual)-set(expected)-{'pip','setuptools','wheel'}, 'Unexpected p
     elif unit == 'participant':
         checks += ("from ioalab_sdk.runtime.resident import ResidentRuntime\n"
                    "from ioalab_jiuwen.process import ProcessHost\n"
-                   "from ioalab_services.catalog import definitions\nassert len(definitions())==50\n")
+                   "from ioalab_services.catalog import definitions\nassert len(definitions())==50\n"
+                   "from ioalab_admin_assistant.presets import load\nassert len(load(meetings=False)[1])==2\n")
     else:
         checks += ("import jiuwenswarm,openjiuwen,sqlalchemy\n"
                    "distribution=metadata.distribution('workswarm')\n"
@@ -106,7 +107,7 @@ assert not set(actual)-set(expected)-{'pip','setuptools','wheel'}, 'Unexpected p
     forbidden = sorted(set().union(*UNITS.values()) - UNITS[unit])
     checks += 'assert not set(actual).intersection(' + repr(forbidden) + "), 'Runtime roles are mixed'\n"
     checks += '''
-roots={'ioalab','ioalab_sdk','ioalab_jiuwen','ioalab_services','ioalab_tools','a2c','a2x_registry','jiuwenswarm','openjiuwen'}
+roots={'ioalab','ioalab_sdk','ioalab_jiuwen','ioalab_services','ioalab_tools','ioalab_admin_assistant','a2c','a2x_registry','jiuwenswarm','openjiuwen'}
 for name,module in tuple(sys.modules.items()):
     source=getattr(module,'__file__',None)
     if name.split('.')[0] in roots and source:

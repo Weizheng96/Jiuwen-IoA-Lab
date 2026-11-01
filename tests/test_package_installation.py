@@ -41,6 +41,8 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path):
         assert {'ioalab_tools/handlers.py','ioalab_tools/appointments.py','ioalab_tools/calendar.py','ioalab_tools/agentmail.py','ioalab_tools/schedule_cli.py'}.issubset(archive.namelist())
         assert 'ioalab_services/catalog.py' in archive.namelist()
         assert 'ioalab_services/profiles.py' in archive.namelist()
+        assert 'ioalab_admin_assistant/preparation.py' in archive.namelist()
+        assert 'ioalab_admin_assistant/presets.json' in archive.namelist()
         assert len([name for name in archive.namelist() if name.startswith('ioalab_services/assets/domains/') and name.endswith('.json')]) == 8
         entries=archive.read(next(name for name in archive.namelist() if name.endswith('.dist-info/entry_points.txt'))).decode()
         assert 'calendar = ioalab_tools.appointments:configure' in entries and 'ioalab-schedule = ioalab_tools.schedule_cli:main' in entries

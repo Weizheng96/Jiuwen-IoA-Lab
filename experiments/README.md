@@ -30,3 +30,7 @@ $env:IOALAB_NATIVE_WEB_REPORT="D:/project/Jiuwen-IoA-Lab/data/native-web-check/d
 示例绝对路径须替换为自己的输出目录；端口占用时可选--port-offset。原生扩展及历史是真实调用，集成测试的模型轮次和确认驱动是明确替身；实际网页另行检查，证明范围见[回执](../deploy/verification/web-notifications.json)和[截图](../docs/progress/native-web-notification.jpg)。重放核验只使用已确认的原ID，核对同件原回执、异内容/库标识冲突及唯一历史记录。私人配置、数据库和日志仍留data，不提交。
 
 实验进程仅由本次processes.json登记的PID标识；结束前核对命令行确属该输出目录，再停止本实验进程，不按python等通用名字批量关闭。原有九问保持运行，原生菜单/完整用户配置及影片仍需另外验收。
+
+## 固定管理员预设的Linux安装包验证
+
+`verify_deployment.py`在本次新建的实验核心中显式初始化账号，然后用已安装的参与方Python运行`verify_admin_assistant.py`。后者仅在新的专用目录中以Linux root准备固定预设，复用原版公开工作区初始化；不改系统账号、服务或已有九问。检查真实HTTP公示、root归属、危险配置权限拒绝、重复/状态只读及SDK锁释放。未配置模型和邮件是刻意的验证边界：不代表助手已上线、模型业务、默认安装或systemd已通过。

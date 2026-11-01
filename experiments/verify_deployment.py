@@ -99,6 +99,7 @@ def exercise(layout, release, installations, report):
     base = 'http://127.0.0.1:' + str(port)
     env = {**child_environment(), 'IOALAB_MODE':'dev', 'IOALAB_BIND':'127.0.0.1', 'IOALAB_PORT':str(port),
            'IOALAB_PUBLIC_URL':base, 'IOALAB_DATA':str(layout.state/'core'), 'IOALAB_AUTOSEED':'0',
+           'IOALAB_SEED_FILE':str(Path(release)/document['assets']['seed']['path']),
            'IOALAB_ADMIN_PASSWORD':'isolated-verification-password', 'IOALAB_LOGIN_CREDIT':'100', 'A2C_CACHE_DIR':str(layout.state/'cache')}
     sdk = None; status = None
     with (layout.private/'core.log').open('w', encoding='utf-8') as core_log:
@@ -150,6 +151,20 @@ from ioalab_sdk.lease import Lease
 with Lease(Path(sys.argv[1])/'client.lock',timeout=0):pass
 '''
             run([sdk_python, '-I', '-c', code, home], cwd=layout.state, log=layout.private/'released.log')
+            # Explicit isolated seeding: the core never runs an internal assistant.
+            administrator=http(base,'/api/auth/login',{'username':'admin','password':'isolated-verification-password'})
+            seeded=http(base,'/api/admin/seed',{},cookie='ioalab_session='+administrator['token'])
+            assert seeded['isc']>=1
+            command=[str(sdk_python),'-I',str(ROOT/'experiments/verify_admin_assistant.py'),
+                     '--output',str(layout.state/'admin-preset-probe'),
+                     '--swarm-python',str(installations['swarm']['python']),'--platform',base]
+            if os.geteuid()!=0:command=['sudo','-n','--',*command]
+            probe=subprocess.run(command,cwd=layout.state,env=child_environment(),capture_output=True,text=True,
+                                 encoding='utf-8',timeout=240)
+            (layout.private/'administrator-probe.log').write_text(probe.stdout+probe.stderr,encoding='utf-8')
+            if probe.returncode:raise RuntimeError('Installed Linux root administrator preset probe failed; inspect its bounded result')
+            report['administratorPreparation']=json.loads(probe.stdout.splitlines()[-1])
+            assert report['administratorPreparation']['status']=='passed'
             report['runtime'] = {'HTTP':True, 'WebSocket':True, 'stableActivatedEntry':True,
                                  'sameIdentityAfterRestart':True, 'sameCreditAfterRestart':True,
                                  'explicitLoginRecovery':True, 'reauthenticationCreditedOnce':True,
