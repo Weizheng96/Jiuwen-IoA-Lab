@@ -141,8 +141,16 @@ class AccountSession:
         digest=uri[len(prefix):]
         if len(digest)!=64 or any(char not in '0123456789abcdef' for char in digest):
             raise ValueError('Invalid package digest')
-        blob=self.http.get(self.base+'/api/v1/packages/sha256:'+digest,
-                           headers={'Authorization':'Bearer '+self.bearer()}).raise_for_status().content
+        headers={'Authorization':'Bearer '+self.bearer()}
+        # Only this immutable GET is repeated; no model or business action is replayed.
+        for attempt in range(3):
+            try:
+                blob=self.http.get(self.base+'/api/v1/packages/sha256:'+digest,
+                                   headers=headers).raise_for_status().content
+                break
+            except (httpx.ReadError,httpx.RemoteProtocolError):
+                if attempt==2:raise
+                time.sleep(.15*(attempt+1))
         if digest_bytes(blob)!='sha256:'+digest:raise ValueError('Verifier package digest mismatch')
         return blob
 

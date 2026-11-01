@@ -1,0 +1,11 @@
+{
+  "public_url": "https://ioa.example.com",
+  "bind": "127.0.0.1",
+  "port": 8750,
+  "mode": "trial",
+  "pypi_index": "https://pypi.tuna.tsinghua.edu.cn/simple",
+  "model": null,
+  "admin_password": "",
+  "max_model_runs": 2,
+  "isc_count": 10
+}
