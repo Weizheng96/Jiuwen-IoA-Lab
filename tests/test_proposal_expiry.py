@@ -35,7 +35,7 @@ def notices(platform,quote):
     return platform.db.rows("SELECT recipient,envelope FROM delivery_messages WHERE interaction=? AND kind='interaction.closed'",quote['interactionId'])
 
 
-def test_expired_unselected_proposal_releases_atomically_preserving_fee_and_originals(platform,tmp_path,monkeypatch):
+def test_expired_unselected_proposal_releases_atomically_preserving_fee_and_originals(platform,client,tmp_path,monkeypatch):
     with participants(platform,tmp_path,fee=1) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task);wait_for(lambda:answered(platform,quote))
         response,end=windows(template,quote['card']);broker=platform.messaging.delivery
@@ -50,6 +50,10 @@ def test_expired_unselected_proposal_releases_atomically_preserving_fee_and_orig
             broker.cleanup()
             assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',quote['admissionId'])['state']=='committed'
             monkeypatch.setattr(platform.admissions,'clock',lambda:end+.01)
+            # Elapsed time is not closure authority. Reads must retain the offer
+            # until the original maintenance transaction actually commits.
+            pending=next(r for r in platform.contract_views.list() if r['admissionId']==quote['admissionId'])
+            assert pending['state']=='offered' and not pending['effective']
             with monkeypatch.context() as fault:
                 def interrupted(*args):raise OSError('Isolated interruption before reliable closure notices')
                 fault.setattr(broker,'_closed_notices',interrupted)
@@ -67,6 +71,22 @@ def test_expired_unselected_proposal_releases_atomically_preserving_fee_and_orig
             assert platform.db.rows('SELECT * FROM transfers WHERE ref=?',fees[0]['ref'])==fees
             assert platform.db.one('SELECT result FROM delegation_offers WHERE admission=?',quote['admissionId'])
             assert platform.market.market.store.get('ledger',card_digest(quote['card'])) is None
+        for account in (assistant.account.account,provider.account.account):
+            response=client.get('/api/workbench',headers={'Authorization':'Bearer '+platform.auth.bearer(account['id'])})
+            assert response.status_code==200
+            data=response.json();records=data['orders']+[r for service in data['services'] for r in service['orders']]
+            shown=next(r for r in records if r['admissionId']==quote['admissionId'])
+            assert shown['state']=='unformed-closed' and shown['phase']=='未成约 · 已结束'
+            assert shown['effective'] is False and shown['proposalFeePaid']=='1.00' and shown['paid']=='0.00'
+            assert shown['total']==str(quote['card']['derived']['total'])
+        response=client.get('/api/admin/orders',headers={'Authorization':'Bearer '+platform.auth.token('admin')})
+        shown=next(r for r in response.json() if r['admissionId']==quote['admissionId'])
+        assert shown['state']=='unformed-closed' and shown['effective'] is False
+        damaged=next(r for r in platform.contract_views.rows() if r['admission']==quote['admissionId'])
+        damaged['card']='{}'  # An unavailable display copy is not closure proof.
+        unavailable=platform.contract_views.view(damaged)
+        assert unavailable['state']=='unknown' and unavailable['phase']=='候选合同副本待恢复'
+        assert unavailable['total'] is None and unavailable['effective'] is False
 
 
 def test_exact_response_deadline_selection_and_its_original_receipt_prevent_expiry(platform,tmp_path,monkeypatch):

@@ -419,7 +419,7 @@ $('btnNeedsRefresh').onclick = loadNeeds;
 /* ── 订单与检索 ─────────────────────────────────────────────── */
 async function loadOrders() {
   try { ORDERS = SRC ? Object.values(await api(SRC + '/orders.json')) : await api('/api/admin/orders'); } catch (e) { return toast(e.message, 'bad'); }
-  $('ordersTable').innerHTML = ORDERS.length ? `<table class="tbl"><tr><th>合同卡</th><th>助手 → 服务方</th><th>需求</th><th>成约</th><th>阶段</th><th>状态</th><th class="num">总价</th><th>更新</th></tr>` +
+  $('ordersTable').innerHTML = ORDERS.length ? `<table class="tbl"><tr><th>合同卡</th><th>助手 → 服务方</th><th>需求</th><th>成约方式</th><th>阶段</th><th>状态</th><th class="num">候选报价 / 合同价</th><th>更新</th></tr>` +
     ORDERS.map(o => `<tr class="click ${Focus.acct && [o.owner_id, Names.accountOf(o.provider_id)].includes(Focus.acct) ? 'hit' : ''}" data-cd="${esc(o.card_digest)}" data-accts="${esc([o.owner_id, Names.accountOf(o.provider_id)].filter(Boolean).join(' '))}"><td><code class="mono" style="color:var(--c-market)">${esc(shortCd(o.card_digest))}</code></td>
       <td>${Names.html(o.assistant_id)}<span class="arrow">→</span><span class="who provider"><i></i>${esc(o.provider_name || Names.of(o.provider_id))}</span></td>
       <td class="ellipsis" style="max-width:360px">${esc(o.need_text || '')}</td><td>${esc(FORMATION[o.formation] || o.formation)}</td><td>${esc(o.phase)}</td>

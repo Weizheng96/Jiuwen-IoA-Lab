@@ -11,13 +11,15 @@ window.IoaNetwork = (() => {
     nodes[key]=id; components[key]=[title,protocol,hint];
   });
   let selected='assistant',latest=null,selectedOrder=null,lastSeq=null,messageStates=new Map();
-  const done = new Set(['completed','finished','arbitrated','client-terminated']);
+  const done = new Set(['completed','finished','arbitrated','client-terminated','unformed-closed']);
+  function focusedOrder(){return latest.orders.find(o=>o.card_digest===selectedOrder)||latest.orders.find(o=>!done.has(o.state))||latest.orders[0];}
+  function recordTitle(order){return !order.effective ? (order.state==='unformed-closed'?'未成约 · 已结束':'候选合同') : done.has(order.state)?'已结束委托':'当前委托';}
   const live=[], rng=NetworkMap.random(4721), peerSlots=new Map();
   let nextAmbient=0;
   const el=key=>document.getElementById(nodes[key] || key);
   function detail(){
     const c=components[selected],box=document.getElementById('component-detail');
-    const extra=selected==='message' ? `${latest.interfaces.length} 个自定义接口 · ${latest.messages.length} 条双方消息` : selected==='contract' ? `${latest.orders.length} 笔本人委托` : '';
+    const extra=selected==='message' ? `${latest.interfaces.length} 个自定义接口 · ${latest.messages.length} 条双方消息` : selected==='contract' ? `${latest.orders.filter(o=>o.effective).length} 份已成约合同 · ${latest.orders.filter(o=>!o.effective).length} 份候选合同` : '';
     box.innerHTML=`<b>${escape(c[0])}</b><span>${escape(c[2])}</span><small>${escape(extra)}</small>`;
     document.querySelectorAll('[data-graph-node]').forEach(n=>n.classList.toggle('selected',n.dataset.graphNode===selected));
   }
@@ -53,9 +55,9 @@ window.IoaNetwork = (() => {
     const name=latest.account.display_name||latest.account.username;
     el('assistant').querySelector('b').textContent=name+'的个人助手';
     el('assistant').querySelector('small').textContent=latest.identities.some(x=>x.role==='assistant')?'已登记 · 本地九问':'等待九问接入';
-    const order=latest.orders.find(o=>o.card_digest===selectedOrder)||latest.orders[0];
+    const order=focusedOrder();
     el('service').querySelector('b').textContent=order?.providerName||latest.intents[0]?.providerName||'相关专业服务';
-    el('service').querySelector('small').textContent=order ? (done.has(order.state)?'已结束委托':'当前委托') : latest.intents.length?'委托意向处理中':'从 A2X 发现服务';
+    el('service').querySelector('small').textContent=order ? recordTitle(order) : latest.intents.length?'委托意向处理中':'从 A2X 发现服务';
     const services=(latest.publicServices||[]).filter(s=>s.url!==order?.provider_id).slice(0,18);
     const serviceList=document.getElementById('public-network-services'),signature=services.map(s=>s.id+s.name).join('|');
     if(serviceList.dataset.signature!==signature){
@@ -79,7 +81,7 @@ window.IoaNetwork = (() => {
     if(lastSeq!==null){
       events.filter(e=>e.seq>lastSeq&&!e.stale).forEach(e=>{
         const op=e.op,a=el('assistant'),provider=latest.orders.find(o=>o.card_digest===e.card_digest)?.provider_id;
-        const main=latest.orders.find(o=>o.card_digest===selectedOrder)||latest.orders[0];
+        const main=focusedOrder();
         const s=provider&&provider!==main?.provider_id?[...document.querySelectorAll('[data-provider-url]')].find(n=>n.dataset.providerUrl===provider)||el('service'):el('service');
         if(op==='discovery.search')pulse(a,el('a2x'),'A2X 搜索');
         else if(op==='discovery.compared')pulse(el('a2x'),a,'筛选结果');
@@ -109,9 +111,7 @@ window.IoaNetwork = (() => {
   }
 
   function journey() {
-    const o =
-        latest.orders.find((x) => x.card_digest === selectedOrder) ||
-        latest.orders[0],
+    const o = focusedOrder(),
       s = o?.signatures || {};
     const events = latest.events || [],
       ops = new Set(
@@ -122,7 +122,7 @@ window.IoaNetwork = (() => {
     const steps = [
       ["发起", "assistant", !!o || ops.has("need.create"), "参与方上报"],
       ["A2X 搜索", "a2x", ops.has("discovery.search"), "过程记录"],
-      ["选择服务", "a2x", !!o?.effective || ops.has("discovery.compared"), "合同指向的所选服务"],
+      ["筛选服务", "a2x", !!o?.effective || ops.has("discovery.compared"), "候选比较或已成约合同"],
       [
         "协商报价",
         "service",
@@ -149,10 +149,10 @@ window.IoaNetwork = (() => {
       .querySelectorAll("[data-stage]")
       .forEach((n) => (n.onclick = () => select(n.dataset.stage)));
     document.getElementById("journey-status").textContent = o
-      ? (done.has(o.state) ? "已结束委托" : "当前委托") + " · " + o.providerName
+      ? recordTitle(o) + " · " + o.providerName
       : "等待九问发起需求";
     document.getElementById("journey-evidence").innerHTML = o
-      ? `<span>合同总额 <b>${escape(o.total)}</b></span><span>净支出 <b>${escape(o.paid || "0.00")}</b></span><small>虚拟币 · 验收执行位于个人助手本地</small>`
+      ? `<span>${o.effective?'合同总额':'候选报价'} <b>${escape(o.total??'未知')}</b></span>${o.effective?`<span>委托净支出 <b>${escape(o.paid || "0.00")}</b></span>`:''}<span>已付拟卡费 <b>${escape(o.proposalFeePaid || "0.00")}</b></span><small>虚拟币 · ${escape(o.phase)}</small>`
       : "<small>记录来自真实 SDK 调用与平台证据；未观察的步骤不会补成已完成。</small>";
   }
   return {

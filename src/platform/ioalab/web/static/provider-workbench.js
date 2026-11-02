@@ -2,10 +2,13 @@
 window.ProviderWorkbench=(()=>{
   let selected=null,category=null,last=null;
   const e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const proposalStates=new Set(['forming','offered','drafted','proposed']);
-  const ended=new Set(['completed','finished','arbitrated','client-terminated']);
-  const label=s=>({forming:'待确认提案',offered:'待确认提案',completed:'已完成',finished:'已完成',started:'履约中',signed:'已签约',offered:'待采纳',drafted:'待签约',accepted:'已验收',disabled:'已停用',online:'已连接',offline:'未连接',paused:'暂停接新委托',busy:'名额已满',unavailable:'模板不可用',listed:'待公示',terminated:'已解除','client-terminated':'已解除',arbitrated:'已裁定'}[s]||s);
-  function rows(list){return list.length?'<div class="provider-table"><div class="table-labels"><span>委托与客户</span><span>履约状态</span><span>合同 / 已收</span><span></span></div>'+list.map(o=>`<article class="provider-order"><div><b>${e(o.clientName||'委托方')}</b><small>${e(o.card_digest.slice(0,23))}…</small></div><span class="badge ${ended.has(o.state)?'done':''}">${e(o.phase||label(o.state))}</span><div><b>${e(o.total??'报价未知')}</b><small>净收入 ${e(o.paid)} · 已退 ${e(o.refunded||"0.00")} · 拟卡费 ${e(o.proposalFeePaid)} 虚拟币</small></div><button class="btn" data-order="${e(o.card_digest)}">查看合同</button></article>`).join('')+'</div>':'<div class="provider-empty"><span>—</span><p>暂无记录</p></div>';}
+  const ended=IoaNetwork.done;
+  const label=s=>({offered:'候选合同',completed:'已完成',finished:'已完成',started:'履约中',signed:'已签约',accepted:'已验收',disabled:'已停用',online:'已连接',offline:'未连接',paused:'暂停接新委托',busy:'名额已满',unavailable:'模板不可用',listed:'待公示',terminated:'已解除','client-terminated':'已解除',arbitrated:'已裁定','unformed-closed':'未成约 · 已结束'}[s]||s);
+  function rows(list){
+    return list.length?'<div class="provider-table"><div class="table-labels"><span>客户与记录</span><span>当前阶段</span><span>报价与已收</span><span></span></div>'+list.map(o=>
+      `<article class="provider-order"><div><b>${e(o.clientName||'委托方')}</b><small>${e(o.card_digest.slice(0,23))}…</small></div><span class="badge ${o.effective&&ended.has(o.state)?'done':''}">${e(o.phase||label(o.state))}</span><div><b>${o.effective?'合同总额':'候选报价'} ${e(o.total??'未知')}</b><small>委托净收入 ${e(o.paid)} · 已退 ${e(o.refunded||"0.00")} · 拟卡费 ${e(o.proposalFeePaid)} 虚拟币</small></div><button class="btn" data-order="${e(o.card_digest)}">${o.effective?'查看合同':'查看候选合同'}</button></article>`
+    ).join('')+'</div>':'<div class="provider-empty"><span>—</span><p>暂无记录</p></div>';
+  }
   function intentRows(list){return list.map(r=>`<article class="provider-order"><div><b>${e(r.clientName)}</b><small>委托意向 · 尚未形成合同</small></div><span class="badge">${e(r.phase)}</span><div><b>拟卡费 ${e(r.proposalFeePaid)}</b><small>虚拟币 · 实际已收</small></div><button class="btn" data-provider-intent="${e(r.originMessageId)}">详情</button></article>`).join('');}
   function render(data){
     last=data;const services=data.services,active=services.filter(s=>s.activeDelegations>0).length;
@@ -18,12 +21,15 @@ window.ProviderWorkbench=(()=>{
     document.querySelectorAll('[data-service]').forEach(b=>b.onclick=()=>{selected=b.dataset.service;render(last);document.getElementById('services').scrollTop=0;});
     const service=visible.find(s=>s.id===selected),root=document.getElementById('services');
     if(!service){root.innerHTML='<section class="provider-welcome"><h2>接入专业服务，参与智能体互联网</h2><p>通过服务方SDK登记端点、公示合同模板，即可在这里管理服务与履约。</p><a class="btn" href="/downloads/ioalab-provider-skill.zip">下载服务方技能</a></section>';return;}
-    const proposals=service.orders.filter(o=>proposalStates.has(o.state)),current=service.orders.filter(o=>!ended.has(o.state)&&!proposalStates.has(o.state)),history=service.orders.filter(o=>ended.has(o.state));
+    const proposals=service.orders.filter(o=>!o.effective),current=service.orders.filter(o=>o.effective&&!ended.has(o.state)),history=service.orders.filter(o=>o.effective&&ended.has(o.state));
     const cat=data.categories.find(c=>c.id===service.category)?.name||'其他';
-    root.innerHTML=`<section class="provider-hero"><div><div class="eyebrow">${e(cat)} / SERVICE</div><h2>${e(service.name)}</h2><p>${e(service.description||'独立运行的专业服务')}</p><code>${e(service.url)}</code></div><span class="provider-online">${e(label(service.status))}</span></section><div class="provider-summary"><div><span>实际收入</span><strong>${e(service.earned)} <small>虚拟币</small></strong><small>委托价款 ${e(service.commissionEarned)} · 拟卡费 ${e(service.proposalFeesEarned)}</small></div><div><span>当前委托</span><strong>${current.length}</strong></div><div><span>待确认提案</span><strong>${proposals.length}</strong></div><div><span>历史委托</span><strong>${history.length}</strong></div></div>${service.intents.length?`<section class="provider-section"><h3>委托意向记录</h3>${intentRows(service.intents)}</section>`:""}<section class="provider-section"><div class="section-title"><h3>履约工作区</h3><span class="hint">${current.length} 笔待办</span></div>${rows(current)}</section>${proposals.length?`<section class="provider-section"><h3>待确认提案</h3>${rows(proposals)}</section>`:''}<section class="provider-section"><div class="section-title"><h3>完成与历史</h3><span class="hint">逐单保留合同与付款记录</span></div>${rows(history)}</section>`;
+    root.innerHTML=`<section class="provider-hero"><div><div class="eyebrow">${e(cat)} / SERVICE</div><h2>${e(service.name)}</h2><p>${e(service.description||'独立运行的专业服务')}</p><code>${e(service.url)}</code></div><span class="provider-online">${e(label(service.status))}</span></section><div class="provider-summary"><div><span>实际收入</span><strong>${e(service.earned)} <small>虚拟币</small></strong><small>委托价款 ${e(service.commissionEarned)} · 拟卡费 ${e(service.proposalFeesEarned)}</small></div><div><span>当前委托</span><strong>${current.length}</strong></div><div><span>候选合同记录</span><strong>${proposals.length}</strong></div><div><span>历史委托</span><strong>${history.length}</strong></div></div>${service.intents.length?`<section class="provider-section"><h3>委托意向记录</h3>${intentRows(service.intents)}</section>`:""}<section class="provider-section"><div class="section-title"><h3>履约工作区</h3><span class="hint">${current.length} 笔待办</span></div>${rows(current)}</section>${proposals.length?`<section class="provider-section"><h3>候选合同记录</h3>${rows(proposals)}</section>`:''}<section class="provider-section"><div class="section-title"><h3>完成与历史</h3><span class="hint">逐单保留合同与付款记录</span></div>${rows(history)}</section>`;
     root.querySelectorAll('[data-provider-intent]').forEach(b=>b.onclick=()=>show('委托意向',service.intents.find(r=>r.originMessageId===b.dataset.providerIntent)));
     // index.js binds the initial render; user changes need the same owned-order detail handler.
-    root.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>show('委托详情',service.orders.find(o=>o.card_digest===b.dataset.order)));
+    root.querySelectorAll('[data-order]').forEach(b=>b.onclick=()=>{
+      const order=service.orders.find(o=>o.card_digest===b.dataset.order);
+      show(order.effective?'委托详情':'候选合同详情',order);
+    });
   }
   return {render};
 })();

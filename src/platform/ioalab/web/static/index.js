@@ -27,6 +27,7 @@ const labels = {
   drafted: "草拟中",
   forming: "待确认提案",
   offered: "待确认提案",
+  "unformed-closed": "未成约 · 已结束",
   finished: "已完成",
   invite_submitted: "邀请邮件已提交，等待接受",
   delivered: "已交付",
@@ -61,7 +62,7 @@ function orders(rows) {
     ? rows
         .map(
           (o) =>
-            `<div class="row"><div><b>${esc(o.providerName || o.provider_id)}</b><small>${esc(o.card_digest?.slice(0, 23))}…</small></div><div>${badge(o.state, o.phase)}</div><div>${o.total===null?'报价未知':esc(o.total)+' 虚拟币'}<small>净支出 ${esc(o.paid || "0.00")} · 已退 ${esc(o.refunded || "0.00")} · ${esc(when(o.created))}</small></div><button class="btn" data-order="${esc(o.card_digest)}">详情</button></div>`,
+            `<div class="row"><div><b>${esc(o.providerName || o.provider_id)}</b><small>${esc(o.card_digest?.slice(0, 23))}…</small></div><div>${badge(o.state, o.phase)}</div><div>${o.effective?'合同总额':'候选报价'} ${o.total===null?'未知':esc(o.total)+' 虚拟币'}<small>委托净支出 ${esc(o.paid || "0.00")} · 已付拟卡费 ${esc(o.proposalFeePaid || "0.00")} · 已退 ${esc(o.refunded || "0.00")} · ${esc(when(o.created))}</small></div><button class="btn" data-order="${esc(o.card_digest)}">详情</button></div>`,
         )
         .join("")
     : '<div class="empty">还没有委托记录。向九问描述需求，确认合同后即可开始。</div>';
@@ -93,9 +94,9 @@ function render() {
   $("orders").innerHTML = orders(
     data.orders.filter((o) => o.effective && !IoaNetwork.done.has(o.state)),
   );
-  $('proposal-orders').innerHTML=intentRows(data.intents)+orders(data.orders.filter(o=>!o.effective&&!IoaNetwork.done.has(o.state)));
+  $('proposal-orders').innerHTML=intentRows(data.intents)+orders(data.orders.filter(o=>!o.effective));
   $("order-history").innerHTML = orders(
-    data.orders.filter((o) => IoaNetwork.done.has(o.state)),
+    data.orders.filter((o) => o.effective && IoaNetwork.done.has(o.state)),
   );
   const openInterfaces = new Set([...$("interfaces").querySelectorAll("details[open]")].map(n => n.dataset.interface));
   $("interfaces").innerHTML = data.interfaces.length
@@ -133,10 +134,11 @@ function render() {
             ...data.orders,
             ...data.services.flatMap((s) => s.orders),
           ];
+          const order=all.find((o) => o.card_digest === b.dataset.order);
           IoaNetwork.chooseOrder(b.dataset.order);
           show(
-            "委托详情",
-            all.find((o) => o.card_digest === b.dataset.order),
+            order.effective ? "委托详情" : "候选合同详情",
+            order,
           );
         } catch (e) {
           notice(e.message);

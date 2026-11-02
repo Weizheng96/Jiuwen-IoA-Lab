@@ -204,7 +204,7 @@ class ContractProjection:
         if not card:
             payments=self.payments(row);template=json.loads(row['details'])['template']
             ending=self.market.market.store.get('ledger',row['digest'])
-            return {**base,'state':ending['outcome'] if ending else 'unknown','phase':'合同副本待恢复','signatures':{},'payments':payments,
+            return {**base,'state':ending['outcome'] if ending else 'unknown','phase':'合同副本待恢复' if row['effective'] else '候选合同副本待恢复','signatures':{},'payments':payments,
                 'paid':str(sum((net_amount(p) for p in payments if p['purpose']!='proposal-fee'),money(0))),
                 'proposalFeePaid':str(sum((net_amount(p) for p in payments if p['purpose']=='proposal-fee'),money(0))),
                 'refunded':str(sum((money(p['amount']) for p in payments if p['direction']=='refund'),money(0))),
@@ -215,6 +215,7 @@ class ContractProjection:
         payments=self.payments(row);commission=[p for p in payments if p['purpose']!='proposal-fee']
         facts=self.db.one('SELECT receipt,step FROM delegation_contracts WHERE admission=?',row['admission']) or {}
         ending=self.market.market.store.get('ledger',row['digest'])
+        unknown=not ending and self.unknown(row['admission'])
         state='signed' if row['effective'] else 'offered'
         if facts.get('receipt'):state='started'
         if signatures['5']:state='delivered'
@@ -222,9 +223,11 @@ class ContractProjection:
         terminated=bool(card['fulfillment'].get('termination'))
         if terminated:state='terminated'
         if ending:state=ending['outcome']
+        if not row['effective'] and not ending and not unknown and row['admission_state']=='released':state='unformed-closed'
         phase={'signed':'已成约','offered':'待确认合同','started':'履约中','delivered':'等待验收','accepted':'已签验收',
-               'completed':'已结清','client-terminated':'已解除 · 已结清','terminated':'已解除 · 待结清','arbitrated':'已裁定'}.get(state,state)
-        if not row['effective']:phase='等待服务方复签' if signatures['1'] else '等待用户确认合同'
+               'completed':'已结清','client-terminated':'已解除 · 已结清','terminated':'已解除 · 待结清','arbitrated':'已裁定',
+               'unformed-closed':'未成约 · 已结束'}.get(state,state)
+        if not row['effective'] and not ending and state!='unformed-closed':phase='等待服务方复签' if signatures['1'] else '等待用户确认合同'
         waiting=json.loads(facts['step']) if facts.get('step') else None
         if waiting and not ending and not terminated:phase='等待用户授权'
         result={**base,'provider_id':card['provider'],'template_digest':card['templateDigest'],
@@ -236,7 +239,7 @@ class ContractProjection:
             'earned':str(sum((net_amount(p) for p in payments),money(0)))}
         if ending and ending.get('outcome')=='completed' and len(signatures['7'])<len(card['derived']['periods']):
             result.update(evidenceStatus='partial',phase='已结清 · 部分历史证据缺失')
-        result['executionState']='unknown' if not ending and self.unknown(row['admission']) else None
+        result['executionState']='unknown' if unknown else None
         if result['executionState']=='unknown':result['phase']='执行结果待核对'
         if private:result.update(card=card,detail={'card':card,'trust':'verified'},stepRequest=waiting)
         return result

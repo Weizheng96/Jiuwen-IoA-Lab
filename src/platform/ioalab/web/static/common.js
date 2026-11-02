@@ -73,7 +73,7 @@ function outcomeOf(ev) {
 }
 function outcomeClass(o) { return /^(ok|completed|granted|pass|online)$/.test(o) ? 'ok' : /^(error|failed|refused|timeout|fail|rejected)$/.test(o) ? 'bad' : ''; }
 const STATE = { queued: '排队', open: '待 swarm 驾驭', running: '助手处理中', started: '已开工', forming: '定约中', completed: '已完成', failed: '未成', abandoned: '已放弃', terminated: '已解除',
-  arbitrated: '已裁定', lapsed: '已失效', aborted: '已中止', declined: '被拒绝', pending: '待答复', granted: '已允许', refused: '已拒绝', timeout: '已超时' };
+  arbitrated: '已裁定', signed: '已成约', offered: '候选合同', 'unformed-closed': '未成约 · 已结束', lapsed: '已失效', aborted: '已中止', declined: '被拒绝', pending: '待答复', granted: '已允许', refused: '已拒绝', timeout: '已超时' };
 const FORMATION = { preapproval: '预批准', countersign: '待批准', proposal: '提案型' };
 const KIND_LOG = { welcome: '注册赠送', login: '登录赠送', seed: '初始额度', grant: '发放 / 扣减', deposit: '定金', installment: '期款', proposalFee: '拟卡费', ruling: '裁定后付款', refund: '退差额', fee: '市场服务费' };
 
