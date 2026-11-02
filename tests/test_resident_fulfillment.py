@@ -116,8 +116,13 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         key,_=invoke(assistant,ref,'start')
         wait_for(lambda:operation(assistant,ref,key));assert operation(assistant,ref,key)['status']=='completed',operation(assistant,ref,key)
         wait_for(lambda:status(assistant,ref)['data']['stepRequest'])
-        sr=status(assistant,ref)['data']['stepRequest'];client=LocalClient(assistant.config.home)
+        current=status(assistant,ref)['data'];sr=current['stepRequest'];step_digest=current['stepRequestDigest'];client=LocalClient(assistant.config.home)
+        assert step_digest==objects.object_digest(sr) and step_digest!=ref
         assert status(assistant,ref)['data']['availablePeriods']==0
+        before=assistant.confirmations.list()
+        wrong=client.call('assistant.delegation.answer_step',{'contractRef':ref,'stepRequestDigest':ref})
+        assert wrong['status']=='rejected' and wrong['error']['recovery']=='assistant.delegation.status',wrong
+        assert assistant.confirmations.list()==before
         # The model cannot supply its own granted/confirmed flag.
         assert client.call('assistant.delegation.answer_step',{'contractRef':ref,'stepRequestDigest':objects.object_digest(sr),'granted':True})['status']=='rejected'
         forged=Signer('urn:test-foreign-user',Ed25519PrivateKey.generate())
@@ -129,10 +134,10 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
              'body':{'admissionId':status(assistant,ref)['data']['admissionId'],'op':'step.authorize','taskId':task_id,'body':{'stepAuthorization':answer},'files':{}}}
         from ioalab_sdk.runtime.protocol import RuntimeFault
         with pytest.raises(RuntimeFault):assistant.connection.call(assistant.identities[0].agent_id,'message.send',bad,operation_id=uid())
-        key,pending=invoke(assistant,ref,'answer_step',stepRequestDigest=objects.object_digest(sr))
+        key,pending=invoke(assistant,ref,'answer_step',stepRequestDigest=step_digest)
         assert pending['status']=='waiting'
         user_decision(assistant,pending['data']['confirmationRef'],decision='answer',answers=[{'selected_options':['allow']}])
-        assert client.call('assistant.delegation.answer_step',{'contractRef':ref,'stepRequestDigest':objects.object_digest(sr)},operation_id=key)['status']=='accepted'
+        assert client.call('assistant.delegation.answer_step',{'contractRef':ref,'stepRequestDigest':step_digest},operation_id=key)['status']=='accepted'
         wait_for(lambda:operation(assistant,ref,key));assert operation(assistant,ref,key)['status']=='completed',operation(assistant,ref,key)
         try:wait_for(lambda:status(assistant,ref)['data']['availablePeriods']==1)
         except AssertionError:raise AssertionError({'hostFailure':getattr(host,'failure',None),'executionErrors':provider.modules[0].execution.errors,'roleError':provider.modules[0].error})

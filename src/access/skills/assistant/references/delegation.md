@@ -17,7 +17,7 @@ python "<实际技能目录>/scripts/ioalab.py" assistant.delegation.prepare --c
 | 统一比较 | assistant.delegation.compare：taskRef、quoteRefs（本次1—32个原引用） | 保存data.reference完整对象，依calling.md查询原作业，data.status=completed后读取data.data；只读比较不重新征集或收费。核候选state及validUntil；结合verifierPackages中reviewRef对应的真实程序和notCovered逐项解释需求覆盖，源码遗漏明确说明；信誉须status=verified，未知不当作零单；不按低价、包名或条目数量选中 |
 | 具体合同 | assistant.delegation.confirm：quoteRef | 展示实际合同及材料发送阶段，取得独立用户确认后重发同一操作；保存 contractRef，status 查询 formed 后才开工 |
 | 开工 | assistant.delegation.start：contractRef | SDK 复用原合同及实际定金/开工回执。新候选失效不等于旧合同失效，仍遵守原合同窗口 |
-| 合同环节 | assistant.delegation.answer_step：contractRef、stepRequestDigest | 仅在 status 有真实 stepRequest 时展示对象与动作；用户实际选择同意/拒绝后重发原操作，不传 granted/confirmed |
+| 合同环节 | assistant.delegation.status：contractRef，再 assistant.delegation.answer_step：contractRef、stepRequestDigest | 读取 status.data.stepRequest 及同一回执的 data.stepRequestDigest，不用合同摘要，不自行计算或猜测；两字段为空则无当前可答环节。answer_step 取得 waiting 和 confirmationRef 后才打开确认页；用户实际同意/拒绝后重发原操作，不传 granted/confirmed |
 | 交付与取件 | assistant.delegation.status：contractRef；assistant.delegation.fetch：contractRef、period | availablePeriods 及实际签名证明交付，取件保存原文件与签收；不是模型文字“完成” |
 | 验收与付款 | assistant.delegation.verify：contractRef、period；assistant.delegation.accept：contractRef、period | 异步作业先返回引用；accept取得通过报告后进入waiting，展示真实预览和应付款额。取得本期独立确认后用同一operationId重发accept，原Client.accept复验、通知及AP2，分别查实际验收与付款结果 |
 | 解除报价 | assistant.delegation.termination_quote：contractRef | 异步取得原签名报价及 terminationQuoteRef，不代表已解除或已付款 |

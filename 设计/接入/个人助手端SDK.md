@@ -26,12 +26,12 @@ prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 ca
 | `assistant.delegation.compare` | taskRef、quoteRefs（1—32个不重复本机报价引用） | 返回异步只读作业及原reference，用operations.get查询；核原件后对比提案与待批准未签算价卡，列明期限、缺项与实际信誉；不签署或选中 |
 | `assistant.delegation.confirm` | 选定具体卡、可信确认引用 | 提案模式在有效窗口内签1采纳；待批准模式取得真实预留后签1并发 card.countersign，服务方签2后即成约；合同改变须重新确认 |
 | `assistant.delegation.start` | 已满足开工条件的合同引用 | 独立 work.start 结果；与观察订阅、验收通知分开 |
-| `assistant.delegation.answer_step` | contractRef、原 stepRequestDigest；通过可信用户通道取得本次答复 | 核对卡载环节、请求摘要、当前阶段与期限，复用 A2C Client.answer_step 返回签名同意或拒绝；不复用先前委托授权 |
+| `assistant.delegation.answer_step` | contractRef、合同status返回的原 stepRequestDigest；通过可信用户通道取得本次答复 | 核对卡载环节、请求摘要、当前阶段与期限，复用 A2C Client.answer_step 返回签名同意或拒绝；不复用先前委托授权 |
 | `assistant.delegation.fetch` | contractRef、期次 | 复用原取件与清单校验并签6；恢复已保存文件，不重复签收 |
 | `assistant.delegation.verify` | 合同、里程碑及交付引用 | 本地运行卡载验收器取得报告；不签署接受 |
 | `assistant.delegation.accept` | 交付、验收阶段的可信确认引用 | 复用原 Client.accept 复验、签7、通知及通过后的分期付款；各项分别返回，失败或不明确时不伪造通过 |
 | `assistant.delegation.pay` | contractRef、原付款用途和期次 | 在授权内恢复相应原 AP2 付款与通知，不重验收、不重复扣款；不能根据自然语言“通过”付款 |
-| `assistant.delegation.status` | 任务或合同引用 | 原协议状态、候选、等待事项、验收与付款分别列示 |
+| `assistant.delegation.status` | 任务或合同引用 | 原协议状态、候选、等待事项、验收与付款分别列示；合同环节返回已验证的当前请求及其对象摘要 |
 | `assistant.delegation.termination_quote` | contractRef | 异步取得原签名解除报价，保存 terminationQuoteRef、期次、金额与有效窗口；不解除或付款 |
 | `assistant.delegation.terminate` | contractRef、mode（agreed/unilateral），协商时含 terminationQuoteRef；可选原因及原 confirmationRef | 预览实际解除依据并独立确认，沿原操作执行 A2C 解除；分别返回通知、结算及结清状态，不将全部视为完成 |
 | `assistant.delegation.dispute` | contractRef或quoteRef二选一、ground、必要period、材料引用；可选原confirmationRef | SDK先取原依据并独立请求用户确认，申请与真实受理分别返回；恢复原caseRef，不执行裁定付款 |
@@ -67,7 +67,11 @@ confirm 使用本机 quoteRef，可选 confirmationRef，不接收模型另传�
 
 履约操作统一使用 contractRef，SDK 固定原交互、原任务和已确认合同。status 可附原 operationId，组合原成约记录、该操作与最新协议事实，分别显示开工、待授权环节、可取件期次、验收和付款；不把确认时的未开工快照当成永久当前状态。fetch、verify、accept 和 pay 显式指定 period。具体原方法、组合调用及未知恢复见 [A2C 适配](A2C适配.md)。
 
-answer_step 输入 contractRef、原 stepRequestDigest；SDK 展示该原请求，通过受控用户通道取得同意或拒绝，再派生 granted 调用原方法。不接受模型填写的 granted 或 confirmed 代替用户选择。验收预览绑定期次、清单和实际报告，同时展示通过后应付金额；未通过或待定不签7，批准后仍按原 SDK 复验。
+合同status的data.stepRequest只返回原合同、Task及当前阶段对应且已经完成原签名核验的待答复请求，data.stepRequestDigest由SDK对该同一对象调用原A2C的`a2c.objects.object_digest`生成。无当前待答复请求或合同已经解除时，两字段均为null。原协议查询或核验结果未知时，不得暴露尚未核验的候选请求及其摘要；保留原引用，按共用恢复规则核实。
+
+answer_step 输入contractRef及上述status回执中的stepRequestDigest，模型不得自行计算、猜测或用contractRef替代。摘要不匹配时拒绝且不创建待确认记录，error.recovery明确指向`assistant.delegation.status`，要求重新查询该合同并使用data.stepRequestDigest。SDK仍核对原签名、卡载环节、当前请求、阶段和期限；摘要回执不构成授权。调用answer_step取得真实waiting及confirmationRef后，才打开受控确认页收集该原请求的同意或拒绝；打开页面不创建待确认记录，也不产生答复。真实决定后沿同一操作恢复，再派生granted调用原方法。不接受模型填写的granted或confirmed代替用户选择；确认创建与消费遵守[共用确认流程](SDK共用机制.md#用户确认)。
+
+验收预览绑定期次、清单和实际报告，同时展示通过后应付金额；未通过或待定不签7，批准后仍按原 SDK 复验。
 
 提案 `request` 的拟卡费步骤和显式 `pay` 共用同一付款操作记录，不能产生两笔费用；取得真实预留前不得付拟卡费。待批准 `confirm` 的服务方签2已经形成合同，不能先向多家请求复签再比较；拒单、过期或结果未知时不得自动改签另一家。每期付款消费卡载依据；支付、预留和终态规则分别由[支付中心](../组件/支付中心.md)及[委托中心](../组件/委托中心.md)定义。零拟卡费不免除有效签署前的容量提交。
 

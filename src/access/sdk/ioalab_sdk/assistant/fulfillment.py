@@ -43,8 +43,11 @@ class Fulfillment:
             try:
                 task=client.transport.get_task(card['provider'],record['task'])
                 if task.state=='auth-required':
-                    step=(task.status or {}).get('stepRequest')
-                    if step:objects.verify_signed(step,client.keys.jwk(card['provider'],header_of(step['signature']).get('kid')),signer=card['provider'],expect_kid=True)
+                    candidate=(task.status or {}).get('stepRequest')
+                    if candidate:
+                        objects.verify_signed(candidate,client.keys.jwk(card['provider'],header_of(candidate['signature']).get('kid')),signer=card['provider'],expect_kid=True)
+                        if candidate['cardDigest']!=reference:raise RuntimeFault('protocol_error','Step request belongs to another card')
+                        step=candidate
                 for item in task.artifacts:
                     if 'card' in item:
                         actual=item['card']
@@ -61,6 +64,7 @@ class Fulfillment:
         if card['fulfillment'].get('termination'):
             result['terminationStatus']=self.role.termination.facts(client,contract)
             result['stepRequest']=None
+        result['stepRequestDigest']=objects.object_digest(result['stepRequest']) if result['stepRequest'] else None
         if operation:
             saved=self.record(operation)
             if saved['args']['contractRef']!=reference:raise RuntimeFault('forbidden','Operation belongs to another contract')
@@ -103,7 +107,8 @@ class Fulfillment:
                 if name=='answer_step':
                     client.poll(args['contractRef']);source=client.store.get('cards',args['contractRef'])
                     pending=[item for item in source.get('steps',[]) if item['answer'] is None]
-                    if not pending or objects.object_digest(pending[-1]['request'])!=args['stepRequestDigest']:raise RuntimeFault('forbidden','Use the actual current original step request')
+                    if not pending or objects.object_digest(pending[-1]['request'])!=args['stepRequestDigest']:
+                        raise RuntimeFault('forbidden','Use data.stepRequestDigest from assistant.delegation.status for the current original step request; do not use contractRef','assistant.delegation.status')
                     record['preview']={'title':'确认本次合同环节','stepRequest':pending[-1]['request'],'contractRef':args['contractRef']}
                 elif name=='start':
                     if client.card(args['contractRef'])['inputs'] and 'materials' not in contract['binding']['preview']:

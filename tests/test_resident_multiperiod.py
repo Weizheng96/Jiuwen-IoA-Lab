@@ -98,10 +98,12 @@ def await_operation(assistant,reference,key):
 
 def approve_step(assistant,reference,period,old_digest=None,*,timeout=20):
     wait_for(lambda:(contract_state(assistant,reference).get('stepRequest') or {}).get('period')==period,timeout=timeout)
-    step=contract_state(assistant,reference)['stepRequest'];digest=objects.object_digest(step)
+    current=contract_state(assistant,reference);step=current['stepRequest'];digest=current['stepRequestDigest']
+    assert digest==objects.object_digest(step) and digest!=reference
     if old_digest:
         previous=LocalClient(assistant.config.home).call('assistant.delegation.answer_step',{'contractRef':reference,'stepRequestDigest':old_digest})
         assert previous['status']=='rejected' and previous['error']['code']=='forbidden',previous
+        assert previous['error']['recovery']=='assistant.delegation.status'
         assert contract_state(assistant,reference)['stepRequest']==step
     key,pending=invoke(assistant,reference,'answer_step',stepRequestDigest=digest)
     assert pending['status']=='waiting',pending
