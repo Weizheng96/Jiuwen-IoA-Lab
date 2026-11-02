@@ -1,6 +1,6 @@
 {
   "scope": "Core, SDK and product Skill checkpoint; not completed native onboarding, delegated business, Linux deployment or films",
-  "recordedAt": "2026-11-02T06:13:56.980518+00:00",
+  "recordedAt": "2026-11-02T06:20:24.231704+00:00",
   "designVersion": "v0.0.109",
   "baseCommit": "566b4fb608267076e03b7980b302baae68cf79cc",
   "testedSourceTree": "e38dff773bad962075db332ee909e5deea9a57c7",
@@ -75,7 +75,7 @@
       "Missing or unknown evidence retains capacity while another verifiable proposal can expire",
       "Admission release, intent/interaction closure and reliable notices commit atomically and deduplicate"
     ],
-    "realExperimentalCoreUpgradedAtRecording": false
+    "realExperimentalCoreUpgradedAtRecording": true
   },
   "nativeBoundary": {
     "swarmOrigin": "http://127.0.0.1:15173",
@@ -94,10 +94,133 @@
     "contractSignedOrPaidForThisDiagnosis": false
   },
   "remaining": [
-    "Upgrade only the owned experimental Core and verify expiry against original data and SDK identities",
     "Native import of the corrected Skills and complete user-facing signup/configuration/business retest",
     "Repair the Demo business templates and behavior verifiers without weakening acceptance or changing old signed offers",
     "Make expired proposals and actual signed contracts unambiguous in the workbench projection",
     "Full default Linux deployment and four new films are not included"
-  ]
+  ],
+  "liveCoreRecovery": {
+    "scope": "Owned experimental Core upgrade and original-proposal expiry only; not native Swarm import or completed business",
+    "core": {
+      "pid": 25756,
+      "previousPid": 11400,
+      "port": 18750,
+      "url": "http://127.0.0.1:18750",
+      "sourceCommit": "26cb9089df0b008b0178945c756c718bbe2c65e8",
+      "scope": "Owned isolated native-verification Core; original data and SDKs retained"
+    },
+    "sdkBefore": {
+      "assistant": {
+        "runtimeId": "7be4c928-ff66-4607-acfc-ea241278eb2d",
+        "bootId": "60937c82-8d4a-49f7-b461-65d8c300fd99",
+        "platformConnected": true,
+        "roleErrors": []
+      },
+      "provider": {
+        "runtimeId": "60d6abd4-6822-4d54-ac1d-b82281780409",
+        "bootId": "4a1cf014-51c7-4ba1-938e-59f048c75e89",
+        "platformConnected": true,
+        "roleErrors": [],
+        "admissionPolicy": {
+          "accepting": true,
+          "active": 2,
+          "maxActiveDelegations": 2,
+          "revision": 4,
+          "service": "svc-dcf2221e-99ae-477a-9145-9b252b812a09"
+        }
+      }
+    },
+    "sdkAfter": {
+      "assistant": {
+        "runtimeId": "7be4c928-ff66-4607-acfc-ea241278eb2d",
+        "bootId": "60937c82-8d4a-49f7-b461-65d8c300fd99",
+        "platformConnected": true,
+        "roleErrors": []
+      },
+      "provider": {
+        "runtimeId": "60d6abd4-6822-4d54-ac1d-b82281780409",
+        "bootId": "4a1cf014-51c7-4ba1-938e-59f048c75e89",
+        "platformConnected": true,
+        "roleErrors": [],
+        "admissionPolicy": {
+          "accepting": true,
+          "active": 0,
+          "maxActiveDelegations": 2,
+          "revision": 4,
+          "service": "svc-dcf2221e-99ae-477a-9145-9b252b812a09"
+        }
+      }
+    },
+    "proposalsBefore": [
+      {
+        "id": "da5e96e2-692c-5b98-9c2f-dc6e6cd50a93",
+        "state": "committed",
+        "interaction": "fecbdf0a-9540-493a-b28d-52402c8dbfed",
+        "intent_closed": 0,
+        "interaction_state": "open",
+        "offerSha256": "c84cf9ee0b78f87fe7b19b69f25e0e14c287e79490eabde60f1fab78fceff13d",
+        "contractRecords": 0,
+        "originalFeePayments": 0,
+        "closureNotices": []
+      },
+      {
+        "id": "ecd75292-31c0-5326-863e-4ae451e86aed",
+        "state": "committed",
+        "interaction": "6bd73647-74af-4eaf-b55a-d5b85f1c24c3",
+        "intent_closed": 0,
+        "interaction_state": "open",
+        "offerSha256": "cfec878ea853293e0a755a1d6651621e600d394c585f5bac5299336ab4c6c3c2",
+        "contractRecords": 0,
+        "originalFeePayments": 0,
+        "closureNotices": []
+      }
+    ],
+    "proposalsAfter": [
+      {
+        "id": "da5e96e2-692c-5b98-9c2f-dc6e6cd50a93",
+        "state": "released",
+        "interaction": "fecbdf0a-9540-493a-b28d-52402c8dbfed",
+        "intent_closed": 1,
+        "interaction_state": "closed",
+        "offerSha256": "c84cf9ee0b78f87fe7b19b69f25e0e14c287e79490eabde60f1fab78fceff13d",
+        "contractRecords": 0,
+        "originalFeePayments": 0,
+        "closureNotices": [
+          {
+            "recipient": "svc-dcf2221e-99ae-477a-9145-9b252b812a09",
+            "reason": "proposal-expired"
+          },
+          {
+            "recipient": "urn:ioalab:assistant:b06ef09b-3e2c-4a54-a215-89284c0e8bd5",
+            "reason": "proposal-expired"
+          }
+        ]
+      },
+      {
+        "id": "ecd75292-31c0-5326-863e-4ae451e86aed",
+        "state": "released",
+        "interaction": "6bd73647-74af-4eaf-b55a-d5b85f1c24c3",
+        "intent_closed": 1,
+        "interaction_state": "closed",
+        "offerSha256": "cfec878ea853293e0a755a1d6651621e600d394c585f5bac5299336ab4c6c3c2",
+        "contractRecords": 0,
+        "originalFeePayments": 0,
+        "closureNotices": [
+          {
+            "recipient": "svc-dcf2221e-99ae-477a-9145-9b252b812a09",
+            "reason": "proposal-expired"
+          },
+          {
+            "recipient": "urn:ioalab:assistant:b06ef09b-3e2c-4a54-a215-89284c0e8bd5",
+            "reason": "proposal-expired"
+          }
+        ]
+      }
+    ],
+    "accountsAgentsWalletsAndCoreKeysUnchanged": true,
+    "rawSqlBusinessWrites": false,
+    "swarmSourceOrConfigurationChanged": false,
+    "backupCreatedBeforeUpgrade": true,
+    "availabilityAfterUpgradeHelperExited": "HTTP 200; listener PID 46160, parent PID 25756"
+  }
 }
