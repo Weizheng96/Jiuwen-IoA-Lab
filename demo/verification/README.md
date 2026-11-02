@@ -6,6 +6,8 @@
 
 [操作诊断与原生接续](native-operation-diagnostics.json)记录完整operation、缩写输入诊断及新版原生导入核对。隔离场景经真实页面自动化允许委托授权并恢复原操作；旧会话的残留待授权经原引用核实后拒绝。当前原生候选已报价299虚拟币，审查发现验收仅搜关键词，尚未签约；不作为行为验收、整单履约或多服务比选通过的证据。
 
+[原提案验收包审计](native-verifier-audit.json)对两份完整原包先核摘要，再在原A2C沙箱运行同一无功能样件：第一份发生bytes/str错误，第二份10项全部通过，证实判据不能保障预约行为。公开工具记录另确认助手在委托prepare之前读取了账号配置正文，配置读取边界仍不通过；未公开正文，也未签约或付款。
+
 以下影片制作记录核对日期为2026-10-30。部署依赖结果见[部署验证](../../deploy/verification/dependencies.json)。自动检查见[checks.json](checks.json)，已发布影片证据见[cases.json](cases.json)，多候选核对见[multi-candidate-review.json](multi-candidate-review.json)。测试通过与新片完成分别判定。
 
 | 视频 | 当前状态 | 验收范围 |

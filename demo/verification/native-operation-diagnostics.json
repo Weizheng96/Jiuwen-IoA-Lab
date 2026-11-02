@@ -117,7 +117,30 @@
         "installedMatches": true
       }
     ],
-    "limit": "证明原生导入的公开产品文件与构建输入一致；不单独证明业务整单完成。"
+    "limit": "证明原生导入的公开产品文件与构建输入一致；不单独证明业务整单完成。",
+    "hashScope": "files[].sha256 为实际 ZIP 文件字节及此前已核对的安装文件字节的原始 SHA-256。committedTextChecks 仅将 ZIP 文本中的 CRLF 转为 LF，再与 sourceCommit 的对应 Git blob 原始字节逐字节比较；不做其他文本转换。本次复用 installedMatches，未重新读取原生安装目录。",
+    "committedTextChecks": [
+      {
+        "artifact": "product_entry",
+        "committedBlobSha256": "7fdee843303b91a97d10e151c572c02c60d9ce457774b40d47ae41883ba4e8bb",
+        "lineEndingNormalizedMatch": true
+      },
+      {
+        "artifact": "calling_reference",
+        "committedBlobSha256": "b904cb8d836531f336250a6953d3059c6460e0e505fb167e8fabd6517596dc71",
+        "lineEndingNormalizedMatch": true
+      },
+      {
+        "artifact": "setup_reference",
+        "committedBlobSha256": "afc48b5e6ed990760bf6336b2913df5c1930134f350b4977211588a235d9ef61",
+        "lineEndingNormalizedMatch": true
+      },
+      {
+        "artifact": "delegation_reference",
+        "committedBlobSha256": "ecb828254afb898c088c3f9c61d69aa272cf691441758b560a574b1e9b29ca08",
+        "lineEndingNormalizedMatch": true
+      }
+    ]
   },
   "staleSessionCleanup": {
     "nativeSessionId": "web_1a19bd30934_241884f0eed8",
@@ -207,6 +230,7 @@
   },
   "notYetPassed": {
     "nativeCompleteOrder": "尚未完成整单验收。",
+    "configurationBoundary": "本轮原生前台发生账号配置正文读取；详见native-verifier-audit.json，配置边界不通过。",
     "multipleServiceComparison": "多服务比选尚未完成实测。",
     "newFilm": "尚未制作并通过新影片验收。"
   },
