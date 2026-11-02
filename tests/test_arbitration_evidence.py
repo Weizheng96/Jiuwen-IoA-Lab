@@ -177,8 +177,13 @@ class DeliverHost(QuoteHost):
 
 def delivered(a,ref):
     key,_=invoke(a,ref,'start');wait_for(lambda:operation(a,ref,key))
+    started=operation(a,ref,key)
+    assert started['status']=='completed',{'stage':'start','operation':started}
     wait_for(lambda:status(a,ref)['data']['availablePeriods']==1)
     key,_=invoke(a,ref,'fetch',period=1);wait_for(lambda:operation(a,ref,key))
+    fetched=operation(a,ref,key)
+    assert fetched['status']=='completed',{'stage':'fetch','operation':fetched}
+    return {'start':started,'fetch':fetched}
 
 
 class SameIdVerifierHost(DeliverHost):
@@ -199,8 +204,12 @@ def test_signed_failed_report_precludes_accept_timeout_and_bad_signature_is_reje
                 'source':"def verify(ctx):\n    return {'status':'fail'}\n",'kind':'skill'})
             assert uploaded['status']=='completed',uploaded
             host.skill={**uploaded['data'],'disputeModels':['evidence-fixed-observer']}
-        q=candidate(a,p,t,task);ref,admission=formed(a,q);delivered(a,ref)
+        q=candidate(a,p,t,task);ref,admission=formed(a,q);receipts=delivered(a,ref)
         client,_=a.modules[0].fulfillment.client(ref)
+        before=client.store.get('cards',ref)
+        signatures=before['card']['signatures']
+        assert len(signatures['6'])==1 and not signatures['7'],{'stage':'before_accept',
+            'receipts':receipts,'state':before.get('state'),'signatures':{'6':signatures['6'],'7':signatures['7']}}
         with client.transport.operation(uid()):result=client.accept(ref,1)
         assert result.status=='fail' and not result.card['signatures']['7']
         monkeypatch.setattr(platform.arbitration_evidence,'clock',lambda:(utcnow()+timedelta(hours=1)).timestamp())
