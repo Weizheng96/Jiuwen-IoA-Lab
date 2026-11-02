@@ -10,6 +10,7 @@
 | 新批准稿与旁白计划 | `demo/review_story.py`、`script_documents.py --drafts`、`approved_voice.py`；不生成业务事实 |
 | 既有场景录制与接续 | `demo/record_cases.py`、`record_case_tail.py`、`record_provider_view.py`；先读其前置检查、调用与证据格式 |
 | 既有场景剪辑与发布 | `demo/edit_cases.py`、`check_recording.py`、`review_cases.py`、`publish_cases.py`；仅在当前场景及证据契约匹配时复用 |
+| 新批准稿原生剪辑 | `demo/edit_cases.py --scene delegation-provider\|delegation-assistant\|messaging`；指定新 `--recording` 目录和对应 `--voice-timing` 文件，缺镜头或证据时用 `--review-candidate` |
 | 当前所有者的原生页面原帧 | [capture_frames.mjs](../scripts/capture_frames.mjs)；注入已绑定 Tab/CDP 与文件系统，分次 await 采集，不启动浏览器或操作页面 |
 
 旧编排脚本不直接等同于新版原生教程。核对它是否启动业务、创建账号、触发费用或依赖旧接口；若与现行设计或批准稿不符，先由所属开发任务修正，不能为出片恢复已替代的参数或绕过正常接入。
@@ -72,9 +73,11 @@ node --test .agents/skills/demo-video/scripts/capture_frames.test.mjs
 
 ## 时间轴与补录
 
-原片、接续和尾段各保留独立文件与时间原点；每段写清 `source`、原始起点、时长及关联证据。编辑决策表把原片区间映射到成片，跨源不能直接比较绝对时间戳。现有 [artifacts.py](../../../../demo/artifacts.py) 的 `waiting_was_cut` 仅比较同源区间，应保留这个边界。
+原片、接续和尾段各保留独立文件与时间原点；每段写清 `source`、原始起点、时长及关联证据。新版在 `segments.json` 按批准镜头 ID 指定 `layout` 和 `panels`，各面板绑定真实源文件 SHA-256、`start`、`duration`、`role` 与标签。双格按 `native/platform`、四格按 `wang-platform/zhao-platform/wang-native/zhao-native` 归位，先保比例合成为 1920×1080，再叠字幕与旁白。编辑决策表把原片区间映射到成片，跨源不能直接比较绝对时间戳。现有 [artifacts.py](../../../../demo/artifacts.py) 的 `waiting_was_cut` 仅比较同源区间，应保留这个边界。
 
-可压缩真实等待并标记“等待片段已剪短”，保留操作、请求和实际结果的先后。不能通过换源删除关键追问、拒绝或失败，将后来恢复剪成首次自主成功。镜头太短容不下批准旁白时延长可用实录区间或重排剪辑，不改业务状态配合时间轴。
+可压缩真实等待并标记“等待片段已剪短”，保留操作、请求和实际结果的先后。不能通过换源删除关键追问、拒绝或失败，将后来恢复剪成首次自主成功。事后只读回看设 `captureKind: later-review`；原片不够长时可用 `holdLastFrame` 和 `holdReason` 明确标注定格讲解，也可延长可用实录区间或重排剪辑，不补造未录操作。
+
+`--review-candidate` 只生成带待补标识的审阅候选，缺失镜头和证据仍须补齐，不能发布或标为最终 QA 通过。批准稿、音频和源文件摘要不符始终失败，不能降级为候选继续出片。
 
 补录前先核原合同、已完成效果、授权及期限；只补缺失画面，明确原因。若已有交付需展示本地工具，输入和文件摘要须对应原交付，并区分工具本地演示与外部产品上线。验收器与交付代码执行遵守根 AGENTS 和当前设计，录制工作不另开宿主执行通道。
 
