@@ -1,0 +1,220 @@
+{
+  "format": "ioalab.native-operation-diagnostics-verification/1",
+  "verifiedAt": "2026-11-02T11:06:57.195890+00:00",
+  "sourceCommit": "95dfdf66711c11c4f8de98aa105f0c093cfed5f9",
+  "status": "passed_for_declared_scope",
+  "scope": "入口错误诊断修复、原生导入文件核对、原委托授权恢复与发现阶段的有限验证。",
+  "entryDiagnosis": {
+    "before": {
+      "nativeSessionId": "web_1a19be45fd0_fd413ffd29f5",
+      "messageCount": 72,
+      "toolCallCounts": {
+        "skill_tool": 7,
+        "write_file": 3,
+        "read_file": 1,
+        "bash": 8
+      },
+      "operationCallCounts": {
+        "runtime.status": 1,
+        "runtime.configure": 1,
+        "runtime.configuration": 1,
+        "identity.status": 1,
+        "prepare": 2,
+        "runtime.start": 1
+      },
+      "rejectedAbbreviatedCalls": [
+        {
+          "toolCallId": "call_8e2624d987664e289fa6940f",
+          "operation": "prepare",
+          "status": "rejected",
+          "errorCode": "not_ready",
+          "recovery": "inspect_local_installation"
+        },
+        {
+          "toolCallId": "call_6047fd21e3874dd5a081baad",
+          "operation": "prepare",
+          "status": "rejected",
+          "errorCode": "not_ready",
+          "recovery": "inspect_local_installation"
+        }
+      ],
+      "finding": "两次使用 prepare 缩写均被误报为 not_ready/inspect_local_installation；不能据此判断助手身份或安装损坏。"
+    },
+    "after": {
+      "operation": "assistant.delegation.prepare",
+      "invalidOperationError": "invalid_input",
+      "invalidOperationRecovery": "correct_input",
+      "rejectBeforeBootstrapOrRpc": true,
+      "completeOperationForwardedWithoutAliasOrErrorReclassification": true,
+      "roleBoundaryPreserved": true,
+      "utf8OutputVerified": true,
+      "documentation": "流程与调用说明均使用完整操作名；身份以公开 identity.status 为准。"
+    },
+    "verification": {
+      "status": "passed",
+      "startedAt": "2026-11-02T10:56:14.361907+00:00",
+      "finishedAt": "2026-11-02T10:56:17.344661+00:00",
+      "steps": [
+        {
+          "label": "Design versions",
+          "status": "passed",
+          "exitCode": 0,
+          "seconds": 0.125
+        },
+        {
+          "label": "Documentation links and index",
+          "status": "passed",
+          "exitCode": 0,
+          "seconds": 0.235
+        },
+        {
+          "label": "Tests",
+          "status": "passed",
+          "exitCode": 0,
+          "seconds": 2.609
+        }
+      ],
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "coverage": [
+        "错误角色及缩写在安装和RPC前拒绝",
+        "完整操作原样转发与原错误保真",
+        "ASCII和GBK父环境下UTF-8输出",
+        "安装输入被篡改时不建立环境"
+      ]
+    }
+  },
+  "nativeImport": {
+    "status": "passed",
+    "sameRuntimeManifest": true,
+    "runtimeManifestSha256": "3f7095a959da67da3ef58e8586360628eb628c86e687d47d3409d407f4ab5ff9",
+    "bundleSha256": "1660ba42dff9939e6387b36335093878541dbb42df957b3622c22edcb35436b0",
+    "files": [
+      {
+        "artifact": "product_entry",
+        "sha256": "d31bfa4ec265ae148261d929437788b0f8e902329cb00ef57f425e195e870b6e",
+        "sourceMatches": true,
+        "installedMatches": true
+      },
+      {
+        "artifact": "calling_reference",
+        "sha256": "ce318791caeca93b31c0efe1beca7aaaf43225200e1afd93872f7b966e83a08f",
+        "sourceMatches": true,
+        "installedMatches": true
+      },
+      {
+        "artifact": "setup_reference",
+        "sha256": "afc48b5e6ed990760bf6336b2913df5c1930134f350b4977211588a235d9ef61",
+        "sourceMatches": true,
+        "installedMatches": true
+      },
+      {
+        "artifact": "delegation_reference",
+        "sha256": "7bab60f5e2c45337fdbf384a3f08176430dec43ce6d059a10849d63d66a6998a",
+        "sourceMatches": true,
+        "installedMatches": true
+      }
+    ],
+    "limit": "证明原生导入的公开产品文件与构建输入一致；不单独证明业务整单完成。"
+  },
+  "staleSessionCleanup": {
+    "nativeSessionId": "web_1a19bd30934_241884f0eed8",
+    "status": "cancelled_and_terminal",
+    "interruptSucceeded": true,
+    "isProcessing": false,
+    "oldConfirmation": {
+      "action": "scope.register",
+      "expiresAt": "2026-11-02T11:06:53.608852Z",
+      "operationId": "b9de800e-b44b-4743-8812-686330f0e452",
+      "reference": "67ead96b-59fa-5b33-a2b2-71bd8118fdb3",
+      "stage": "delegation.authorize",
+      "status": "rejected"
+    },
+    "decisionChannel": "隔离虚拟场景的真实原生确认页，由Codex自动化点击；本报告通过公开 confirmations.get 只读复核。"
+  },
+  "currentDelegation": {
+    "authorized": true,
+    "budget": "500.00",
+    "proposalFeeLimit": "500.00",
+    "scopeDigest": "sha256:f0aa1e25d64837c746a3d98ec99dce2031d0d2cc1d6180d35761eb80aa4ed9cb",
+    "taskRef": "5f87b859-924a-5674-93df-6b1b30793b30",
+    "authorization": {
+      "expiresAt": "2026-11-09T10:59:20Z",
+      "revision": 1,
+      "scopeDigest": "sha256:f0aa1e25d64837c746a3d98ec99dce2031d0d2cc1d6180d35761eb80aa4ed9cb",
+      "spent": "0.00",
+      "state": "active"
+    },
+    "resumedAuthorizeOperationId": "220a81ec-a048-478a-8c97-13f1cbb8caf0",
+    "authorizationEvidence": "隔离虚拟场景由Codex自动化点击真实页面允许，再恢复原 authorize 操作；active与spent由公开SDK按原taskRef独立只读复核。",
+    "publicReadOnlyCalls": {
+      "assistant.delegation.status": {
+        "exitCode": 0,
+        "seconds": 1.125,
+        "status": "completed"
+      },
+      "confirmations.get": {
+        "exitCode": 0,
+        "seconds": 1.109,
+        "status": "completed"
+      }
+    },
+    "initialDiscovery": {
+      "status": "request_in_progress",
+      "evidenceSource": "主代理观察到的原生公开工具调用；此报告未重新征集或重试。",
+      "operationsObserved": [
+        "assistant.delegation.search",
+        "assistant.delegation.inspect",
+        "assistant.delegation.request"
+      ],
+      "availableCandidateCount": 1,
+      "serviceName": "码上飞",
+      "serviceAgentId": "svc-dcf2221e-99ae-477a-9145-9b252b812a09",
+      "quoteRef": "dce7fcb5-a695-50f5-ab29-af5824e389f6",
+      "originalJobId": "dd72cdfb-e073-5fa9-bbe9-a6a53e0e79b5",
+      "lastReportedJobState": "running",
+      "lastReportedJobPhase": "calling",
+      "limit": "仅记录原引用与当时进度；未独立核定报价完成或任何成约、交付、验收、付款。"
+    },
+    "subsequentNativeReview": {
+      "evidenceSource": "同一原生会话的公开工具结果与实际服务方工作台；此项未重新征集或签约。",
+      "quoteRef": "dce7fcb5-a695-50f5-ab29-af5824e389f6",
+      "state": "offered",
+      "price": "299.00",
+      "deposit": "0.00",
+      "validUntil": "2026-11-02T11:14:25Z",
+      "verifier": "miniprogram_verifier@1.0.0",
+      "nativeReviewFinding": "比较结果含实际程序；原生助手识别为5项关键词匹配，不能证明两人上限、取消释放或页面可用。",
+      "reputation": {"status": "verified", "completed": 0},
+      "ownerDecision": "保持未签约，要求服务方按真实业务行为重拟；不因隔离演练降低可用性要求。",
+      "limit": "关键词弱判据的独立沙箱反例另行记录；此项不证明行为验收或整单成功。"
+    }
+  },
+  "remoteCi": {
+    "sourceCommit": "95dfdf66711c11c4f8de98aa105f0c093cfed5f9",
+    "runId": 41433199160,
+    "jobId": 125236632693,
+    "status": "success",
+    "baseCommit": "fad55276205cfd4a53b7a17fabef23a6982ea9bc",
+    "selectedTestFiles": 25,
+    "passed": 214,
+    "skipped": 2,
+    "pytestSeconds": 174.46,
+    "testStageSeconds": 175.832,
+    "limit": "按该提交路径执行的快速范围；不是整仓完整检查。"
+  },
+  "notYetPassed": {
+    "nativeCompleteOrder": "尚未完成整单验收。",
+    "multipleServiceComparison": "多服务比选尚未完成实测。",
+    "newFilm": "尚未制作并通过新影片验收。"
+  },
+  "evidenceDigests": {
+    "correctedImport": "45f82386b7b389cfacde3ac3f3bbde8bb44c0daffb296705cab9c527be5f0d56",
+    "targetedCheckReport": "5a1706e7f2ef79af5ef6a20f9616f1ff879d54e1792f4767e5e03b6d3aa6a0c5",
+    "privateBeforeHistory": "9919fbe2a3d6788c88bdd2d8fb706411411d25799afa8e5df11525457ef17381",
+    "readOnlyAfterSummary": "3deb5e7cbd464a0c7e64c033eac345044064bc4ff1e1891865ccf52175630e10"
+  },
+  "privacy": "仅保留公开调用元数据、摘要与必要业务状态；不含原始私人消息、配置正文、本地路径、页面令牌或凭据。"
+}

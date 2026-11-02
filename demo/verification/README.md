@@ -4,6 +4,8 @@
 
 [双角色原生升级](native-dual-upgrade.json)记录本轮正常Edge导入、选择技能、共享依赖安装与既有实例安全接续；新发行实际安装、原身份/运行标识/配置摘要及作业/游标保留经公开SDK独立核对。它只证明接入升级与当前就绪，完整业务和新用户教程另行验收。
 
+[操作诊断与原生接续](native-operation-diagnostics.json)记录完整operation、缩写输入诊断及新版原生导入核对。隔离场景经真实页面自动化允许委托授权并恢复原操作；旧会话的残留待授权经原引用核实后拒绝。当前原生候选已报价299虚拟币，审查发现验收仅搜关键词，尚未签约；不作为行为验收、整单履约或多服务比选通过的证据。
+
 以下影片制作记录核对日期为2026-10-30。部署依赖结果见[部署验证](../../deploy/verification/dependencies.json)。自动检查见[checks.json](checks.json)，已发布影片证据见[cases.json](cases.json)，多候选核对见[multi-candidate-review.json](multi-candidate-review.json)。测试通过与新片完成分别判定。
 
 | 视频 | 当前状态 | 验收范围 |
