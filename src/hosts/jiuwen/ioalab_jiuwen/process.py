@@ -12,7 +12,7 @@ from a2c.codec import digest
 from jiuwenswarm_sdk import Client
 from ioalab_sdk.runtime.files import private_json
 from ioalab_sdk.runtime.host import HostResult
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime.protocol import RuntimeFault,encode
 from .skills import FrozenSkills,documents
 
 
@@ -105,7 +105,11 @@ class ProcessHost:
             if 'call_goal' not in schema.get('properties',{}):
                 schema.setdefault('properties',{})['call_goal']={'type':'string','maxLength':2048,'description':'原版宿主用于展示的调用目的；不参与业务输入或权限。'}
                 metadata.add(name)
-            declarations.append({**tool.declaration(),'input_schema':schema,'name':name,'description':tool.description if name==tool.name else '[Local tool '+tool.name+'] '+tool.description})
+            description=tool.description if name==tool.name else '[Local tool '+tool.name+'] '+tool.description
+            if tool.output_schema is not None:
+                description+='\nOutput contract (JSON Schema; preserve the actual result): '+encode(tool.output_schema)
+            # The original public HostTool accepts only these three fields.
+            declarations.append({'input_schema':schema,'name':name,'description':description})
         names=list(aliases)
         workspace=Path(turn.workspace)
         workspace.mkdir(parents=True,exist_ok=True)

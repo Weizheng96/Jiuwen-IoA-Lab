@@ -172,7 +172,11 @@ permission.get 只反映原版命名权限及规则，不能当作完整工具�
 
 ## 本地业务工具
 
-业务工具以SDK的ToolBinding描述名称、输入Schema、副作用类别、实现修订及可选requires_steps；BusinessTools返回一组绑定，以及可选start、status、close资源回调；构造无副作用，取得本地实例所有权后启动，status只读且有界，作业停止后关闭。普通SDK仅接收注入的绑定，不导入具体业务包。装配入口按本机host.business_tools配置加载已安装包在ioalab.business_tools组登记的工厂：每项含factory、profile、options；工厂名是注册名，不是Python路径，profile必须属于本实例。没有配置时不加载；重名、未知包或能力缺失明确拒绝。工厂只校验和构造本地工具，不认证身份、初始化空日程或执行业务。
+业务工具以SDK的ToolBinding描述名称、输入Schema、副作用类别、实现修订、可选requires_steps与output_schema；BusinessTools返回一组绑定，以及可选start、status、close资源回调；构造无副作用，取得本地实例所有权后启动，status只读且有界，作业停止后关闭。普通SDK仅接收注入的绑定，不导入具体业务包。装配入口按本机host.business_tools配置加载已安装包在ioalab.business_tools组登记的工厂：每项含factory、profile、options；工厂名是注册名，不是Python路径，profile必须属于本实例。没有配置时不加载；重名、未知包或能力缺失明确拒绝。工厂只校验和构造本地工具，不认证身份、初始化空日程或执行业务。
+
+output_schema为可选的自包含JSON Schema对象，最大16 KiB，构造绑定时校验结构，拒绝布尔值及外部引用；声明的format必须具有已安装校验器，缺失或不支持时明确拒绝，date-time按RFC3339核验，不能将未执行校验当作通过。None明确表示工具未提供正式输出格式，不推断其成功字段。已声明时，工具目录、发布预览、入站模型上下文均提供原输出格式及字段含义；输出契约纳入工具策略及会话定义摘要。已有冻结规则不能静默取得改变后的工具契约，须按原规则更新与确认流程发布新修订。
+
+助手、服务方及直接通知等执行入口使用同一输出校验。业务工具返回后先保存可序列化的原回执，再校验声明的格式；有效结果原样返回，不转换状态或补默认成功。格式不符报告invalid_tool_output并保留原回执及未知效果检查点，阻止后续写入与自动重跑；不能以输出错误断定副作用没有发生。未声明输出格式的工具仍保留原JSON与效果检查，不强制替换既有业务工具。
 
 工具限定在所配置profile；助手工具须在已确认收信规则中列出，服务方工具只在本单生产阶段开放。SDK提供固定operationId、agentId、messageId、interactionId、sessionId；服务方另含contractRef和period。输入不得替换上下文。工具前保存调用原件，重复原调用恢复结果，异输入冲突；未知效果阻止新的写入，不自动重调。规则/会话保存工具策略摘要，后续缺失或变更须恢复原定义或重新确认，不扩展在途权限。requires_steps仅用于服务方工具，调用前须有本卡本期对应环节的原有效同意，不接受模型自称已获准。
 

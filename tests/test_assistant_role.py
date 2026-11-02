@@ -112,7 +112,7 @@ def test_two_requests_share_receiver_uuid_and_real_host_session_and_do_not_repea
     def reserve(args,context):
         effects.append((args,context))
         return {'status':'conflict','suggested':'second'} if args['slot']=='first' else {'status':'reserved'}
-    tool=ToolBinding('reserve_slot','测试时段处理器',INPUT,reserve,'reservation')
+    tool=ToolBinding('reserve_slot','测试时段处理器',INPUT,reserve,'reservation',output_schema=OUTPUT)
     with runtime_at(platform,tmp_path/'sender') as (sender,client,_,user):
         with runtime_at(platform,tmp_path/'receiver',host,[tool]) as (receiver,inbox,module,target):
             publish(receiver,inbox,user['username'])

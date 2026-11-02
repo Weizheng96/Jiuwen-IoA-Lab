@@ -9,7 +9,7 @@ from a2c.common import Reply
 from a2c.template import acceptance_of,deliverable_of
 from a2c.verifier.acceptance import run_target
 from jsonschema import Draft202012Validator
-from ..runtime.host import HostTurn,ToolBinding
+from ..runtime.host import HostTurn,ToolBinding,validate_output
 from ..runtime.questions import native_answer
 from ..runtime.scheduling import JobOutcome
 from ..runtime.protocol import RuntimeFault,encode
@@ -97,7 +97,7 @@ class Production:
         definition_hash=definition_digest(definition)
         if relation['details'].get('definitionDigest')!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original production agent definition')
         business=self.execution.business_tools(identity.profile,provider.policy.config.get('businessTools',[]))
-        state={'outcome':None}
+        state={'outcome':None,'toolError':None}
         def session(value):
             self.runtime.store.bind_session(relation['id'],value,definition_hash);self.runtime.scheduler.bind_session(job['id'],value)
         def invoke(name,args,call):
@@ -140,9 +140,21 @@ class Production:
                     return result
             if tool:
                 try:
-                    result=tool.invoke(args,context);encode(result)
-                except Exception:
+                    result=tool.invoke(args,context)
+                    try:encode(result).encode('utf-8')
+                    except Exception:
+                        raise RuntimeFault('invalid_tool_output','Tool output is not serializable JSON; inspect the original effect','inspect_tool_effect') from None
+                    with endpoint.lock:
+                        saved=endpoint.store.get('production_calls',key)
+                        endpoint.store.put('production_calls',key,{**saved,'observedResult':result})
+                    validate_output(tool,result)
+                except Exception as exc:
+                    problem={'code':exc.code,'message':str(exc),'recovery':exc.recovery} if isinstance(exc,RuntimeFault) and exc.code=='invalid_tool_output' else None
+                    with endpoint.lock:
+                        saved=endpoint.store.get('production_calls',key)
+                        endpoint.store.put('production_calls',key,{**saved,'state':'unknown',**({'error':problem} if problem else {})})
                     state['outcome']='unknown'
+                    state['toolError']=problem
                     self.execution.host.cancel(job['id'])
                     raise
                 with endpoint.lock:
@@ -158,6 +170,8 @@ class Production:
         self.execution.active.add(job['id'])
         try:result=self.execution.host.run(HostTurn(job['id'],identity.agent_id,relation['id'],definition,prompt,str(workspace),300,relation['session'],session,lambda value:native_answer(self.runtime,identity.agent_id,job['id'],value,self.execution.stop),invoke,allow_native_tools=True))
         finally:self.execution.active.discard(job['id'])
+        if state['toolError']:
+            return JobOutcome('unknown',{'cardDigest':cd,'period':job['payload']['period'],'error':state['toolError']},relation['session'])
         if provider.store.get('cards',cd).get('state')=='terminated' and result.status in ('completed','failed'):
             incomplete=any(item.get('cardDigest')==cd and 'result' not in item for item in endpoint.store.all('production_calls').values())
             if not incomplete:return JobOutcome('rejected',{'cardDigest':cd,'reason':'contract_terminated','hostStatus':result.status},relation['session'])

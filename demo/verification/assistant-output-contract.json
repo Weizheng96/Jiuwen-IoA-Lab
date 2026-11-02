@@ -1,0 +1,85 @@
+{
+  "format": "ioalab.assistant-output-contract-verification/1",
+  "verifiedAt": "2026-11-02T10:29:37.232236+00:00",
+  "scope": "Original owner-authoring, sender and receiver Process models; actual product workflows, published rules, autonomous rescheduling over resident HTTP/WS; local SMTP only",
+  "result": "passed",
+  "test": "tests/test_model_messaging.py::test_original_sender_discovers_interface_and_reschedules_without_scripted_second_input",
+  "testStageSeconds": 234.594,
+  "executionSources": {
+    "src/access/sdk/ioalab_sdk/runtime/host.py": "3492bb2a3ea79cce1058c6b7871184fba336923f11c6d73f6b5b6cd18d5c598b",
+    "src/access/sdk/ioalab_sdk/assistant/role.py": "6dffc1980ba08632bab5112d9aed548add4307f69f675671165dcdb65b9d43a1",
+    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "f11a13ce6ff2906b73d76e7ff02b120cb87f3cb62a99192c148bf6643f2d8869",
+    "src/official/tools/ioalab_tools/appointments.py": "f5e0091c9e17ba084a98b5379980954a0cc7e8c5ebb868ae542553a862284675",
+    "src/access/skills/assistant/references/inbox-rules.md": "73f0549ddc15857079398d680c87dba9b7bb6acdf9541d4f524bc64849a0f6af",
+    "src/access/skills/assistant/references/messaging.md": "a159fe218199e6dddda10d6b2bb896a1114b8c1aae132ca7fde814659aa63f3a",
+    "tests/model_rule_authoring.py": "6fb8c301dd25de6b880c9f6b01a1ca0cc9328764757c9865ade03039ea845c49",
+    "tests/test_model_messaging.py": "a6519b56455fb445242cccac4f48dd5c0edb03aea12514dca5028dce4e92ed5a"
+  },
+  "sources": {
+    "src/access/sdk/ioalab_sdk/runtime/host.py": "3492bb2a3ea79cce1058c6b7871184fba336923f11c6d73f6b5b6cd18d5c598b",
+    "src/access/sdk/ioalab_sdk/assistant/role.py": "f3159387229d93f0ef1e8b196cf060db404250d71960d941a75d90d9b0c96e8f",
+    "src/hosts/jiuwen/ioalab_jiuwen/process.py": "6e51666d0af7ef817b7bde4b8049063ba7cb21f92ad6f2d1e44432048a26b71b",
+    "src/official/tools/ioalab_tools/appointments.py": "f5e0091c9e17ba084a98b5379980954a0cc7e8c5ebb868ae542553a862284675",
+    "src/access/skills/assistant/references/inbox-rules.md": "73f0549ddc15857079398d680c87dba9b7bb6acdf9541d4f524bc64849a0f6af",
+    "src/access/skills/assistant/references/messaging.md": "a159fe218199e6dddda10d6b2bb896a1114b8c1aae132ca7fde814659aa63f3a",
+    "tests/model_rule_authoring.py": "6fb8c301dd25de6b880c9f6b01a1ca0cc9328764757c9865ade03039ea845c49",
+    "tests/test_model_messaging.py": "a6519b56455fb445242cccac4f48dd5c0edb03aea12514dca5028dce4e92ed5a"
+  },
+  "sourceNormalization": "sources uses canonical UTF-8/LF repository bytes; executionSources preserves exact run bytes. Staged blobs are checked separately before commit.",
+  "sourceStableDuringRun": true,
+  "model": "qwen3.5-plus#2",
+  "interactionId": "710a7e76-2c28-416d-92fa-72942fe0ea04",
+  "messageRefs": [
+    "ecafb36a-44b5-5765-af6e-64b6b2e748bf",
+    "60020f64-746a-570d-95b1-1eb94053ee39"
+  ],
+  "sessions": {
+    "ownerConfiguration": "process_cli_1a19bc76354_caab2f4b6f14",
+    "sender": "process_cli_1a19bc8d0e3_45a962a69b0a",
+    "receiver": "process_cli_1a19bc9260f_82b82ec40bdb"
+  },
+  "ownerConfiguration": {
+    "status": "published",
+    "toolCalls": [
+      "assistant.tools.list",
+      "assistant.rules.draft",
+      "assistant.rules.validate",
+      "assistant.rules.preview",
+      "assistant.rules.publish",
+      "assistant.rules.publish",
+      "assistant.rules.list"
+    ],
+    "productFlowDigest": "sha256:73f0549ddc15857079398d680c87dba9b7bb6acdf9541d4f524bc64849a0f6af",
+    "confirmation": "isolated scripted local-browser user_decision"
+  },
+  "first": {
+    "inviteSubmitted": false,
+    "reason": "busy",
+    "status": "conflict",
+    "suggestedEnd": "2026-11-03T11:00:00+08:00",
+    "suggestedStart": "2026-11-03T10:30:00+08:00",
+    "timeZone": "Asia/Shanghai"
+  },
+  "second": {
+    "calendar": "awaiting_acceptance",
+    "inviteSubmitted": true,
+    "reservationId": "62ac8498720452848352de8d6648894a",
+    "status": "invite_submitted"
+  },
+  "smtpMessages": 1,
+  "secondBusinessInputWrittenBy": "original sender model",
+  "senderToolCalls": [
+    "assistant.messaging.interfaces",
+    "assistant.messaging.send",
+    "assistant.messaging.status",
+    "assistant.messaging.send",
+    "assistant.messaging.status"
+  ],
+  "rawEvidenceSha256": "cc88588e58faa916d63a02c6435077c063ce83db8b0dd34afeccf6cf6f4ef9b3",
+  "limits": [
+    "User approval uses an isolated automated driver through the real local confirmation endpoint",
+    "Typed SDK callback experiment, not native Skill import, frontend menu, external email or Outlook acceptance",
+    "Not a full native Skill business-flow acceptance, multi-provider selection, external mail or Outlook acceptance"
+  ],
+  "stagedSourceBlobsVerified": true
+}

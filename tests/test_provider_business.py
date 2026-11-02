@@ -31,7 +31,9 @@ def test_service_business_action_needs_original_user_step_runs_unlocked_and_neve
         effects.append((args,context))
         if unknown:raise OSError('Explicit test double: external result lost after actual call')
         return {'status':'registered','explicitTestDouble':True}
-    tool=ToolBinding('professional.register','执行已授权的专业环节',schema,register,'external','1',('real_name',))
+    output={'type':'object','properties':{'status':{'const':'registered'},'explicitTestDouble':{'const':True}},
+            'required':['status','explicitTestDouble'],'additionalProperties':False}
+    tool=ToolBinding('professional.register','执行已授权的专业环节',schema,register,'external','1',('real_name',),output_schema=output)
     class Host(ProductionHost):
         def execute(self,turn):
             data=json.loads(turn.input)

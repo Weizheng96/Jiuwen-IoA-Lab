@@ -1,5 +1,6 @@
 """Participant-owned reservations and invitation receipts, separate from SDK data."""
 from contextlib import contextmanager,nullcontext
+from copy import deepcopy
 from datetime import datetime,timedelta,timezone
 import json
 import os
@@ -25,6 +26,26 @@ INPUT={'type':'object','properties':{'title':{'type':'string','minLength':1,'max
        'timeZone':{'type':'string','minLength':1,'maxLength':64}},'required':['title','start','end','timeZone'],'additionalProperties':False}
 STATUS={'type':'object','properties':{'reservationId':{'type':'string','minLength':1,'maxLength':128}},'required':['reservationId'],'additionalProperties':False}
 ACTIVE={'reserved','sending','submitted','unknown','accepted'}
+BOOK_OUTPUT={'type':'object','description':'本条请求的原预约回执；冲突只给建议，邀请提交仍等待本人接受。',
+    'properties':{
+        'status':{'type':'string','enum':['conflict','invite_submitted'],
+                  'description':'conflict表示本次未提交邀请；invite_submitted仅表示邀请已提交。'},
+        'reason':{'type':'string','enum':['busy','outside_rules'],'description':'冲突原因：已有安排或不符合主人规则。'},
+        'suggestedStart':{'type':'string','format':'date-time','description':'可选建议开始时间；没有可用建议时不返回。'},
+        'suggestedEnd':{'type':'string','format':'date-time','description':'可选建议结束时间，须由发信方另发请求采用。'},
+        'timeZone':{'type':'string','minLength':1,'maxLength':64,'description':'建议时间所属时区。'},
+        'reservationId':{'type':'string','minLength':1,'maxLength':128,'description':'本次已保存预约的稳定标识。'},
+        'inviteSubmitted':{'type':'boolean','description':'是否已取得邀请提交回执，不表示主人已接受邀请。'},
+        'calendar':{'type':'string','enum':['awaiting_acceptance'],'description':'邀请仍等待本人接受，不证明已进入收件人日历。'}},
+    'required':['status','inviteSubmitted'],'additionalProperties':False}
+STATUS_OUTPUT=deepcopy(BOOK_OUTPUT)
+STATUS_OUTPUT['description']='只查询本交互原预约：有终局时返回原回执；否则报告已保存状态，不重发邀请。'
+STATUS_OUTPUT['properties']['status']={'type':'string','enum':['conflict','invite_submitted',*sorted(ACTIVE)],
+    'description':'原请求终局，或本地已保存的reserved/sending/submitted/unknown/accepted状态；查询不推进状态。'}
+STATUS_OUTPUT['properties']['inviteSubmitted']={'enum':[True,False,None],
+    'description':'true/false来自原回执；null表示本次查询没有可确认的邀请提交结果。'}
+STATUS_OUTPUT['properties']['calendar']={'type':'string','enum':['awaiting_acceptance','unknown'],
+    'description':'awaiting_acceptance来自原提交回执；unknown表示查询尚无日历接受结果。'}
 
 
 def appointment_records(source):
@@ -202,5 +223,5 @@ def configure(options,*,home,profile,base_dir):
     if not isinstance(required,list) or any(not isinstance(step,str) or not step for step in required):raise RuntimeFault('invalid_input','Use declared step names')
     service=Appointments(calendar,notification,recipient,rules=options.get('rules'))
     revision='calendar-2:'+digest(options)
-    return BusinessTools((ToolBinding('calendar.book','每条来信只按原输入决定一次预约；冲突返回建议，须发送方用新消息改约。不冲突则预留并提交邀请；invite_submitted只表示等待本人接受。',INPUT,service.book,'notification',revision,tuple(required)),
-                          ToolBinding('calendar.status','查询本交互既有预约，不重发邀请。',STATUS,service.status,'none',revision)),service.close)
+    return BusinessTools((ToolBinding('calendar.book','每条来信只按原输入决定一次预约；冲突返回建议，须发送方用新消息改约。不冲突则预留并提交邀请；invite_submitted只表示等待本人接受。',INPUT,service.book,'notification',revision,tuple(required),output_schema=BOOK_OUTPUT),
+                          ToolBinding('calendar.status','查询本交互既有预约，不重发邀请。',STATUS,service.status,'none',revision,output_schema=STATUS_OUTPUT)),service.close)

@@ -1,6 +1,8 @@
 # 验证与制作进展
 
-核对日期：2026-10-30。部署依赖结果见[部署验证](../../deploy/verification/dependencies.json)。自动检查见[checks.json](checks.json)，已发布影片证据见[cases.json](cases.json)，多候选核对见[multi-candidate-review.json](multi-candidate-review.json)。测试通过与新片完成分别判定。
+最新业务补验：2026-11-02，[工具输出契约与自然语言收信](assistant-output-contract.json)记录原版模型生成规则、真实确认入口的自动化批准、发布、首次冲突及同UUID自主改约；单封本地SMTP邀请，源码在执行期间未变。它不代表原生Skill完整使用、真人批准、外部邮件、Outlook接受、多服务比选或新影片完成。
+
+以下影片制作记录核对日期为2026-10-30。部署依赖结果见[部署验证](../../deploy/verification/dependencies.json)。自动检查见[checks.json](checks.json)，已发布影片证据见[cases.json](cases.json)，多候选核对见[multi-candidate-review.json](multi-candidate-review.json)。测试通过与新片完成分别判定。
 
 | 视频 | 当前状态 | 验收范围 |
 |---|---|---|

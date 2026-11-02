@@ -5,8 +5,9 @@ import threading
 import uuid
 
 import pytest
+from jsonschema import Draft202012Validator
 from ioalab_jiuwen.tools import ConfiguredTools
-from ioalab_tools.appointments import Appointments,INPUT
+from ioalab_tools.appointments import Appointments,INPUT,BOOK_OUTPUT,STATUS_OUTPUT
 from ioalab_tools.schedule import LocalSchedule
 from ioalab_sdk.runtime.host import HostResult
 from ioalab_sdk.runtime.protocol import RuntimeFault
@@ -42,6 +43,8 @@ def test_installed_factory_is_explicit_scoped_and_has_no_business_side_effect(tm
         assert set(tools.for_profile('personal'))=={'calendar.book','calendar.status'}
         assert tools.for_profile('service')=={}
         assert {p.name for p in tmp_path.iterdir()}==before
+        assert tools.for_profile('personal')['calendar.book'].policy()['output_schema']==BOOK_OUTPUT
+        assert tools.for_profile('personal')['calendar.status'].policy()['output_schema']==STATUS_OUTPUT
         declarations=json.dumps([tool.policy() for tool in tools.for_profile('personal').values()])
         assert 'owner@example.test' not in declarations and 'password' not in declarations
     finally:tools.close()
@@ -66,6 +69,7 @@ def test_unknown_invitation_preserves_reservation_and_never_resends_or_changes_o
     assert record['state']=='unknown' and notice.calls==1
     status=service.status({'reservationId':record['reservationId']},original)
     assert status['status']=='unknown' and status['inviteSubmitted'] is None
+    Draft202012Validator(STATUS_OUTPUT).validate(status)
     with pytest.raises(RuntimeFault):service.status({'reservationId':record['reservationId']},context())
 
 
@@ -84,6 +88,9 @@ def test_concurrent_reservation_is_visible_before_notification_returns(tmp_path)
         try:
             assert entered.wait(3)
             assert first.records()[original['operationId']]['state']=='sending'
+            pending_status=first.status({'reservationId':first.records()[original['operationId']]['reservationId']},original)
+            Draft202012Validator(STATUS_OUTPUT).validate(pending_status)
+            assert pending_status['status']=='sending' and pending_status['inviteSubmitted'] is None
             denied=second.book(payload,context())
             assert denied['status']=='conflict' and denied['inviteSubmitted'] is False and notice.calls==1
         finally:release.set()
@@ -128,23 +135,20 @@ def test_resident_meeting_conflict_retry_same_uuid_session_and_real_smtp_capture
         host=RecordingHost()
     tools=ConfiguredTools([{'factory':'calendar','profile':'personal','options':options(calendar,capture.port)}],
                           ({'key':'personal','role':'assistant','name':'owner'},),home=tmp_path/'receiver/state',base_dir=tmp_path)
-    output={'type':'object','properties':{
-        'status':{'type':'string','enum':['conflict','invite_submitted']},
-        'reason':{'type':'string','enum':['busy','outside_rules']},
-        'suggestedStart':{'type':'string','format':'date-time'},'suggestedEnd':{'type':'string','format':'date-time'},
-        'timeZone':{'type':'string','minLength':1},'calendar':{'type':'string','enum':['awaiting_acceptance']},
-        'reservationId':{'type':'string','minLength':1},'inviteSubmitted':{'type':'boolean'}},
-        'required':['status','inviteSubmitted'],'additionalProperties':False}
     try:
         with runtime_at(platform,tmp_path/'sender') as (sender,client,_,user):
             with runtime_at(platform,tmp_path/'receiver',host,list(tools.for_profile('personal').values())) as (receiver,inbox,module,target):
                 listed=inbox.call('assistant.tools.list')['data']['tools']
                 assert {tool['name'] for tool in listed}=={'calendar.book','calendar.status'}
+                output=next(tool['output_schema'] for tool in listed if tool['name']=='calendar.book')
+                assert output==BOOK_OUTPUT
+                assert next(tool['output_schema'] for tool in listed if tool['name']=='calendar.status')==STATUS_OUTPUT
                 draft=inbox.call('assistant.rules.draft',{'declaration':{'name':'meeting.request','description':'预约会议',
                     'inputSchema':INPUT,'outputSchema':output,'allowedSenders':[user['username']],'tools':['calendar.book']},
                     'instructions':'每条请求只按原input调用一次calendar.book，将工具的完整返回值原样作为ioa_reply输出；冲突仅返回建议，等待发信方重约。'})
                 assert draft['status']=='completed',draft
                 preview=inbox.call('assistant.rules.preview',{'draftRef':draft['data']['draftRef']})['data']
+                assert preview['preview']['tools'][0]['output_schema']==output
                 action=uid();args={'draftRef':draft['data']['draftRef'],'contentDigest':preview['contentDigest'],'expectedRevision':0}
                 waiting=inbox.call('assistant.rules.publish',args,operation_id=action)
                 assert waiting['status']=='waiting'

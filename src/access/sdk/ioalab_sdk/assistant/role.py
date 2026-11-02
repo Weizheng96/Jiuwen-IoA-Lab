@@ -12,7 +12,7 @@ from a2c.errors import A2CError
 import httpx
 from jsonschema import Draft202012Validator,FormatChecker
 
-from ..runtime.host import AgentDefinition,HostTurn,ToolBinding
+from ..runtime.host import AgentDefinition,HostTurn,ToolBinding,validate_output
 from ..runtime.protocol import RuntimeFault,encode,instant,stamp
 from ..runtime.scheduling import JobHandler,JobOutcome
 from ..runtime.questions import native_answer
@@ -390,7 +390,7 @@ class AssistantRole:
                 result=self._result(message,relation['id'],'rejected',error={'code':exc.code,'message':str(exc)})
                 return JobOutcome('rejected',result,relation['session'])
             raise
-        state={'session':relation['session'],'submitted':False,'poisoned':False,'effects':False,'finishOnly':False,'tools':[]}
+        state={'session':relation['session'],'submitted':False,'poisoned':False,'effects':False,'finishOnly':False,'tools':[],'toolError':None}
         output_schema=rule['declaration']['outputSchema']
         reply=ToolBinding('ioa_reply','Return the structured result for this request only',
                           {'type':'object','properties':{'output':output_schema},'required':['output'],'additionalProperties':False},lambda *_:None)
@@ -446,13 +446,20 @@ class AssistantRole:
             state['tools'].append(context['operationId'])
             try:
                 result=tool.invoke(args,context)
-                encode(result)
+                try:encode(result).encode('utf-8')
+                except Exception:
+                    raise RuntimeFault('invalid_tool_output','Tool output is not serializable JSON; inspect the original effect','inspect_tool_effect') from None
+                saved={**saved,'observedResult':result}
+                self.store.checkpoint_set(self.namespace,key,saved)
+                validate_output(tool,result)
                 self.store.checkpoint_set(self.namespace,key,{**saved,'state':'completed','result':result})
                 state['effects']=state['effects'] or tool.effect!='none'
                 return result
-            except Exception:
-                self.store.checkpoint_set(self.namespace,key,{**saved,'state':'unknown'})
+            except Exception as exc:
+                problem={'code':exc.code,'message':str(exc),'recovery':exc.recovery} if isinstance(exc,RuntimeFault) and exc.code=='invalid_tool_output' else None
+                self.store.checkpoint_set(self.namespace,key,{**saved,'state':'unknown',**({'error':problem} if problem else {})})
                 state['poisoned']=True
+                state['toolError']=problem
                 self.host.cancel(job['id'])
                 raise
 
@@ -474,7 +481,7 @@ class AssistantRole:
         if state['submitted']:
             return JobOutcome('completed',{'messageRef':mid,'replySubmitted':True,'usage':last.usage if last else {}},state['session'])
         outcome='unknown' if state['poisoned'] or state['effects'] else 'failed'
-        error={'code':'unknown_result' if outcome=='unknown' else 'host_incomplete','message':'Check original host/tool records before retrying',
+        error={**(state['toolError'] or {'code':'unknown_result' if outcome=='unknown' else 'host_incomplete','message':'Check original host/tool records before retrying'}),
                'toolOperations':state['tools']}
         try:self._result(message,relation['id'],outcome,error=error,session=state['session'])
         except RuntimeFault:pass
