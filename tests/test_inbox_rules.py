@@ -1,6 +1,7 @@
 """Local rule drafts, real publication and original-result fault recovery."""
 import copy
 from pathlib import Path
+from types import SimpleNamespace
 import uuid
 
 import httpx
@@ -11,7 +12,9 @@ from ioalab_sdk.runtime import RuntimeFault
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json,private_text
 from ioalab_sdk.runtime.host import ToolBinding
+from ioalab_sdk.runtime.ipc import public_error
 from ioalab_sdk.runtime.resident import ResidentRuntime
+from ioalab_sdk.runtime.store import RuntimeStore
 from test_resident_runtime import configuration
 
 
@@ -131,3 +134,68 @@ def test_rule_yaml_aliases_and_custom_tags_are_not_executed():
     for text in ('---\nname: &x test\ndescription: *x\n---\nbody',
                  '---\nname: !!python/object/apply:os.system [anything]\n---\nbody'):
         with pytest.raises(RuntimeFault):parse(text)
+
+
+@pytest.fixture
+def local_name_rules(tmp_path):
+    """Actual draft files/checkpoints without account, HTTP, host or business execution."""
+    store=RuntimeStore(tmp_path/'local.sqlite','http://127.0.0.1:1',['isolated-actor'],owner_id='isolated-owner')
+    account=SimpleNamespace(username='isolated-owner',api=lambda *args:pytest.fail('Naming checks must not call the platform'))
+    runtime=SimpleNamespace(config=SimpleNamespace(home=tmp_path/'state'),store=store,account=account)
+    identity=SimpleNamespace(profile='personal',agent_id='isolated-actor',name='本地测试助手')
+    tools={name:ToolBinding(name,'隔离声明工具',INPUT,lambda *args:pytest.fail('Drafting must not execute tools'))
+           for name in ('local.notice','local.check')}
+    yield Rules(runtime,identity,tools)
+    store.close()
+
+
+def name_declaration(name):
+    return copy.deepcopy(declaration(name=name,description='中文用途应保持完整',
+        tools=['local.notice','local.check'],allowedSenders=['allowed.account'],
+        outputSchema={'type':'object','properties':{
+            'status':{'type':'string','enum':['recorded','pending']},'detail':{'type':'string'}},
+            'required':['status'],'additionalProperties':False}))
+
+
+@pytest.mark.parametrize('name',['A','z'*64,'A0_.-'])
+def test_interface_machine_name_boundaries_preserve_chinese_purpose_and_full_declaration(local_name_rules,name):
+    rules=local_name_rules;value=name_declaration(name);before=copy.deepcopy(value)
+    instructions='保留处理条件、实际状态和必要回复内容。'
+    reference=rules.draft(uid(),value,instructions)['draftRef']
+    saved=rules.read(reference)
+    assert value==before and saved['declaration']=={**before,'enabled':True}
+    assert saved['instructions']==instructions
+    assert saved['declaration']['description']=='中文用途应保持完整'
+
+
+@pytest.mark.parametrize('name',['','A'*65,'中文用途','1rule','_rule','.rule','-rule',
+    ' a','a b','a\tb','a\n','a/b','a:b','a\\b','a@b',None,False,7,[],{}])
+def test_invalid_machine_name_identifies_only_that_field_and_never_writes_a_draft(local_name_rules,name):
+    rules=local_name_rules;value=name_declaration(name);before=copy.deepcopy(value)
+    policies={key:tool.policy() for key,tool in rules.tools.items()}
+    operation=uid();instructions='PRIVATE-DRAFT-CONTENT-MUST-NOT-APPEAR'
+    with pytest.raises(RuntimeFault) as error:rules.draft(operation,value,instructions)
+    failure=public_error(error.value)
+    assert set(failure)=={'code','message','recovery'}
+    assert failure['code']=='invalid_input' and failure['recovery']=='edit_rule'
+    assert 'declaration.name' in failure['message'] and 'declaration.description' in failure['message']
+    assert 'ASCII' in failure['message'] and '1-64' in failure['message']
+    assert instructions not in failure['message'] and value['description'] not in failure['message']
+    assert value==before and {key:tool.policy() for key,tool in rules.tools.items()}==policies
+    assert not rules.root.exists() and rules.store.checkpoint(rules.namespace,'draft:'+operation) is None
+
+
+def test_bad_name_keeps_existing_draft_scope_schemas_and_instructions_unchanged(local_name_rules):
+    rules=local_name_rules;original=name_declaration('retained.notice')
+    reference=rules.draft(uid(),original,'只按原定范围处理，不删输出字段。')['draftRef']
+    before={path.relative_to(rules.root).as_posix():path.read_bytes() for path in rules.root.rglob('*') if path.is_file()}
+    checkpoints=copy.deepcopy(rules.store.checkpoints(rules.namespace))
+    rejected=copy.deepcopy(original);rejected['name']='私密中文机器名'
+    with pytest.raises(RuntimeFault) as error:rules.draft(uid(),rejected,'PRIVATE-REJECTED-INSTRUCTIONS')
+    assert '私密中文机器名' not in str(error.value) and 'PRIVATE-REJECTED-INSTRUCTIONS' not in str(error.value)
+    assert {path.relative_to(rules.root).as_posix():path.read_bytes() for path in rules.root.rglob('*') if path.is_file()}==before
+    assert rules.store.checkpoints(rules.namespace)==checkpoints
+    saved=rules.read(reference)
+    assert saved['declaration']=={**original,'enabled':True}
+    assert saved['instructions']=='只按原定范围处理，不删输出字段。'
+    assert rejected=={**original,'name':'私密中文机器名'}

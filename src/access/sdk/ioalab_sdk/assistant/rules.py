@@ -72,7 +72,10 @@ def parse(text):
     json_value(value)
     try:encode(value)
     except (TypeError,ValueError):invalid('Declaration contains invalid JSON values')
-    if not isinstance(value.get('name'),str) or not re.fullmatch('[A-Za-z][A-Za-z0-9_.-]{0,63}',value['name']):invalid('Invalid interface name')
+    if not isinstance(value.get('name'),str) or not re.fullmatch('[A-Za-z][A-Za-z0-9_.-]{0,63}',value['name']):
+        invalid('Invalid declaration.name: use 1-64 ASCII characters, starting with an ASCII letter '
+                '(A-Z or a-z), followed only by ASCII letters, digits, _, . or -. '
+                'Put Chinese purpose text in declaration.description.')
     if not isinstance(value.get('description'),str) or not 1<=len(value['description'])<=1000:invalid('Describe the interface purpose')
     for key in ('inputSchema','outputSchema'):schema_check(value.get(key))
     allow=value.get('allowedSenders')
