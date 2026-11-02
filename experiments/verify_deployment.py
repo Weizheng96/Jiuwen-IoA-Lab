@@ -108,6 +108,7 @@ def exercise(layout, release, installations, report):
     assert not activate(layout, candidate, None)['changed']
     report['setId'] = candidate['setId']
     stable = layout.environments/'current'
+    assert (stable/'release').resolve(strict=True)==Path(release).resolve(strict=True)
     core_python = stable/'core/bin/python'
     sdk_python = stable/'participant/bin/python'
     home = layout.state/'resident'
@@ -116,7 +117,7 @@ def exercise(layout, release, installations, report):
     base = 'http://127.0.0.1:' + str(port)
     env = {**child_environment(), 'IOALAB_MODE':'dev', 'IOALAB_BIND':'127.0.0.1', 'IOALAB_PORT':str(port),
            'IOALAB_PUBLIC_URL':base, 'IOALAB_DATA':str(layout.state/'core'), 'IOALAB_AUTOSEED':'0',
-           'IOALAB_SEED_FILE':str(Path(release)/document['assets']['seed']['path']),
+           'IOALAB_SEED_FILE':str(stable/'release'/document['assets']['seed']['path']),
            'IOALAB_ADMIN_PASSWORD':'isolated-verification-password', 'IOALAB_LOGIN_CREDIT':'100', 'A2C_CACHE_DIR':str(layout.state/'cache')}
     sdk = None; status = None
     with (layout.private/'core.log').open('w', encoding='utf-8') as core_log:

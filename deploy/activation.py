@@ -58,10 +58,13 @@ def check_set(layout, folder):
             or value['setId'] != folder.name
             or digest({k: v for k, v in value.items() if k != 'setId'}) != value['setId']):
         raise ValueError('Environment set identity is incomplete or changed')
-    _, document = release_in(layout, value['release'])
+    release, document = release_in(layout, value['release'])
     if document['releaseId'] != value['releaseId']:
         raise ValueError('Environment set release changed')
-    if {p.name for p in folder.iterdir()} != {'set.json', *UNITS}:
+    resource = folder / 'release'
+    if not resource.is_symlink() or resource.resolve(strict=True) != release:
+        raise ValueError('Environment set release link differs from its recorded target')
+    if {p.name for p in folder.iterdir()} != {'set.json', 'release', *UNITS}:
         raise ValueError('Environment set contains unrecorded entries')
     for unit, entry in value['units'].items():
         target = folder / unit
@@ -93,6 +96,7 @@ def prepare_set(layout, release, results):
     temporary = sets / ('.set-' + uuid.uuid4().hex)
     temporary.mkdir(mode=0o755)
     save(temporary / 'set.json', value)
+    (temporary / 'release').symlink_to(release, target_is_directory=True)
     for unit, entry in units.items():
         (temporary / unit).symlink_to(entry['environment'], target_is_directory=True)
     temporary.rename(destination)

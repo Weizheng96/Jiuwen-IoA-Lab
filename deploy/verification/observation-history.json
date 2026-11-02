@@ -84,62 +84,74 @@
     "previousConclusion": "failure",
     "previousRegression": "Verified older snapshot incorrectly discarded its first report",
     "previousDeploymentProbe": "Bootstrap administrator incorrectly attempted ordinary user login",
-    "newSourceNeedsPublishedLinuxCI": true,
+    "newSourceNeedsPublishedLinuxCI": false,
     "installedVerification": {
-      "runId": 41296851816,
-      "sourceCommit": "8d6ff01595daae467ef73efb4d0d6409b920221c",
-      "jobId": 124819401585,
-      "installedStepConclusion": "success",
-      "report": {
-        "status": "passed",
-        "scope": "Linux installed release and native configuration; not full systemd deployment",
+      "administratorPreparation": {
         "callsModel": false,
+        "fixedTwoPresets": true,
+        "installedModule": true,
+        "missingMailDisablesMeeting": true,
+        "originalSDKLockReleased": true,
+        "realHTTPPublications": true,
+        "realLinuxRootOwnership": true,
+        "repeatAndStatusPreserveFiles": true,
+        "runtimeReady": false,
         "sendsMail": false,
-        "installsGitDependencies": false,
-        "builderId": "cd9fcae3e6b72fbe9612bbff95333512731b9a93812fc70feee796620329740f",
-        "units": {
-          "core": "4001d1176aa7b7c6b0f1d2516dddaa36012aea30175dc988fb34896e129fd11e",
-          "participant": "61b6e9d24047f0deaf169431ede2c2e70976a5a23329e0430c494a193729ab26",
-          "swarm": "868762acea0b52f72525ac350b9a048f804e74c5511e52d33f5c91e27aeee4dc"
-        },
-        "setId": "0f37dcb17beaa90f31510b2f25362140237018045b9a7d2770fc01a7412d6692",
-        "administratorPreparation": {
-          "status": "passed",
-          "installedModule": true,
-          "realLinuxRootOwnership": true,
-          "realHTTPPublications": true,
-          "fixedTwoPresets": true,
-          "missingMailDisablesMeeting": true,
-          "repeatAndStatusPreserveFiles": true,
-          "unsafeRecipeModeRejected": true,
-          "originalSDKLockReleased": true,
-          "callsModel": false,
-          "sendsMail": false,
-          "runtimeReady": false
-        },
-        "runtime": {
-          "HTTP": true,
-          "WebSocket": true,
-          "stableActivatedEntry": true,
-          "sameIdentityAfterRestart": true,
-          "sameCreditAfterRestart": true,
-          "explicitLoginRecovery": true,
-          "reauthenticationCreditedOnce": true,
-          "originalExecutionLockReleased": true
-        },
-        "originalSwarm": {
-          "installed": true,
-          "ownedWorkspacePrepared": true,
-          "missingModelNotReady": true
-        },
-        "releaseId": "fc7dd5a6763d9ce104c886357fe53926ab7507da44b073757a5f1d96df4ee8ae"
+        "status": "passed",
+        "unsafeRecipeModeRejected": true
+      },
+      "builderId": "cd9fcae3e6b72fbe9612bbff95333512731b9a93812fc70feee796620329740f",
+      "callsModel": false,
+      "installsGitDependencies": false,
+      "originalSwarm": {
+        "installed": true,
+        "missingModelNotReady": true,
+        "ownedWorkspacePrepared": true
+      },
+      "releaseId": "fc7dd5a6763d9ce104c886357fe53926ab7507da44b073757a5f1d96df4ee8ae",
+      "runtime": {
+        "HTTP": true,
+        "WebSocket": true,
+        "explicitLoginRecovery": true,
+        "originalExecutionLockReleased": true,
+        "reauthenticationCreditedOnce": true,
+        "sameCreditAfterRestart": true,
+        "sameIdentityAfterRestart": true,
+        "stableActivatedEntry": true
+      },
+      "scope": "Linux installed release and native configuration; not full systemd deployment",
+      "sendsMail": false,
+      "setId": "6cb4985f0933824b03d79a18c207a80ae0a41d159d5a5c8729149489b2bad4a8",
+      "status": "passed",
+      "units": {
+        "core": "4001d1176aa7b7c6b0f1d2516dddaa36012aea30175dc988fb34896e129fd11e",
+        "participant": "61b6e9d24047f0deaf169431ede2c2e70976a5a23329e0430c494a193729ab26",
+        "swarm": "868762acea0b52f72525ac350b9a048f804e74c5511e52d33f5c91e27aeee4dc"
       }
     },
     "artifactCollection": {
-      "conclusion": "failure",
-      "reason": "Recursive log glob scanned the root-owned administrator fixture and received EACCES",
-      "correction": "Bounded report/build/environment/lifecycle log paths; no recursive state scan or permission change",
-      "requiresNewRun": true
+      "conclusion": "success",
+      "artifactId": 13079424685,
+      "runId": 41297737428,
+      "sourceCommit": "5f8a5dcdaaf7913feab11013b4149dbc645f5c2e",
+      "sha256": "578aa6db8dadf13ad50ec3ccf3f3615e2019afbeb8058d24b63e48d72c80860f",
+      "memberCount": 14,
+      "noPrivateStateCollected": true,
+      "originalFailureRun": 41296851816,
+      "requiresNewRun": false
+    },
+    "fullCI": {
+      "runId": 41297737428,
+      "sourceCommit": "5f8a5dcdaaf7913feab11013b4149dbc645f5c2e",
+      "checkJobId": 124822059369,
+      "deploymentJobId": 124822059169,
+      "checkConclusion": "success",
+      "deploymentConclusion": "success",
+      "tests": {
+        "passed": 765,
+        "skipped": 19,
+        "duration": "920.28s (0:15:20)"
+      }
     }
   },
   "callsModel": false,

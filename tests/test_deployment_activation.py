@@ -123,7 +123,7 @@ def test_different_current_is_not_overwritten_by_old_upgrade(owned, source):
     assert activation.current(owned) == first
 
 
-@pytest.mark.parametrize('fault',['pending','wrong_owner','foreign_plan','wrong_profile_marker','changed_link','unknown_entry','set_json'])
+@pytest.mark.parametrize('fault',['pending','wrong_owner','foreign_plan','wrong_profile_marker','changed_link','changed_release','missing_release','unknown_entry','set_json'])
 def test_damaged_or_unfinished_set_never_replaces_current(owned, source, fault):
     first, _ = candidate(owned, source)
     activation.activate(owned, first, None)
@@ -138,6 +138,9 @@ def test_damaged_or_unfinished_set_never_replaces_current(owned, source, fault):
     elif fault == 'wrong_profile_marker': save(environment/'ioalab-release.json', {})
     elif fault == 'changed_link':
         (folder/'core').unlink();(folder/'core').symlink_to(environment,target_is_directory=True)
+    elif fault == 'changed_release':
+        (folder/'release').unlink();(folder/'release').symlink_to(owned.state,target_is_directory=True)
+    elif fault == 'missing_release': (folder/'release').unlink()
     elif fault == 'unknown_entry': (folder/'unrecorded').write_text('unexpected')
     else: save(folder/'set.json',{})
     with pytest.raises((ValueError, KeyError)):
@@ -161,3 +164,25 @@ def test_nonlink_current_is_preserved(owned,source):
     original=owned.environments/'current'/'data';original.write_bytes(b'operator data')
     with pytest.raises(ValueError,match='managed'): activation.activate(owned,value,None)
     assert original.read_bytes()==b'operator data'
+
+
+def test_release_resources_switch_with_the_complete_set_without_rewriting_configuration(owned,source):
+    seed=source/'deploy/default-seed.json'
+    seed.write_text('{"generation":"one"}',encoding='utf-8')
+    first,_=candidate(owned,source)
+    activation.activate(owned,first,None)
+    manifest=read_json(Path(first['release'])/'release.json')
+    relative=manifest['assets']['seed']['path']
+    stable=owned.environments/'current/release'/relative
+    config=owned.config/'core.env'
+    config.write_text('IOALAB_SEED_FILE='+str(stable),encoding='utf-8')
+    original=config.read_bytes()
+    assert json.loads(stable.read_text(encoding='utf-8'))=={'generation':'one'}
+    seed.write_text('{"generation":"two"}',encoding='utf-8')
+    second,_=candidate(owned,source,python='3.11.10',staging='two')
+    assert first['releaseId']!=second['releaseId']
+    assert json.loads(stable.read_text(encoding='utf-8'))=={'generation':'one'}
+    activation.activate(owned,second,first['setId'])
+    assert json.loads(stable.read_text(encoding='utf-8'))=={'generation':'two'}
+    assert config.read_bytes()==original
+    assert json.loads((Path(first['release'])/relative).read_text(encoding='utf-8'))=={'generation':'one'}
