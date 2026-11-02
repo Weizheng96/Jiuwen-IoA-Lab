@@ -33,7 +33,7 @@ def main():
         scope_module = importlib.util.module_from_spec(scope_spec)
         scope_spec.loader.exec_module(scope_module)
         try:
-            plan = scope_module.select_tests(scope_module.changed_paths(args.changed_from))
+            plan = scope_module.select_tests(scope_module.changed_paths(args.changed_from), base=args.changed_from)
         except scope_module.subprocess.CalledProcessError:
             parser.error('cannot resolve/diff --changed-from; fetch the base revision first')
         print('Quick scope: ' + str(plan), flush=True)
