@@ -264,6 +264,27 @@ def test_cli_output_and_invalid_revision_fail_without_emitting_success(tmp_path)
     assert bad.returncode != 0 and not failed_output.exists()
 
 
+@pytest.mark.parametrize('base_kind', ['committed', 'missing-base', '--not-a-revision', 'HEAD^{tree}'])
+def test_manual_quick_base_uses_original_committed_selector_and_rejects_bad_revision(git_repo, base_kind):
+    root, git, base = git_repo
+    script = root / 'tools/check_scope.py'
+    script.parent.mkdir()
+    script.write_text((ROOT / 'tools/check_scope.py').read_text(encoding='utf-8'), encoding='utf-8')
+    (root / 'tests/test_base.py').write_text('def helper(): return 1\n\ndef test_base(): assert helper() > 0\n')
+    git('add', 'tests/test_base.py'); git('commit', '-m', 'changed test assertion')
+    output = root / 'github-output'
+    revision = base if base_kind == 'committed' else base_kind
+    result = subprocess.run([sys.executable, script, '--base=' + revision, '--github-output', str(output)],
+                            cwd=root, capture_output=True, text=True, encoding='utf-8', timeout=10)
+    if base_kind == 'committed':
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert json.loads(result.stdout)['tests'] == ['tests/test_base.py']
+        assert output.read_text().strip() == 'tests=["tests/test_base.py"]'
+    else:
+        assert result.returncode == 2 and 'Cannot plan committed scope' in result.stderr
+        assert not output.exists() and '"level"' not in result.stdout
+
+
 def test_declared_quick_nodes_refer_to_existing_real_test_functions():
     targets = [*CRITICAL, *(target for values in QUICK_CASES.values() for target in values)]
     for target in targets:
@@ -279,10 +300,17 @@ def test_declared_quick_nodes_refer_to_existing_real_test_functions():
 def test_ci_uses_local_entrypoint_and_separates_explicit_validation():
     ci = yaml.load((ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
     validation = yaml.load((ROOT / '.github/workflows/validation.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
-    assert set(ci['on']) == {'push', 'pull_request'}
+    assert set(ci['on']) == {'push', 'pull_request', 'workflow_dispatch'}
+    assert ci['on']['push']['branches'] == ['main']
+    assert ci['on']['workflow_dispatch']['inputs'] == {
+        'base': {'description': 'Committed base revision for the quick scope', 'type': 'string', 'required': 'true'}}
     assert set(ci['jobs']) == {'check'}
+    assert ci['jobs']['check']['env']['CHECK_BASE'] == (
+        '${{ inputs.base || github.event.pull_request.base.sha || github.event.before }}')
     steps = ci['jobs']['check']['steps']
     commands = [step.get('run', '') for step in steps]
+    assert steps[0]['with']['fetch-depth'] == '0'
+    assert commands[2] == 'python tools/check_scope.py --base "$CHECK_BASE" --github-output "$GITHUB_OUTPUT"'
     assert sum('pip install' in command for command in commands) == 1
     assert any('scripts/check.py --changed-from' in command for command in commands)
     assert not any('--full' in command or 'verify_deployment' in command for command in commands)
