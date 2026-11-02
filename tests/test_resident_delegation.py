@@ -48,7 +48,7 @@ class QuoteHost:
 
 
 @contextmanager
-def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None,preload_verifier=True,template_terms=None):
+def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None,preload_verifier=True,template_terms=None,verifier_reads=None,quote_amount=9):
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
@@ -60,7 +60,7 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
         wait_for(lambda:provider.connection.connected and assistant.connection.connected)
         source=verifier_source or "def verify(ctx):\n    return {'status': 'pass'}\n"
         if preload_verifier:
-            uploaded=LocalClient(provider.config.home).call('provider.verifier.publish',{'profile':'service','verifierId':'resident_result@1.0','source':source,'kind':verifier_kind})
+            uploaded=LocalClient(provider.config.home).call('provider.verifier.publish',{'profile':'service','verifierId':'resident_result@1.0','source':source,'kind':verifier_kind,'reads':verifier_reads or []})
             assert uploaded['status']=='completed',uploaded
             host.verifier=uploaded['data']
         else:
@@ -68,12 +68,12 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
             host.verifier=None
         host.verifier_kind=verifier_kind
         if verifier_kind=='skill':host.verifier={**host.verifier,'disputeModels':['test-observation-model']}
-        resources={'outputVerifier':host.verifier,'quoteAmount':9,'acceptWithin':'PT10M'}
+        resources={'outputVerifier':host.verifier,'quoteAmount':quote_amount,'acceptWithin':'PT10M'}
         instructions='本隔离测试的专业能力是提供摘要交付。当前请求可直接报价，无须补充需求。请使用业务资源outputVerifier作script验收器，quoteAmount作确定报价，acceptWithin作验收时长。'
         professional={'resources':resources,'instructions':instructions,**(business or {})}
         prole.execution.configs['service'].update(professional)
         value['provider']['services']['service'].update(professional);private_json(pconfig,value)
-        definition={'formation':formation,'deliverable':{'name':'result'},'pricing':{'proposalFee':fee,'price':'9'},
+        definition={'formation':formation,'deliverable':{'name':'result'},'pricing':{'proposalFee':fee,'price':str(quote_amount)},
                     'verifier':{'id':'resident_result@1.0','source':source,'kind':verifier_kind,**({'disputeModels':['test-observation-model']} if verifier_kind=='skill' else {})}}
         from types import SimpleNamespace
         def upload(**args):return host.verifier
@@ -113,8 +113,8 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
         assistant.close();provider.close()
 
 
-def request(assistant,provider,template,task,operation=None):
-    args={'taskRef':task,'service':provider.identities[0].agent_id,'templateDigest':template['templateDigest'],'spec':{'result':{}}}
+def request(assistant,provider,template,task,operation=None,*,spec=None):
+    args={'taskRef':task,'service':provider.identities[0].agent_id,'templateDigest':template['templateDigest'],'spec':{'result':{}} if spec is None else spec}
     return LocalClient(assistant.config.home).call('assistant.delegation.request',args,operation_id=operation or uid()),args
 
 

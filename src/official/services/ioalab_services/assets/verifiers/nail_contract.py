@@ -18,7 +18,9 @@ def verify(ctx):
         capacity=s['spec.booking.capacity']
         def engine(): return factory(capacity)
         def reserve(book,key,slot='10:00'): return book.reserve(key,slot)
-        test(0,d.get('shop')==s['spec.booking.shop'] and d.get('capacity')==capacity)
+        expected_services=[{'name':s['spec.booking.service'+str(i)+'Name'],'minutes':s['spec.booking.service'+str(i)+'Minutes']} for i in (1,2)]
+        test(0,all(d.get(key)==s['spec.booking.'+key] for key in ('shop','open','close','capacity'))
+             and all(type(d.get(key)) is int for key in ('open','close','capacity')) and d.get('services')==expected_services)
         book=engine();one=reserve(book,'customer-1')
         test(1,one and book.list()==[one])
         for i in range(1,capacity): reserve(book,'fill-'+str(i))
@@ -26,7 +28,16 @@ def verify(ctx):
         book.cancel(one['id']);after=reserve(book,'replacement')
         test(3,after is not None and len(book.list())==capacity)
         mp=d.get('miniProgram',{})
-        test(4,d.get('format')=='ioalab.booking' and d.get('allowCancel') is True and d.get('idempotent') is True and all(isinstance(mp.get(n),str) and len(mp[n])>10 for n in ('app.json','pages/index/index.js','pages/index/index.wxml')))
+        structure=False
+        if isinstance(mp,dict) and all(isinstance(mp.get(n),str) and len(mp[n])>10 for n in ('app.json','pages/index/index.js','pages/index/index.wxml')):
+            try:
+                pages=json.loads(mp['app.json']).get('pages')
+                structure=isinstance(pages,list) and bool(pages) and all(
+                    isinstance(page,str) and '\\' not in page and all(part not in ('','.','..') for part in page.split('/'))
+                    and all(isinstance(mp.get(page+ext),str) and bool(mp[page+ext].strip()) for ext in ('.js','.wxml')) for page in pages)
+            except (ValueError,TypeError,AttributeError):
+                pass
+        test(4,d.get('format')=='ioalab.booking' and d.get('allowCancel') is True and d.get('idempotent') is True and structure)
         if s['spec.booking.level']=='reliable':
             book=engine();first=reserve(book,'retry');again=reserve(book,'retry')
             test(5,first==again and len(book.list())==1)

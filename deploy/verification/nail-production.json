@@ -1,0 +1,182 @@
+{
+  "scope": "Repaired scene verifier plus one real original-model resident provider transaction; not native user onboarding or four films",
+  "recordedAt": "2026-11-02T07:43:55.396601+00:00",
+  "designBasis": "设计/示例/美甲预约.md",
+  "publishedBaseline": "f6b394290cdf9952d94bd2ac9f36bb09a5280841",
+  "testedSourceTree": "a544165390a3b8202a519afefc4ba4f772a5fa9a",
+  "fullRegression": {
+    "scope": "Exact frozen workbench plus five nail business and test paths; deferred default deployment excluded",
+    "candidateTree": "a544165390a3b8202a519afefc4ba4f772a5fa9a",
+    "importProvenance": {
+      "ioalab": "src\\platform\\ioalab\\__init__.py",
+      "ioalab_sdk": "src\\access\\sdk\\ioalab_sdk\\__init__.py",
+      "ioalab_jiuwen": "src\\hosts\\jiuwen\\ioalab_jiuwen\\__init__.py",
+      "ioalab_tools": "src\\official\\tools\\ioalab_tools\\__init__.py",
+      "ioalab_services": "src\\official\\services\\ioalab_services\\__init__.py",
+      "ioalab_admin_assistant": "src\\official\\admin-assistant\\ioalab_admin_assistant\\__init__.py",
+      "a2x_registry": "vendor\\A2X-registry\\a2x_registry\\__init__.py"
+    },
+    "checks": [
+      {
+        "check": "design",
+        "exitCode": 0,
+        "seconds": 0.14
+      },
+      {
+        "check": "docs",
+        "exitCode": 0,
+        "seconds": 0.28
+      },
+      {
+        "check": "pytest",
+        "exitCode": 0,
+        "seconds": 2231.2
+      },
+      {
+        "check": "selfcheck",
+        "exitCode": 0,
+        "seconds": 37.19
+      }
+    ],
+    "inputCount": 1177,
+    "changedInputs": [],
+    "passed": true,
+    "pytestSummary": "930 passed, 35 skipped, 2 warnings in 2228.07s (0:37:08)"
+  },
+  "changedBusinessPaths": [
+    "official-services/scenario.py",
+    "src/official/services/ioalab_services/assets/verifiers/nail_contract.py",
+    "tests/test_nail_flow.py",
+    "tests/test_resident_delegation.py",
+    "tests/test_resident_nail.py"
+  ],
+  "modelExecution": {
+    "closed": true,
+    "contractAmount": 299,
+    "contractRef": "sha256:2f426e2ac2d8615b68b0a343f86377057e369a4e468b52f5bb5a0d0d0f96989d",
+    "files": {
+      "booking.json": {
+        "digest": "sha256:1d0e1531d9feb4b3123d3054e6f500a9c402a7affbd74cd17ef74c1b8800bedc",
+        "size": 2676
+      }
+    },
+    "interactionId": "381c04e4-576c-4f6c-ae54-54da0ebf6c44",
+    "limits": [
+      "One provider backend production; not native Skill import, registration, frontend confirmation or film",
+      "No proof of WeChat client execution, real registration, three-provider comparison or external mail"
+    ],
+    "model": "qwen3.5-plus#2",
+    "payment": "paid",
+    "proposalFee": 1,
+    "reputationCompleted": 1,
+    "scope": "Original public Process model produces actual booking.json; HTTP/WS/A2C/WASM/AP2; explicit isolated user confirmation driver",
+    "verifierSourceSha256": "eb36fb8c6c34ff0aaabee40e52c1966b4cc615e20ac8c53f576504b6c309ef62",
+    "wasm": {
+      "checks": [
+        [
+          {
+            "check": "预约配置逐项符合合同",
+            "ok": true
+          },
+          {
+            "check": "可以预约并查询",
+            "ok": true
+          },
+          {
+            "check": "满额后拒绝新增预约",
+            "ok": true
+          },
+          {
+            "check": "取消后释放名额",
+            "ok": true
+          },
+          {
+            "check": "小程序源码结构与预约配置齐全",
+            "ok": true
+          },
+          {
+            "check": "重复提交不重复占位",
+            "ok": true
+          },
+          {
+            "check": "连续竞争请求不超容量",
+            "ok": true
+          },
+          {
+            "check": "相同请求重试返回原预约",
+            "ok": true
+          },
+          {
+            "check": "不同时段独立计数",
+            "ok": true
+          },
+          {
+            "check": "重复取消不误减名额",
+            "ok": true
+          }
+        ]
+      ],
+      "errors": [],
+      "notBefore": null,
+      "status": "pass"
+    },
+    "seconds": 136.83,
+    "actualToolCalls": [
+      "ioa_provider_task_quote",
+      "ioa_provider_task_request_step",
+      "ioa_provider_task_request_step",
+      "write_file",
+      "ioa_provider_task_selftest",
+      "ioa_provider_task_deliver"
+    ],
+    "nativeWriteFileUsed": true,
+    "verifierReference": {
+      "digest": "sha256:891b355575f5e2920c4db9749be9b0c163d7063f279d5fd504106f423dadfb15",
+      "id": "resident_result@1.0",
+      "uri": "ioalab://pkg/sha256:891b355575f5e2920c4db9749be9b0c163d7063f279d5fd504106f423dadfb15"
+    }
+  },
+  "configurationAudit": {
+    "existingFilesHashedBeforeAndAfter": 78,
+    "existingFileBytesUnchanged": true,
+    "fileCountAfterIncludingOriginalHostRuntimeState": 80,
+    "fixedOriginalConfigurationFiles": 4,
+    "fixedOriginalConfigurationHashesMatchBeforeNativeOnboarding": true,
+    "newFiles": [
+      "config/runtime_state/process_cli_1a19b10a5cb_96073308b2c2.yaml",
+      "config/runtime_state/process_cli_1a19b10a5cb_96073308b2c2.5e7921ff9e629754.skill-retrieval.json"
+    ],
+    "origin": "Original public Process execution writes per-session runtime state; no direct write by the IoA adapter or validation driver",
+    "primaryImplementation": "Installed locked Jiuwen common/utils.py get_runtime_state_path and server/runtime/agent_adapter/interface_deep.py runtime-state writer",
+    "globalInstructionsSourceOrPrivateHistoryEdited": false
+  },
+  "negativeChecks": [
+    "Wrong opening/closing hours and service names/minutes fail the contract configuration criterion",
+    "Invalid app.json, missing declared page files and missing engine source fail A2C WASM verification",
+    "Existing five-vs-ten behavior comparison and HTTP protocol sample test retained"
+  ],
+  "limits": [
+    "One provider backend production; not native Skill import, registration, frontend confirmation or film",
+    "No proof of WeChat client execution, real registration, three-provider comparison or external mail",
+    "WeChat page source is structurally checked; this is not a usable standalone miniapp or deployed backend validation",
+    "Old native signed weak verifier package and old offers were not edited; new native publication still required",
+    "The real-model case uses pre-published verifier resources and explicit isolated user confirmation drivers"
+  ],
+  "reportingMetadata": {
+    "addedAfterRegression": [
+      "docs/开发计划.md",
+      "deploy/verification/nail-production.json",
+      ".agents/skills/jiuwen-swarm/references/verification.md"
+    ],
+    "executableInputsChangedAfterRegression": false
+  },
+  "snapshotAudit": {
+    "candidateFileCount": 1194,
+    "rawArchiveBaselineUnchangedOutsideReporting": true,
+    "gitBlobComparisonsAfterDeclaredCleanFilters": 1192,
+    "allMatchedCandidate": true,
+    "unchangedPublishedExecutableInputs": true,
+    "originalGateTrackedInputCount": 1177,
+    "scope": "All archived candidate paths included, including17 vendored paths ignored by a fresh git add; Windows EOL cleaning follows repository attributes, binary/upstream bytes retained"
+  }
+}

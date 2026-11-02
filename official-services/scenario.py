@@ -2,7 +2,7 @@
 from copy import deepcopy
 from ioalab_services.catalog import definitions, materialize
 
-BASIC_CRITERIA=['店名与容量符合合同', '可以预约并查询', '满额后拒绝新增预约', '取消后释放名额', '小程序源码与预约配置齐全']
+BASIC_CRITERIA=['预约配置逐项符合合同', '可以预约并查询', '满额后拒绝新增预约', '取消后释放名额', '小程序源码结构与预约配置齐全']
 EXTRA_CRITERIA=['重复提交不重复占位', '连续竞争请求不超容量', '相同请求重试返回原预约', '不同时段独立计数', '重复取消不误减名额']
 OBSERVATION_CRITERIA=['模型观察预约逻辑', '模型观察取消逻辑', '模型观察容量控制逻辑']
 
@@ -38,9 +38,9 @@ def nail_services():
         d['tags']=['美甲预约','微信小程序','软件开发'];d['pricing']={'proposalFee':1,'range':[price,price]} if formation=='proposal' else {'price':price}
         d['deliverable']['description']='booking.json：预约配置、engineSource（Python BookingEngine类源码）、miniProgram（微信小程序文件映射）。Python仅在WASM中测试，本地使用固定运行器；不声称已微信注册或上线。'
         d['deliverable']['specSchema']['level']={'const':'reliable' if key=='mashangfei' else 'basic'}
-        d['verifier']={'id':'nail_'+key+'@1.0.1','reads':original['verifier']['reads'],'script':'nail_contract.py','criteria':BASIC_CRITERIA+(EXTRA_CRITERIA if key=='mashangfei' else [])}
+        d['verifier']={'id':'nail_'+key+'@1.0.2','reads':original['verifier']['reads'],'script':'nail_contract.py','criteria':BASIC_CRITERIA+(EXTRA_CRITERIA if key=='mashangfei' else [])}
         d['steps']=[{'name':'realname_registration','description':'授权以本店名义办理小程序实名注册。当前本地演示仅记录授权，不提交真实身份资料，不申请微信账号或审核。'}]
-        d['notCovered']=['微信真实主体认证与上线审核','未经授权的个人资料传输','真实多线程压力与网络故障注入']
+        d['notCovered']=['微信真实主体认证与上线审核','微信客户端执行与小程序界面行为','未经授权的个人资料传输','真实多线程压力与网络故障注入']
         d['sample']['shop']='小美美甲店'
         d['sample_spec']['shop']='小美美甲店'
         d['sample']['engineSource']=ENGINE
