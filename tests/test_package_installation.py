@@ -52,12 +52,15 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path):
     run([str(python),'-m','pip','install','--no-index','--no-deps',*[str(p) for p in wheels.glob('*.whl')]], tmp_path)
     output = run([str(python),'-I','-c', '''
 import importlib.metadata as m, importlib.resources as r, json
+import ioalab.config as core_config
+import ioalab_services.catalog as service_catalog
 from ioalab.config import Settings
 from ioalab_services.catalog import definitions,seed_manifest
 page=r.files('ioalab').joinpath('web/static/index.html').read_text(encoding='utf-8')
 print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host':m.version('ioalab-jiuwen'),'official':m.version('ioalab-official'),
                  'ownedServices':len(definitions()),'ownedSeed':len(seed_manifest()['domains']),
                  'resource':bool(page.strip()),'data':str(Settings().data),
+                 'coreModuleFile':core_config.__file__,'catalogModuleFile':service_catalog.__file__,
                  'userPage':bool(m.distribution('ioalab-sdk').locate_file('ioalab_sdk/runtime/web/user.html').read_text(encoding='utf-8').strip()),
                  'hostEntry':{e.name:e.value for e in m.distribution('ioalab-jiuwen').entry_points if e.group=='console_scripts'}.get('ioalab-jiuwen'),
                  'accessEntry':{e.name:e.value for e in m.distribution('ioalab-sdk').entry_points if e.group=='console_scripts'}.get('ioalab-access')}))
@@ -71,7 +74,9 @@ print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host
     assert result['ownedServices'] == 50 and result['ownedSeed'] == 8
     assert result['hostEntry']=='ioalab_jiuwen.__main__:main'
     assert result['accessEntry']=='ioalab_sdk.runtime.__main__:main'
-    assert ROOT.as_posix().lower() not in result['data'].replace('\\','/').lower()
+    assert Path(result['data']).resolve() == (tmp_path/'data').resolve()
+    for name in ('coreModuleFile', 'catalogModuleFile'):
+        assert environment.resolve() in Path(result[name]).resolve().parents
 
 
 def test_official_wheel_is_reproducible_when_source_mtimes_change(tmp_path):
