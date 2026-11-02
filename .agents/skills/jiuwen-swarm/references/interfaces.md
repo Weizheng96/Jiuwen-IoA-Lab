@@ -17,6 +17,8 @@
 
 运行所用模型键来自公开model.list的selection_key；网页显示名称、模型配置资源ID与该键可能不同。网页会话选用模型与后台SDK宿主选择分别核对，页面已切换不证明后台也切换。命名权限策略只表明配置，不证明工具真实可用；技能加载不自动赋予生产工具或外部操作权限。
 
+权限机制按入口分别核对：锁定版本的Process run_permissions不能证明普通Web Skill会话受限；原生单Agent专家的tools加载也是追加能力，不能直接当最终白名单。公开Tool/Rail专家扩展是另一条候选路线，需证明实际工具效果前拒绝、并行调用无共享状态绕过及守卫失效时停止；静态挂载、工具声明过滤或后台通过均不足以证明网页边界。未完成这些验证时保持明确未通过。
+
 Web调用要区分确认帧与最终结果：已核对版本的history.get通过history.message事件流给出记录，accepted仅表示收到，须等done；该版本分页从1开始。
 
 原生问答残留时，用公开`session.get_metadata`仅传目标`session_id`核实际执行与待控制项；`runtime_resume`会订阅并重放保留帧，重放的旧问题不能独自证明仍在等待。已核对版本的正常停止方法为`chat.interrupt`及`intent=cancel`，沿用真实会话的mode/work_mode/project_id，等待`chat.interrupt_result`再查询执行终态；收件accepted不代表已取消。该公开入口按会话停止，不提供按execution_id精准取消；先核其中全部非终态执行都属于本任务，不为清理问答重启宿主或SDK。
