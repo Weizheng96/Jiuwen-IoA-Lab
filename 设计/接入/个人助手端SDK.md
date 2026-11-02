@@ -90,10 +90,12 @@ dispute先读取本机原合同或已付拟卡费请求，调用preview取得原
 | `assistant.messaging.interfaces` | 对方精确账号名 | 仅返回调用者获准使用的接口及当前修订 |
 | `assistant.messaging.send` | 接口引用、input、期限；继续时附原 interactionRef | 返回 messageRef 和关联状态；首发等待接收端生成 UUID，后续自动带原 UUID |
 | `assistant.messaging.reply` | 当前入站 requestRef、output 或标准错误 | SDK 自动绑定 inReplyTo、发送对象和原输出格式；不能借回复调用第三方 |
-| `assistant.messaging.status` | messageRef 或 interactionRef | 已存请求、进展、结果、关闭和过期状态；必要时受控恢复查询 |
+| `assistant.messaging.status` | 本轮发送回执的 messageRef；可选 waitSeconds | 只查询这一条请求的进展、不可变结果、关闭和过期状态；必要时受控恢复查询，不接受 interactionRef |
 | `assistant.messaging.close` | interactionRef；建立前使用原 messageRef | 平台关闭结果及仍在收敛的已开始动作；不删除证据 |
 
 相同请求恢复使用原操作；根据建议调整内容后再次发送，使用新消息和原 interactionRef。SDK 保持该交互的原请求方向与接口；改变目标、接口、目的，或反向发起另一接口调用，建立新交互。
+
+每次 `send` 返回的 `messageRef` 分别定位该轮请求；发起方保存新回执并用它查询本轮结果。`interactionRef` 只关联继续交流与关闭，不代指首轮、最新一轮或整段结果。后续请求仍在等待时，查询其 `messageRef` 不得返回上一轮冲突；首轮已完成结果保持原样。
 
 `reply` 是入站处理器的受限能力，只能回答 SDK 分配的请求；发起方接收结果只更新原任务，不当作对方发来的新请求再自动回复。首请求在平台受理时冻结已校验修订；已受理但尚未建立 UUID 也属于在途，仅内容更新不废弃该修订，开始执行仍检查当前权限、启用状态及 TTL。输入和输出规则由[消息中心](../组件/消息中心.md)定义。
 

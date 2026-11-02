@@ -151,7 +151,7 @@ class AssistantRole:
             self.fields(args,('input',),('interfaceRef','interactionRef','ttlSeconds'))
             return self.send(operation,args)
         elif name=='messaging.status':
-            self.fields(args,optional=('messageRef','interactionRef','waitSeconds'))
+            self.fields(args,('messageRef',),('waitSeconds',))
             data=self.status(args)
         else:
             self.fields(args,optional=('messageRef','interactionRef','reason'))
@@ -250,12 +250,8 @@ class AssistantRole:
                 'error':response.get('error') if response and not response['ok'] else None}
 
     def status(self,args):
-        if bool(args.get('messageRef'))==bool(args.get('interactionRef')):raise RuntimeFault('invalid_input','Specify a message or interaction reference')
         mid=args.get('messageRef')
-        if not mid:
-            relation=self.store.interaction(interaction_id=args['interactionRef'])
-            if not relation or relation['actor']!=self.identity.agent_id:raise RuntimeFault('forbidden','Interaction is outside this identity')
-            mid=relation['origin']
+        if not isinstance(mid,str) or not mid:raise RuntimeFault('invalid_input','Use the messageRef returned by this send operation','correct_input')
         wait=args.get('waitSeconds',0)
         if type(wait) not in (int,float) or not 0<=wait<=30:raise RuntimeFault('invalid_input','Status wait is limited to 30 seconds')
         until=time.monotonic()+wait

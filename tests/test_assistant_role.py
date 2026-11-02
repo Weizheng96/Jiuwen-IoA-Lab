@@ -135,10 +135,57 @@ def test_two_requests_share_receiver_uuid_and_real_host_session_and_do_not_repea
             assert receiver.status()['identities'][0]['executionReady']
             closed=client.call('assistant.messaging.close',{'interactionRef':first['interactionRef']})
             assert closed['status']=='accepted'
-            wait_for(lambda:client.call('assistant.messaging.status',{'interactionRef':first['interactionRef']})['data']['closed'])
+            wait_for(lambda:client.call('assistant.messaging.status',{'messageRef':sent['data']['messageRef']})['data']['closed'])
             third=client.call('assistant.messaging.send',{'interactionRef':first['interactionRef'],'input':{'slot':'third'}})
             assert third['status']=='rejected' and third['error']['code']=='closed' and len(effects)==2
             assert not sender.scheduler.status()['states']  # Results never become new inbound requests.
+
+
+def test_message_status_keeps_each_round_result_and_rejects_interaction_references(platform,tmp_path):
+    host=ScriptedHost();effects=[]
+    second_started=threading.Event();release_second=threading.Event()
+    def reserve(args,context):
+        effects.append((args,context))
+        if args['slot']=='first':return {'status':'conflict','suggested':'second'}
+        second_started.set()
+        assert release_second.wait(20),'Second request was not released by the test'
+        return {'status':'reserved'}
+    tool=ToolBinding('reserve_slot','逐条消息结果测试',INPUT,reserve,'reservation')
+    with runtime_at(platform,tmp_path/'sender') as (_,client,_,user):
+        with runtime_at(platform,tmp_path/'receiver',host,[tool]) as (receiver,inbox,_,target):
+            publish(receiver,inbox,user['username'])
+            interface=client.call('assistant.messaging.interfaces',{'account':target['username']})['data'][0]['interfaceRef']
+            first_sent,first=send_and_read(client,{'interfaceRef':interface,'input':{'slot':'first'}})
+            first_message=first_sent['data']['messageRef'];interaction=first['interactionRef']
+            assert first['state']=='completed' and first['result']['output']=={'status':'conflict','suggested':'second'},first
+            for args in ({},{'interactionRef':interaction},{'messageRef':first_message,'interactionRef':interaction}):
+                rejected=client.call('assistant.messaging.status',args)
+                assert rejected['status']=='rejected' and rejected['error']['code']=='invalid_input',rejected
+            second_sent=client.call('assistant.messaging.send',{'interactionRef':interaction,'input':{'slot':'second'}})
+            assert second_sent['status']=='accepted',second_sent
+            second_message=second_sent['data']['messageRef']
+            assert second_message!=first_message and second_sent['data']['interactionRef']==interaction
+            try:
+                assert second_started.wait(5),'Second request never reached the business tool'
+                pending=client.call('assistant.messaging.status',{'messageRef':second_message})
+                assert pending['status']=='completed' and pending['data']['state']=='awaiting_result',pending
+                assert pending['data']['messageRef']==second_message and pending['data']['interactionRef']==interaction
+                assert pending['data']['result'] is None,pending
+                original=client.call('assistant.messaging.status',{'messageRef':first_message,'waitSeconds':1})
+                assert original['data']['state']=='completed' and original['data']['result']==first['result'],original
+            finally:release_second.set()
+            second=client.call('assistant.messaging.status',{'messageRef':second_message,'waitSeconds':15})
+            assert second['status']=='completed' and second['data']['state']=='completed',second
+            assert second['data']['messageRef']==second_message and second['data']['interactionRef']==interaction
+            assert second['data']['result']['output']=={'status':'reserved'},second
+            first_after=client.call('assistant.messaging.status',{'messageRef':first_message})
+            second_after=client.call('assistant.messaging.status',{'messageRef':second_message})
+            assert first_after['data']['result']==first['result'] and first_after['data']['state']=='completed',first_after
+            assert second_after['data']['result']==second['data']['result'] and second_after['data']['state']=='completed',second_after
+            assert [args for args,_ in effects]==[{'slot':'first'},{'slot':'second'}]
+            assert len(host.turns)==2 and effects[0][1]['sessionId']==effects[1][1]['sessionId']
+            assert effects[0][1]['interactionId']==effects[1][1]['interactionId']==interaction
+            wait_for(lambda:receiver.scheduler.status()['states'].get('completed')==2)
 
 
 def test_unknown_business_effect_holds_session_and_is_not_replayed(platform,tmp_path):

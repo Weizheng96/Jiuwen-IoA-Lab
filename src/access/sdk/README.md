@@ -42,7 +42,7 @@ python -m ioalab_sdk.runtime configure --config <本机配置文件> --args-file
 | `assistant.rules.list/disable` | list 为空；disable 使用 name、expectedRevision，仍需用户确认 |
 | `assistant.messaging.interfaces` | account：准确账号；返回获准调用的 interfaceRef 及 Schema |
 | `assistant.messaging.send` | interfaceRef、input；后续请求改用原 interactionRef、input |
-| `assistant.messaging.status` | messageRef 或 interactionRef；waitSeconds 可选且不超过30秒 |
+| `assistant.messaging.status` | 本轮 send 回执的 messageRef；waitSeconds 可选且不超过30秒；interactionRef 只用于续接与关闭 |
 | `assistant.messaging.close` | messageRef 或 interactionRef，reason 可选 |
 
 本机用户页确认后，重复原发布调用即可完成发布。模型不能通过 RPC 批准；修改摘要或内容必须重新确认。发布冻结本地 Markdown、工具权限及修订，平台只接收接口声明。入站只运行对应已确认规则与工具；同一交互固定实际 Session。等待原生用户问题时保留原进程、释放模型名额；回答后重新申请名额。未知外部效果阻止该交互继续执行，须核实原操作。可选宿主按本机显式配置装配[官方日程/邮件工具](../../official/README.md)，不会因安装通用技能自动启用邮箱权限。
