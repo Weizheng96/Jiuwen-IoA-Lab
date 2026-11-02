@@ -1,4 +1,5 @@
 """Durability and scope over real local SQLite/WS; native history is an explicit double."""
+from dataclasses import replace
 import json
 from pathlib import Path
 import threading
@@ -10,7 +11,9 @@ from websockets.sync.server import serve
 
 from ioalab_jiuwen.tools import ConfiguredTools
 from ioalab_jiuwen.web_client import WebClient, NotSent, fingerprint
-from ioalab_jiuwen.web_notifications import WebNotifications
+from a2c.codec import digest
+from ioalab_jiuwen.web_notifications import NOTIFICATION_OUTPUT, WebNotifications, factory
+from ioalab_sdk.runtime.host import validate_output
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from conftest import wait_for
 
@@ -183,3 +186,97 @@ def test_rpc_wire_checks_fixed_target_credentials_and_original_receipt():
     finally: server.shutdown(); thread.join(timeout=5)
     for url in ('ws://example.com/ws?user_id=test-owner', 'ws://127.0.0.1/ws?user_id=other', 'ws://name:password@127.0.0.1/ws?user_id=test-owner'):
         with pytest.raises(RuntimeFault): WebClient(url, 'test-owner', 'LOCAL-TEST-SECRET')
+
+
+def test_public_tools_and_rule_preview_include_notification_output_contract(platform, tmp_path, monkeypatch):
+    from test_assistant_role import runtime_at
+    monkeypatch.setenv('IOALAB_TEST_WEB_SECRET', 'LOCAL-TEST-SECRET')
+    tools = ConfiguredTools([{'factory': 'jiuwen-web', 'profile': 'personal', 'options': options()}],
+                            ({'key': 'personal', 'role': 'assistant'},), home=tmp_path / 'queue', base_dir=tmp_path)
+    try:
+        bindings = tools.for_profile('personal')
+        with runtime_at(platform, tmp_path / 'owner', tools=bindings.values()) as (_, client, _, _):
+            listed = client.call('assistant.tools.list')
+            assert listed['status'] == 'completed'
+            assert {tool['name']: tool['output_schema'] for tool in listed['data']['tools']} == {
+                name: NOTIFICATION_OUTPUT for name in bindings}
+            drafted = client.call('assistant.rules.draft', {'declaration': {
+                'name': 'owner.forward', 'description': '隔离测试：按实际通知回执回复',
+                'inputSchema': bindings['owner.notify'].input_schema, 'outputSchema': NOTIFICATION_OUTPUT,
+                'allowedSenders': [], 'tools': list(bindings)},
+                'instructions': '把已获准内容交给owner.notify，按原回执回复；不将排队或会话接收说成已读。'})
+            assert drafted['status'] == 'completed', drafted
+            preview = client.call('assistant.rules.preview', {'draftRef': drafted['data']['draftRef']})
+            assert preview['status'] == 'completed'
+            assert {tool['name']: tool['output_schema'] for tool in preview['data']['preview']['tools']} == {
+                name: NOTIFICATION_OUTPUT for name in bindings}
+            for tool in bindings.values():
+                assert digest(tool.policy()) != digest(replace(tool, output_schema=None).policy())
+        assert not (tmp_path / 'queue').exists()
+    finally: tools.close()
+
+
+def test_actual_queue_states_validate_without_inventing_delivery_or_read(tmp_path, monkeypatch):
+    monkeypatch.setenv('IOALAB_TEST_WEB_SECRET', 'LOCAL-TEST-SECRET')
+    tools = ConfiguredTools([{'factory': 'jiuwen-web', 'profile': 'personal', 'options': options(max_pending=2)}],
+                            ({'key': 'personal', 'role': 'assistant'},), home=tmp_path, base_dir=tmp_path)
+    bindings = tools.for_profile('personal'); queue = bindings['owner.notify'].invoke.__self__
+    native = NativeDouble(); entered, release = threading.Event(), threading.Event()
+    def deliver(notice):
+        entered.set()
+        assert release.wait(3), 'Release the isolated in-flight notification'
+        return native.deliver(notice)
+    queue.client.probe, queue.client.get, queue.client.deliver = native.probe, native.get, deliver
+    def notify(source, text):
+        return tools.notify({'input': {'text': text}, 'context': source}, {'owner': bindings['owner.notify']})
+    def query(source, receipt):
+        result = bindings['owner.notification_status'].invoke({'notificationRef': receipt['notificationRef']}, source)
+        return validate_output(bindings['owner.notification_status'], result)
+    try:
+        tools.start()
+        first_source, second_source, rejected_source = context(), context(), context()
+        first, second = notify(first_source, 'First'), notify(second_source, 'Second')
+        rejected = notify(rejected_source, 'Capacity full')
+        assert first['status'] == second['status'] == 'queued'
+        assert rejected['status'] == 'rejected' and rejected['read'] == 'unknown'
+        assert query(rejected_source, rejected) == rejected and not native.calls
+        with queue.lock:
+            queue.db.execute("UPDATE notices SET expires=? WHERE state='queued'", (time.time() - 1,))
+            queue._expire()
+        assert query(first_source, first)['status'] == query(second_source, second)['status'] == 'expired'
+        unknown_source = context(); pending = notify(unknown_source, 'Unknown write')
+        native.online = native.unknown = True; queue.wake.set()
+        assert entered.wait(3)
+        sending = query(unknown_source, pending)
+        assert sending['status'] == 'sending' and sending['read'] == 'unknown' and 'sessionId' not in sending
+        release.set()
+        wait_for(lambda: query(unknown_source, pending)['status'] == 'unknown')
+        unknown = query(unknown_source, pending)
+        assert notify(unknown_source, 'Unknown write') == unknown and len(native.calls) == 1
+        native.unknown = False
+        received_source = context(); received_notice = notify(received_source, 'Received write')
+        wait_for(lambda: query(received_source, received_notice)['status'] == 'session_received')
+        received_notice = query(received_source, received_notice)
+        assert received_notice['sessionId'] == 'native-test-session' and received_notice['read'] == 'unknown'
+        assert len(native.calls) == 2 and first['status'] == 'queued'
+    finally: release.set(); tools.close()
+
+
+@pytest.mark.parametrize('result', [
+    None,
+    {},
+    {'notificationRef': 'original', 'status': 'delivered', 'read': 'unknown'},
+    {'notificationRef': 'original', 'status': 'session_received', 'read': True},
+    {'notificationRef': 'original', 'status': 'queued', 'read': 'read'},
+    {'notificationRef': '', 'status': 'unknown', 'read': 'unknown'},
+    {'notificationRef': 'original', 'status': 'unknown', 'read': 'unknown', 'sessionId': None},
+    {'notificationRef': 'original', 'status': 'unknown', 'read': 'unknown', 'sessionId': ''},
+    {'notificationRef': 'original', 'status': 'queued', 'read': 'unknown', 'success': True},
+])
+def test_notification_contract_rejects_invented_results_before_they_reach_the_model(tmp_path, monkeypatch, result):
+    monkeypatch.setenv('IOALAB_TEST_WEB_SECRET', 'LOCAL-TEST-SECRET')
+    bundle = factory(options(), home=tmp_path, profile='personal', base_dir=tmp_path)
+    for tool in bundle.bindings:
+        with pytest.raises(RuntimeFault) as error: validate_output(tool, result)
+        assert error.value.code == 'invalid_tool_output' and error.value.recovery == 'inspect_tool_effect'
+    assert not (tmp_path / 'roles').exists()

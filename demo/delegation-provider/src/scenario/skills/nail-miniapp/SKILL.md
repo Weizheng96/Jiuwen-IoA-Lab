@@ -1,15 +1,17 @@
 ---
-name: nail-miniapp
-description: 按本单合同开发美甲预约微信小程序配置、Python预约核心与页面源码，并以实际行为判据验收；仅提供业务生产知识，不处理账号、签名或付款。
+name: __SCENE_SKILL__
+description: __SCENE_NAME__的美甲预约生产与验收业务能力；只按本服务实际合同范围生产，不处理账号、签名或付款。
 ---
 
-# 美甲预约开发能力
+# 美甲预约开发业务
+
+__SCENE_CAPABILITY__
 
 先读当前任务的 phase、模板、规格和材料。只处理 SDK 绑定的本单，不更换身份、交互或会话。
 
 | 阶段 | 实际读取与执行 |
 |---|---|
-| quote | 读取 [报价与验收](references/acceptance.md)，按其完整源码准备真实行为验收器，取得回执后提交本单确定报价 |
+| 报价或审查 | 读取 [本单验收依据](references/acceptance.md)。__SCENE_PREPARATION__ |
 | decision | 审查当前具体合同，只调用当前允许的批准或拒绝动作；不能重新报价 |
 | production | 读取 [真实生产](references/production.md)，按原合同生成新成果，取得环节授权后生产、自测并交付 |
 

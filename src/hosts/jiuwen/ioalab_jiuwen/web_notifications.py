@@ -16,6 +16,25 @@ from ioalab_sdk.runtime.protocol import RuntimeFault, encode
 from .web_client import WebClient, NotSent, body, fingerprint
 
 
+NOTIFICATION_OUTPUT = {
+    'type': 'object',
+    'properties': {
+        'notificationRef': {'type': 'string', 'minLength': 1, 'maxLength': 64,
+                            'description': '本地持久通知的原标识；后续查询沿用，不据状态另发一份。'},
+        'status': {'type': 'string',
+                   'enum': ['queued', 'sending', 'session_received', 'unknown', 'expired', 'rejected'],
+                   'description': 'queued仅本地排队；sending已开始发送；session_received仅原生会话持久接收；'
+                                  'unknown保留不明效果且不重发；expired为未发送到期；rejected为明确拒绝。'},
+        'read': {'type': 'string', 'enum': ['unknown'],
+                 'description': '没有主人已读的可靠信号，不能推断已读或已接受。'},
+        'sessionId': {'type': 'string', 'minLength': 1,
+                      'description': '原生回执提供时保留的真实会话标识；不自造，也不表示主人已读。'},
+    },
+    'required': ['notificationRef', 'status', 'read'],
+    'additionalProperties': False,
+}
+
+
 class WebNotifications:
     def __init__(self, options, *, home, profile, base_dir):
         allowed = {'url', 'user_id', 'secret_env', 'credentials_file', 'ttl_seconds', 'max_pending', 'retry_seconds'}
@@ -212,6 +231,6 @@ def factory(options, *, home, profile, base_dir):
     query = {'type': 'object', 'properties': {'notificationRef': {'type': 'string', 'minLength': 1, 'maxLength': 64}},
              'required': ['notificationRef'], 'additionalProperties': False}
     return BusinessTools((
-        ToolBinding('owner.notify', '把已获准内容排队转给主人九问网页。queued仅表示排队；session_received表示会话接收，均不表示主人已读。', schema, queue.notify, 'notification', '1'),
-        ToolBinding('owner.notification_status', '查询本交互原通知状态，不重发，也不推断用户已读。', query, queue.query, revision='1'),
+        ToolBinding('owner.notify', '把已获准内容排队转给主人九问网页。queued仅表示排队；session_received表示会话接收，均不表示主人已读。', schema, queue.notify, 'notification', '2', output_schema=NOTIFICATION_OUTPUT),
+        ToolBinding('owner.notification_status', '查询本交互原通知状态，不重发，也不推断用户已读。', query, queue.query, revision='2', output_schema=NOTIFICATION_OUTPUT),
     ), close=queue.close, start=queue.start, status=queue.status)
