@@ -10,10 +10,55 @@
 | 新批准稿与旁白计划 | `demo/review_story.py`、`script_documents.py --drafts`、`approved_voice.py`；不生成业务事实 |
 | 既有场景录制与接续 | `demo/record_cases.py`、`record_case_tail.py`、`record_provider_view.py`；先读其前置检查、调用与证据格式 |
 | 既有场景剪辑与发布 | `demo/edit_cases.py`、`check_recording.py`、`review_cases.py`、`publish_cases.py`；仅在当前场景及证据契约匹配时复用 |
+| 当前所有者的原生页面原帧 | [capture_frames.mjs](../scripts/capture_frames.mjs)；注入已绑定 Tab/CDP 与文件系统，分次 await 采集，不启动浏览器或操作页面 |
 
 旧编排脚本不直接等同于新版原生教程。核对它是否启动业务、创建账号、触发费用或依赖旧接口；若与现行设计或批准稿不符，先由所属开发任务修正，不能为出片恢复已替代的参数或绕过正常接入。
 
 实际九问优先复用用户指定的原生页面与会话；按需使用 jiuwen-swarm 技能定位公开接口。开始前核录制器、输出目录和任务所有者，不另开同一会话制造重复订阅或抢占路由。操作在原浏览器顺序提交，提交前等本轮输出及真实问题稳定，答案填写后回读并核新回执。
+
+原生编辑器已有 Skill 引用 chip 时，用当前 CUA 文档支持的追加 type 接口输入正文；整块 fill 可能擦除引用。发送前再核 chip 仍在，不以输入框文字包含技能名代替实际引用。
+
+## 当前所有者的有界原帧采集
+
+先读本次 CUA 返回的 CDP 文档。脚本只接收当前会话已经绑定的 `tab`；不同智能体的浏览器数字 ID 可能不同，需核 `extensionInstanceId` 才能判断是否同实例。真正的标签页 session 归属拒绝由所属会话采集，不换浏览器或绕过。CDP 没有可靠的活动 screencast 查询：调用者先确认当前页无其他或未知活动流，才传 `knownIdle:true`；旧事件不是空闲证明。脚本拒绝同 Tab 重复启动，不会替调用者停止未知流。
+
+在 CUA JavaScript 会话中导入已读的本仓模块及 Nodefs，复用已有 `tab`。下例使用新的忽略目录，不指向任何旧原片；先准备父目录：
+
+```javascript
+var nativeCapture = await import('file:///D:/project/Jiuwen-IoA-Lab/.agents/skills/demo-video/scripts/capture_frames.mjs');
+var captureFs = await import('node:fs/promises');
+await captureFs.mkdir('D:/project/Jiuwen-IoA-Lab/recordings/native-new-take', {recursive:true});
+var roleCapture = await nativeCapture.startCapture({
+  tab, fs:captureFs,
+  folder:'D:/project/Jiuwen-IoA-Lab/recordings/native-new-take/role-a',
+  knownIdle:true
+});
+nodeRepl.write(nativeCapture.captureSummary(roleCapture));
+```
+
+下一次工具调用完整 await 一个窗口，再返回模型处理业务操作；每个窗口至多 25000ms，不创建跨工具返回仍运行的 Promise。需要继续时仍传同一显式 handle；多角色各自持有不同 handle，不能复用闭包变量：
+
+```javascript
+nodeRepl.write(await nativeCapture.captureWindow(roleCapture, 20000));
+```
+
+只有返回的 `firstFrame` 非空才表示真实首帧已保存，其中像素来自 JPEG 本体；Visibility 事件、start 成功或零帧窗口都不是就绪证据。默认最多 15 分钟／5000 帧，到限自动结束自己的流。首次 start 未获得成功回执时状态为 `start_unknown`，不能盲目 stop；交回当前所有者核实。
+
+收到停止要求、完成或发生错误后，显式停止此 handle。停止后的 handle 不能再次追加窗口；只清理本模块确已成功 start 的流：
+
+```javascript
+nodeRepl.write(await nativeCapture.stopCapture(roleCapture));
+```
+
+每帧 JPEG 原字节、实际 `metadata.timestamp` 与事件 `sequence` 保存到 `frames.jsonl`，逐帧 ack；`capture.json` 保存有界窗口、cursor、失败及 truncated 指标。未知结果和局部文件失败保留证据，不输出 base64、页面消息或任意异常正文。目录必须全新；后补静态画面单列来源，不补入旧时间轴。
+
+采集与 ffmpeg 离线编码分工。编码依据原时间戳保留 VFR 和间隙，实测 JPEG 尺寸，必要时只补到偶数，不把 CSS `deviceWidth/deviceHeight` 当成原帧像素。完整保存现有帧不等于连续完整录屏，未记录的 truncated 也不等于零。
+
+维护此模块时运行成功与失败边界，不启动真实浏览器：
+
+```powershell
+node --test .agents/skills/demo-video/scripts/capture_frames.test.mjs
+```
 
 ## 布局先试拍静态画面
 
