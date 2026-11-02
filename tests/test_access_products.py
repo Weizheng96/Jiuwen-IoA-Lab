@@ -72,12 +72,51 @@ def test_tampered_installer_inputs_never_create_an_environment(tmp_path,what):
     assert not cache.exists()
 
 
-def test_unrelated_role_cannot_trigger_bootstrap_or_rpc(tmp_path,monkeypatch,capsys):
+@pytest.mark.parametrize('role,operation,example',[
+    ('assistant','provider.publish','assistant.delegation.prepare'),
+    ('assistant','prepare','assistant.delegation.prepare'),
+    ('assistant','assistant','assistant.delegation.prepare'),
+    ('service','assistant.delegation.prepare','provider.tasks.get'),
+    ('service','prepare','provider.tasks.get'),
+    ('service','provider','provider.tasks.get'),
+])
+def test_unrelated_role_cannot_trigger_bootstrap_or_rpc(tmp_path,monkeypatch,capsys,role,operation,example):
     module=bootstrap();root=tmp_path/'skill';(root/'assets').mkdir(parents=True)
-    (root/'assets/skill.json').write_text('{"role":"assistant"}');module.__file__=str(root/'scripts/ioalab.py')
+    (root/'assets/skill.json').write_text(json.dumps({'role':role}));module.__file__=str(root/'scripts/ioalab.py')
     monkeypatch.setattr(module,'installation',lambda:pytest.fail('unrelated operation installed packages'))
-    assert module.main(['provider.publish'])==1
-    assert json.loads(capsys.readouterr().out)['status']=='rejected'
+    monkeypatch.setattr(module,'invoke',lambda *args:pytest.fail('invalid operation invoked SDK'))
+    arguments=tmp_path/'arguments.json';arguments.write_text('{"request":"unchanged"}')
+    assert module.main([operation,'--config',str(tmp_path/'missing-config.json'),'--args-file',str(arguments)])==1
+    result=json.loads(capsys.readouterr().out)
+    assert result['status']=='rejected' and result['error']['code']=='invalid_input'
+    assert result['error']['recovery']=='correct_input'
+    assert example in result['error']['message'] and 'complete operation name' in result['error']['message']
+    assert 'do not change identity roles' in result['error']['message']
+    assert json.loads(arguments.read_text())=={'request':'unchanged'}
+
+
+@pytest.mark.parametrize('role,operation,status,error',[
+    ('assistant','assistant.delegation.prepare','waiting',None),
+    ('service','provider.tasks.get','completed',None),
+    ('assistant','assistant.unsupported','rejected',{'code':'not_ready','message':'Unknown capability','recovery':'inspect_capabilities'}),
+])
+def test_complete_role_operation_is_forwarded_without_alias_or_error_reclassification(tmp_path,monkeypatch,capsys,role,operation,status,error):
+    from types import SimpleNamespace
+    module=bootstrap();root=tmp_path/'skill';(root/'assets').mkdir(parents=True)
+    (root/'assets/skill.json').write_text(json.dumps({'role':role}));module.__file__=str(root/'scripts/ioalab.py')
+    python=tmp_path/'installed-python.exe';prepared={'status':'completed','data':{'python':str(python)}}
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda *args,**kwargs:prepared))
+    config=tmp_path/'external-config.json';arguments=tmp_path/'arguments.json'
+    arguments.write_text('{"request":"unchanged"}')
+    expected={'status':status,'data':{'reference':'original'},'error':error};calls=[]
+    def invoke(actual_python,command):
+        calls.append((actual_python,command))
+        return SimpleNamespace(stdout=json.dumps(expected),stderr='',returncode=1 if status=='rejected' else 0)
+    monkeypatch.setattr(module,'invoke',invoke)
+    assert module.main([operation,'--config',str(config),'--args-file',str(arguments)])==(1 if status=='rejected' else 0)
+    assert json.loads(capsys.readouterr().out)==expected
+    assert calls==[(python,['-m','ioalab_sdk.runtime','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
+    assert json.loads(arguments.read_text())=={'request':'unchanged'} and not config.exists()
 
 
 def test_both_real_product_bundles_have_one_manifest_and_generated_entry(tmp_path):

@@ -4,7 +4,7 @@
 
 | 机制 | 关键区别 |
 |---|---|
-| 原生 Skill | 核对实际流程页及调用；已核实skill_tool用relative_file_path读子文件，已核实skill_directory只在程序数据中，模型正文仅含内容和目录树；用公开JIUWENSWARM_DATA_DIR/默认布局计算唯一路径，不能从账号data_dir猜或扫描旧示例。SDK输入提供类型、回执字段来源和最小示例，机械协议字段由SDK补齐；参数文件按原动作保留，新动作独立创建UTF-8文件，避免终端重定向编码及覆盖保护引发反复猜错 |
+| 原生 Skill | 核对实际流程页及调用；已核实skill_tool用relative_file_path读子文件，已核实skill_directory只在程序数据中，模型正文仅含内容和目录树；用公开JIUWENSWARM_DATA_DIR/默认布局计算唯一路径，不能从账号data_dir猜或扫描旧示例。SDK输入提供完整operation、类型、回执字段来源和最小命令示例，机械协议字段由SDK补齐；先对照工具原调用排除操作名被缩写，不能据模型对错误的解释改身份或接入配置。参数文件按原动作保留，新动作独立创建UTF-8文件，避免终端重定向编码及覆盖保护引发反复猜错 |
 | Process SDK | 后台执行通道，可提供固定Agent定义、受限工具及Session续接；completed/failed终局与unknown分开，终局失败不证明业务副作用失败，续接仍由所属SDK核对效果范围；完成不代表网页历史已出现 |
 | 宿主工具名 | 原生格式受限时使用稳定可读别名，碰撞才加短摘要；核声明、白名单与回调为同一映射。模型拼错名称不意味着应放宽白名单，别名也是固定Session定义的一部分 |
 | WebChannel | 网页通道；已核对版本使用`/ws`并以`user_id`关联用户，不能把根路径403当作需关闭鉴权 |
@@ -18,6 +18,8 @@
 运行所用模型键来自公开model.list的selection_key；网页显示名称、模型配置资源ID与该键可能不同。网页会话选用模型与后台SDK宿主选择分别核对，页面已切换不证明后台也切换。命名权限策略只表明配置，不证明工具真实可用；技能加载不自动赋予生产工具或外部操作权限。
 
 Web调用要区分确认帧与最终结果：已核对版本的history.get通过history.message事件流给出记录，accepted仅表示收到，须等done；该版本分页从1开始。
+
+原生问答残留时，用公开`session.get_metadata`仅传目标`session_id`核实际执行与待控制项；`runtime_resume`会订阅并重放保留帧，重放的旧问题不能独自证明仍在等待。已核对版本的正常停止方法为`chat.interrupt`及`intent=cancel`，沿用真实会话的mode/work_mode/project_id，等待`chat.interrupt_result`再查询执行终态；收件accepted不代表已取消。该公开入口按会话停止，不提供按execution_id精准取消；先核其中全部非终态执行都属于本任务，不为清理问答重启宿主或SDK。
 
 原生终端回显不能替代SDK原数据。先区分JSON语法、UTF-8文件、宿主代码页和业务值损坏；跨终端的结构化输出可用ASCII转义JSON保留中文，不能因回显乱码重写合同。异步调用保存完整引用对象，并分别核查询和原作业终态，未取得源码不宣称已核验收覆盖。
 

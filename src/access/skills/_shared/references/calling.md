@@ -10,6 +10,8 @@
 python "<skill_directory>/scripts/ioalab.py" <operation> --config "<原外置配置文件>" --args-file "<本次参数文件>"
 ```
 
+`<operation>` 使用流程页中的完整名称，例如 `assistant.delegation.prepare`。其中的点和前缀也是命令的一部分；`prepare`、`authorize` 等末段名称不能单独调用。操作名输入被拒绝时，先按流程页修正命令，再使用原业务参数；账号身份以 `identity.status` 为准。
+
 参数 JSON 只含流程页列明的业务字段，不放 operation、arguments 或整份配置；operation 已是命令位置参数。空输入用 {}。SDK 自动保存 operationId，恢复原动作使用原文件，不覆盖它或删除标识。不同动作或修正明确拒绝的输入，使用新的独立文件。不要用 echo > 写 JSON：Windows 终端可能产生不支持的编码。需要读取时只读本次业务参数文件，保留其原操作标识；始终禁止读取账号配置正文。JSON语法错误按SDK报告的行列修正，用write_file创建新文件；不是编码错误，不用PowerShell、echo或终端字符串重写中文。产品JSON可能以\u转义显示中文，值与原文相同，不据此改写合同或输入。
 
 ## 读取异步作业

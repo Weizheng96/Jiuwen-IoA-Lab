@@ -46,8 +46,14 @@ def main(argv=None):
     args=parser.parse_args(argv);root=Path(__file__).resolve().parents[1]
     try:
         role=json.loads((root/'assets/skill.json').read_text(encoding='utf-8'))['role']
+        if role not in ('assistant','service'):raise RuntimeError('The product manifest must declare assistant or service')
         prefixes=('runtime.','identity.','account.','confirmations.','operations.','assistant.' if role=='assistant' else 'provider.')
-        if role not in ('assistant','service') or not args.operation.startswith(prefixes):raise RuntimeError('Choose an operation belonging to this product role')
+        if not args.operation.startswith(prefixes):
+            example='assistant.delegation.prepare' if role=='assistant' else 'provider.tasks.get'
+            emit({'status':'rejected','data':None,'error':{'code':'invalid_input',
+                'message':f'Use the complete operation name for this {role} product, such as runtime.status or {example}. '
+                    +'Allowed namespaces: '+', '.join(prefixes)+'. Correct the operation argument; do not change identity roles.',
+                'recovery':'correct_input'}});return 1
         prepared=installation().prepare(root/'assets',launch=args.operation in ('runtime.start','runtime.install'),retry=args.operation=='runtime.install')
         if args.operation in ('runtime.install','runtime.install.status') or prepared['status']!='completed':
             emit(prepared);return 0 if prepared['status'] in ('completed','waiting') else 1
