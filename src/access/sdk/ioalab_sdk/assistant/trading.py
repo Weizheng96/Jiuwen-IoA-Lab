@@ -40,7 +40,8 @@ class Trading:
         transport=transport or self.public
         pay=self.runtime.account.config['pay']
         keys=Directory(fetch=transport.jwks)
-        payment=AP2Payment(transport,psp=pay,payer=self.identity.payment,instrument={'id':'ioalab-virtual','type':'wallet'},clock=utcnow,keys=keys,store=store)
+        payment=AP2Payment(transport,psp=pay,payer=self.identity.payment,instrument={'id':'ioalab-virtual','type':'wallet'},clock=utcnow,keys=keys,store=store,
+                           reconcile=transport.reconcile_payment if isinstance(transport,SessionTransport) else None)
         def pause(seconds):
             if self.runtime.closing.wait(seconds):raise RuntimeFault('unknown_result','Runtime closed while waiting for the original protocol result','resume_original')
         return Client(self.identity.signer,keys=keys,transport=transport,fetch=self.runtime.account.fetch_package,ap2_key=self.identity.payment,

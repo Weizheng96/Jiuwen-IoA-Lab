@@ -71,7 +71,7 @@ class PaymentOperations:
         created=self.admissions.payment_in(conn,owner,actor,prepared.admission,payment,original=json.loads(prepared.original) if prepared.original else None)
         try:reply,transferred=self.psp.commit(conn,payment)
         except A2CError as exc:
-            raise LabError('forbidden','Payment changed or expired before transaction commit',status=403) from exc
+            raise LabError('payment_rejected',str(exc),status=403) from exc
         if created and not payment.refund:self.scopes.record_payment_in(conn,owner,actor,payment.scope_digest,payment)
         if self.record and prepared.original:
             card=json.loads(prepared.original).get('card')

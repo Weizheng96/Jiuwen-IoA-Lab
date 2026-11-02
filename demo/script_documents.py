@@ -3,8 +3,12 @@
 import argparse
 import hashlib
 from pathlib import Path
+import sys
 
-from artifacts import inside, read_json, require
+if __package__:
+    from .artifacts import inside, read_json, require
+else:
+    from artifacts import inside, read_json, require
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "demo"
@@ -242,10 +246,90 @@ def write_script(case, timing=None):
     return target
 
 
+def draft_scenes():
+    if __package__:
+        from .review_story import approved_content
+    else:
+        from review_story import approved_content
+    return approved_content()
+
+
+def render_draft(case):
+    """Render a review plan without reading recordings, voice or runtime data."""
+    scene = draft_scenes()[case]
+    scene_shots = scene['shots']
+    require(scene_shots and len({shot['id'] for shot in scene_shots}) == len(scene_shots), 'Draft shot IDs must be unique')
+    require(all(isinstance(shot['seconds'], int) and shot['seconds'] > 0 for shot in scene_shots), 'Draft shot duration must be positive')
+    require(all(all(isinstance(shot[field], str) and shot[field].strip() for field in ('id', 'text', 'voice', 'action', 'evidence')) for shot in scene_shots),
+            'Draft needs complete captions, narration, actions and evidence conditions')
+    duration = sum(shot['seconds'] for shot in scene_shots)
+    require(120 <= duration <= 180, 'Draft must plan two to three minutes')
+    lines = [
+        f"# Demo {scene['number']} · {scene['title']} · 已批准剧本（待录制）",
+        '',
+        '**本版台词与旁白已获用户批准 · 未录制 · 未生成新版影片**',
+        '',
+        '由 `demo/script_documents.py --drafts` 生成，不手改。镜头、字幕、完整旁白及业务话语唯一来源为 [review_story.py](../review_story.py)。',
+        '用户已明确“确认三稿，按稿制作”。本稿保留批准版内容；计划镜头和条件式旁白不证明业务已经执行。旧影片、旧源及旧生成剧本保持各自原状态。',
+        '',
+        '| 项 | 内容 |',
+        '|---|---|',
+        f"| 计划时长 | {duration}秒（{timestamp(duration)}）；剪辑预算，非配音或业务实测 |",
+        f"| 角色 | {scene['roles']} |",
+        f"| 画面 | {scene['layout']} |",
+        '| 声画要求 | 1080p高对比短字幕不小于44px，优先52px；旁白约正常语速1.12倍；A2C读作“A to C”；最终按实测音长重新排期 |',
+        '| 业务话语 | 本列不是按镜头连发的提示串。业务发起句在实际发起时输入；后续话语只在对应的本轮真实追问或确认出现后发送，不预编补救指令，不夹带命令、路径或秘密；本次只制作已批准旁白，不合成模型回复或价格占位 |',
+        '| 等待与确认 | 真实业务使用真实时间；等待发生后可标注压缩；后续隔离仿真中的自动化确认须明示，不冒称真人点击 |',
+        '',
+        '## 拍摄前提',
+        '',
+        *['- ' + text for text in scene['premises']],
+        '',
+        '## 分镜与完整旁白',
+        '',
+        '以下时间全部为计划剪辑区间；每个结果镜头须先取得对应本轮证据。话语列中的后续回答仅按实际追问发送，不按表定时触发，不用于补救或强推既定流程。',
+        '',
+        '| 镜头 | 计划时间 | 画面与操作 | 短字幕 | 完整旁白 | 用户业务话语 | 证据条件 |',
+        '|---|---|---|---|---|---|---|',
+    ]
+    elapsed = 0
+    for shot in scene_shots:
+        end = elapsed + shot['seconds']
+        values = (shot['id'], f'{timestamp(elapsed)}—{timestamp(end)}', shot['action'], shot['text'],
+                  shot['voice'], shot['user'] or '—', '待录证据：' + shot['evidence'])
+        lines.append('| ' + ' | '.join(cell(value) for value in values) + ' |')
+        elapsed = end
+    lines += ['', '## 制作与发布边界', '', *['- ' + text for text in scene['limits']],
+              '- 本次生成只记录批准状态，不进行注册、接单、业务模型调用、付款、通知或录屏。配音素材独立准备，实际录制依本轮回执；缺证据的镜头保持待录。',
+              '', '## 批准记录', '',
+              '用户已明确批准本版三稿的台词、旁白、业务话语与镜头范围。场景内容摘要固定在源中的APPROVAL记录；内容发生变化时生成器拒绝沿用批准状态。实际报价、模型推荐、等待时长和业务结果仍由录制当轮证据填写，改变关键范围须重新确认。',
+              '', '## 生成与检查', '',
+              '`python demo/script_documents.py --drafts` 生成三份新确认稿；`python demo/script_documents.py --drafts --check` 核对源与生成稿一致，不要求已有视频。',
+              '', '[演示制作规范](../../设计/示例/演示制作.md) · [验证记录](../verification/README.md)', '']
+    return '\n'.join(lines)
+
+
+def write_draft(case, *, check=False):
+    target = DEMO / case / '剧本.md'
+    content = render_draft(case)
+    if check:
+        require(target.is_file() and target.read_text(encoding='utf-8') == content, f'Regenerate review draft: {case}')
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding='utf-8')
+    return target
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
+    parser.add_argument('--drafts', action='store_true', help='generate/check new Demo2–4 review drafts without touching published artifacts')
     args = parser.parse_args()
+    if args.drafts:
+        for case in draft_scenes():
+            target = write_draft(case, check=args.check)
+            print(f"{case}: review draft {'checked' if args.check else 'generated'}: {target}")
+        return
     for case, (title, _, _) in SCENES.items():
         proof, movie = published(case)
         require(
@@ -266,4 +350,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
     main()

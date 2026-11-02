@@ -111,7 +111,7 @@ python demo/review_cases.py --recording recordings/<本轮>
 
 选用[AgentMail原生会议请求](../personal-assistant/README.md)时，`notification-check`只验证传输，不发邮件。Outlook由收件人接受后入历；本地安排不代表已读取私人日历。Graph和Outlook SMTP OAuth2仍是可选后端，本轮不要求重新配置Entra。
 
-仅公开必要的演示画面、成片、配音与脱敏摘要；run.json、SQLite、私钥、模型/邮件配置、浏览器状态与私人消息不入库。失败、初剪、预览和正式片分名。跨仓经验见A2C主仓`demo-video/references/live-platform.md`。
+仅公开必要的演示画面、成片、配音与脱敏摘要；run.json、SQLite、私钥、模型/邮件配置、浏览器状态与私人消息不入库。失败、初剪、预览和正式片分名。制作方法见本仓[demo-video 技能](../.agents/skills/demo-video/SKILL.md)。
 
 新委托剧本先编写并生成，再制作旁白/录屏。注册使用用户指定的公开演示平台账号xiaomei@outlook.com、密码123456；仅这组演示凭据允许出镜。case_stack不预建该账号，录制中的平台注册按钮实际创建它；配置镜头使用明确标注的录制用本地文件编辑器，真实保存并重新读取settings.local.json，不伪称九问内置编辑器。展示额外1000虚拟币准备额度时记录为管理员显式演示配置。普通使用只导入/配置skill并从原生菜单选中；菜单选择是名称提示，还须模型调用skill_tool读取主文件和相应通用流程。
 

@@ -63,7 +63,12 @@ HELPER_CASES = {
 }
 # Exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
-    'src/access/sdk/ioalab_sdk/assistant/fulfillment.py': ('fulfillment_status', 'resident_fulfillment', 'resident_multiperiod', 'user_confirmations', 'payment_atomicity'),
+    'src/access/sdk/ioalab_sdk/assistant/fulfillment.py': ('fulfillment_status', 'resident_fulfillment', 'resident_multiperiod', 'user_confirmations', 'payment_atomicity', 'fulfillment_payment_guards', 'resident_payment_recovery'),
+    'src/access/sdk/ioalab_sdk/assistant/trading.py': ('assistant_role', 'sdk_inputs', 'resident_contracts', 'payment_transport_recovery'),
+    'src/access/sdk/ioalab_sdk/adapters/payments.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs', 'payment_transport_recovery'),
+    'src/access/sdk/ioalab_sdk/adapters/transport.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs', 'payment_transport_recovery'),
+    'src/access/sdk/ioalab_sdk/runtime/store.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs', 'payment_transport_recovery'),
+    'src/platform/ioalab/operations.py': ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission', 'payment_rejection'),
     'src/access/sdk/ioalab_sdk/assistant/contracts.py': ('resident_contracts', 'contract_binding', 'delegation_scopes'),
     'src/access/sdk/ioalab_sdk/assistant/candidates.py': ('candidate_evidence', 'sdk_compare'),
     'src/access/sdk/ioalab_sdk/assistant/delegation.py': ('resident_delegation', 'delegation_admission', 'delegation_scopes'),
@@ -83,6 +88,10 @@ FILE_RULES = {
     'src/access/sdk/ioalab_sdk/runtime/__main__.py': ('configuration_boundary', 'cli_encoding', 'fulfillment_status'),
     'src/access/skills/assistant/references/delegation.md': ('business_skills', 'cli_script', 'skill_flows'),
     'src/access/skills/_shared/references/calling.md': ('access_products', 'business_skills', 'cli_script', 'cli_encoding'),
+    'demo/script_documents.py': ('review_story', 'demo_artifacts'),
+    'demo/review_story.py': ('review_story', 'demo_artifacts'),
+    'demo/build_voice.py': ('approved_voice', 'demo_artifacts'),
+    'demo/approved_voice.py': ('approved_voice', 'demo_artifacts'),
 }
 RULES = (
     (('.agents/', '.github/', 'tools/check_scope.py'), ('check_workflow', 'check_scope')),

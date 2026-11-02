@@ -30,7 +30,7 @@ prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 ca
 | `assistant.delegation.fetch` | contractRef、期次 | 复用原取件与清单校验并签6；恢复已保存文件，不重复签收 |
 | `assistant.delegation.verify` | 合同、里程碑及交付引用 | 本地运行卡载验收器取得报告；不签署接受 |
 | `assistant.delegation.accept` | 交付、验收阶段的可信确认引用 | 复用原 Client.accept 复验、签7、通知及通过后的分期付款；各项分别返回，失败或不明确时不伪造通过 |
-| `assistant.delegation.pay` | contractRef、原付款用途和期次 | 在授权内恢复相应原 AP2 付款与通知，不重验收、不重复扣款；不能根据自然语言“通过”付款 |
+| `assistant.delegation.pay` | contractRef、原期次；可选原confirmationRef | 新增付款先预览原卡已验收期的金额及实际付款状态，独立确认后调用原Client.pay；已核成功只恢复凭证与通知，不再次请求付款确认；旧无付款批准的只读作业不取得新效果权限 |
 | `assistant.delegation.status` | 任务、报价或合同引用；合同查询可选fulfillmentOperationId | 原协议状态、候选、等待事项、验收与付款分别列示；合同环节返回已验证的当前请求及其对象摘要，目标履约动作结果另列 |
 | `assistant.delegation.termination_quote` | contractRef | 异步取得原签名解除报价，保存 terminationQuoteRef、期次、金额与有效窗口；不解除或付款 |
 | `assistant.delegation.terminate` | contractRef、mode（agreed/unilateral），协商时含 terminationQuoteRef；可选原因及原 confirmationRef | 预览实际解除依据并独立确认，沿原操作执行 A2C 解除；分别返回通知、结算及结清状态，不将全部视为完成 |

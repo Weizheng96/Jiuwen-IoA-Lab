@@ -290,22 +290,22 @@
     {
       "id": "a2c",
       "repository": "https://github.com/Weizheng96/AgentContractProtocol",
-      "commit": "9bb748b6f4fa8d9ebb3830dc5d6479eca9bcc6f1",
+      "commit": "0f6665b4af72be39f23252f6ca342896269fed8e",
       "subdirectory": "src",
       "license": "Apache-2.0",
       "delivery": "existing-wheel",
-      "wheel": "wheels/a2c-0.0.22-py3-none-any.whl",
+      "wheel": "wheels/a2c-0.0.23-py3-none-any.whl",
       "licenseFiles": {
-        "licenses/a2c/NOTICE.md": "f8340ebc306937db46406d836d64c3e532dd4675ed6fe9ca80436b97ca61a1a1"
+        "licenses/a2c/NOTICE.md": "cf8ae69f0859b0debe37d4322c8ca268bcdd4e8865108d1d62b16edf87fb119f"
       },
-      "archive": "sources/a2c-9bb748b6f4fa.tar.gz",
-      "archiveSha256": "13600109d9109d7ad46c8432b3ed388299a5fd4ae7cfd8b27ec06879f2cabc7c",
-      "sourceTarSha256": "17718761bf46234a162e8989e07b0bf8e81998a2abd667ab4d2656e634661e87",
+      "archive": "sources/a2c-0f6665b4af72.tar.gz",
+      "archiveSha256": "1ade87889ac64b20b0509a57891ef3795762ac343d47d6a2faebf10e02f11970",
+      "sourceTarSha256": "6679d5ecbe49ac9651bcba04ad85e7ba2606fa2da5d48cb85407b6fd7fb47f1e",
       "wheelInfo": {
-        "file": "wheels/a2c-0.0.22-py3-none-any.whl",
-        "sha256": "a80fee19210bb8b809208a43df396c9cb599ee16479987e9320a32c2f4b18d5b",
+        "file": "wheels/a2c-0.0.23-py3-none-any.whl",
+        "sha256": "bdeaf7399fdf441d99ea51b8babbc8a393e77821f7cb1a1727daa2096b8dbe95",
         "package": "a2c",
-        "version": "0.0.22"
+        "version": "0.0.23"
       }
     },
     {

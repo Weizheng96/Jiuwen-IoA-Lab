@@ -27,6 +27,23 @@ def test_maintenance_scope_does_not_pull_in_business_or_installation_tests():
         'tests/test_check_scope.py', 'tests/test_check_workflow.py']
 
 
+@pytest.mark.parametrize('path', ['demo/script_documents.py', 'demo/review_story.py'])
+def test_review_draft_sources_select_generation_and_evidence_checks_only(path):
+    assert select_tests([path])['tests'] == ['tests/test_demo_artifacts.py', 'tests/test_review_story.py']
+
+
+@pytest.mark.parametrize('path', ['demo/build_voice.py', 'demo/approved_voice.py'])
+def test_approved_voice_sources_select_cache_and_existing_evidence_checks_only(path):
+    result = select_tests([path])
+    assert result['level'] == 'B' and result['warnings'] == []
+    assert result['tests'] == ['tests/test_approved_voice.py', 'tests/test_demo_artifacts.py']
+
+
+def test_approved_voice_owner_does_not_spread_to_unrelated_demo_or_test_edits():
+    assert 'tests/test_approved_voice.py' not in select_tests(['demo/unrelated_voice_example.py'])['tests']
+    assert select_tests(['tests/test_approved_voice.py'])['tests'] == ['tests/test_approved_voice.py']
+
+
 @pytest.mark.parametrize('path', ['requirements.txt', 'pyproject.toml', 'tests/conftest.py', 'tests/_support.py'])
 def test_shared_inputs_cannot_be_filtered_as_prose_or_test_helpers(path):
     result = select_tests([path])
@@ -59,6 +76,36 @@ def test_exact_fulfillment_owner_avoids_unrelated_domain_and_full_matrices():
     assert 'tests/test_inbox_rules.py' not in selected
     assert 'tests/test_installation_identity.py' not in selected
     assert not any('arbitration' in target for target in selected)
+
+
+def test_payment_owners_add_recovery_boundaries_without_removing_existing_coverage(monkeypatch):
+    owners = {
+        'src/access/sdk/ioalab_sdk/assistant/fulfillment.py': (
+            ('fulfillment_status', 'resident_fulfillment', 'resident_multiperiod', 'user_confirmations', 'payment_atomicity'),
+            ('fulfillment_payment_guards', 'resident_payment_recovery')),
+        'src/access/sdk/ioalab_sdk/assistant/trading.py': (
+            ('assistant_role', 'sdk_inputs', 'resident_contracts'), ('payment_transport_recovery',)),
+        'src/platform/ioalab/operations.py': (
+            ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission'), ('payment_rejection',)),
+    }
+    for name in ('adapters/payments.py', 'adapters/transport.py', 'runtime/store.py'):
+        owners['src/access/sdk/ioalab_sdk/' + name] = (
+            ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs'), ('payment_transport_recovery',))
+    for path, (original, additions) in owners.items():
+        selected = set(select_tests([path])['tests'])
+        with monkeypatch.context() as previous:
+            previous.setitem(FILE_RULES, path, original)
+            baseline = set(select_tests([path])['tests'])
+        assert baseline <= selected
+        assert selected - baseline == {'tests/test_' + name + '.py' for name in additions}
+
+
+def test_payment_owners_do_not_expand_unrelated_roles_or_test_edits():
+    payment_tests = {'tests/test_' + name + '.py' for name in
+                     ('fulfillment_payment_guards', 'resident_payment_recovery', 'payment_rejection', 'payment_transport_recovery')}
+    for path in ('src/access/sdk/ioalab_sdk/assistant/rules.py', 'src/access/sdk/ioalab_sdk/runtime/config.py'):
+        assert not payment_tests.intersection(select_tests([path])['tests'])
+    assert select_tests(['tests/test_payment_transport_recovery.py'])['tests'] == ['tests/test_payment_transport_recovery.py']
 
 
 def test_owner_view_and_its_js_driver_select_behavior_and_security_checks():

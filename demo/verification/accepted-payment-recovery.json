@@ -1,0 +1,63 @@
+{
+  "status": "targeted_and_original_native_payment_recovered",
+  "scope": "已验收期原付款恢复的源码、可信证据边界、原生升级与原单299期款及结清；不代表自主整单、新用户教程或视频完成",
+  "upstream": {
+    "design": "v0.0.23",
+    "commit": "0f6665b4af72be39f23252f6ca342896269fed8e",
+    "tag": "design-v0.0.23",
+    "pushed": true,
+    "fullSourceTests": {"passed": 187, "seconds": 62.35},
+    "installedWheelRecoveryTests": {"passed": 27, "seconds": 14.21},
+    "demoSelfchecks": {"passed": 7, "seconds": 9.827, "legacyDataWritingScenes": "仅在干净暂存快照执行"},
+    "wheelSha256": "bdeaf7399fdf441d99ea51b8babbc8a393e77821f7cb1a1727daa2096b8dbe95"
+  },
+  "platformTargetedChecks": [
+    {"scope": "PSP真实拒绝原因与整个应用事务回滚", "passed": 8, "seconds": 10.00, "report": "temp/checks/core-payment-rejection-v115-r1/report.json"},
+    {"scope": "原body/控制ID、认证WS证据、公开付款核对及无未决门禁", "uniquePassed": 17, "reports": ["temp/checks/payment-transport-r1/report.json", "temp/checks/payment-transport-r2/report.json"], "initialFailure": "夹具缺少JWKS kid；修正后相关两项通过，其余已过项未重复"},
+    {"scope": "独立付款确认、旧作业只读、拒绝不循环、通知正回执与精确body绑定", "passed": 12, "seconds": 1.24, "report": "temp/checks/fulfillment-payment-guards-v115-r1/report.json"},
+    {"scope": "已付款和零额无需新增付款确认，查券失败不转新付款", "passed": 3, "seconds": 1.34, "report": "temp/checks/fulfillment-payment-guards-v115-r2/report.json"},
+    {"scope": "真实HTTP公钥发现及新旧记录WS/AP2恢复、保持原签7、单次过账与结清", "passed": 3, "seconds": 42.03, "report": "temp/checks/payment-recovery-resident-r3/report.json", "host": "明确的隔离生产宿主测试替身，不是真实模型或原生UI"},
+    {"scope": "正常履约及付款丢回执后的原凭证恢复，结清/信誉与已付查询", "passed": 2, "seconds": 40.81, "report": "temp/checks/payment-recovery-neighbors-r2/report.json"},
+    {"scope": "合同环节摘要及未知/外合同拒绝", "passed": 9, "report": "temp/checks/payment-recovery-neighbors-r1/report.json", "reusedPassedSubset": true},
+    {"scope": "付款owner到新测试的持续定向选择", "passed": 3, "seconds": 1.00, "report": "temp/checks/payment-owner-scope-r1/report.json"}
+  ],
+  "fixedFailures": [
+    "首次新集成夹具未等待真实成约完成；修正等待条件，未放宽断言或延长超时",
+    "实际付款回执无法发现pay-ap2公钥；补公开P-256公钥及HTTP验签回归，保留严格验签",
+    "相邻履约末尾已付查询误建新确认而等待；已核成功恢复改为只读，失败两项定向重跑通过"
+  ],
+  "candidate": {
+    "releaseId": "01ec7d82a875494f2822a5e0e255ee799fb0a03e0c9498c944c4e152d812ad43",
+    "directory": "temp/checks/access-payment-v115-candidate-r2",
+    "buildSeconds": 12.288,
+    "sdkPythonModulesByteMatched": 67,
+    "installedOrNativeImported": true,
+    "nativeUpgradeEvidence": "native-payment-upgrade.json"
+  },
+  "sourceStageCompletion": {
+    "classification": "completed_with_snapshot_git_context_limitation",
+    "report": "temp/checks/payment-v115-full-r1/completion-summary.json",
+    "originalFullExitCode": 1,
+    "originalFullCounts": {"passed": 1081, "skipped": 36, "failed": 1},
+    "resolution": "导出快照缺少自身Git上下文；同字节规划器和测试回到原检出单项通过，剩余selfcheck通过，原失败完整报告保留。",
+    "afterScopedRecheck": {"passed": 1082, "skipped": 36, "unresolvedFailed": 0}
+  },
+  "originalNativeOrder": {
+    "earlierUnpaidEvidence": "native-nail-fulfillment.json",
+    "latestEvidence": "native-nail-payment-recovery.json",
+    "latestObservedPayment": "paid",
+    "latestObservedClosed": true,
+    "installmentAmountVirtual": 299,
+    "installmentVoucherCount": 1,
+    "signature7Count": 1,
+    "originalSignature7Unchanged": true,
+    "cardAndVoucherSignaturesVerified": true,
+    "providerReputation": {"status": "verified", "completed": 1},
+    "confirmationCurrentStatus": "expired",
+    "authorizationEvidence": "历史真实owner页Codex自动化allow日志及已完成原付款；不把截止后expired改成当前approved。",
+    "notAutonomousEndToEnd": true
+  },
+  "runningCoreBoundary": "原Core进程未替换；新公开P-256公钥修复仅源码和隔离C覆盖，助手新发行/A2C23不等于运行Core已升级。",
+  "mediaPreparation": {"narrationClipsReady": 41, "listeningQa": "pending", "newVideoCompleted": false},
+  "remaining": ["正常接入配置与配置访问边界", "原生多服务比选及自主新用户教程", "会议原生完整流程", "41句配音听感QA、真实录制和成片验收", "新Core进程的P-256公钥修复现场验收"]
+}

@@ -110,6 +110,9 @@ class SessionTransport:
         return self._reply(raw)
 
     def _control(self,kind,payload):
+        if kind=='ap2.pay':
+            from .payments import PaymentRecovery
+            return PaymentRecovery(self).send(payload)
         record=self._saved(self._key('control',kind),{'payload':payload})
         result=self.runtime.connection.call(self.identity.agent_id,kind,record['payload'],operation_id=self._identity(kind))
         if 'error' in result:raise A2CError(result['error']['code'],result['error'].get('message',''))
@@ -145,9 +148,28 @@ class SessionTransport:
         if self.owns_public:self.public.close()
 
     def control_receipt(self,kind):
+        if kind=='ap2.pay':
+            from .payments import PaymentRecovery
+            return PaymentRecovery(self).receipt()
         record=self.runtime.store.checkpoint(self.namespace,self._key('control',kind))
         response=self.runtime.store.response(self.identity.agent_id,kind,self._identity(kind))
         return {'payload':record['payload'],'result':response['result']} if record and response and response['ok'] else None
+
+    def payment_attempts(self,ref,purpose='installment',period=None):
+        from .payments import PaymentRecovery
+        return PaymentRecovery(self).attempts(ref,purpose,period)
+
+    def payment_recovery(self,ref,period):
+        from .payments import PaymentRecovery
+        return PaymentRecovery(self).recovery(ref,period)
+
+    def known_rejection(self,attempt):
+        from .payments import PaymentRecovery
+        return PaymentRecovery(self).known_rejection(attempt)
+
+    def reconcile_payment(self,value):
+        from .payments import PaymentRecovery
+        return PaymentRecovery(self).reconcile(value)
 
     def received(self,op):
         record=self.runtime.store.checkpoint(self.namespace,self._key('request',op))

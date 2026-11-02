@@ -11,6 +11,7 @@ from a2c.codec import digest,digest_bytes
 from a2c.errors import A2CError
 from a2c.slots import verify_card
 from a2c.jws import header_of
+from a2c.payment import PaymentRejected,verify_voucher
 from ..runtime.protocol import RuntimeFault
 from ..runtime.scheduling import JobOutcome
 from ..runtime.ipc import public_error
@@ -60,6 +61,7 @@ class Fulfillment:
         payment='paid' if required<=paid and len(card['signatures']['7'])==len(card['derived']['periods']) else 'partial' if paid or record.get('depositVoucher') else 'unpaid'
         result={**contract['result'],'card':card,'started':record.get('state')=='started','stepRequest':step,'availablePeriods':available,
                 'acceptedPeriods':len(card['signatures']['7']),'vouchers':record.get('vouchers',[]),'depositVoucher':record.get('depositVoucher'),'payment':payment,
+                'paymentNotifiedPeriods':record.get('paymentNotifiedPeriods',[]),
                 'closed':any(frame['message'].get('kind')=='interaction.closed' and frame['message'].get('interactionId')==contract['interactionId'] for frame in self.store.messages(self.identity.agent_id))}
         if card['fulfillment'].get('termination'):
             result['terminationStatus']=self.role.termination.facts(client,contract)
@@ -113,6 +115,16 @@ class Fulfillment:
                 elif name=='start':
                     if client.card(args['contractRef'])['inputs'] and 'materials' not in contract['binding']['preview']:
                         raise RuntimeFault('forbidden','Confirm all material sending stages before starting this older contract')
+                elif name=='pay':
+                    card=client.card(args['contractRef']);period=args['period']
+                    chain=verify_card(contract['template'],card,client.keys)
+                    if period>chain.accepted:raise RuntimeFault('forbidden','Payment requires the original accepted period')
+                    evidence=client.transport.payment_recovery(args['contractRef'],period)
+                    if evidence['response'] is None and card['derived']['periods'][period-1]['amount']>0:
+                        record['paymentActionVersion']=1
+                        record['preview']={'title':'恢复本期已验收合同付款','card':card,'period':period,
+                            'amount':card['derived']['periods'][period-1]['amount'],
+                            'paymentAttempts':evidence['attempts'],'hasActualPayment':False}
                 self.store.checkpoint_set(self.namespace,operation,record)
             if record.get('result') is not None:return {'status':record['status'],'data':record['result']}
             if name=='accept' and 'preview' not in record:return self.schedule(operation,record,contract)
@@ -181,22 +193,63 @@ class Fulfillment:
                 try:result={'period':args['period'],'report':report(client.verify(ref,args['period']))}
                 except RuntimeFault as exc:return self.finish(operation,record,{'period':args['period'],'error':public_error(exc)},state='failed')
             elif name=='accept':
-                accepted=client.accept(ref,args['period']);result={'period':args['period'],'acceptance':accepted.status,'report':report(accepted.result),'card':accepted.card,'voucher':accepted.voucher,'payment':'paid' if accepted.voucher else 'unpaid'}
-            elif name=='pay':result=self.payment(client,ref,args['period'])
+                try:
+                    accepted=client.accept(ref,args['period']);result={'period':args['period'],'acceptance':accepted.status,'report':report(accepted.result),'card':accepted.card,'voucher':accepted.voucher,'payment':'paid' if accepted.voucher else 'unpaid'}
+                except PaymentRejected as exc:
+                    result=self.accepted_unpaid(client,ref,args['period'],self.rejection_error(exc))
+            elif name=='pay':
+                if record.get('paymentActionVersion')!=1:
+                    try:result=self.payment(client,ref,args['period'])
+                    except httpx.HTTPStatusError as exc:
+                        if exc.response.status_code!=404:raise
+                        return self.finish(operation,record,{'period':args['period'],'payment':'unknown',
+                            'newPaymentOperationRequired':True,'error':{'code':'not_ready','message':'This older operation only reads existing payment; create a new pay operation for independent confirmation','recovery':'new_payment_operation'}},state='failed')
+                else:
+                    if not record.get('approval') or record.get('binding',{}).get('stage')!='delegation.pay':
+                        raise RuntimeFault('forbidden','Approve this exact payment recovery before executing')
+                    if digest(client.card(ref))!=digest(record['preview']['card']):
+                        return self.finish(operation,record,{'period':args['period'],'error':{'code':'revision_conflict','message':'Accepted card facts changed; preview and confirm a new payment operation','recovery':'new_payment_operation'}},state='rejected')
+                    try:result=self.payment(client,ref,args['period'],approved=record['preview'])
+                    except PaymentRejected as exc:
+                        result={'period':args['period'],'payment':'unpaid','paymentError':self.rejection_error(exc)}
+                        return self.finish(operation,record,result,state='rejected')
             else:raise RuntimeFault('not_ready','Unknown fulfillment method')
         return self.finish(operation,record,result)
 
-    def payment(self,client,ref,period):
+    @staticmethod
+    def rejection_error(rejected):
+        return {'code':rejected.code,'message':rejected.message,'reference':rejected.reference,'recovery':'new_payment_operation'}
+
+    def accepted_unpaid(self,client,ref,period,error):
+        card=client.card(ref)
+        if len(card['signatures']['7'])<period:raise RuntimeFault('unknown_result','Original acceptance signature is not available')
+        return {'period':period,'acceptance':'pass','card':card,'voucher':None,'payment':'unpaid','paymentError':error}
+
+    def payment(self,client,ref,period,*,approved=None):
         rec=client.store.get('cards',ref)
         if len(rec['card']['signatures']['7'])<period:raise RuntimeFault('forbidden','Payment requires the original accepted period')
         voucher=next((item for item in rec.get('vouchers',[]) if item.get('purpose')=='installment' and item.get('period')==period),None)
-        if voucher:return {'period':period,'voucher':voucher,'payment':'paid'}
-        # If the prior payer committed but its result was lost, read its actual
-        # voucher. No second mandate or acceptance is created here.
-        response=self.runtime.account.api('GET','/payments?'+urlencode({'ref':ref,'purpose':'installment','period':period}))
-        voucher=response['voucher'];client.transport.send(rec['card']['provider'],'payment.notify',{'voucher':voucher})
-        client.store.put('cards',ref,{**rec,'vouchers':[*rec.get('vouchers',[]),voucher]})
-        return {'period':period,'voucher':voucher,'payment':'paid'}
+        if approved is None and voucher is None and rec['card']['derived']['periods'][period-1]['amount']>0:
+            # Existing queued jobs retain their read-only payment semantics.
+            response=self.runtime.account.api('GET','/payments?'+urlencode({'ref':ref,'purpose':'installment','period':period}))
+            voucher=response['voucher'];self.restore_voucher(client,ref,period,voucher)
+        try:voucher=client.pay(ref,period)
+        except PaymentRejected as exc:
+            frozen={(item['operationId'],item['bodyDigest']) for item in (approved or {}).get('paymentAttempts',[]) if item['status']=='rejected'}
+            if (exc.reference,exc.body_digest) not in frozen:raise
+            evidence=client.transport.payment_recovery(ref,period)
+            if not evidence['noPending']:raise
+            # The first call imports a v22 rejection through the public adapter.
+            # Only the already-confirmed historical attempt may advance once.
+            voucher=client.pay(ref,period)
+        return {'period':period,'voucher':voucher,'payment':'paid' if voucher else 'not_required','paymentNotified':True}
+
+    @staticmethod
+    def restore_voucher(client,ref,period,voucher):
+        rec=client.store.get('cards',ref);card=rec['card']
+        verify_voucher(voucher,client.keys,payment_provider=card['paymentProvider'],purpose='installment',
+            amount=card['derived']['periods'][period-1]['amount'],currency=client.template(card['templateDigest'])['pricing']['currency'],card_digest=ref,period=period)
+        if voucher not in rec.get('vouchers',[]):client.store.put('cards',ref,{**rec,'vouchers':[*rec.get('vouchers',[]),voucher]})
 
     def recover(self):
         with self.lock:self._recover()
@@ -247,39 +300,61 @@ class Fulfillment:
                         continue
             if record['name']=='start' and original.get('state')=='started':
                 self.runtime.scheduler.resolve(reference,self.finish(operation,record,{'receipt':original['card']['fulfillment']['receipt']}))
-            elif record['name']=='accept' and len(original['card']['signatures']['7'])>=record['args']['period']:
-                voucher=next((item for item in original.get('vouchers',[]) if item.get('period')==record['args']['period'] and item.get('purpose')=='installment'),None)
-                if voucher:self.runtime.scheduler.resolve(reference,self.finish(operation,record,{'period':record['args']['period'],'acceptance':'pass','card':original['card'],'voucher':voucher,'payment':'paid'}))
-                else:
-                    with client.transport.operation(operation):paid=client.transport.control_receipt('ap2.pay')
-                    if paid and paid['result'].get('voucher'):
-                        recovery=stable('receipt',operation)
-                        helper=self.runtime.scheduler.submit(self.identity.agent_id,job['interactionId'],'assistant.receipt',{'operationId':operation},operation_id=recovery,admitted=True)
-                        if helper['status']=='unknown':
-                            with client.transport.operation(operation):notified=client.transport.received('payment.notify')
-                            closed=any(frame['message'].get('kind')=='interaction.closed' and frame['message'].get('interactionId')==job['interactionId'] for frame in self.store.messages(self.identity.agent_id))
-                            if closed or notified and notified['result']['reply']['body'].get('ok') is True:
-                                outcome=self.reconcile_receipt({'payload':{'operationId':operation}})
-                                self.runtime.scheduler.resolve(helper['reference'],outcome)
+            elif record['name'] in ('accept','pay') and len(original['card']['signatures']['7'])>=record['args']['period']:
+                period=record['args']['period']
+                with client.transport.operation(operation):
+                    notified=client.transport.received('payment.notify')
+                    accepted=client.transport.received('acceptance.notify')
+                    paid=client.transport.control_receipt('ap2.pay')
+                voucher=next((item for item in original.get('vouchers',[]) if item.get('period')==period and item.get('purpose')=='installment'),None)
+                positive=self.positive_notification(notified)
+                if voucher and (positive or period in original.get('paymentNotifiedPeriods',[])):
+                    result={'period':period,'card':original['card'],'voucher':voucher,'payment':'paid','paymentNotified':True}
+                    if record['name']=='accept':result['acceptance']='pass'
+                    self.runtime.scheduler.resolve(reference,self.finish(operation,record,result));continue
+                try:evidence=client.transport.payment_recovery(ref,period)
+                except (RuntimeFault,httpx.HTTPError):continue
+                if voucher or paid and paid['result'].get('voucher') or evidence.get('response'):
+                    recovery=stable('receipt',operation)
+                    helper=self.runtime.scheduler.submit(self.identity.agent_id,job['interactionId'],'assistant.receipt',{'operationId':operation},operation_id=recovery,admitted=True)
+                    if helper['status']=='unknown' and positive:
+                        outcome=self.reconcile_receipt({'payload':{'operationId':operation}})
+                        self.runtime.scheduler.resolve(helper['reference'],outcome)
+                elif evidence.get('rejection') and evidence['noPending']:
+                    if record['name']=='accept' and self.positive_notification(accepted):
+                        result=self.accepted_unpaid(client,ref,period,evidence['rejection'])
+                        self.runtime.scheduler.resolve(reference,self.finish(operation,record,result))
+                    elif record['name']=='pay':
+                        result={'period':period,'payment':'unpaid','paymentError':evidence['rejection'],
+                            'newPaymentOperationRequired':True}
+                        self.runtime.scheduler.resolve(reference,self.finish(operation,record,result,state='rejected'))
+
+    @staticmethod
+    def positive_notification(received):
+        return bool(received and not received['result'].get('executionError') and received['result']['reply']['body'].get('ok') is True)
 
     def reconcile_receipt(self,job):
         operation=job['payload']['operationId'];record=self.record(operation);ref=record['args']['contractRef'];client,contract=self.client(ref)
         with client.transport.operation(operation):
+            period=record['args']['period'];original=client.store.get('cards',ref)
+            voucher=next((item for item in original.get('vouchers',[]) if item.get('purpose')=='installment' and item.get('period')==period),None)
             receipt=client.transport.control_receipt('ap2.pay')
-            if not receipt or not receipt['result'].get('voucher'):raise RuntimeFault('unknown_result','Original actual payment receipt is missing')
-            voucher=receipt['result']['voucher'];card=client.card(ref)
-            from a2c.payment import verify_voucher
-            verify_voucher(voucher,client.keys,payment_provider=card['paymentProvider'],purpose='installment',amount=card['derived']['periods'][record['args']['period']-1]['amount'],currency=contract['template']['pricing']['currency'],card_digest=ref,period=record['args']['period'])
-            closed=any(frame['message'].get('kind')=='interaction.closed' and frame['message'].get('interactionId')==contract['interactionId'] for frame in self.store.messages(self.identity.agent_id))
+            if not voucher and receipt:voucher=receipt['result'].get('voucher')
+            if not voucher:
+                response=client.transport.payment_recovery(ref,period).get('response')
+                voucher=response.get('voucher') if response else None
+            if not voucher:raise RuntimeFault('unknown_result','Original actual payment receipt is missing')
+            self.restore_voucher(client,ref,period,voucher)
             notified=client.transport.received('payment.notify')
-            if not closed and not (notified and notified['result']['reply']['body'].get('ok') is True):client.transport.send(card['provider'],'payment.notify',{'voucher':voucher})
-            original=client.store.get('cards',ref)
-            if voucher not in original.get('vouchers',[]):client.store.put('cards',ref,{**original,'vouchers':[*original.get('vouchers',[]),voucher]})
+            if not self.positive_notification(notified) and period not in original.get('paymentNotifiedPeriods',[]):
+                client.pay(ref,period)
         original_job=self.runtime.scheduler.reference(self.identity.agent_id,self.handler(record),operation)
         # The scanner and the short receipt job consume the same actual facts.
         # Keep their local finalization under one owner; an already-finalized job
         # must not turn the other recovery job into unknown and block later reads.
         with self.lock:
             if self.runtime.scheduler.get(original_job)['status']=='unknown':
-                self.runtime.scheduler.resolve(original_job,self.finish(operation,record,{'period':record['args']['period'],'acceptance':'pass','card':client.card(ref),'voucher':voucher,'payment':'paid'}))
+                result={'period':period,'card':client.card(ref),'voucher':voucher,'payment':'paid','paymentNotified':True}
+                if record['name']=='accept':result['acceptance']='pass'
+                self.runtime.scheduler.resolve(original_job,self.finish(operation,record,result))
         return JobOutcome('completed',{'operationId':operation,'recoveredActualPayment':True})

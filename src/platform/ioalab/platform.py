@@ -159,7 +159,7 @@ class Platform:
         self.router.apps["market"] = build_app(self.market.market, name="IoA Lab Agent 交易市场", base_url=self.market_id,
                                                role="market", jwks={"keys": [self.market_signer.jwk]})
         self.router.apps["pay"] = build_app(self.psp, name="模拟支付方", base_url=self.pay_id, role="payment",
-                                            jwks={"keys": [self.pay_signer.jwk]}, extensions=(A2C_EXTENSION, AP2_EXTENSION))
+                                            jwks={"keys": [self.pay_signer.jwk,self.pay_ec.jwk]}, extensions=(A2C_EXTENSION, AP2_EXTENSION))
         self.started = False
         self.background = []
         from .messaging import MessageCenter

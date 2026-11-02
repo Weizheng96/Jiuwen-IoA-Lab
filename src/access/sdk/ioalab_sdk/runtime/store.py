@@ -140,6 +140,15 @@ class RuntimeStore:
                                   (actor,kind,operation_id)).fetchone()
             return json.loads(row['response']) if row and row['response'] else None
 
+    def operation(self, actor, kind, operation_id):
+        """Owned outbox evidence for local adapters, never an arbitrary IPC read."""
+        with self.lock:
+            row = self.db.execute('SELECT actor,kind,id,payload,fingerprint,response FROM runtime_operations '
+                                  'WHERE actor=? AND kind=? AND id=?', (actor,kind,operation_id)).fetchone()
+            if row is None:return None
+            return {**dict(row),'payload':json.loads(row['payload']),
+                    'response':json.loads(row['response']) if row['response'] else None}
+
     def receive(self, frame):
         """Save the message and continuous cursor before producing an ACK operation."""
         actor, seq, message = frame.get('agentId'),frame.get('recipientSeq'),frame.get('message')

@@ -1,0 +1,99 @@
+{
+  "status": "native_upgrade_verified_payment_pending",
+  "scope": "原生个人助手升级与原单只读接续核验；观察时原单验收通过、签7保留，仍未付款或结清。",
+  "sdkSnapshotFileModifiedAt": "2026-11-02T22:55:32.844789+08:00",
+  "nativeSessionId": "web_1a19be92cdb_78fb1cb9609a",
+  "nativeRequestId": "req_mvzdmsai_728",
+  "upgrade": {
+    "installedReleaseId": "01ec7d82a875494f2822a5e0e255ee799fb0a03e0c9498c944c4e152d812ad43",
+    "previousInstalledReleaseId": "3f7095a959da67da3ef58e8586360628eb628c86e687d47d3409d407f4ab5ff9",
+    "a2cVersion": "0.0.23",
+    "runtimeId": "7be4c928-ff66-4607-acfc-ea241278eb2d",
+    "agentId": "urn:ioalab:assistant:b06ef09b-3e2c-4a54-a215-89284c0e8bd5",
+    "profile": "personal",
+    "runtimeStatus": "completed",
+    "platformConnected": true,
+    "executionReady": true,
+    "roleErrors": [],
+    "runtimeIdPreserved": true,
+    "agentIdPreserved": true,
+    "configurationDigest": "sha256:1554e0d8bd5d55d66214cfb0afb8214bfd651d0b16835c1b002279b0baec356b",
+    "previousConfigurationDigest": "sha256:1554e0d8bd5d55d66214cfb0afb8214bfd651d0b16835c1b002279b0baec356b",
+    "configurationDigestPreserved": true,
+    "bootId": "15dd06d7-e62f-49d9-b831-906b55fcff95",
+    "previousBootId": "0dab3ccf-56d2-4937-b678-65bcf40d4db7",
+    "bootIdChanged": true,
+    "baselineMethod": "两份已明确的旧公开SDK回执仅白名单提取runtimeId、bootId、configurationDigest、installation.releaseId，结果一致；actor另与旧正式证据核对。"
+  },
+  "originalContract": {
+    "quoteRef": "2434ca0a-b4f4-58bc-ac71-2b242f406bb5",
+    "contractRef": "sha256:459566ad901407da1c1ced7b289fd76d033aae57c0c8a4aca2b21d8ef64d0fcf",
+    "acceptOperationId": "dbfa5859-6fe1-4a68-8cf2-dd127614e3c9",
+    "queryStatus": "completed",
+    "acceptOperationStatus": "completed",
+    "acceptance": "pass",
+    "payment": "unpaid",
+    "closed": false,
+    "acceptedPeriods": 1,
+    "signatureCounts": {"4": 1, "5": 1, "6": 1, "7": 1},
+    "originalRejectedPayment": {
+      "operationId": "bba27386-66e6-5677-9738-cccbe9238baf",
+      "bodyDigest": "sha256:d1029bf50464ce6e4a80d7087cf400bc18dc18f4daffd5b88d8bd01b3da8c364",
+      "code": "forbidden",
+      "message": "Payment changed or expired before transaction commit",
+      "scope": "原AP2拒绝作为历史实际结果保留；新发行未将旧拒绝改写为成功。"
+    },
+    "originalRejectedPaymentReferencesObserved": 1,
+    "rejectionCountScope": "本快照保留的原拒绝operation引用唯一；不据此推断未观察的全部历史尝试数。",
+    "newPaymentOrSignatureClaimed": false
+  },
+  "observedToolMetadata": {
+    "method": "仅解析两份本机既有公开分页history捕获，按tool_call_id取差；未重新访问历史API，未复制工具result或消息正文。",
+    "before": {"pages": 15, "rawFrames": 720, "messageRecords": 705, "distinctToolCallIds": 203},
+    "after": {"pages": 16, "rawFrames": 771, "messageRecords": 755, "distinctToolCallIds": 218},
+    "addedToolCallIds": 15,
+    "addedTools": {"bash": 9, "write_file": 3, "read_file": 3},
+    "newConfigurationBodyReadPatternMatches": 0,
+    "newPipInstallPatternMatches": 0,
+    "calls": [
+      {"id": "call_57ffea5cc08b4c32b31fc469", "tool": "read_file", "accountConfigReadMatch": false},
+      {"id": "call_d33f0af68fe94bf9989575b5", "tool": "bash", "sdkOperations": [], "operationNotIdentifiedByPattern": true},
+      {"id": "call_b91cd60844cc4f10982898bf", "tool": "read_file", "accountConfigReadMatch": false},
+      {"id": "call_552daac3af944ecfbebd013b", "tool": "read_file", "accountConfigReadMatch": false},
+      {"id": "call_ec7f7487e3374018947b9c9d", "tool": "bash", "sdkOperations": ["runtime.status"]},
+      {"id": "call_e9c119ec847042cb97758783", "tool": "write_file", "accountConfigTargetMatch": false},
+      {"id": "call_c1e77fd7202840848571f265", "tool": "bash", "sdkOperations": ["runtime.stop"]},
+      {"id": "call_a542987ef6c944319e5bac48", "tool": "bash", "sdkOperations": ["runtime.status"]},
+      {"id": "call_ce9f00684b4144a8a7361368", "tool": "bash", "sdkOperations": ["runtime.start"]},
+      {"id": "call_e1be97c597dc411e8ce6e968", "tool": "bash", "sdkOperations": ["runtime.status"]},
+      {"id": "call_f8adf7bd44934da19e84f6db", "tool": "bash", "sdkOperations": ["assistant.delegation.status"]},
+      {"id": "call_e84bba33c9fa41378971d758", "tool": "write_file", "accountConfigTargetMatch": false},
+      {"id": "call_eb71a42a7e4d4f33a922687d", "tool": "bash", "sdkOperations": ["operations.get"]},
+      {"id": "call_ed0a4275d48042888efecf64", "tool": "write_file", "accountConfigTargetMatch": false},
+      {"id": "call_4b106f93272b47eda61ec218", "tool": "bash", "sdkOperations": ["operations.get"]}
+    ],
+    "earlierConfigurationBoundary": {"status": "failed", "readCallId": "call_0db1d3216cd046279e970718", "presentInBothCaptures": true},
+    "limits": [
+      "未新增匹配读取不证明文件系统访问强隔离；旧配置正文读取失败仍有效。",
+      "工具名及operation元数据不单独证明执行成功；运行版本和原单状态来自独立公开SDK回执。",
+      "没有公开命令、读写目标路径、工具result、私人消息、账号配置正文或凭据。"
+    ]
+  },
+  "evidence": {
+    "sdkSnapshot": {"localPath": "temp/checks/access-payment-v115-native-r1/upgraded-native-status.json", "sha256": "540d5f3e50b62c2109b01beaedf670e1581a2200b6a8d173338b2ff3a82f90f7"},
+    "historyMetadata": {"localPath": "temp/checks/access-payment-v115-native-r1/upgrade-history-metadata.json", "sha256": "7b1223ed3665b62e2abb5eae1206b18b2b60c790ac248756756189205886db3d"},
+    "previousSdkRuntimeBaselines": [
+      {"localPath": "temp/checks/native-nail-v112/runtime.final-fulfillment.private.json", "sha256": "2592735b4ee217dd2ddc3bdaed331561898e14d491231a23e59a7b145a97c8d5"},
+      {"localPath": "temp/checks/native-nail-v112/runtime.contract-read.private.json", "sha256": "9b4891193130a7214e3c62a1402b7d9760ea4e72a8b41570cf4943434dbefb29"}
+    ],
+    "newPrivateCaptureSha256": "109f453b1a4c1b57f749e46be472b729f29932ab49a6271bed18845dee8cb2b7",
+    "previousPrivateCaptureSha256": "db77b30c712f04f00070dc230c95b750e99de72ac26667f338a062585f3816d0",
+    "nativeScreenshot": {"localPath": "temp/checks/access-payment-v115-native-r1/native-upgrade-completed.png", "sha256": "918e78eab4a41d5bbed4ce6a1804cceb3e5c1a5c6f1d08c37ed536c631db8fa2", "scope": "原生可见升级回复；不替代SDK状态。"},
+    "publicBaselines": ["demo/verification/native-dual-upgrade.json", "demo/verification/native-nail-fulfillment.json", "demo/verification/native-verifier-audit.json"]
+  },
+  "notProven": [
+    "整单付款、结清与新完成信誉；本快照为unpaid/closed=false。",
+    "自主完整新用户教程或所有文件系统访问被隔离。",
+    "多服务原生比选、微信客户端实际UI、外部注册审核或上线。"
+  ]
+}
