@@ -186,6 +186,28 @@
     "assistantFirstWrongRelease": "de5d551d5f5c36f428064b1f204ab821b92802de471c395cbe25cd6fd6de7107",
     "ci": "7f4ba747e4df9809cea8a16d0b0723482dce016bde1be5cc77af6fc2afbee58c",
     "coreRegistryNonsecret": "c305dd5639e9be1e11e9ee1e5e5ea01bea24ac347cb87a5993b60b87e3f0f5db",
-    "coreChangeNotExecuted": "5a72ec3411b32468d526b43b8ed7cbc56b3f2db70fe6982dcea45c317e163864"
+    "coreChangeNotExecuted": "5a72ec3411b32468d526b43b8ed7cbc56b3f2db70fe6982dcea45c317e163864",
+    "publicBundlePublish": "1a7e380efac3a07c9d3c97848d590503d49f606e544f08f9658d80535035c99e"
+  },
+  "publicDownloads": {
+    "scope": "本机Core正常公开下载入口，已保留旧公开包；不是远端发布或Core配置变更",
+    "status": "published_and_http_bytes_matched",
+    "releaseId": "d082ce77a9bec8b1990bfa5818ba4a5a108c307c49a69d1716f72e4a20fb4215",
+    "archives": [
+      {
+        "role": "assistant",
+        "newSha256": "e1cfc9b4b761208648be47cbf2378f6fff5019af3e654f0952831191872d682b",
+        "downloadUrl": "http://127.0.0.1:18750/downloads/ioalab-assistant-skill.zip",
+        "httpStatus": 200,
+        "publicBytesMatched": true
+      },
+      {
+        "role": "provider",
+        "newSha256": "b9641465016a5901a1c2698f441e0760f7da88ceb3cfb1da6084cb861048145d",
+        "downloadUrl": "http://127.0.0.1:18750/downloads/ioalab-provider-skill.zip",
+        "httpStatus": 200,
+        "publicBytesMatched": true
+      }
+    ]
   }
 }
