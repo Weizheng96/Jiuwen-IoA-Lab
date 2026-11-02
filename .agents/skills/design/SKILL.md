@@ -18,6 +18,6 @@ description: 仅用于编写、修改、整理或审查设计文档；统一术�
 
 ## 固定检查
 
-在仓库根目录用项目 Python 执行 `python .agents/skills/design/scripts/check.py`，复用版本、链接及索引检查；交付前加 `--full` 执行 AGENTS.md 规定的完整回归。脚本只验证，不改文档、版本或 Git。
+在仓库根目录用项目 Python 执行 `python .agents/skills/design/scripts/check.py`，复用版本、链接及索引检查。验证层级依根 AGENTS.md 选择；仅在需要完整回归时显式加 `--full`，不因纯说明修改重复全量测试。输出实时显示，阶段日志和 `report.json` 保存在 `temp/checks/`；可用 `--report-dir <新目录>` 指定位置。脚本不改文档、版本或 Git。
 
 根据用户反馈合并或替换对应参考页中的可复用经验；跨技能的分层、脚本和迭代约定统一遵守 AGENTS.md，不在此重复。

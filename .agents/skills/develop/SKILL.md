@@ -23,6 +23,8 @@ description: 按 Jiuwen IoA Lab 设计开发、重构和修复代码，核验实
 
 ## 固定检查
 
-项目 Python 执行 `python .agents/skills/develop/scripts/check.py --tests <测试路径...>` 做本轮定向验证；交付前不带参数执行完整检查。脚本复用仓库检查，不修改版本或 Git。
+使用项目 Python 执行 `python .agents/skills/develop/scripts/check.py`，默认只检查设计版本与文档链接；`--tests <测试路径或nodeid...>` 增加指定范围的 pytest；`--changed-from <已提交基线>` 复现 CI 基线到 HEAD 的快速路径范围；`--full` 显式执行四项完整检查。何时使用各层级以根 AGENTS.md 为准。
+
+脚本实时显示输出，在 `temp/checks/` 保存各阶段日志、`report.json` 及 pytest 逐项耗时 XML；可用 `--report-dir <新目录>` 指定记录位置。先看原报告中的阶段、用例及退出码，不因长时间无最终摘要重新启动检查。脚本不修改版本或 Git。
 
 用户反馈中的通用经验合并进对应参考页；产品规则归设计，场景专属配置归示例或 Demo，不将问题逐条堆入本技能。
