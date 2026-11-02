@@ -45,11 +45,16 @@ class UserUi:
             # OS errors can contain the one-time URL; never return them over RPC.
             raise RuntimeFault('not_ready','The local user browser could not be opened','configure_browser') from None
 
+    def _cookie_name(self):
+        # Browser cookies do not isolate ports; this origin comes from our listener.
+        return 'ioa_user_'+hashlib.sha256(self.origin.encode()).hexdigest()
+
     def _session(self,request):
         cookie=SimpleCookie()
         try:cookie.load(request.headers.get('Cookie',''))
         except Exception:raise RuntimeFault('forbidden','Invalid local browser session') from None
-        key=cookie['ioa_user'].value if 'ioa_user' in cookie else ''
+        name=self._cookie_name()
+        key=cookie[name].value if name in cookie else ''
         with self._lock:record=self._sessions.get(key)
         if not record or record['expires']<=self.clock():raise RuntimeFault('forbidden','Open the local user page again')
         return record
@@ -99,7 +104,7 @@ class UserUi:
                     self._sessions={key:item for key,item in self._sessions.items() if item['expires']>self.clock()}
                     record={'csrf':secrets.token_urlsafe(32),'expires':self.clock()+14400,'id':str(uuid.uuid4())}
                     self._sessions[key]=record
-                request.reply(200,{'csrf':record['csrf']},headers={'Set-Cookie':'ioa_user='+key+'; HttpOnly; SameSite=Strict; Path=/user; Max-Age=14400'})
+                request.reply(200,{'csrf':record['csrf']},headers={'Set-Cookie':self._cookie_name()+'='+key+'; HttpOnly; SameSite=Strict; Path=/user; Max-Age=14400'})
                 return True
             session=self._session(request)
             if request.command=='GET' and path.path=='/user/api':
