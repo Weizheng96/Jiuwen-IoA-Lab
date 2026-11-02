@@ -388,3 +388,17 @@ def test_cleanup_cannot_leave_an_interior_sequence_gap(platform, client, people,
     receiver.close()
     recovered = peers(a,runtime=receiver.runtime,cursor=0)
     assert recovered.delivery(second['messageId'])['message']['payloadAvailable'] is False
+
+
+def test_expired_operation_receipt_is_history_gap_in_http_and_ws(platform,client,people,peers):
+    a,b,_=people;publish(client,a).raise_for_status();sender=peers(b)
+    value=request(a['actor']);operation=uid();sender.call('message.send',value,operation=operation)
+    params={'agentId':b['actor'],'operation':'message.send'}
+    url='/api/v1/operations/'+operation
+    assert client.get(url,headers=headers(b),params=params).status_code==200
+    platform.db.run('DELETE FROM delivery_operations WHERE actor=? AND kind=? AND id=?',b['actor'],'message.send',operation)
+    result=client.get(url,headers=headers(b),params=params)
+    assert result.status_code==409 and result.json()['error']['code']=='history_gap'
+    assert sender.call('operation.get',{'operation':'message.send','operationId':operation},ok=False)['code']=='history_gap'
+    assert sender.call('message.send',value,operation=operation,ok=False)['code']=='history_gap'
+    assert platform.db.one('SELECT 1 FROM delivery_messages WHERE id=?',value['messageId'])

@@ -81,6 +81,10 @@ class Discovery:
         self._started = True
         self._searcher = None
 
+    def close(self) -> None:
+        # A timed-out search can still be using its original registry/model.
+        self._pool.shutdown(wait=True, cancel_futures=True)
+
     # ── 分类树 ────────────────────────────────────────────────────────
     def taxonomy_state(self) -> str:
         st = self.svc.check_taxonomy_state(DATASET) if self._started else None

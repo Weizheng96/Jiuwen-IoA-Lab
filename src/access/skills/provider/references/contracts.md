@@ -13,7 +13,7 @@
   "profile": "实际服务profile",
   "terms": {
     "formation": "proposal",
-    "deliverables": [{"name": "result", "description": "本服务实际交付件及格式", "specSchema": {}}],
+    "deliverables": [{"name": "result", "description": "按本单requirements生产约定格式的成果", "specSchema": {"requirements": {"type": "string", "maxLength": 4000}}}],
     "inputs": [],
     "deadlines": {"respondWithin": "PT10M", "startWithin": "PT30M", "deliverWithin": {"result": "PT30M"}},
     "pricing": {"currency": "CNY", "depositFormula": "0", "proposalFee": 0, "paymentWeights": {"result": 1}},
@@ -28,6 +28,7 @@
 | 待批准 | formation=countersign；pricing增加以交付件名为键的priceFactors与priceFormula，金额为可核定定数；模板必须有acceptance及deadlines.acceptWithin |
 | 多交付件 | 每个交付件在deliverables声明，deliverWithin/paymentWeights及适用的其他映射使用对应真实名称；不要只为单一示例设计 |
 | 用户业务授权 | authorizableSteps声明环节名和用途，并设置deadlines.authorizeWithin；它不是用户已批准的证据 |
+| 按单需求 | 用明确的specSchema标量字段或inputs传递客户每单需求；本单只能按这些入卡内容生产和确定判据。空specSchema加空inputs不能表达逐单定制，不能照抄为空；固定无参数成果可以保持空规格 |
 | 用户材料 | inputs使用name、description、required、specSchema等原字段；需签前审查的材料声明reviewBeforeSigning |
 
 specSchema是“规格键→取值域”的映射，不是完整JSON Schema。例：`{"features":{"type":"string","maxLength":4000},"pages":{"type":"integer","minimum":1,"maximum":20}}`；没有规格键时用{}。每个值只用原A2C支持的const、enum、type(string/integer/number)、minimum/maximum、maxLength和format=date，不包type=object/properties/required；字段说明写在交付件或材料description中。

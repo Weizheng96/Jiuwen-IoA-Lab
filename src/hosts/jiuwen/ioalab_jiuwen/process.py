@@ -39,6 +39,10 @@ class ProcessHost:
         allowed={'command','data_dir','model','skill_directories'}
         if not isinstance(value,dict) or set(value)-allowed or not {'command','data_dir'}.issubset(value):
             raise RuntimeFault('invalid_input','Jiuwen host needs command and data_dir; model and explicit skill_directories are optional')
+        if not isinstance(value['data_dir'],str) or not value['data_dir'].strip():
+            raise RuntimeFault('invalid_input','Configure the existing Jiuwen data directory')
+        if value.get('model') is not None and (not isinstance(value['model'],str) or not 1<=len(value['model'])<=256):
+            raise RuntimeFault('invalid_input','Use an existing Jiuwen model selection key')
         data=Path(value['data_dir']).expanduser()
         if not data.is_absolute():data=Path(base_dir)/data
         return cls(value['command'],data,model=value.get('model'),skill_directories=value.get('skill_directories'))

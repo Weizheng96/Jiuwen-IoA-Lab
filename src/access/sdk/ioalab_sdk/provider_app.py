@@ -29,4 +29,4 @@ def build_provider_app(provider,*,name,base_url):
                              task_store=RecoverableTaskStore(provider),agent_card=card)
     return Starlette(routes=[*create_agent_card_routes(card,card_url=CARD_PATH),
                              *create_jsonrpc_routes(handler,RPC_PATH),
-                             Route(JWKS_PATH,lambda request:JSONResponse({'keys':[provider.signer.jwk]}))])
+                             Route(JWKS_PATH,lambda request:JSONResponse({'keys':[provider.signer.jwk,*([provider.ap2_key.jwk] if provider.ap2_key is not None else [])]}))])

@@ -65,8 +65,10 @@ def test_same_config_cannot_reuse_an_old_installation_or_dispatch_business(platf
             assert main(['call','test.effect','--config',str(config),'--args-file',str(args)])==1
             assert json.loads(capsys.readouterr().out)['error']['code']=='installation_changed'
             assert not effects and LocalClient(runtime.config.home).call('runtime.status')['data']['bootId']==original['bootId']
-            assert main(['call','runtime.status','--config',str(config)])==0
-            assert json.loads(capsys.readouterr().out)['status']=='completed'
+            assert main(['call','runtime.status','--config',str(config)])==1
+            observed=json.loads(capsys.readouterr().out)
+            assert observed['status']=='rejected' and observed['error']['code']=='installation_changed'
+            assert observed['data']['bootId']==original['bootId']
             assert main(['call','runtime.stop','--config',str(config),'--args-file',str(tmp_path/'stop.json')])==0
             assert json.loads(capsys.readouterr().out)['data']['bootId']==original['bootId']
     finally:runtime.close()

@@ -19,6 +19,23 @@ from .installation import require_matching,SAFE_CALLS
 READ_ONLY={'runtime.status','identity.status','operations.get'}
 
 
+def validate_roles(config):
+    from ..provider.configuration import validate_provider
+    validate_provider(config.provider,config.identities)
+
+
+def setup_command(command,path,arguments=None,*,validate=validate_roles,host_update=None,host_fields=()):
+    from .configuration import inspect_config,configure
+    from ..provider.configuration import EDITABLE_SERVICE_FIELDS
+    if command=='validate':
+        config=RuntimeConfig.load(path);validate(config)
+        data=config.public_summary()
+    elif command=='configuration':data=inspect_config(path,validate=validate,host_fields=host_fields)
+    else:data=configure(path,arguments,service_fields=EDITABLE_SERVICE_FIELDS,validate=validate,
+                        host_update=host_update,host_fields=host_fields)
+    return {'status':'completed','data':data,'error':None}
+
+
 def require_configuration(state,config,*,assembly=None):
     account=state['account']
     if account['username']!=config.username or account['platform']!=config.platform:
@@ -71,9 +88,10 @@ def main(argv=None):
     configure_stdio()
     parser=argparse.ArgumentParser(prog='ioalab-access')
     commands=parser.add_subparsers(dest='command',required=True)
-    for name in ('serve','start','validate','login'):
+    for name in ('serve','start','validate','login','configuration','configure'):
         item=commands.add_parser(name)
         item.add_argument('--config',type=Path,required=True)
+        if name=='configure':item.add_argument('--args-file',type=Path,required=True)
     call=commands.add_parser('call')
     call.add_argument('operation')
     call.add_argument('--config',type=Path,required=True)
@@ -91,7 +109,7 @@ def main(argv=None):
         if args.command=='login':
             from .authentication import login
             result=login(args.config)
-        elif args.command=='validate':result={'status':'completed','data':RuntimeConfig.load(args.config).public_summary(),'error':None}
+        elif args.command in ('validate','configuration','configure'):result=setup_command(args.command,args.config,getattr(args,'args_file',None))
         elif args.command=='start':result=start(args.config)
         else:
             if args.operation not in READ_ONLY and not args.args_file:
@@ -111,6 +129,10 @@ def main(argv=None):
             values['operationId']=operation
             if args.args_file:private_json(args.args_file,values)
             result=client.call(args.operation,{key:value for key,value in values.items() if key!='operationId'},operation_id=operation)
+            if args.operation=='runtime.status' and result['status']=='completed':
+                actual=result['data'].get('installation')
+                try:require_matching(actual,assembly=actual.get('assembly') if isinstance(actual,dict) else None)
+                except RuntimeFault as exc:result={**result,'status':'rejected','error':public_error(exc)}
         print(json.dumps(result,ensure_ascii=False))
         return 1 if result.get('status') in ('rejected','failed','unknown') else 0
     except RuntimeFault as exc:

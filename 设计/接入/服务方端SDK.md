@@ -41,17 +41,30 @@
 
 本机provider.tools.list输入profile，返回该身份已装配工具策略；不暴露其他身份的工具或凭据。
 
+正常结清由SDK在原验收和应付款凭证齐全后自动调用A2C Provider.close，沿原操作恢复；委托中心据原结清日志签发信誉，不另设重复提交接口。provider.reputation只读核验实际条目，不能用模型输出或一次查询充当原合同结清。
+
+## 仲裁操作
+
+provider.dispute以profile、原taskRef、ground及必要period/材料引用定位本单；申请前由本机用户独立确认。provider.dispute_status以所属profile及caseRef查询。SDK从原本单记录确定admissionId，不接受模型替换合同、身份或Session。原案件恢复与助手端共用取证/验签，不另建服务方仲裁引擎。
+
+收到平台原contract.ruling后，SDK核其身份、对象和签名，停止原未开始工作并等待实际writer收敛，再提交原结束回执；未知结果继续保留。已裁定卡不得走普通Provider.close或伪装解除；债务和容量的规则见[委托中心](../组件/委托中心.md#裁定执行与容量收尾)。
+
+## 解除处理
+
+原 termination.quote/notify 由本单协议接收器处理，不依赖模型轮询。先核本单原有效签1；报价策略属于本机服务配置，默认沿原 A2C 策略，不能为演示将费用静默改为0。收到合法通知后停止新生产，原执行和工具收敛后再结清；实际终止、退款待办和外部效果未知通过既有任务查询返回。
+
+协商负余额只按原签名解除记录与实际已付定金，复用同一 AP2 Port 及 Provider.refund_termination；付款身份为本单原服务方，收款单由原个人助手签发。退款成功保存原付款及凭证；余量不足、离线或结果未知保持原任务待处理，不伪造完成或重复付款。无需新增个人助手收费接口、退款合同字段或另一套付款引擎。完整规则见[A2C适配](A2C适配.md#解除与结清)。
+
 ## 管理操作
 
 | 操作 | 输入 | 输出及边界 |
 |---|---|---|
 | `provider.template.draft` | profile、terms（原A2C模板的业务字段） | 完整未签模板；SDK补协议版本、kind、当前时间起30天的有效期及实际平台支付声明，复用原A2C校验，不报价、不签署或发布 |
-| `provider.configure` | 本地服务配置 | 配置草稿与缺项，不自动发布或修改已有合同 |
-| `provider.validate` | 配置草稿引用 | 业务工具、宿主、模板/包、模式、身份和容量检查结果 |
+| 本机配置与校验 | `runtime.configuration/configure/validate`，契约见[SDK共用机制](SDK共用机制.md#不读取凭据的配置辅助) | 启动前按字段配置并校验角色；不读取账号正文、不发布、不宣称宿主或工具已就绪 |
 | `provider.verifier.publish` | profile、verifierId、source，可选 reads、kind | 通过平台的确定性打包通道上传验收器源码，返回真实包引用；不在宿主执行源码，同操作恢复原内容 |
 | `provider.preview` | service：profile、名称、说明、标签、未签模板及可选categoryId | 实际分类、完整service、contentDigest、expectedRevision；可发布时nextAction指向provider.publish申请确认，不创建批准记录 |
 | `provider.publish` | 原预览返回的service、contentDigest、expectedRevision；可选原confirmationRef | 首次创建待确认记录并返回waiting；仅真实批准后恢复原操作才签名、市场签认及A2X登记 |
-| `provider.reputation.submit` | 所属已完成合同引用、稳定操作标识 | 核验收与付款凭证，复用 A2C Provider.close 提交结清卡，查询平台签发信誉；重复调用恢复原结果，未结清不能伪造成功日志 |
+| `provider.reputation` | profile | 返回所属服务的真实委托中心签名信誉；核签发者与目标，不自报评分或重复提交结清 |
 | `provider.status` | 所属服务引用 | 公示、连接、可执行、容量、未完成任务、异常分别列示 |
 | `provider.tasks.get` | profile，可选原taskRef | 返回该服务最近至多100个本地业务任务，或指定原任务；含阶段、状态、原交互/Session及canResume、resumeReason，不返回凭据或其他身份任务 |
 | `provider.task.resume` | profile、原taskRef；共用operationId | 仅对已核实安全的验收器准备中断恢复原拟约作业；快速返回accepted及resumeReceipt、currentTask，后续查询原任务。accepted不代表拟约成功，不新建请求、签名或收费 |
@@ -78,7 +91,7 @@ provider.status额外返回当前WS核实的admissionPolicy；executionReady只�
 
 | 任务能力 | 输入 | 输出及限制 |
 |---|---|---|
-| `provider.task.inspect` | 运行时授予的本单 taskRef | 本单模式、原合同/提案、材料、阶段与可用能力；不返回其他任务或凭据 |
+| 本单固定上下文 | 运行时注入当前阶段、原模板/卡、材料与受限工具Schema | 九问先读取实际上下文；这不是另一个管理RPC或inspect工具，不能指定其他任务 |
 | `provider.task.verifier.publish` | 本单verifierId、UTF-8源码source，可选reads与kind（script/skill）；源码至多64 KiB | 仅提案quote阶段可用；与管理上传共用打包、包摘要核验及原操作恢复，返回真实id/uri/digest；不执行源码、不签约、不修改公示或配置 |
 | `provider.task.quote` | 符合本单模板的确定报价、验收条目与验收时长，或单独拒绝原因 | 返回业务决定已记录；SDK 后续复用原 A2C 拟卡/签认，实际结果从原任务读取；不能绕过期限或容量提交 |
 | `provider.task.decision` | 本单待批准 taskRef、批准或拒绝及原因 | 仅处理真实 card.countersign 请求；批准前复核委托方签1、卡摘要、期限及接单资格，原子提交预留后复用 A2C 复签形成签2；拒绝返回原协议原因，不签约 |

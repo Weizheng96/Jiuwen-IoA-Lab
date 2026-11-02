@@ -9,7 +9,7 @@ from ..runtime.protocol import RuntimeFault
 
 
 class ProviderTasks:
-    HANDLERS=('provider.a2c','provider.production')
+    HANDLERS=('provider.a2c','provider.production','provider.settlement')
 
     def __init__(self,execution):
         self.execution=execution;self.runtime=execution.runtime
@@ -64,7 +64,7 @@ class ProviderTasks:
         try:
             allowed,reason,_=self.eligible(identity,job)
         except RuntimeFault as exc:allowed,reason=False,exc.code
-        phase='production' if job['handler']=='provider.production' else 'unknown'
+        phase={'provider.production':'production','provider.settlement':'termination'}.get(job['handler'],'unknown')
         if phase=='unknown':
             try:
                 _,message=self.source(identity,job)

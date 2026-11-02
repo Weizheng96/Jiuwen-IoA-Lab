@@ -1,11 +1,13 @@
 """SQLite：平台表（账号 · 钱包 · 智能体 · 需求 · 订单 · 事件 · 过账）与各方 A2C Store 的 kv 表。
 
-单进程持有：WAL · busy_timeout · 进程内单写锁；所有访问可在工作线程里发生（check_same_thread=False）。
+DataOwner 保护整个 Core 数据目录；DB 是普通连接，事务用进程内锁串行，可在工作线程访问。
 """
 from __future__ import annotations
 
 import copy
 import json
+import errno
+import os
 import sqlite3
 import threading
 import time
@@ -36,19 +38,69 @@ CREATE INDEX IF NOT EXISTS ix_events_run ON events (run_id);
 """
 
 
+class DataInUse(RuntimeError):
+    """Another Core role owns this directory, independent of ordinary DB connections."""
+
+
+class DataOwner:
+    """Hold the same OS lock before any Core private file or database modification."""
+
+    def __init__(self, directory: Path) -> None:
+        directory.mkdir(parents=True, exist_ok=True)
+        self.path = directory.resolve() / '.core.lock'
+        self._fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                msvcrt.locking(self._fd, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BaseException as exc:
+            os.close(self._fd)
+            self._fd = None
+            if isinstance(exc, OSError) and exc.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                raise DataInUse('Core data directory is already in use: ' + str(directory)) from exc
+            raise
+
+    def close(self) -> None:
+        if self._fd is None:
+            return
+        descriptor = self._fd
+        if os.name == 'nt':
+            import msvcrt
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+        self._fd = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
 class DB:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self.lock = threading.RLock()
         self.conn = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA busy_timeout=5000")
-        self.conn.execute("PRAGMA foreign_keys=ON")
-        with self.lock:
-            self.conn.executescript(SCHEMA)
-            self._migrate()
+        try:
+            self.conn.row_factory = sqlite3.Row
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA busy_timeout=5000")
+            self.conn.execute("PRAGMA foreign_keys=ON")
+            with self.lock:
+                self.conn.executescript(SCHEMA)
+                self._migrate()
+        except BaseException:
+            self.conn.close()
+            raise
 
     def _migrate(self) -> None:
         """老库补列（新列都带默认值，CREATE TABLE IF NOT EXISTS 不会改已有表）。"""

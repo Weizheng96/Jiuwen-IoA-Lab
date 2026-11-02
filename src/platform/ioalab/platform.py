@@ -23,7 +23,7 @@ from .identity.keys import thumbprint
 from .identity.auth import Auth
 from .runtime.llm import LLM
 from .runtime.packages import PackageStore
-from .store import DB, SqliteStore, jdump, jload, now
+from .store import DB, DataOwner, SqliteStore, jdump, jload, now
 log = logging.getLogger("ioalab.platform")
 
 class LoopbackTransport(httpx.AsyncHTTPTransport):
@@ -47,7 +47,8 @@ class LoopbackTransport(httpx.AsyncHTTPTransport):
 class A2ARouter:
     """ASGI：/a2a/<name>/… 分发到按名字登记的 A2A 应用（服务方可运行期增加）。"""
 
-    def __init__(self) -> None:
+    def __init__(self, serve) -> None:
+        self.serve = serve
         self.apps: dict[str, Any] = {}
         self.local_only: set[str] = set()
 
@@ -79,12 +80,28 @@ class A2ARouter:
                 return
         sub = dict(scope)
         sub["root_path"] = scope.get("root_path", "") + "/" + name    # 子应用按 root_path 之后的部分匹配路由
-        await app(sub, receive, send)
+        await self.serve(app, sub, receive, send)
 
 
 class Platform:
     def __init__(self, settings: Settings):
         self.s = settings
+        self._owner = DataOwner(settings.data)
+        self._closed = False
+        self._closing = False
+        self._workers = set()
+        self._shutdown_task = None
+        self.started = False
+        self.background = []
+        self.transports = []
+        try:
+            self._initialize()
+        except BaseException:
+            self.close()
+            raise
+
+    def _initialize(self):
+        settings = self.s
         settings.dirs()
         self._pin_public_url()
         settings.write_a2x_key()
@@ -99,7 +116,7 @@ class Platform:
         self.registry=RegistryView(self.db)
         self.packages = PackageStore(settings.data / "packages")
         self.llm = LLM(settings)  # discovery only
-        self.router = A2ARouter()
+        self.router = A2ARouter(self._serve_owned)
         self.transports=[]
         self.keys = Directory(fetch=self._transport("directory").jwks)
         self.keystore = KeyStore(settings.data / "keys")
@@ -122,7 +139,7 @@ class Platform:
         certificates=[(protocol_owners[record['subject']],record['jwkThumbprint']) for record in self.market.certificates()
                       if record.get('subject') in protocol_owners]
         self.identities.enrollment=EnrollmentRegistry(self.db,settings,legacy_keys=saved_keys,legacy_certificates=certificates)
-        from .web.identity import public_service_app
+        from .web.identity import public_identity_app
         from .registry.publication import ServicePublications
         from .registry.categories import CategoryPreview
         from .operations import ServiceOperations
@@ -133,10 +150,10 @@ class Platform:
         from .files import PrivateFiles
         self.files=PrivateFiles(self.db,self.identities,settings.data/'private-files')
         self.service_operations=ServiceOperations(self.db,self.publications,self.market,self.discovery,self.payment_provider)
-        self.router.apps['agents']=public_service_app(self.identities.enrollment,self.publications)
+        self.router.apps['agents']=public_identity_app(self.identities.enrollment,self.publications)
         trace_endpoint(self.market.market, self.bus, self.market_id)
-        self.psp = SimPaymentProvider(self.pay_signer, keys=self.keys, ap2_key=self.pay_ec, payee_keys=self._payee_key,
-                                      wallets=self.wallets, payee_of=self._payee_of, client_matches=self.identities.matches_party, db=self.db,
+        self.psp = SimPaymentProvider(self.pay_signer, keys=self.keys, ap2_key=self.pay_ec, parties=self.identities.payment_party,
+                                      wallets=self.wallets, client_matches=self.identities.matches_party, db=self.db,
                                       on_transfer=lambda t: self.bus.emit("ap2", "transfer", sender=t["payer"], receiver=t["payee"],
                                           card_digest=t["ref"], period=t.get("period"), amount=t["amount"], outcome=t["purpose"]))
         self.router.apps["market"] = build_app(self.market.market, name="IoA Lab Agent 交易市场", base_url=self.market_id,
@@ -156,7 +173,7 @@ class Platform:
         self.admissions=Admissions(self.db,self.identities,self.publications,self.scopes,self.payment_provider)
         self.admissions.active=self.messaging.delivery.active_in
         from .delegation.contracts import ContractAuthority
-        self.contracts=ContractAuthority(self.db,self.identities,self.admissions,self.scopes,self.market)
+        self.contracts=ContractAuthority(self.db,self.identities,self.admissions,self.scopes,self.market,self.psp)
         self.admissions.contracts=self.contracts
         from .observation import ContractProjection
         self.contract_views=ContractProjection(self.db,self.identities,self.market)
@@ -170,6 +187,19 @@ class Platform:
         self.market.market.requires_admission=self.identities.bound_service
         from .delegation.relay import ProtocolRelay
         self.messaging.delivery.protocol=ProtocolRelay(self.db,self.identities,self.admissions,self.scopes,self.files,clock=self.messaging.delivery.clock,contracts=self.contracts,record=self.contract_views.record_in)
+        from .delegation.arbitration_evidence import ArbitrationEvidence
+        self.arbitration_evidence=ArbitrationEvidence(self.db,self.identities,self.admissions,self.contracts,self.psp,
+            self.messaging.delivery.protocol,self.messaging.delivery,clock=self.admissions.clock)
+        from .delegation.arbitration_cases import ArbitrationCases
+        self.arbitration_cases=ArbitrationCases(self.db,self.identities,self.auth,self.admissions,
+            self.arbitration_evidence,self.files,model_binding=self.llm.arbitration_binding,
+            clock=lambda:self.arbitration_evidence.clock(),market=self.market,
+            notify_in=self.messaging.delivery.ruling_in,notify=self.messaging.delivery.notify)
+        self.messaging.delivery.arbitrations=self.arbitration_cases
+        self.messaging.delivery.protocol.arbitrations=self.arbitration_cases
+        self.payment_operations.arbitrations=self.arbitration_cases
+        self.market_operations.arbitrations=self.arbitration_cases
+        self.market.request_outcomes=self.arbitration_cases.request_outcomes
         self.contract_views.rebuild()
         from .observation.activity import ActivityViews
         self.activity_views=ActivityViews(self.contract_views)
@@ -186,25 +216,94 @@ class Platform:
         row = self.db.one("SELECT meta FROM agents WHERE id=?", agent_id)
         return jload(row["meta"]).get("url", "") if row else ""
 
-    def _payee_key(self, provider_id):
-        row = self._agent_of_provider(provider_id) or fail(CARD_INVALID, "unknown payee")
-        return jload(row["meta"])["ap2_jwk"]
+    async def _owned(self, create):
+        if self._closing or self._closed:
+            from .errors import LabError
+            raise LabError('closed', 'Core is stopping; recover the original operation after restart',
+                           status=503, recovery='retry_original')
+        task = asyncio.create_task(create())
+        self._workers.add(task)
+        def finished(original):
+            self._workers.discard(original)
+            if not original.cancelled():
+                original.exception()  # Retain failures without an unobserved-task warning.
+        task.add_done_callback(finished)
+        # The observer can disappear; the actual request/thread remains owned.
+        return await asyncio.shield(task)
+
+    async def _worker(self, function, *args, **kwargs):
+        return await self._owned(lambda: asyncio.to_thread(function, *args, **kwargs))
+
+    async def _serve_owned(self, app, scope, receive, send):
+        # A2C's executor and task-store effects must finish before DB/OS unlock.
+        return await self._owned(lambda: app(scope, receive, send))
 
     async def startup(self):
-        self.bus.new_run()
-        await asyncio.to_thread(self.discovery.startup)
-        if self.s.autoseed:
-            await asyncio.to_thread(self.ensure_seeded)
-        self.started = True
-        self.background.append(asyncio.create_task(self._sync_loop()))
+        if self._closing or self._closed:
+            raise RuntimeError('Core is stopping or closed')
+        if self.started:
+            return
+        try:
+            self.bus.new_run()
+            await self._worker(self.discovery.startup)
+            if self.s.autoseed:
+                await self._worker(self.ensure_seeded)
+            if self._closing:
+                raise RuntimeError('Core stopped during startup')
+            await self._worker(self.arbitration_cases.recover)
+            self.started = True
+            self.background.append(asyncio.create_task(self._sync_loop()))
+            self.background.append(asyncio.create_task(self._arbitration_loop()))
+        except BaseException:
+            await self.shutdown()
+            raise
 
     async def shutdown(self):
+        if self._closed:
+            return
+        if self._shutdown_task is None:
+            self._closing = True
+            self._shutdown_task = asyncio.create_task(self._shutdown())
+        # A canceled observer cannot release data while the actual writers run.
+        await asyncio.shield(self._shutdown_task)
+
+    async def _shutdown(self):
         for task in self.background:
             task.cancel()
         await asyncio.gather(*self.background, return_exceptions=True)
-        for transport in self.transports:
-            await asyncio.to_thread(transport.close)
-        self.db.close()
+        if self._workers:
+            await asyncio.gather(*tuple(self._workers), return_exceptions=True)
+        await asyncio.to_thread(self._close_resources)
+
+    def close(self):
+        """Close an unstarted/fully drained Core, including failed construction."""
+        if self._closed:
+            return
+        if self._workers or any(not task.done() for task in self.background):
+            raise RuntimeError('Core still has actual workers; await shutdown()')
+        if self._shutdown_task is not None and not self._shutdown_task.done():
+            raise RuntimeError('Core shutdown is still running')
+        self._closing = True
+        self._close_resources()
+
+    def _close_resources(self):
+        if self._closed:
+            return
+        discovery = getattr(self, 'discovery', None)
+        if discovery is not None:
+            discovery.close()
+        for transport in tuple(self.transports):
+            transport.close()
+            self.transports.remove(transport)
+        bus = getattr(self, 'bus', None)
+        if bus is not None:
+            bus.close()
+        database = getattr(self, 'db', None)
+        if database is not None:
+            database.close()
+        self._owner.close()
+        self.started = False
+        self._closed = True
 
     def ensure_seeded(self, *, force=False):
         from .seed import seed_all
@@ -217,6 +316,14 @@ class Platform:
             for name in ("orders", "events", "observations", "transfers", "paid", "rulings"):
                 conn.execute(f"DELETE FROM {name}")
             conn.execute("DELETE FROM kv WHERE party='market' AND tbl NOT IN ('templates','snapshots')")
+
+    async def _arbitration_loop(self):
+        while True:
+            await asyncio.sleep(.25)
+            try:
+                await self._worker(self.arbitration_cases.process_one)
+            except Exception:
+                log.exception("Original case worker stopped this attempt; recorded results remain recoverable")
 
     async def _sync_loop(self):
         while True:
@@ -232,10 +339,6 @@ class Platform:
                 self.db.run("UPDATE orders SET state=?,phase=?,updated=? WHERE card_digest=?", entry["outcome"], entry["outcome"], now(), row["card_digest"])
                 self.bus.emit("platform", "order." + entry["outcome"], sender=self.market_id,
                               card_digest=row["card_digest"], outcome=entry["outcome"], detail={"trust": "verified"})
-
-    def _payee_of(self, provider_id: str) -> str | None:
-        row = self._agent_of_provider(provider_id)
-        return row["owner_id"] if row else None
 
 
     def _transport(self, party: str) -> TracingTransport:

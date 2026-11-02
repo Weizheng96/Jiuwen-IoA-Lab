@@ -18,6 +18,7 @@ class ProtocolRelay:
     def __init__(self,db,identities,admissions,scopes,files,*,clock,contracts=None,record=None):
         self.db,self.identities,self.admissions,self.scopes,self.files,self.clock=db,identities,admissions,scopes,files,clock
         self.contracts,self.record=contracts,record
+        self.arbitrations=None
         with db.lock:db.conn.executescript(SCHEMA)
         self._migrate_calls()
 
@@ -44,15 +45,57 @@ class ProtocolRelay:
             conn.execute('ALTER TABLE delegation_protocol_calls_upgraded RENAME TO delegation_protocol_calls')
             for definition in definitions:conn.execute(definition)
 
+    def evidence_in(self,conn,admission,read_messages):
+        """Own call bindings plus all immutable delivery progress, not last step."""
+        values=[]
+        for row in conn.execute('SELECT * FROM delegation_protocol_calls WHERE admission=? ORDER BY message',(admission,)):
+            item=read_messages(conn,row['message']);request=item['request']
+            if (request['body']['admissionId'],request['body']['op'],request['interactionId'])!=(admission,row['op'],row['interaction']):
+                raise LabError('history_gap','Original protocol binding differs from retained messages',status=409,recovery='restore_state')
+            if row['last_result'] and row['last_result'] not in {r['messageId'] for r in item['results']}:
+                raise LabError('history_gap','Original protocol result has left retained history',status=409,recovery='restore_state')
+            values.append({**item,'state':row['state']})
+        return values
+
+    def bind_in(self,conn,owner,actor,payload):
+        if not self.contracts:raise LabError('not_ready','Established contract authority is unavailable',status=409)
+        if self.arbitrations:self.arbitrations.guard_in(conn,payload['admissionId'],'contract.bind',{})
+        result=self.contracts.bind_in(conn,owner,actor,payload)
+        if self.record:self.record(conn,payload['admissionId'],result['card'])
+        return result
+
+    def proposal_finished_in(self,conn,admission,read_messages):
+        """Only a fully answered original proposal with no later protocol work."""
+        try:
+            source=self.admissions.evidence_in(conn,admission)
+            history=self.evidence_in(conn,admission,read_messages)
+            requests=[item for item in history if item['request']['body']['op']=='request.submit']
+            return (len(requests)==1 and requests[0]['request']['messageId']==source['requestMessageId']
+                    and bool(requests[0]['startedAt']) and bool(requests[0]['results'])
+                    and all(item['state']=='completed' and item['request']['body']['op'] in ('request.submit','ap2.checkout') for item in history))
+        except (LabError,KeyError,TypeError,ValueError):return False
+
+    def context_in(self,conn,value):
+        payload=value['body'];op=payload['op']
+        if op in ('request.submit','card.countersign') or op=='ap2.checkout' and payload['body'].get('purpose')=='proposal-fee':return {}
+        if not self.contracts:raise LabError('not_ready','Established contract authority is unavailable',status=409)
+        row=self.admissions.admission(conn,payload['admissionId'])
+        card=json.loads(self.contracts.facts(conn,row['id'])['card'])
+        voucher=self.contracts.payments.deposit_voucher_in(conn,self.contracts.original(conn,row)['template'],card)
+        return {'contractCard':card,**({'depositVoucher':voucher} if voucher is not None else {})}
+
     def check_request_in(self,conn,value):
         payload=value['body']
         if set(payload)-{'op','body','files','admissionId','taskId'} or not {'op','body','files','admissionId'}.issubset(payload) or not isinstance(payload['op'],str) or not isinstance(payload['body'],dict):
             raise LabError('invalid_input','Use an original A2C body, method, files and admission context')
+        if self.arbitrations:self.arbitrations.guard_in(conn,payload['admissionId'],payload['op'],payload['body'])
         initial=payload['op'] in ('request.submit','card.countersign') or payload['op']=='ap2.checkout' and payload['body'].get('purpose')=='proposal-fee'
         if initial:row,original=self.admissions.initial_protocol_in(conn,value['sender'],payload['admissionId'],payload['op'],payload['body'])
         elif self.contracts:row,original=self.contracts.check_in(conn,value)
         else:raise LabError('not_ready','Established contract authority is unavailable',status=409)
-        if (row['service'],row['interaction'])!=(value['recipient'],value.get('interactionId')):
+        reverse=not initial and value['sender']==row['service'] and value['recipient']==row['client']
+        receiver=row['client'] if reverse else row['service']
+        if (receiver,row['interaction'])!=(value['recipient'],value.get('interactionId')):
             raise LabError('forbidden','Protocol envelope changed its original receiver or interaction',status=403)
         self._files(conn,value,original)
         return row
@@ -134,8 +177,17 @@ class ProtocolRelay:
         if call['op']=='card.countersign' and 'card' in reply['body']:
             request=json.loads(original['envelope'])['body']['body']['card']
             self.admissions.countersign_result_in(conn,call['admission'],reply['body']['card'],request['signatures']['1'])
-        if self.contracts and call['op'] in ('work.start','step.authorize'):
-            self.contracts.result_in(conn,self.admissions.admission(conn,call['admission']),reply)
+        if self.contracts:
+            row=self.admissions.admission(conn,call['admission'])
+            if call['op'] in ('work.start','step.authorize'):
+                self.contracts.result_in(conn,row,reply)
+                for artifact in (reply.get('task') or {}).get('artifacts',[]):
+                    if isinstance(artifact,dict) and isinstance(artifact.get('card'),dict):self.contracts.advance_in(conn,row,artifact['card'])
+                if reply['body'].get('receipt'):
+                    from .contracts import current_card
+                    card=current_card(self.contracts.facts(conn,row['id']))
+                    card['fulfillment']['receipt']=reply['body']['receipt'];self.contracts.advance_in(conn,row,card)
+            elif call['op']=='termination.quote':self.contracts.quote_result_in(conn,row,reply)
         if self.record and isinstance(reply['body'].get('card'),dict):self.record(conn,call['admission'],reply['body']['card'])
         self.files.grant_in(conn,value['sender'],value['recipient'],payload['files'])
         self.files.grant_in(conn,value['sender'],value['recipient'],payload.get('taskFiles',{}))

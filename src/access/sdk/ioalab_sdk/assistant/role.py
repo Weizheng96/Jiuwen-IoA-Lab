@@ -20,7 +20,10 @@ from .rules import Rules
 from .delegation import DelegationTasks
 from .trading import Trading
 from .contracts import Contracts
+from .candidates import Comparisons
+from ..adapters.market import reputation_evidence
 from .fulfillment import Fulfillment
+from .termination import Termination
 
 
 def stable(*values):return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(list(values))))
@@ -44,18 +47,23 @@ class AssistantRole:
         self.rules=Rules(runtime,self.identity,self.tools)
         self.delegation=DelegationTasks(runtime,self.identity)
         self.trading=Trading(self)
+        self.comparisons=Comparisons(self.trading)
         self.contracts=Contracts(self.trading)
         self.fulfillment=Fulfillment(self)
+        self.termination=Termination(self.fulfillment)
         names=('tools.list','rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
                'messaging.interfaces','messaging.send','messaging.status','messaging.close',
-               'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search','delegation.confirm')
-        names=(*names,*('delegation.'+name for name in ('start','answer_step','fetch','verify','accept','pay')))
+               'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search','delegation.confirm','delegation.compare')
+        names=(*names,*('delegation.'+name for name in ('start','answer_step','fetch','verify','accept','pay','termination_quote','terminate')))
         return {'operations':{'assistant.'+name:self._operation(name) for name in names},
                 'jobs':{'assistant.message':JobHandler(self._process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available'))),
                         'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False),
+                        'assistant.compare':JobHandler(self.comparisons.run,'assistant-compare-v1',False),
                         'assistant.contract':JobHandler(self.contracts.run,'assistant-contract-v1',False),
                         'assistant.fulfillment':JobHandler(self.fulfillment.run,'assistant-fulfillment-v1',False),
                         'assistant.verification':JobHandler(self.fulfillment.run,'assistant-verification-v1',True),
+                        'assistant.termination':JobHandler(self.termination.run,'assistant-termination-v1',False),
+                        'assistant.refund':JobHandler(self.termination.receive,'assistant-refund-v1',False,control=True),
                         'assistant.receipt':JobHandler(self.fulfillment.reconcile_receipt,'assistant-receipt-v1',False,control=True)},
                 'profiles':[self.identity.profile] if self.host else []}
 
@@ -79,15 +87,18 @@ class AssistantRole:
         return execute
 
     def _call(self,name,operation,args):
+        if name in ('delegation.termination_quote','delegation.terminate'):return self.termination.call(name.split('.')[1],operation,args)
         if name=='tools.list':
             self.fields(args)
             return {'status':'completed','data':{'tools':[tool.policy() for tool in self.tools.values()]}}
         if name in ('delegation.start','delegation.answer_step','delegation.fetch','delegation.verify','delegation.accept','delegation.pay'):return self.fulfillment.call(name.split('.')[1],operation,args)
+        if name=='delegation.compare':return self.comparisons.start(operation,args)
         if name=='delegation.request':return self.trading.request(operation,args)
         elif name=='delegation.confirm':return self.contracts.confirm(operation,args)
         elif name=='delegation.inspect':
             self.fields(args,('service',),('templateDigest',))
-            return {'status':'completed','data':{'service':args['service'],'templates':self.trading.inspect(args['service'],args.get('templateDigest'))}}
+            return {'status':'completed','data':{'service':args['service'],'templates':self.trading.inspect(args['service'],args.get('templateDigest')),
+                'reputation':reputation_evidence(self.runtime.account,self.trading.public,self.trading.protocol_id(args['service']))}}
         elif name=='delegation.search':
             self.fields(args,('taskRef','query'),('topK',))
             self.delegation.task(args['taskRef'])
@@ -292,7 +303,7 @@ class AssistantRole:
             self._wake.clear()
             try:
                 if self.runtime.connection.connected and self.trading:
-                    self.trading.recover();self.contracts.recover();self.fulfillment.recover()
+                    self.trading.recover();self.contracts.recover();self.fulfillment.recover();self.termination.recover();self.termination.scan()
                 if self.runtime.connection.connected and self.host and self.host.capabilities().get('available'):
                     self._schedule_received()
             except (RuntimeFault,httpx.HTTPError):pass

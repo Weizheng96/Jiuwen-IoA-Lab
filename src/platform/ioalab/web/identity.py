@@ -8,10 +8,10 @@ from a2c.common import Endpoint,Reply
 from ..errors import LabError
 
 
-def public_service_app(enrollments,publications):
+def public_identity_app(enrollments,publications):
     async def keys(request):
         try:
-            return JSONResponse(enrollments.service_keys(request.path_params['agentId']))
+            return JSONResponse(enrollments.public_keys(request.path_params['agentId']))
         except LabError as exc:
             return JSONResponse({'error':exc.public()},status_code=exc.status)
 
@@ -50,7 +50,7 @@ def public_service_app(enrollments,publications):
                 declaration=publications.public(actor)['declaration']
                 if actor not in self.apps:
                     self.apps[actor]=build_app(Templates(actor),name=declaration['name'],base_url=declaration['protocolId'],
-                                              role='provider',jwks=enrollments.service_keys(actor))
+                                              role='provider',jwks=enrollments.public_keys(actor))
                 app=self.apps[actor]
                 await app(scope,receive,send)
             except LabError as exc:

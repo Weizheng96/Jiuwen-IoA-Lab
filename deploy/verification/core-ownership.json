@@ -1,0 +1,210 @@
+{
+  "format": "ioalab.core-ownership-verification/1",
+  "status": "passed",
+  "scope": "Core role data ownership and real worker/request convergence, including installed distribution",
+  "gitHead": "5f8a5dcdaaf7913feab11013b4149dbc645f5c2e",
+  "verifiedUncommittedWorktree": true,
+  "sourceSnapshot": {
+    "declaredInputs": 1012,
+    "unchangedDuringGates": true,
+    "localArchiveSha256": "12e47acdc60f08cc62e3697c4140db491c5836731c5c482893a3e4890df0757f",
+    "platformSourceSha256": {
+      "src/platform/ioalab/__init__.py": "0d7c4fad6697bc539dfe585fd62874c7dde9c0b75c0b30451ceea6e077bada53",
+      "src/platform/ioalab/__main__.py": "6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279",
+      "src/platform/ioalab/bootstrap.py": "d2526ec880dbd5cfbd795ef55fe661916b4992ecd8dfb7a2c4ed952ad870e2bf",
+      "src/platform/ioalab/cli.py": "1f1d237d8fd8554b86ed6dc6209c324c18d44156ded94437181ee476211aec88",
+      "src/platform/ioalab/config.py": "cd30f7620a2041203824f30bf9185413ef5ba43da164375f54c8f5b7277bf15c",
+      "src/platform/ioalab/delegation/__init__.py": "37b259fafaccb9555b8097e165ff4a2f2879d62afdbc6b6ffaf521e50ecb818d",
+      "src/platform/ioalab/delegation/admission.py": "9d0d0b1af66700756cc3c773cfa6c35fc857735f158faf7f786029fc318ee8f6",
+      "src/platform/ioalab/delegation/arbitration_evidence.py": "f22977764d990d38403723674435de953e804f7a052b661f9f9037085b76be00",
+      "src/platform/ioalab/delegation/contracts.py": "a87e464f67a8b51a2af5fa00b91cc9a5cdac219f203e979a6c91789261e3c817",
+      "src/platform/ioalab/delegation/market.py": "0fbf15d92593ee0c671420a73578438a039368cbba6e266587ca40d3ea4c6e62",
+      "src/platform/ioalab/delegation/relay.py": "f0199572c6865619ef825b02d2c0f86605e74dd04a19726c3fce81b1ac15010d",
+      "src/platform/ioalab/errors.py": "78015934e55aa05bd7cf5dcdbf365a8cf5fac8b6c97629516ab2f369cb24b297",
+      "src/platform/ioalab/events.py": "2ecfb9a5b1efb45bc2a2d4523680b0673a2dce12fc497d94d3fc821c2c46b8bf",
+      "src/platform/ioalab/files.py": "081a1b4092b33343d69ccbb8bc11f9233e309dd9f9272f1fa32be36beedf52a4",
+      "src/platform/ioalab/identity/__init__.py": "2dd1adabdc4d9b682d0b0b3535152f4aea313699fb466dc8ef6850f780d20169",
+      "src/platform/ioalab/identity/auth.py": "d83ff8da8bdf9f3f49b53bc85517c3ae08fb1db9a7f8521ba03b13b12ad5a4c6",
+      "src/platform/ioalab/identity/enrollment.py": "4d8d502c7fe89499bd452eb03331d5c3f4a8a2b5248b7f4924329017a345a9ea",
+      "src/platform/ioalab/identity/keys.py": "89475c9c39c54e1d2f5de848172b3ef4239502582cf4463649dcfd9993cf23e1",
+      "src/platform/ioalab/identity/sessions.py": "e4721d9595003a084d81f470aec54ab6a2871e94b9f5c8a79b12fee5479c03cb",
+      "src/platform/ioalab/keys.py": "8d992640d67e014c0b5530b1c78d4112d918e27b96fa9d592f3510571e8e5a8e",
+      "src/platform/ioalab/market/__init__.py": "8d94abf9c0e00c0d7afd7e26d76b01978622aa838cf224736d4194eeb35072f7",
+      "src/platform/ioalab/market/discovery.py": "acca59fcaf0b7343aca2ae085ddbc58e7cb90e6c81d3eebd2e373486e23f5c44",
+      "src/platform/ioalab/market/taxonomy.py": "d31a4113e524b751f42ecc625a986f84c3424f9855bcaf62a6fba206c0f110c9",
+      "src/platform/ioalab/messaging/__init__.py": "c699718a770f4fd6b2451740daca0d02f8267e721a9a440059fe918e797f0ce3",
+      "src/platform/ioalab/messaging/delivery.py": "cbc1ad56f8e4c294ae379261103d14c9b995ee3c5744383a1fb5a37d127b45ec",
+      "src/platform/ioalab/messaging/interfaces.py": "e1f2f28ac1f29d0d0069a0ea8dfc15c4f1503674b70e46b625d7e3f9ca9c4ef7",
+      "src/platform/ioalab/observation/__init__.py": "17453e909f560155cd6644f82f69f4342653e2fd94b812b998cd51923b58c13b",
+      "src/platform/ioalab/observation/activity.py": "1a399f71318ae2db7c8f1ab385e397087e0c83bf9acd195e01a55c8e75f55677",
+      "src/platform/ioalab/observation/contracts.py": "12d38531f341d27c655ca010e2dc972a6462b1144f84d014278b046ca2ef3dde",
+      "src/platform/ioalab/observation/events.py": "cb1107399ca8ce333a64e246f60142fbbef362c60b9c2d89fc3d14f8653592d8",
+      "src/platform/ioalab/observation/messages.py": "8bd3cff13879e90da3091ddf0a25113a93a6c01d68f030a237c70d2b7b308819",
+      "src/platform/ioalab/observation/services.py": "25ae27a1845e9e016ac7d75a8f0596ea1012b0f981e3fcd349f5f7cc903e78c9",
+      "src/platform/ioalab/operations.py": "0b9ec39632c4dbf9e2b3158c0b90f4ee6aa659d6822698d05aee4dfe60123416",
+      "src/platform/ioalab/participants.py": "825ce008afa58fb53db67c240821836eaa297663002fb7b8af83436f45e2d614",
+      "src/platform/ioalab/payments/__init__.py": "788c4cf1f3336ad3846ba93c942bbe587c62b574a7af380823d04e685f763b80",
+      "src/platform/ioalab/payments/ap2.py": "33f1f314001b125d5a49f9a314a67b4c8c5a3dc7b8e57b1df565df4485c31e7c",
+      "src/platform/ioalab/payments/ledger.py": "cf2cdb08dfe067b0e0c507767392bd274b75d1f80251f84261c3c8bdad2e171e",
+      "src/platform/ioalab/payments/scopes.py": "99c7bcd7d8a490832a7d99a37db8edd1c9966fae05332b8c45c7d2f9551908c2",
+      "src/platform/ioalab/platform.py": "9923e5133ef4583557829f9c4c03931fb5338292580bccacb31dcba1d53fb4a2",
+      "src/platform/ioalab/registry/__init__.py": "bc11019065c05c0e6cb3e1e1dc702c257f2d7111db6f650118b8aff57b432f83",
+      "src/platform/ioalab/registry/authorizations.py": "f679edbb3b2e064507cc6c196d88a6963554bef8b46a5f13ddcb3887284408ad",
+      "src/platform/ioalab/registry/categories.py": "58a5b9ea2b371eeb2335bf654486335ec23109225d56d844bfc6b6a540c3186f",
+      "src/platform/ioalab/registry/publication.py": "6acf204f20f198b755eacacd36743350bf118935ae79edbcdca46f3457f90b77",
+      "src/platform/ioalab/runtime/__init__.py": "f11122a0c21d71aee091790efaa7c7e79c0dc9611f1c4d7543eecf5fbe7e986a",
+      "src/platform/ioalab/runtime/llm.py": "bf5f82e7c09068250dc94778dbb5e50b6d29433361ad0140459ef705c1af40e7",
+      "src/platform/ioalab/runtime/packages.py": "47551781c8dd8bb6e2e0ff2fec99c885f226ea2d892a21c8cc3250a2c4fe9518",
+      "src/platform/ioalab/seed/__init__.py": "f0dbe3ac8ab2f1c3d82961a3692387da76097c4f9f1c0e3d87e20ed664ceee8e",
+      "src/platform/ioalab/seed/accounts.py": "a3ffd1a632bacfb7937f032a5f780a50c220a21423d00786c0afb3c31c5fed30",
+      "src/platform/ioalab/seed/domains.py": "fea5264cb03be2cfdde260b6b594aebe9bc29ebac4910daedcc6fcf937dd7cab",
+      "src/platform/ioalab/store.py": "f1973f9e91a9c9f4555f6ffb629e9ddbee2a263d0d70f5143bd9bd0965c821b1",
+      "src/platform/ioalab/web/__init__.py": "22a298cfb9fc0f5be71a7fa366d8a1863bf968a5555d04f413f535220c7b9b51",
+      "src/platform/ioalab/web/agents.py": "1705b013ffd3e62babcb69d9d12bd9fdaea98699185c00857701fc1d326f6c72",
+      "src/platform/ioalab/web/api_v1.py": "bd23ea92422e5356cb4c805418f744be17c0cd654046bd602dbaefe29d9774ee",
+      "src/platform/ioalab/web/app.py": "58fe26dfa93a22f10fe198d021970117f7c01092a1a0440c65b8414a45585b94",
+      "src/platform/ioalab/web/identity.py": "21edc57b490587cffe53aad78fca8def9d314e8e551096d122ca46d452d2f751",
+      "src/platform/ioalab/web/workbench.py": "dc49ecaddc31378186eaeb673cd73912ef80af29a816f31370e09e2e53a63132"
+    }
+  },
+  "commands": [
+    {
+      "command": "python -m pytest -q --tb=short -p no:cacheprovider tests/test_core_request_lifecycle.py tests/test_core_ownership.py tests/test_payment_atomicity.py tests/test_deployment.py tests/test_bind_address.py -x",
+      "passed": 42,
+      "elapsedSeconds": 24.72,
+      "warnings": 1
+    },
+    {
+      "command": "python 设计/check.py"
+    },
+    {
+      "command": "python tools/check_docs.py"
+    },
+    {
+      "command": "python -m pytest -q --tb=short tests",
+      "results": {
+        "passed": 913,
+        "skipped": 39
+      }
+    },
+    {
+      "command": "python tools/selfcheck.py"
+    }
+  ],
+  "gates": [
+    {
+      "gate": "design",
+      "exitCode": 0,
+      "elapsedSeconds": 0.12
+    },
+    {
+      "gate": "documentation",
+      "exitCode": 0,
+      "elapsedSeconds": 0.25
+    },
+    {
+      "gate": "tests",
+      "exitCode": 0,
+      "elapsedSeconds": 2150.41
+    },
+    {
+      "gate": "selfcheck",
+      "exitCode": 0,
+      "elapsedSeconds": 33.22
+    }
+  ],
+  "builds": [
+    {
+      "target": "windows-x86_64",
+      "releaseId": "77a209b5def3665fc3c4f6260b27594d76185529388abda541a1fa3e2e49b3e8",
+      "platformModules": 56,
+      "sdkModules": 65
+    },
+    {
+      "target": "linux-x86_64",
+      "releaseId": "98e29f22fbee38728dfa7a4ccb028372badeec65f6f0b78a4f16f2554b54d4f4",
+      "platformModules": 56,
+      "sdkModules": 65
+    }
+  ],
+  "installedCoreExperiment": {
+    "status": "passed",
+    "coreInstalled": true,
+    "coreSourceExact": true,
+    "participantInstalled": true,
+    "installation": {
+      "status": "completed",
+      "unit": "core",
+      "releaseId": "77a209b5def3665fc3c4f6260b27594d76185529388abda541a1fa3e2e49b3e8",
+      "environmentId": "9bed21476eadc25a8f755795a5de64a9df6645f3012e53b47f219db27b952ad4",
+      "environment": "D:\\project\\AgentContractProtocol\\temp\\codex-termination\\lab-v101-installed-core\\environments\\core-9bed21476eadc25a\\a-b6be604abed04204",
+      "python": "D:\\project\\AgentContractProtocol\\temp\\codex-termination\\lab-v101-installed-core\\environments\\core-9bed21476eadc25a\\a-b6be604abed04204\\Scripts\\python.exe",
+      "reused": false
+    },
+    "callsModel": false,
+    "sendsMail": false,
+    "nativeSwarm": false,
+    "defaultLinuxDeployment": false,
+    "actualDataOwnerBusy": true,
+    "participant": {
+      "status": "passed",
+      "installedSdk": true,
+      "actualHttpAndWebSocket": true,
+      "authenticatedLocalRpc": true,
+      "installedCorePreview": true,
+      "formedOriginalContract": true,
+      "publishedServices": 2,
+      "quotes": 3,
+      "states": [
+        "offered",
+        "unsigned",
+        "offered"
+      ],
+      "sameOperationReplayed": true,
+      "deduplicatedVerifierPackages": 1,
+      "signedReputationsVerified": true,
+      "comparisonChangedFunds": false,
+      "comparisonCalledHost": false,
+      "ownerActions": "isolated-test-double",
+      "host": "explicit-test-double",
+      "callsModel": false,
+      "usesNativeSwarm": false,
+      "sendsMail": false
+    },
+    "ownerReleasedAfterExit": true
+  },
+  "verifiedInvariants": [
+    "The complete Platform role holds a real OS lock before private configuration, DB initialization or component assembly",
+    "A normal DB connection remains independent of role ownership and can inspect original persisted payment receipts",
+    "Second same-process or cross-process Core attempts cannot change active private configuration or business files",
+    "Failed construction, migration, startup and web lifespan release resources only after actual work ends",
+    "Canceled HTTP, WS and A2C callers cannot abandon the original real worker or ASGI/task-store lifetime",
+    "Canceled shutdown observation does not release the directory while a search thread is still active",
+    "Current init/serve/backup/reset entry points respect the same real ownership; no PID-file or lock-file deletion shortcut",
+    "Fresh installed Windows Core and SDK publish two services, obtain three quotes and form/query the original contract over real HTTP/WS/IPC",
+    "A second installed interpreter detects active ownership, and observes OS lock release after the actual owned Core process exits"
+  ],
+  "regression": {
+    "beforeFixFailed": 1,
+    "deselected": 3,
+    "elapsedSeconds": 2.35,
+    "initialFullRun": "Canceled after verified public canceled-thread defect; partial logs retained, never reported passed"
+  },
+  "experimentConditions": {
+    "host": "explicit test double",
+    "ownerConfirmation": "isolated driver; no native user action",
+    "callsModel": false,
+    "sendsMail": false,
+    "platform": "Windows; Linux artifact built only",
+    "warning": "Targeted run reported historical pytest temporary-directory cleanup permission denial; directory left intact"
+  },
+  "notProven": [
+    "Default Linux/systemd installation, upgrade and runtime ownership",
+    "Native user Swarm full setup, owner confirmation and business flow",
+    "Arbitration case/evaluation/final-ruling and both SDKs closure",
+    "Complete old implementation migration",
+    "Four new demonstration videos",
+    "Remote publication"
+  ],
+  "reviewHold": "Existing Lab publication rejection remains; no commit, tag or push performed"
+}

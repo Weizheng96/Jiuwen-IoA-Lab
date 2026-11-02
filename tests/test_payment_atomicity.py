@@ -71,8 +71,8 @@ def test_concurrent_replay_restart_and_original_receipt(platform,payment):
     assert records[0]['payment_id']==receipt['payment_id']
     reopened = DB(platform.db.path)
     try:
-        restored = SimPaymentProvider(psp.signer,keys=psp.keys,ap2_key=psp.ap2_key,payee_keys=psp.payee_keys,
-                                      wallets=Wallets(reopened),payee_of=psp.payee_of,client_matches=psp.client_matches,db=reopened)
+        restored = SimPaymentProvider(psp.signer,keys=psp.keys,ap2_key=psp.ap2_key,parties=psp.parties,
+                                      wallets=Wallets(reopened),client_matches=psp.client_matches,db=reopened)
         assert restored.op_ap2_pay(body,{},None).body==replies[0]
     finally:
         reopened.close()
@@ -106,8 +106,9 @@ def test_expired_and_mismatched_signed_checkout_are_rejected(platform,payment):
     bad = {**body,'checkoutMandate':checkout_mandate(wrong,c.payer,int(time.time())),
            'paymentMandate':payment_mandate(wrong,c.payer,payee=checkout['merchant'],amount=checkout['a2c']['amount'],
                          currency=checkout['currency'],instrument={'id':'ioalab-'+c.account['id'],'type':'wallet'},now=int(time.time()))}
-    with pytest.raises(A2CError,match='actual protocol object'):
+    with pytest.raises(A2CError) as wrong_object:
         platform.psp.op_ap2_pay(bad,{},None)
+    assert wrong_object.value.code=='card-invalid'
     assert platform.db.one('SELECT 1 FROM paid WHERE ref=?',cd) is None
 
 
@@ -198,7 +199,9 @@ def test_identity_changes_between_prepare_and_commit_are_fenced(platform,payment
     prepared = psp.prepare(body)
     before = platform.wallets.balance(c.account['id'])
     with monkeypatch.context() as patch:
-        patch.setattr(psp,'payee_of',lambda provider:'another-owner')
+        original_parties=psp.parties
+        patch.setattr(psp,'parties',lambda party:{**original_parties(party),'owner':'another-owner'}
+                      if party==prepared.payee_party else original_parties(party))
         with pytest.raises(A2CError,match='binding changed'):
             with platform.db.tx() as conn:
                 psp.commit(conn,prepared)

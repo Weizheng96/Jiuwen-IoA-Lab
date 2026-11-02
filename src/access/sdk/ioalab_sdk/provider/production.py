@@ -91,7 +91,8 @@ class Production:
 
     def run(self,job):
         identity=self.execution.role.identities[job['payload']['profile']];relation=self.runtime.store.interaction(interaction_id=job['interaction'])
-        endpoint=self.execution.context(identity,relation,job);provider=endpoint.provider;cd=job['payload']['cardDigest'];card=provider.card(cd)
+        endpoint=self.execution.context(identity,relation,job,for_execution=True);provider=endpoint.provider;cd=job['payload']['cardDigest'];card=provider.card(cd)
+        if provider.store.get('cards',cd).get('state')!='started':return JobOutcome('rejected',{'cardDigest':cd,'reason':'contract_not_started'},relation['session'])
         template=provider.template(card['templateDigest']);definition=provider.policy.definition(template);workspace=self.workspace(identity,relation)
         definition_hash=definition_digest(definition)
         if relation['details'].get('definitionDigest')!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original production agent definition')
@@ -112,6 +113,7 @@ class Production:
                     if 'result' in old:return old['result']
                     raise RuntimeFault('unknown_result','Reconcile the original production effect without repeating it')
                 current=provider.store.get('cards',cd)
+                if current.get('state')!='started':return {'status':'rejected','error':{'code':'closed','message':'本合同已停止履约，不再发起新的生产动作'}}
                 if any(item['answer'] is None or not item['answer'].get('granted') for item in current.get('steps',[])):
                     return {'status':'rejected','error':{'code':'forbidden','message':'用户尚未同意当前受保护环节'}}
                 tool=business.get(name)
@@ -156,5 +158,8 @@ class Production:
         self.execution.active.add(job['id'])
         try:result=self.execution.host.run(HostTurn(job['id'],identity.agent_id,relation['id'],definition,prompt,str(workspace),300,relation['session'],session,lambda value:native_answer(self.runtime,identity.agent_id,job['id'],value,self.execution.stop),invoke,allow_native_tools=True))
         finally:self.execution.active.discard(job['id'])
+        if provider.store.get('cards',cd).get('state')=='terminated' and result.status in ('completed','failed'):
+            incomplete=any(item.get('cardDigest')==cd and 'result' not in item for item in endpoint.store.all('production_calls').values())
+            if not incomplete:return JobOutcome('rejected',{'cardDigest':cd,'reason':'contract_terminated','hostStatus':result.status},relation['session'])
         if result.status!='completed' or state['outcome'] is None:raise RuntimeFault('unknown_result','Inspect original production; do not rerun unknown business')
         return JobOutcome(state['outcome'],{'cardDigest':cd,'period':job['payload']['period']},relation['session'])

@@ -39,10 +39,11 @@ class Trading:
     def client(self,store,transport=None):
         transport=transport or self.public
         pay=self.runtime.account.config['pay']
-        payment=AP2Payment(transport,psp=pay,payer=self.identity.payment,instrument={'id':'ioalab-virtual','type':'wallet'},clock=utcnow)
+        keys=Directory(fetch=transport.jwks)
+        payment=AP2Payment(transport,psp=pay,payer=self.identity.payment,instrument={'id':'ioalab-virtual','type':'wallet'},clock=utcnow,keys=keys,store=store)
         def pause(seconds):
             if self.runtime.closing.wait(seconds):raise RuntimeFault('unknown_result','Runtime closed while waiting for the original protocol result','resume_original')
-        return Client(self.identity.signer,keys=Directory(fetch=transport.jwks),transport=transport,fetch=self.runtime.account.fetch_package,
+        return Client(self.identity.signer,keys=keys,transport=transport,fetch=self.runtime.account.fetch_package,ap2_key=self.identity.payment,
             store=store,payment_provider={'id':pay,'jwksUri':pay+'/.well-known/jwks.json'},payment=payment,user=self.identity.user,
             markets=(self.runtime.account.config['market'],),sleep=pause,
             model=model_port(self.runtime,self.role.host,self.identity,transport.relation['id']) if isinstance(transport,SessionTransport) else None)
@@ -131,6 +132,19 @@ class Trading:
                 if store.get(table,name) is None:store.put(table,name,value)
         return self.client(store,transport)
 
+    def rejected_intent(self,record):
+        actor=self.identity.agent_id;operation=stable('quote-intent',record['quoteRef'])
+        response=self.store.response(actor,'message.send',operation)
+        if not response or response.get('ok') is not False:return None
+        error=response.get('error') or {}
+        if not error.get('code') or error['code'] in ('unknown_result','result_unknown'):return None
+        try:
+            self.runtime.account.api('GET','/operations/'+quote(operation,safe='')+'?agentId='+quote(actor,safe='')+'&operation=message.send')
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code==404:return copy.deepcopy(error)
+        except httpx.TransportError:pass
+        return None
+
     def run(self,job):
         ref=job['payload']['quoteRef'];key='quote:'+ref;record=self.store.checkpoint(self.namespace,key)
         if record.get('result') is not None:return JobOutcome('completed',record['result'])
@@ -141,6 +155,8 @@ class Trading:
         template=record['template']
         try:relation,receipt=self.establish(record,stable('quote-intent',ref),'request')
         except RuntimeFault as exc:
+            rejection=self.rejected_intent(record)
+            if rejection:return self.finish(key,record,'rejected',{'quoteRef':ref,'error':rejection})
             if exc.code in ('capacity_full','expired','closed','forbidden','service_paused'):
                 return self.finish(key,record,'rejected',{'quoteRef':ref,'error':{'code':exc.code,'message':str(exc)}})
             raise
@@ -167,6 +183,10 @@ class Trading:
             if job['status']!='unknown':continue
             if record.get('result') is not None:
                 self.runtime.scheduler.resolve(reference,JobOutcome(record['status'],record['result']));continue
+            if record['phase']=='prepared':
+                rejection=self.rejected_intent(record)
+                if rejection:self.runtime.scheduler.resolve(reference,self.finish(key,record,'rejected',{'quoteRef':record['quoteRef'],'error':rejection}))
+                continue
             if record['phase']!='calling':continue
             transport=SessionTransport(self.runtime,self.identity,record['interactionId'],record['admissionId'],self.protocol_id(record['service']),public=self.public)
             delivery=transport.received('request.submit')

@@ -83,14 +83,14 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.cmd == "init":
         _require_ok(s)
-        s.dirs()
-        s.secret()
-        s.write_a2x_key()
         from .platform import Platform
         pf = Platform(s)                       # 建表 · 校验并记下 PUBLIC_URL · 管理员口令
         _print_config(s)
         if args.no_seed:
-            print("[ioalab] init 完成（未注入种子）")
+            try:
+                print("[ioalab] init 完成（未注入种子）")
+            finally:
+                pf.close()
             return
         from .bootstrap import run_with_server
         summary = run_with_server(pf, lambda: pf.ensure_seeded(force=True))
@@ -103,16 +103,18 @@ def main(argv: list[str] | None = None) -> None:
         if args.port:
             s.port = args.port
         _require_ok(s)
-        s.dirs()
-        s.write_a2x_key()
-        _file_log(s)
         import uvicorn
         from .platform import Platform
         from .web.app import create_app
-        app = create_app(Platform(s))
-        _print_config(s)
-        print(f"[ioalab] 用户端 {s.public_url}/  管理员 {s.public_url}/admin")
-        uvicorn.run(app, host=s.bind, port=s.port, workers=1, log_level="warning")
+        pf = Platform(s)
+        try:
+            _file_log(s)
+            app = create_app(pf)
+            _print_config(s)
+            print(f"[ioalab] 用户端 {s.public_url}/  管理员 {s.public_url}/admin")
+            uvicorn.run(app, host=s.bind, port=s.port, workers=1, log_level="warning")
+        finally:
+            pf.close()
         return
 
     if args.cmd == "reset":
@@ -121,23 +123,31 @@ def main(argv: list[str] | None = None) -> None:
             return
         if args.keep_accounts:
             from .platform import Platform
-            Platform(s).reset_transactions()
+            pf = Platform(s)
+            try:
+                pf.reset_transactions()
+            finally:
+                pf.close()
             print(f"[ioalab] 已清交易数据，保留账号 · 钱包 · 服务注册：{s.data}")
             return
-        keep = {s.data / "keys"} if args.keep_keys else set()
-        for p in s.data.iterdir():
-            if p in keep:
-                continue
-            shutil.rmtree(p) if p.is_dir() else p.unlink()
+        from .store import DataOwner
+        with DataOwner(s.data) as owner:
+            keep = {s.data / "keys"} if args.keep_keys else set()
+            for p in s.data.iterdir():
+                if p in keep or p.resolve() == owner.path:
+                    continue
+                shutil.rmtree(p) if p.is_dir() else p.unlink()
         print(f"[ioalab] 已清空 {s.data}" + ("（保留 keys/）" if keep else ""))
         return
 
     if args.cmd == "backup":
         out = Path(args.out) if args.out else s.data.parent / "backups"
-        out.mkdir(parents=True, exist_ok=True)
-        dst = out / f"ioalab-data-{time.strftime('%Y%m%d-%H%M%S')}.tar.gz"
-        with tarfile.open(dst, "w:gz") as tf:
-            tf.add(s.data, arcname="data")
+        from .store import DataOwner
+        with DataOwner(s.data):
+            out.mkdir(parents=True, exist_ok=True)
+            dst = out / f"ioalab-data-{time.strftime('%Y%m%d-%H%M%S')}.tar.gz"
+            with tarfile.open(dst, "w:gz") as tf:
+                tf.add(s.data, arcname="data", filter=lambda item: None if item.name == 'data/.core.lock' else item)
         print(f"[ioalab] 已备份到 {dst}")
         return
 

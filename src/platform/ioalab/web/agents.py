@@ -80,8 +80,8 @@ def build_router(platform,current_user):
         try:
             frame=await asyncio.wait_for(read(),timeout=5)
             if not isinstance(frame,dict) or frame.get('type')!='connection.auth':raise LabError('forbidden','First frame must authenticate',status=401)
-            uid,actors=await asyncio.to_thread(directory.consume,frame.get('ticket'))
-            ready=await asyncio.to_thread(broker.connect,uid,actors,frame.get('runtimeId'),frame.get('cursors',{}),connection)
+            uid,actors=await platform._worker(directory.consume,frame.get('ticket'))
+            ready=await platform._worker(broker.connect,uid,actors,frame.get('runtimeId'),frame.get('cursors',{}),connection)
             generations=ready['generations']
             await send({'type':'connection.ready',**ready})
             event=asyncio.Event()
@@ -94,11 +94,11 @@ def build_router(platform,current_user):
                     if not isinstance(request,dict) or len(json.dumps(request).encode())>131072:
                         raise LabError('invalid_input','Invalid control frame')
                     if request.get('type')=='connection.ping':
-                        await asyncio.to_thread(broker.heartbeat,uid,actors,connection,generations)
+                        await platform._worker(broker.heartbeat,uid,actors,connection,generations)
                         await send({'type':'connection.pong','connectionId':connection})
                         continue
                     try:
-                        result=await asyncio.to_thread(broker.control,uid,connection,generations,request)
+                        result=await platform._worker(broker.control,uid,connection,generations,request)
                         await send({'type':'operation.result','agentId':request.get('agentId'),'operationId':request.get('operationId'),
                                     'operation':request.get('type'),'ok':True,'result':result})
                     except LabError as exc:
@@ -109,10 +109,10 @@ def build_router(platform,current_user):
             async def deliver():
                 while True:
                     event.clear()
-                    await asyncio.to_thread(broker.cleanup)
+                    await platform._worker(broker.cleanup)
                     more=False
                     for actor in actors:
-                        batch=await asyncio.to_thread(broker.deliveries,uid,actor,connection,generations[actor],sent[actor])
+                        batch=await platform._worker(broker.deliveries,uid,actor,connection,generations[actor],sent[actor])
                         for value in batch:
                             await send(value)
                             sent[actor]=value['recipientSeq']
@@ -134,5 +134,9 @@ def build_router(platform,current_user):
         finally:
             for task in tasks:task.cancel()
             if tasks:await asyncio.gather(*tasks,return_exceptions=True)
-            await asyncio.to_thread(broker.disconnect,connection)
+            try:
+                await platform._worker(broker.disconnect,connection)
+            except LabError as exc:
+                if exc.code != 'closed':
+                    raise
     return router

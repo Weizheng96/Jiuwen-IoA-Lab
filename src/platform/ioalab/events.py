@@ -37,6 +37,12 @@ class EventBus:
         self.subscribers: list[tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = []
         self._file = None
 
+    def close(self) -> None:
+        with self.lock:
+            if self._file is not None:
+                self._file.close()
+                self._file = None
+
     def new_run(self, run_id: str | None = None) -> str:
         self.run_id = run_id or time.strftime("%Y%m%d-%H%M%S")
         (self.runs_dir / self.run_id).mkdir(parents=True, exist_ok=True)

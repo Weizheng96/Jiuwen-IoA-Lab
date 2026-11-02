@@ -135,9 +135,11 @@ class EnrollmentRegistry:
                      (fingerprint,json.dumps(result),owner,operation))
         return result
 
-    def service_keys(self,actor):
-        row=self.db.one("SELECT meta FROM agents WHERE id=? AND role='service'",actor)
-        if not row:raise LabError('not_ready','Service identity is unavailable',status=404)
-        key=json.loads(row['meta']).get('providerJwk')
-        if not key:raise LabError('not_ready','Service identity needs explicit migration',status=409)
-        return {'keys':[key]}
+    def public_keys(self,actor):
+        row=self.db.one("SELECT role,meta FROM agents WHERE id=?",actor)
+        if not row or row['role'] not in ('assistant','service'):raise LabError('not_ready','Agent identity is unavailable',status=404)
+        meta=json.loads(row['meta'])
+        names=('clientJwk','payerJwk') if row['role']=='assistant' else ('providerJwk','ap2_jwk')
+        keys=[meta.get(name) for name in names]
+        if any(not isinstance(key,dict) for key in keys):raise LabError('not_ready','Original public identity keys are not bound',status=409)
+        return {'keys':keys}

@@ -58,6 +58,9 @@ class Fulfillment:
         result={**contract['result'],'card':card,'started':record.get('state')=='started','stepRequest':step,'availablePeriods':available,
                 'acceptedPeriods':len(card['signatures']['7']),'vouchers':record.get('vouchers',[]),'depositVoucher':record.get('depositVoucher'),'payment':payment,
                 'closed':any(frame['message'].get('kind')=='interaction.closed' and frame['message'].get('interactionId')==contract['interactionId'] for frame in self.store.messages(self.identity.agent_id))}
+        if card['fulfillment'].get('termination'):
+            result['terminationStatus']=self.role.termination.facts(client,contract)
+            result['stepRequest']=None
         if operation:
             saved=self.record(operation)
             if saved['args']['contractRef']!=reference:raise RuntimeFault('forbidden','Operation belongs to another contract')

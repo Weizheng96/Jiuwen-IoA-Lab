@@ -6,12 +6,12 @@ import threading
 from a2c.card import card_digest,validate_card
 from a2c.codec import digest,utcnow,parse_time,parse_duration
 from a2c.errors import A2CError
-from a2c.common import Directory
 from a2c.jws import sign
 from a2c.slots import verify_card
 from ..runtime.protocol import RuntimeFault
 from ..runtime.scheduling import JobOutcome
 from ..adapters.transport import stable
+from .candidates import checked_candidate
 
 
 class Contracts:
@@ -38,11 +38,8 @@ class Contracts:
         record=self.store.checkpoint(self.namespace,ref)
         if record and record['quoteRef']!=args['quoteRef']:raise RuntimeFault('id_conflict','Recover the original candidate selection')
         if not record:
-            validate_card(quote['template'],card)
-            chain=verify_card(quote['template'],card,Directory(fetch=self.trading.public.jwks))
-            until=parse_time(quote['template']['validUntil']).timestamp()
-            if quote['template']['formation']=='proposal':until=min(until,chain.ts[3].timestamp()+parse_duration(quote['template']['deadlines']['respondWithin']).total_seconds())
-            if until<=time.time():raise RuntimeFault('expired','This candidate can no longer form a new contract')
+            verified=checked_candidate(self.trading,quote)
+            until=verified['until'].timestamp()
             binding={'actor':self.identity.agent_id,'operationId':operation,'subject':{'quoteRef':args['quoteRef'],'cardDigest':ref,'scopeDigest':card['delegationScopeDigest']},
                      'stage':'delegation.contract','action':'card.confirm','preview':{'title':'确认具体委托合同','service':quote['service'],
                         'formation':quote['template']['formation'],'card':card,'materialsForReview':{name:card['inputs'][name] for name in card['inputs']
@@ -123,6 +120,14 @@ class Contracts:
         original=client.store.get('cards',reference)
         if not original:raise RuntimeFault('unknown_result','Restore the original client protocol record')
         client.store.put('cards',reference,{**original,'card':card,**({'state':'formed'} if record['template']['formation']=='countersign' else {})})
+        receipt=self.runtime.connection.call(self.identity.agent_id,'contract.bind',
+            {'admissionId':record['admissionId'],'card':card},operation_id=stable('contract-bind',self.identity.agent_id,reference))
+        if (receipt.get('admissionId'),receipt.get('cardDigest'))!=(record['admissionId'],reference):
+            raise RuntimeFault('protocol_error','Formation receipt differs from the original effective card')
+        bound=receipt.get('card',{})
+        if any(bound.get('signatures',{}).get(key)!=card['signatures'][key] for key in ('1','2','3')):
+            raise RuntimeFault('protocol_error','Formation receipt changed the original signatures')
+        record=self.save(reference,record,bindingReceipt=receipt)
         return self.finish(reference,record,'completed',card=card,formed=True,started=False)
 
     def recover(self):

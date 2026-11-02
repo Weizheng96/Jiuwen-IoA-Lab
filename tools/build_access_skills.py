@@ -54,7 +54,11 @@ def build(output):
             for page in (ROOT/'src/access/skills/_shared/references').glob('*.md'):
                 target=skill/'references'/page.name
                 if target.exists():raise ValueError('Shared reference has more than one source: '+page.name)
-                shutil.copy2(page,target)
+                if page.name=='location.md':
+                    content=page.read_bytes();marker=b'__IOALAB_SKILL_NAME__'
+                    if content.count(marker)!=1:raise ValueError('One skill name is required in the shared location page')
+                    target.write_bytes(content.replace(marker,name.encode('ascii')))
+                else:shutil.copy2(page,target)
             shutil.copytree(shared,skill/'assets')
             (skill/'assets/skill.json').write_text(json.dumps({'role':role}),encoding='utf-8')
             (skill/'scripts').mkdir()

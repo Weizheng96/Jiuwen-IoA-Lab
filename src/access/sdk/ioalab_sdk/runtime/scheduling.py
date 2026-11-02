@@ -142,6 +142,29 @@ class Scheduler:
         return [{**dict(row),'payload':json.loads(row['payload']),
                  'continuation':json.loads(row['continuation']) if row['continuation'] else None} for row in rows]
 
+    def is_executing(self,reference):
+        with self._condition:
+            future=self._active.get(reference)
+            return bool(future is not None and not future.done())
+
+    def stop_pending(self,actor,interaction,handlers,reason):
+        """Stop unstarted role work; report every original writer and live future."""
+        handlers=tuple(handlers)
+        if not handlers or any(name not in self.handlers or self.handlers[name].control for name in handlers):
+            raise ValueError('Only installed business handlers can be stopped')
+        with self._condition,self.store.transaction() as conn:
+            rows=conn.execute('SELECT * FROM runtime_jobs WHERE actor=? AND interaction=? AND handler IN ('+
+                ','.join('?' for _ in handlers)+')',(actor,interaction,*handlers)).fetchall()
+            result=[]
+            for row in rows:
+                future=self._active.get(row['id']);executing=bool(future is not None and not future.done())
+                state=row['state']
+                if not executing and state in ('queued','waiting'):
+                    self._save_outcome(conn,row,JobOutcome('rejected',reason));state='rejected'
+                result.append({'id':row['id'],'state':state,'executing':executing})
+            self._condition.notify_all()
+        return result
+
     def resumption(self,actor,operation,job):
         with self.store.lock:
             row=self.store.db.execute('SELECT job,receipt FROM runtime_job_resumptions WHERE actor=? AND id=?',(actor,operation)).fetchone()

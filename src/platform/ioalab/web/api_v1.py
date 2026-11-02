@@ -48,7 +48,7 @@ def build_router(platform, current_user):
                 from ..errors import LabError
                 raise LabError('invalid_input','A protocol file may contain at most16MiB')
             chunks.append(chunk)
-        return await asyncio.to_thread(platform.files.put,uid,agentId,operationId,name,digest,b''.join(chunks))
+        return await platform._worker(platform.files.put,uid,agentId,operationId,name,digest,b''.join(chunks))
 
     @router.get('/files/{fileId}')
     def file_download(fileId:str,agentId:str,uid=Depends(sdk_user)):
@@ -137,6 +137,25 @@ def build_router(platform, current_user):
         result = platform.order_detail(digest)
         participants.party(platform, uid, result["card"])
         return result
+
+    @router.get('/arbitrations')
+    async def case_by_admission(agentId:str,admissionId:str,uid=Depends(current_user)):
+        return await platform._worker(platform.arbitration_cases.by_admission,uid,agentId,admissionId)
+
+    @router.get('/arbitrations/{caseRef}')
+    async def case_status(caseRef:str,agentId:str,uid=Depends(current_user)):
+        return await platform._worker(platform.arbitration_cases.get,uid,agentId,caseRef)
+
+    @router.get('/arbitrations/{caseRef}/materials/{fileId}')
+    async def case_material(caseRef:str,fileId:str,agentId:str,uid=Depends(current_user)):
+        from urllib.parse import quote
+        descriptor,data=await platform._worker(platform.arbitration_cases.material,caseRef,fileId,owner=uid,actor=agentId)
+        return Response(data,media_type='application/octet-stream',headers={'ETag':'"'+descriptor['digest']+'"',
+            'Cache-Control':'private, no-store','Content-Disposition':"attachment; filename*=UTF-8''"+quote(descriptor['name'],safe='')})
+
+    @router.post('/arbitrations/preview')
+    async def dispute_preview(body:dict,uid=Depends(sdk_user)):
+        return await platform._worker(platform.arbitration_evidence.preview,uid,body)
 
     @router.post("/arbitrations")
     def arbitrate(body: dict, uid=Depends(current_user)):

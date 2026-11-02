@@ -48,7 +48,7 @@ def test_trial_administrator_password_is_generated_not_default(tmp_path):
         assert pf.auth.is_admin(u['id'])
         with pytest.raises(A2CError):pf.auth.login('ISC_001','001')
     finally:
-        for transport in pf.transports:transport.close()
+        pf.close()
 
 
 def test_install_never_changes_host_config_or_owner_instructions(tmp_path):

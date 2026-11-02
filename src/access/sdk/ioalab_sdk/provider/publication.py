@@ -11,6 +11,7 @@ from a2c.template import validate,template_digest
 from a2c.errors import A2CError
 
 from ..runtime.protocol import RuntimeFault
+from ..adapters.market import read_reputation
 from .verifiers import VerifierPublisher,platform_fault
 from .terms import covers
 from ..runtime.scheduling import JobHandler,JobOutcome
@@ -35,7 +36,7 @@ class ProviderRole:
         self.execution=ProviderExecution(self,runtime,self.host)
         registration=self.execution.bind()
         registration['jobs']['provider.preview']=JobHandler(self.run_preview,'provider-preview-v1',False)
-        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'categories','verifier.publish','tools.list','template.draft','pause','resume','tasks.get','task.resume')},**registration}
+        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'reputation', 'categories','verifier.publish','tools.list','template.draft','pause','resume','tasks.get','task.resume')},**registration}
 
     def start(self):
         if self.execution:self.execution.start()
@@ -85,6 +86,11 @@ class ProviderRole:
                 if name=='task.resume':
                     self.fields(args,('profile','taskRef'))
                     return self.execution.tasks.resume(self._identity(args['profile']),args['taskRef'],operation)
+                if name == 'reputation':
+                    self.fields(args,('profile',))
+                    identity=self._identity(args['profile'])
+                    return {'status':'completed','data':{'profile':identity.profile,'reputation':read_reputation(
+                        runtime.account,self.execution.public,identity.protocol_id)}}
                 if name == 'status':
                     self.fields(args, ('profile',))
                     identity = self._identity(args['profile'])

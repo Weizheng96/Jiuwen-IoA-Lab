@@ -22,18 +22,22 @@ def run_with_server(pf, fn: Callable[[], T], timeout: float = 30.0) -> T:
     from .web.app import create_app
     s = pf.s
     if not port_free("127.0.0.1", s.port):
+        pf.close()
         raise SystemExit(f"[ioalab] 端口 {s.port} 已被占用：平台正在运行？请先停服，或用管理员接口完成本操作")
     app = create_app(pf)
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=s.port, log_level="warning"))
     th = threading.Thread(target=server.run, daemon=True)
     th.start()
-    deadline = time.time() + timeout
-    while not pf.started and time.time() < deadline:
-        time.sleep(0.2)
-    if not pf.started:
-        raise SystemExit("[ioalab] 进程内服务未能启动")
     try:
+        deadline = time.time() + timeout
+        while not pf.started and th.is_alive() and time.time() < deadline:
+            time.sleep(0.2)
+        if not pf.started:
+            raise SystemExit("[ioalab] 进程内服务未能启动")
         return fn()
     finally:
         server.should_exit = True
         th.join(timeout=15)
+        if th.is_alive():
+            raise RuntimeError('Core is still stopping; data ownership has not been released')
+        pf.close()

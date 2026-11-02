@@ -14,16 +14,16 @@ prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 ca
 
 | 操作 | 输入 | 结果与调用边界 |
 |---|---|---|
-| `assistant.delegation.prepare` | 用户需求、预算、类别、材料引用及比选策略 | 本地任务、待补信息、可读授权摘要；不付款、不签约 |
+| `assistant.delegation.prepare` | purpose、budget、proposalFeeLimit；可选categoryIds、validDays | 本地任务、待补信息、可读授权摘要；不付款、不签约 |
 | `assistant.delegation.authorize` | 任务引用、可信确认引用 | 本地 scope 及有效授权范围；复核用途、总预算、拟卡费限额与有效期 |
 | `assistant.delegation.intent` | taskRef、目标 service agentId、原未签 request 或 card；可选 ttlSeconds | 保存原消息与操作后提交委托意向，返回 messageRef 和投递回执；不付款、不签约 |
 | `assistant.delegation.intent_status` | 原 messageRef | 恢复原交互 UUID、意向结果及预留引用；不能用其他任务或账号的引用 |
 | `assistant.delegation.renew` | 原任务引用、许可时长、可信确认引用 | 用户明确续期或重新授权原范围；按最新平台授权修订加1，不改预算或卡载摘要、不重置支出；旧许可不能自动复权 |
 | `assistant.delegation.close` | 原任务引用 | 关闭该任务的后续授权许可；保留合同与证据，不表示解除或结清合同，合同解除仍走 terminate |
-| `assistant.delegation.search` | 任务引用、分类与查询条件 | A2X 候选列表，不将检索排序当作中选结论 |
-| `assistant.delegation.inspect` | 候选引用 | 完整模板验签、信誉、材料/规格要求、收费、验收、期限及亲签条款 |
+| `assistant.delegation.search` | taskRef、query；可选topK | A2X 候选列表，不将检索排序当作中选结论 |
+| `assistant.delegation.inspect` | service；可选templateDigest | 完整验签模板及委托中心签名信誉；模板包含材料/规格、收费、验收、期限与亲签条款；信誉缺失或不可核验须明确区分 |
 | `assistant.delegation.request` | 任务、候选、规格、材料 | 提案模式完成意向、关联、预留与正式请求，取得有效签2/3提案；待批准模式仅按有效模板确定算价并返回本地未签卡，标明待服务方批准，不发复签请求、不提前占容量 |
-| `assistant.delegation.compare` | 任务及候选报价引用 | 对比有效签名提案与有效模板生成的待批准未签算价卡，明确各自状态和缺项；不替用户选中或签署 |
+| `assistant.delegation.compare` | taskRef、quoteRefs（1—32个不重复本机报价引用） | 返回异步只读作业及原reference，用operations.get查询；核原件后对比提案与待批准未签算价卡，列明期限、缺项与实际信誉；不签署或选中 |
 | `assistant.delegation.confirm` | 选定具体卡、可信确认引用 | 提案模式在有效窗口内签1采纳；待批准模式取得真实预留后签1并发 card.countersign，服务方签2后即成约；合同改变须重新确认 |
 | `assistant.delegation.start` | 已满足开工条件的合同引用 | 独立 work.start 结果；与观察订阅、验收通知分开 |
 | `assistant.delegation.answer_step` | contractRef、原 stepRequestDigest；通过可信用户通道取得本次答复 | 核对卡载环节、请求摘要、当前阶段与期限，复用 A2C Client.answer_step 返回签名同意或拒绝；不复用先前委托授权 |
@@ -32,13 +32,32 @@ prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 ca
 | `assistant.delegation.accept` | 交付、验收阶段的可信确认引用 | 复用原 Client.accept 复验、签7、通知及通过后的分期付款；各项分别返回，失败或不明确时不伪造通过 |
 | `assistant.delegation.pay` | contractRef、原付款用途和期次 | 在授权内恢复相应原 AP2 付款与通知，不重验收、不重复扣款；不能根据自然语言“通过”付款 |
 | `assistant.delegation.status` | 任务或合同引用 | 原协议状态、候选、等待事项、验收与付款分别列示 |
-| `assistant.delegation.terminate/dispute` | 合同引用、原因及所需确认/证据 | A2C 解除流程或争议受理引用；不直接修改为结束或执行裁定付款 |
+| `assistant.delegation.termination_quote` | contractRef | 异步取得原签名解除报价，保存 terminationQuoteRef、期次、金额与有效窗口；不解除或付款 |
+| `assistant.delegation.terminate` | contractRef、mode（agreed/unilateral），协商时含 terminationQuoteRef；可选原因及原 confirmationRef | 预览实际解除依据并独立确认，沿原操作执行 A2C 解除；分别返回通知、结算及结清状态，不将全部视为完成 |
+| `assistant.delegation.dispute` | contractRef或quoteRef二选一、ground、必要period、材料引用；可选原confirmationRef | SDK先取原依据并独立请求用户确认，申请与真实受理分别返回；恢复原caseRef，不执行裁定付款 |
+| `assistant.delegation.dispute_status` | caseRef | 读取并验签原案件/裁定、执行收敛和实际付款，明确区分各状态 |
+
+### 候选比较依据
+
+compare先核全部引用属于本机助手的同一taskRef，不接受模型传入替代卡；跨任务、未知或重复引用拒绝且不披露其他任务。通过现有调度器执行非模型只读作业，不新建比较服务、独立连接或状态机。同操作恢复原作业和结果；结果标出evaluatedAt及候选有效窗口，历史结果不冒充当前仍可签约。需要更新事实时可新建只读比较，不重新征集、收费或签署。
+
+| 依据 | 校验及展示 |
+|---|---|
+| 原任务 | 用途、预算和原范围摘要；同一服务不同模板保留独立报价，不把报价数当独立服务数 |
+| 提案 | 原模板签认、原已签请求及其摘要、客户端/用户/服务身份、原范围、签2/3及响应窗口；不得只信报价展示副本 |
+| 待批准 | 完整有效模板、原本地未签卡及确定算价，所有签名槽保持未签；明确不是服务方已承诺的正式提案 |
+| 条款 | 按原件列交付说明及规格、验收与notCovered、金额/定金/分期、拟卡费、期限、材料发送阶段、亲签和支付声明；不另算一套报价 |
+| 验收器 | 只读取原固定引用，核摘要并复用A2C安全包加载；输出清单及可审阅的Python/Markdown/JSON文本，每包最多32 KiB、整次最多128 KiB。遗漏、非文本或超限明确标记，完整展示也不表示业务覆盖充分；不在宿主import/exec，不调用模型或业务工具 |
+| 信誉 | 从配置的委托中心取得原签名条目，核签发者、目标服务、摘要和格式；未知/读取失败/签名错误与真实零历史分别报告，不自造评分 |
+| 未就绪或失效 | 待处理、拒绝、未知、原件缺失、签名/规格错误及到期分别列原因；不能当成有效承诺进入建议 |
+
+首次具体合同确认与比较共用同一候选原件校验，不各写一套验签、归属或期限规则。已签动作的恢复仍只消费原证据，不因重新比较重签；真正成约前继续复核协议期限和当前授权。九问把真实需求与可审阅判据、明确未覆盖项对应后解释差异，不能只比较低价、包名或条目数量；SDK不输出行业结论、排名或默认中选。
 
 verify与accept的预览均异步返回原作业引用。accept通过预览后给出waiting及真实确认引用；批准后使用同一operationId调用accept，续接原作业。具体预览、复验及恢复顺序见[A2C适配](A2C适配.md)；不要求一次模型工具调用等待全部验收。
 
 期次从1开始，对应原模板deliverables的顺序。每期取件、验收确认和付款使用独立operationId；同一期重传恢复原动作，不能借用其他期次的确认或回执。status分别返回availablePeriods、acceptedPeriods及原付款凭证；部分期次完成只显示部分付款，不声明整单结清。各期应付金额来自原卡derived.periods，不以逐项报价或模型文字另算。取件网络中断只有在原记录证明尚未签6及缓存时才给出failed/retry_read；重新读取须使用新的本地操作，保留原失败回执，具体边界见[A2C适配](A2C适配.md#多期履约)。
 
-request 的结构化输入为 taskRef、service（稳定 agentId）、templateDigest、spec 和可选 materials。materials 以材料名为键，每项含 text 或 bytesBase64（二选一）及可选声明 spec，不接收任意本机路径。SDK 先核已授权任务和模板，再创建原 A2C 未签对象。提案的预审材料在对外授权前取得本机可信确认；无材料不增加该确认。返回 quoteRef 及本地任务，status 使用 quoteRef 查询实际报价或原失败；取得提案不表示已选择合同。
+request 的结构化输入为 taskRef、service（搜索回执 data.hits 中的稳定 id 字符串，不是服务对象或URL）、templateDigest、spec 和可选 materials。inspect 使用同一 service 字符串，成功后从 data.templates 读取完整模板。spec 以模板交付件 name 为键，每项是按对应 specSchema 填充的对象，不是数组，不接受未声明的规格字段；原需求无法映射时先完善服务约定，不靠删除需求通过校验。materials 以材料名为键，每项含 text 或 bytesBase64（二选一）及可选声明 spec，不接收任意本机路径。SDK 先核已授权任务和模板，再创建原 A2C 未签对象。提案的预审材料在对外授权前取得本机可信确认；无材料不增加该确认。返回 quoteRef 及本地任务，status 使用 quoteRef 查询实际报价或原失败；取得提案不表示已选择合同。
 
 confirm 使用本机 quoteRef，可选 confirmationRef，不接收模型另传的卡或 confirmed 布尔值。SDK 冻结实际候选卡、模式、完整条款及材料审查范围，绑定独立的具体合同确认。contractRef 使用原 cardDigest；status 以 contractRef 查看选择、签署及服务方答复，不能将原候选结果覆盖成合同结果。
 
@@ -56,7 +75,13 @@ prepare 先保存任务及不可变授权候选，不签名或登记。authorize
 
 SDK 校验每个受保护步骤的当前 scope、对象和确认；并行征集候选的费用在本地按操作预留预算，不能分别读取总额度后各自超额花费。未知付款结果保持预留，原子预算规则见[本地接入组件](../组件/本地接入组件.md)。
 
-九问根据验收覆盖、交付范围、证据和价格提出建议；SDK 不内置行业、推荐服务或“必须三家”的剧情。委托授权有效期默认 7 天，到期后重新取得同意。最低候选报价数可配置为 1—8，默认 1，随授权固化到 scope；同服务的多张卡只计一家。有效签名提案与依据有效模板生成的待批准未签算价卡均可计入，但必须区分承诺状态，不将未签报价称为正式提案。达到下限只允许进入比较，不代表应停止处理其他合格候选，也不代表用户确认合同。
+九问根据验收覆盖、交付范围、证据和价格提出建议；SDK 不内置行业、推荐服务或“必须三家”的剧情。委托授权有效期默认 7 天，到期后重新取得同意。候选数量来自用户需求与实际合格服务，不在通用SDK中强设最低数量或把数量作为签约权限；用户要求比较多家时，九问应取得并比较相应候选，不能只因已有一家就停止。SDK列出实际独立服务与报价数，不把同服务多张卡算成多家。有效签名提案与待批准未签卡始终区分，不将未签报价称为正式提案；选择仍需独立的具体合同确认。
+
+## 仲裁申请与材料
+
+dispute先读取本机原合同或已付拟卡费请求，调用preview取得原依据和所需材料，不接受模型另传的合同卡。材料使用已授权的本机原字节；SDK准备本助手所属的上传引用，原交付集合保持与签4一致，确认页展示本案理由、原依据摘要及报送文件名/摘要。申请、受理、复算和裁定分别返回；独立用户确认不能由模型布尔值替代。
+
+同一操作恢复本机原申请和caseRef；错过通知时按原admission补查，不要求用户复制标识，也不新建案件。status显示原文书、执行收敛和实际付款事实，不触发模型、重新复算或按裁定付款。共用恢复规则见[SDK共用机制](SDK共用机制.md#案件恢复与新轮次)。
 
 ## 助手通信入口
 

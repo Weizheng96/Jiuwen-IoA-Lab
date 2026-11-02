@@ -1,0 +1,103 @@
+{
+  "scope": "Core, SDK and product Skill checkpoint; not completed native onboarding, delegated business, Linux deployment or films",
+  "recordedAt": "2026-11-02T06:13:56.980518+00:00",
+  "designVersion": "v0.0.109",
+  "baseCommit": "566b4fb608267076e03b7980b302baae68cf79cc",
+  "testedSourceTree": "e38dff773bad962075db332ee909e5deea9a57c7",
+  "fullRegression": {
+    "scope": "Core-only candidate; default Linux controller excluded; not native UI acceptance",
+    "candidateTree": "e38dff773bad962075db332ee909e5deea9a57c7",
+    "importProvenance": {
+      "ioalab": "src\\platform\\ioalab\\__init__.py",
+      "ioalab_sdk": "src\\access\\sdk\\ioalab_sdk\\__init__.py",
+      "ioalab_jiuwen": "src\\hosts\\jiuwen\\ioalab_jiuwen\\__init__.py",
+      "ioalab_tools": "src\\official\\tools\\ioalab_tools\\__init__.py",
+      "ioalab_services": "src\\official\\services\\ioalab_services\\__init__.py",
+      "ioalab_admin_assistant": "src\\official\\admin-assistant\\ioalab_admin_assistant\\__init__.py",
+      "a2x_registry": "vendor\\A2X-registry\\a2x_registry\\__init__.py"
+    },
+    "checks": [
+      {
+        "check": "design",
+        "exitCode": 0,
+        "seconds": 0.12
+      },
+      {
+        "check": "docs",
+        "exitCode": 0,
+        "seconds": 0.25
+      },
+      {
+        "check": "pytest",
+        "exitCode": 0,
+        "seconds": 2124.19
+      },
+      {
+        "check": "selfcheck",
+        "exitCode": 0,
+        "seconds": 32.44
+      }
+    ],
+    "inputCount": 1173,
+    "changedInputs": [],
+    "passed": true,
+    "pytestSummary": "927 passed, 34 skipped, 2 warnings in 2121.07s (0:35:21)",
+    "commands": [
+      "python 设计/check.py",
+      "python tools/check_docs.py",
+      "python -m pytest -q tests",
+      "python tools/selfcheck.py"
+    ]
+  },
+  "reportingMetadata": {
+    "addedAfterRegression": [
+      "docs/开发计划.md",
+      "deploy/verification/native-core-checkpoint.json"
+    ],
+    "executableSourcesChangedAfterRegression": false,
+    "otherGitInputCount": 1172,
+    "otherGitInputManifestSha256": "de79e379f47236f1a80b757083a87d266000637d9ccc8ce054ec27c78c874927",
+    "manifestAlgorithm": "SHA256 of UTF-8 json.dumps({Git path: SHA256(blob bytes)}, sort_keys=True, separators=(comma, colon)), excluding the two reporting paths",
+    "finalDocumentationAndSelfcheck": "See commit validation; reporting metadata is checked after recording the frozen-source results"
+  },
+  "coreRepair": {
+    "sourceSha256": {
+      "src/platform/ioalab/delegation/admission.py": "525e01d412cd15ac61e661fcf5309ca45a5770eb493fd117b6279899261add38",
+      "src/platform/ioalab/delegation/contracts.py": "aebe7da0b163fd05f0ceff4fdf671e2f25ae735f4d2bf2bcaba47a41abd935ae",
+      "src/platform/ioalab/delegation/relay.py": "803ff580f0b9e5a92cfe6d3695912f76087f0b8d6ed1af1c7128382238289f9b",
+      "src/platform/ioalab/messaging/delivery.py": "e4a7303ac80c78564636eaf2208bdaf71d755604cfd1f8ea82da89e5d722dfb6",
+      "src/platform/ioalab/payments/scopes.py": "9cbfc5ff765c7b640f598b57b420504d6c1b3b1d299c43c13f122ea198cb91f0",
+      "tests/test_proposal_expiry.py": "73e0bf6fe24c702ed1bf2936da2ca34dd9db89a5f29aea7037a1fe896f2e803c"
+    },
+    "covered": [
+      "Original paid proposal fee and signed proposal retained after the full response/start window",
+      "Selection preparation before expiry and commit after expiry rejected; original selected result replay retained",
+      "Missing or unknown evidence retains capacity while another verifiable proposal can expire",
+      "Admission release, intent/interaction closure and reliable notices commit atomically and deduplicate"
+    ],
+    "realExperimentalCoreUpgradedAtRecording": false
+  },
+  "nativeBoundary": {
+    "swarmOrigin": "http://127.0.0.1:15173",
+    "settingsScreenshotAllowsSite": true,
+    "sameOriginToolRead": "Denied by saved website permissions or managed policy; cause unresolved",
+    "newProductBundlesImportedNatively": false,
+    "platformOrigin": "http://127.0.0.1:18750",
+    "platformToolReadAndRegistryFocus": "Observed successfully using the same Edge browser",
+    "authorizationBypassAttempted": false
+  },
+  "originalProposalVerifier": {
+    "packageDigest": "sha256:401be54976f3274bb83dea8ad3fca54d4ce110541e0529bd72c76e159dfc3d08",
+    "originalPackageDigestVerified": true,
+    "execution": "A2C python.wasm only; no host execution of provider source",
+    "result": "TypeError: a bytes-like object is required, not 'str'",
+    "contractSignedOrPaidForThisDiagnosis": false
+  },
+  "remaining": [
+    "Upgrade only the owned experimental Core and verify expiry against original data and SDK identities",
+    "Native import of the corrected Skills and complete user-facing signup/configuration/business retest",
+    "Repair the Demo business templates and behavior verifiers without weakening acceptance or changing old signed offers",
+    "Make expired proposals and actual signed contracts unambiguous in the workbench projection",
+    "Full default Linux deployment and four new films are not included"
+  ]
+}

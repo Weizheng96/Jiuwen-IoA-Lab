@@ -76,8 +76,12 @@ def read_arguments(path,*,configuration,home):
         if path.samefile(configuration) or path.is_relative_to(Path(home).resolve()):
             raise RuntimeFault('invalid_input','Use a separate arguments file outside the configuration and SDK data','correct_input')
         value=read_json(path)
-    except (OSError,ValueError):
-        raise RuntimeFault('invalid_input','Use a readable UTF-8 JSON arguments object','correct_input') from None
+    except UnicodeDecodeError:
+        raise RuntimeFault('invalid_input','Arguments file must use UTF-8; recreate it with the native write_file tool','correct_input') from None
+    except json.JSONDecodeError as exc:
+        raise RuntimeFault('invalid_input',f'Arguments JSON syntax is invalid at line {exc.lineno}, column {exc.colno}; correct the JSON without changing its encoding','correct_input') from None
+    except OSError:
+        raise RuntimeFault('invalid_input','Arguments file is unavailable or unreadable; create a separate arguments file','correct_input') from None
     if not isinstance(value,dict):raise RuntimeFault('invalid_input','Arguments file must be a JSON object','correct_input')
     return value
 

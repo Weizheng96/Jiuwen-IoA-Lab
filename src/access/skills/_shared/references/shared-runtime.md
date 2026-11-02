@@ -1,8 +1,8 @@
 # 公共SDK启动与恢复
 
-触发：完成本机角色配置后安装、启动、诊断、停止或打开确认页。流程文档通过skill_tool的relative_file_path读取。脚本路径使用原生结果中的skill_directory；若模型可见结果只含正文和目录树，则通过原生glob在默认九问工作区查找 `**/ioalab-provider/scripts/ioalab.py` 或 `**/ioalab-delegate/scripts/ioalab.py`，仅定位当前所选技能。不要从账号data_dir推断，不扫描整仓、用户目录或依赖缓存；没有唯一实际路径则请用户提供导入目录。
+触发：完成本机角色配置后安装、启动、诊断、停止或打开确认页。先用skill_tool读取location.md并确定唯一脚本路径；其余流程页也使用relative_file_path读取。
 
-普通接入从runtime.start开始；用户只要求预装依赖时必须用runtime.install，不用runtime.start，以免已安装时意外启动SDK。缺依赖时发起独立后台安装并快速返回，不需要延长九问终端时限。安装仅访问随包wheels和配置的国内镜像，不改九问或全局Python。两种技能共用同一依赖任务。
+配置文件路径直接传给脚本，不用read_file或终端查看正文；SDK会报告文件缺失、格式及配置缺项。普通接入从runtime.start开始；用户只要求预装依赖时必须用runtime.install，不用runtime.start，以免已安装时意外启动SDK。缺依赖时发起独立后台安装并快速返回，不需要延长九问终端时限。安装仅访问随包wheels和配置的国内镜像，不改九问或全局Python。两种技能共用同一依赖任务。
 
 ```text
 python "<skill_directory>/scripts/ioalab.py" runtime.start --config "<外置配置文件>"
@@ -12,7 +12,7 @@ python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置�
 
 仅预装：`python "<skill_directory>/scripts/ioalab.py" runtime.install`；查询：`python "<skill_directory>/scripts/ioalab.py" runtime.install.status`。安装操作不需要账号配置或参数文件，也不需要手写releaseId/attemptId。
 
-依照真实回执的stage和nextAction继续：stage=installation时查询runtime.install.status；依赖completed后，普通接入再次runtime.start才会校验配置并启动SDK，随后查询runtime.status；仅预装到此结束。安装完成不代表已上线。runtime.install用于单独预装或明确失败后的显式重试，不能当查询反复调用；runtime.validate只做配置检查，普通接入不必另做。其他诊断/业务操作不触发安装。上述名称是本脚本参数，不是原生工具或技能商店动作。
+依照真实回执的stage和nextAction继续：stage=installation时查询runtime.install.status；依赖completed后，普通接入再次runtime.start才会校验配置并启动SDK，随后查询runtime.status；仅预装到此结束。安装完成不代表已上线。runtime.install用于单独预装或明确失败后的显式重试，不能当查询反复调用；runtime.validate只做配置检查，普通接入不必另做。其他诊断/业务操作不触发安装。安装结果只以runtime.install.status回执为准，不反复读日志推断完成；明确失败时才按logPath诊断。上述名称是本脚本参数，不是原生工具或技能商店动作。
 
 | 真实结果 | 下一步 |
 |---|---|
@@ -33,10 +33,14 @@ python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置�
 
 两个角色默认共用~/.ioalab/settings.local.json，也可用同一个--config指定其他外置文件。配置不要放在技能目录或data_dir中；原生覆盖导入会替换技能目录。data_dir保管稳定身份、原Session和业务，依赖缓存是另一个目录，不得删除运行数据来修复安装。
 
-角色操作需要先写UTF-8 JSON参数文件，即使输入为空也用{}；调用格式为 `python "<skill_directory>/scripts/ioalab.py" <operation> --config "<外置配置文件>" --args-file "<参数文件>"`。参数文件必须独立于账号配置和SDK数据，不能把settings.local.json当作args-file；由SDK统一读取，不自行改脚本解析编码。SDK在参数文件中保留operationId，恢复必须复用原文件；改变已提交内容使用新文件/新操作。runtime.start/status及identity.status按上方命令执行。
+需要九问辅助增加角色、业务能力或调整并发时，先runtime.install并等完成，再调用runtime.configuration --config "<外置配置文件>"取得configurationDigest、身份和可修改字段；不要读取设置正文。生成独立UTF-8 JSON文件，例如：
 
-需要确认的角色操作先按流程调用一次；返回waiting和真实confirmationRef后，用独立的{}参数文件调用runtime.open_ui，请用户在本机受控页核对并决定，再重发原角色参数文件。申请确认本身不执行受保护动作，不要在创建待确认对象之前要求用户在聊天中“确认”。opened=true只表示浏览器打开，不证明页面有记录或用户已批准；没有待确认内容时回查原角色操作。拒绝/过期按真实结果停止。不能用模型confirmed、自写批准记录或普通RPC代替真实用户。
+```json
+{"expectedDigest":"<实际configurationDigest>","changes":{"max_model_runs":2,"identities":[{"key":"coding","role":"service","name":"我的编程服务"}],"provider":{"services":{"coding":{"instructions":"用户明确的业务处理规则","skills":[],"max_active_delegations":2}}}}}
+```
 
-确认页默认使用系统浏览器。如需指定，用户可在外置配置中将user_browser设为已安装浏览器可执行文件的绝对路径（不带参数），再安全停止/启动SDK；无需改九问或系统默认设置。打开失败时检查该配置；不改用其他浏览器、不提取页面令牌或自写批准。浏览器控制扩展及权限由用户自行连接，opened=true不证明页面已加载或批准。
+用runtime.configure --config "<外置配置文件>" --args-file "<修改参数文件>"提交。身份按key新增/更新，服务按字段合并，原角色、其他服务和凭据保留；不提供账号、密码、SDK数据目录、resources或host.business_tools修改。host的command/data_dir/model/skill_directories可由本机用户明确提供后配置，指向其既有九问，不改九问文件、模型设置或权限。返回changed只表示配置已保存；继续runtime.start并核实际能力，不能宣称已发布或接单。若实例持锁，先沿原配置runtime.stop并等实际释放再修改；不自动停服务、换身份或删状态。异摘要重新查询，同值重试只返回当前事实，不当作旧业务回执。runtime.validate仅做结构校验，不运行九问或业务工具。
+
+业务参数、真实确认及原操作恢复统一见[公共调用与确认](calling.md)，开始角色业务前先读取该页。
 
 配置由用户或本机脚本读取；模型不得读取配置正文来检查密码，也不在聊天和日志输出凭据。只汇报实际stdout回执及缺项，不读源码推演成功，不写报告或长期记忆充当安装。业务包安装不等于启用工具，权限只来自用户明确配置。

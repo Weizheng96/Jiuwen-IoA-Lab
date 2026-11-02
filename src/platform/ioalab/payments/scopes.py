@@ -117,14 +117,16 @@ class ScopeLedger:
                 raise LabError('forbidden','The card does not belong to the original scope and actor',status=403)
             if card.get('user') and card['user']!=context['user']:raise LabError('forbidden','Card user differs from the scope owner',status=403)
             if not scope['contract'] and chain.ts.get(1) is not None:invalid('Reserve the complete contract value before creating slot 1')
+            expires=parse_time(template['validUntil']).timestamp()
             if template['formation']=='proposal':
                 if not chain.ts.get(2) or not chain.ts.get(3):invalid('Only a certified signed proposal is selectable')
-                if not scope['contract'] and self.clock()>chain.ts[3].timestamp()+parse_duration(template['deadlines']['respondWithin']).total_seconds():
+                expires=min(expires,chain.ts[3].timestamp()+parse_duration(template['deadlines']['respondWithin']).total_seconds())
+                if not scope['contract'] and self.clock()>expires:
                     raise LabError('expired','Proposal response window has ended',status=409)
             cd=card_digest(card)
             header=verify(payload['proof'],digest({'scopeDigest':scope['digest'],'cardDigest':cd}),context['user']['jwk'],slot='ioa-contract-selection',signer=context['user']['id'])
             issued=parse_time(header['a2c-ts']).timestamp()
-            return PreparedScope(kind,actor,digest(payload),encode(payload),scope['digest'],issued,card_digest=cd,total=f"{Decimal(str(card['derived']['total'])):.2f}",provider=card['provider'])
+            return PreparedScope(kind,actor,digest(payload),encode(payload),scope['digest'],issued,expires,card_digest=cd,total=f"{Decimal(str(card['derived']['total'])):.2f}",provider=card['provider'])
         except (A2CError,KeyError,TypeError,ValueError,AttributeError):
             raise LabError('invalid_input','Scope or selection proof failed protocol validation') from None
 
@@ -209,6 +211,8 @@ class ScopeLedger:
         total=amount(prepared.total)
         if Decimal(row['fees'])+total>amount(context['budget']):raise LabError('quota_exceeded','Proposal fees and the complete contract exceed the authorized budget',status=409)
         self._live(row)
+        if not row['contract'] and self.clock()>prepared.expires:
+            raise LabError('expired','Original contract selection window has ended',status=409)
         conn.execute('UPDATE delegation_scopes SET contract=?,total=? WHERE digest=?',(prepared.card_digest,prepared.total,row['digest']))
         return self._public(self._get(row['owner'],row['actor'],row['digest'],conn))
 
@@ -279,3 +283,8 @@ class ScopeLedger:
         if row['contract']!=card_digest(card) or card.get('delegationScopeDigest')!=scope or card.get('client',{}).get('id')!=actor or not self.identities.matches_party(owner,card.get('client')) or Decimal(str(card['derived']['total']))!=Decimal(row['total']):
             raise LabError('forbidden','Use the original selected whole-value contract',status=403)
         return {**self._public(row),'user':context['user']}
+
+    def selected_card_in(self,conn,owner,actor,scope):
+        """Historical selection authority, including expired or closed grants."""
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Selection evidence requires the owned application transaction')
+        return self._get(owner,actor,scope,conn)['contract']

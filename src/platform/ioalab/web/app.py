@@ -33,9 +33,11 @@ def create_app(platform: Platform) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        await platform.startup()
-        yield
-        await platform.shutdown()
+        try:
+            await platform.startup()
+            yield
+        finally:
+            await platform.shutdown()
 
     app = FastAPI(title="九问IoA实验平台（Jiuwen IoA Lab）", lifespan=lifespan, docs_url="/api/docs" if not s.open else None, redoc_url=None)
     app.mount("/a2a", platform.router)
@@ -81,7 +83,9 @@ def create_app(platform: Platform) -> FastAPI:
     @app.exception_handler(Exception)
     async def server_failure(request,exc):
         logging.getLogger(__name__).error('Unhandled platform request',exc_info=exc)
-        return JSONResponse({'error':LabError('unknown_result','Platform operation needs verification',recovery='reconcile_result').public()},status_code=500)
+        # ServerErrorMiddleware reraises after sending; Uvicorn then closes HTTP/1.
+        headers={'Connection':'close'} if request.scope.get('http_version') in ('1.0','1.1') else None
+        return JSONResponse({'error':LabError('unknown_result','Platform operation needs verification',recovery='reconcile_result').public()},status_code=500,headers=headers)
 
     # ── 会话 ──────────────────────────────────────────────────────────
     def subject(request: Request) -> str | None:
@@ -135,7 +139,7 @@ def create_app(platform: Platform) -> FastAPI:
     async def register(request: Request):
         """用户名密码注册（external）；自动建立首次登录并赠送登录虚拟币。"""
         b = await body(request)
-        u = await asyncio.to_thread(platform.accounts.register,b.get('username',''),b.get('password',''),
+        u = await platform._worker(platform.accounts.register,b.get('username',''),b.get('password',''),
                                     display_name=b.get('display_name',''),invite=b.get('invite',''),ip=ip(request),operation_id=b.get('operationId'))
         resp = JSONResponse(u)
         set_cookie(resp,u['token'])
@@ -144,7 +148,7 @@ def create_app(platform: Platform) -> FastAPI:
     @app.post("/api/auth/login")
     async def login(request: Request):
         b = await body(request)
-        u = await asyncio.to_thread(platform.login,b.get('username',''),b.get('password',''),ip=ip(request),operation_id=b.get('operationId'))
+        u = await platform._worker(platform.login,b.get('username',''),b.get('password',''),ip=ip(request),operation_id=b.get('operationId'))
         resp = JSONResponse(u)
         set_cookie(resp, u["token"])
         return resp
@@ -200,6 +204,8 @@ def create_app(platform: Platform) -> FastAPI:
 
 
     app.include_router(build_router(platform, current_user))
+    from .arbitrations import build_router as arbitration_router
+    app.include_router(arbitration_router(platform,require_admin))
     from .workbench import build_router as workbench_router
     from ..messaging import build_router as messaging_router
     app.include_router(messaging_router(platform.messaging,current_user))
@@ -279,7 +285,7 @@ def create_app(platform: Platform) -> FastAPI:
         for i in range(n):
             name = b.get("username") if n == 1 and b.get("username") else f"virtual_{platform.db.one('SELECT COUNT(*) AS n FROM users')['n'] + 1:03d}"
             pw = b.get("password") or _secrets.token_urlsafe(8)
-            u = await asyncio.to_thread(platform.register_user, name, pw, kind="virtual", display_name=b.get("display_name", ""),
+            u = await platform._worker(platform.register_user, name, pw, kind="virtual", display_name=b.get("display_name", ""),
                                         note=b.get("note", "管理员创建"))
             if b.get("credit"):
                 platform.grant(u["id"], b["credit"], by="admin", note="创建时发放")
@@ -307,13 +313,13 @@ def create_app(platform: Platform) -> FastAPI:
     @app.post("/api/admin/search")
     async def admin_search(request: Request, _: str = Depends(require_admin)):
         b = await body(request)
-        hits = await asyncio.to_thread(platform._search, b.get("query", ""), int(b.get("top_k", 8)))
+        hits = await platform._worker(platform._search, b.get("query", ""), int(b.get("top_k", 8)))
         return {"mode": platform.discovery.last_mode, "hits": [{"id": h["id"], "name": h["name"], "status": h["card"].get("status")} for h in hits]}
 
 
     @app.get("/api/admin/components")
     async def components(_: str = Depends(require_admin)):
-        return await asyncio.to_thread(platform.components)
+        return await platform._worker(platform.components)
 
     @app.get("/api/admin/traffic")
     async def traffic_get(_: str = Depends(require_admin)):
@@ -326,7 +332,7 @@ def create_app(platform: Platform) -> FastAPI:
     async def seed(request: Request, _: str = Depends(require_admin)):
         from ..seed import seed_all
         b = await body(request)
-        return await asyncio.to_thread(seed_all, platform, only=b.get("only"))
+        return await platform._worker(seed_all, platform, only=b.get("only"))
 
     @app.post("/api/admin/run")
     async def new_run(_: str = Depends(require_admin)):

@@ -23,9 +23,10 @@ def task_data(task,*,local=False):
 
 
 class EndpointSession:
-    def __init__(self,runtime,identity,interaction,provider):
+    def __init__(self,runtime,identity,interaction,provider,*,on_permit=None):
         self.runtime,self.identity,self.interaction,self.provider=runtime,identity,interaction,provider
         self.store=provider.store;self.files=PrivateFiles(runtime.account,identity.agent_id)
+        self.on_permit=on_permit
         self.lock=threading.RLock()
         self.deferred={}
         for identifier,value in self.store.all('tasks').items():
@@ -51,7 +52,8 @@ class EndpointSession:
             if mid in self.deferred:return {'messageRef':mid,'deferred':True}
             raise RuntimeFault('unknown_result','The original endpoint began; reconcile its stored task and effects')
         self.runtime.require_execution()
-        self.runtime.connection.call(self.identity.agent_id,'request.start',{'messageId':mid,'interactionId':self.interaction},operation_id=stable('start',self.identity.agent_id,mid))
+        permit=self.runtime.connection.call(self.identity.agent_id,'request.start',{'messageId':mid,'interactionId':self.interaction},operation_id=stable('start',self.identity.agent_id,mid))
+        if self.on_permit:self.on_permit(permit)
         materials={name:self.files.get(ref) for name,ref in payload['files'].items()}
         self.store.put('calls',mid,{'fingerprint':fingerprint,'state':'executing'})
         try:

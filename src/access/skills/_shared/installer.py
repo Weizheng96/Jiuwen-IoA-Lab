@@ -191,7 +191,9 @@ def prepare(assets,cache=None,*,launch=False,retry=False):
 
 def work(assets,cache,attempt):
     release=Release(assets,cache)
-    with lock(release.install_lock):
+    # Status readers briefly probe this same mutex; they are not installers.
+    # Acquire ownership before judging the original attempt, not during a probe.
+    with lock(release.install_lock,timeout=3):
         state=release.state()
         if not state or state['attemptId']!=attempt or state['phase']!='launching':raise RuntimeError('Original installation launch changed')
         state={**state,'phase':'installing','pid':os.getpid()};release.save(state)

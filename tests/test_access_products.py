@@ -94,6 +94,7 @@ def test_both_real_product_bundles_have_one_manifest_and_generated_entry(tmp_pat
                 assert archive.read(root+'/scripts/'+entry)==(ROOT/'src/access/skills/_shared'/entry).read_bytes()
             assert root+'/references/setup.md' in archive.namelist()
             assert archive.read(root+'/references/shared-runtime.md')==(ROOT/'src/access/skills/_shared/references/shared-runtime.md').read_bytes()
+            assert archive.read(root+'/references/location.md')==(ROOT/'src/access/skills/_shared/references/location.md').read_bytes().replace(b'__IOALAB_SKILL_NAME__',root.encode('ascii'))
             if role=='service':assert root+'/references/contracts.md' in archive.namelist()
             assert any('/assets/wheels/ioalab_official-' in name for name in archive.namelist())
             manifest=json.loads(manifests[-1])
@@ -117,3 +118,41 @@ def test_new_downloads_only_serve_fixed_product_names(platform,client,tmp_path,m
         assert client.get('/downloads/'+name).content==data
     (tmp_path/'private.json').write_text('private')
     assert client.get('/downloads/private.json').status_code==404
+
+
+@pytest.mark.parametrize('parent_encoding',['ascii','gbk'])
+def test_product_entry_returns_utf8_under_non_utf8_parent(tmp_path,parent_encoding):
+    import os
+    import shutil
+    skill=tmp_path/'skill';scripts=skill/'scripts';scripts.mkdir(parents=True)
+    (skill/'assets').mkdir();(skill/'assets/skill.json').write_text('{"role":"assistant"}',encoding='utf-8')
+    shutil.copy2(ROOT/'src/access/skills/_shared/ioalab.py',scripts/'ioalab.py')
+    (scripts/'installer.py').write_text(
+        'def prepare(*args,**kwargs):\n    return {"status":"waiting","data":{"notice":"中文账号与参数路径"}}\n',encoding='utf-8')
+    result=subprocess.run([sys.executable,str(scripts/'ioalab.py'),'runtime.install.status'],capture_output=True,
+        env={**os.environ,'PYTHONIOENCODING':parent_encoding,'PYTHONUTF8':'0'})
+    assert result.returncode==0,result.stderr.decode('utf-8',errors='replace')
+    assert json.loads(result.stdout.decode('utf-8'))=={'status':'waiting','data':{'notice':'中文账号与参数路径'}}
+
+
+def test_old_installation_status_preserves_observation_and_allows_safe_stop(platform,tmp_path,monkeypatch,capsys):
+    config,_=configuration(platform,tmp_path,service=False)
+    runtime=ResidentRuntime(RuntimeConfig.load(config)).start()
+    try:
+        command=['call','runtime.status','--config',str(config)]
+        assert main(command)==0
+        before=json.loads(capsys.readouterr().out)
+        # Same package versions but a different release must not look like this caller's ready runtime.
+        monkeypatch.setattr(runtime,'installation',{**runtime.installation,'releaseId':'f'*64})
+        assert main(command)==1
+        mismatch=json.loads(capsys.readouterr().out)
+        assert mismatch['status']=='rejected' and mismatch['error']['code']=='installation_changed'
+        assert mismatch['data']['bootId']==before['data']['bootId']
+        assert mismatch['data']['runtimeId']==before['data']['runtimeId']
+        assert mismatch['data']['installation']['releaseId']=='f'*64
+        args=tmp_path/'stop.json';private_json(args,{})
+        assert main(['call','runtime.stop','--config',str(config),'--args-file',str(args)])==0
+        stopped=json.loads(capsys.readouterr().out)
+        assert stopped['status']=='completed' and stopped['data']['preserved']
+        assert stopped['data']['bootId']==before['data']['bootId']
+    finally:runtime.close()

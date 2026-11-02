@@ -1,0 +1,108 @@
+{
+  "scope": "Original native Skill import, installation, stable-identity upgrade, startup, real owner confirmation and publication; not full delegated business",
+  "nativeSession": "web_1a199e9d8c6_348a339c87d2",
+  "bundleSha256": "53c827001b0f7b7a46d67ca61401f8f74644e5c7b1909e02e7a6a20f4b3db9ba",
+  "releaseId": "f13f606c954c5705dd45b29743f4976e3e999637f8d9b8f387fb88b9a3d9802a",
+  "nativeImportedFiles": 18,
+  "installerAttempt": "c9e83069-f41c-4b99-a3ab-a4c2b0f13c37",
+  "originalSwarmConfigurationsUnchanged": true,
+  "originalProviderExecutionLockActuallyReleased": true,
+  "ownerConfirmation": {
+    "actualPage": "http://127.0.0.1:61012/user",
+    "observedStatus": "allowed",
+    "actor": "Actual user confirmed clicking the page in this chat",
+    "agentApprovalClickPerformed": false
+  },
+  "runtime": {
+    "runtimeId": "60d6abd4-6822-4d54-ac1d-b82281780409",
+    "bootId": "b2780988-cb50-4d4c-93a9-69300b166dce",
+    "pid": 42800,
+    "platformConnected": true,
+    "identities": [
+      {
+        "agentId": "svc-dcf2221e-99ae-477a-9145-9b252b812a09",
+        "bound": true,
+        "executionReady": true,
+        "name": "码上飞",
+        "profile": "miniapp",
+        "protocolId": "http://127.0.0.1:18750/a2a/agents/svc-dcf2221e-99ae-477a-9145-9b252b812a09",
+        "role": "service"
+      }
+    ],
+    "installation": {
+      "assembly": "ioalab-jiuwen",
+      "environment": "C:\\Users\\ROG\\.ioalab\\access-runtimes\\f13f606c954c5705dd45b297",
+      "format": 1,
+      "releaseId": "f13f606c954c5705dd45b29743f4976e3e999637f8d9b8f387fb88b9a3d9802a",
+      "versions": {
+        "a2c": "0.0.22",
+        "ioalab-jiuwen": "0.0.46",
+        "ioalab-official": "0.0.46",
+        "ioalab-sdk": "0.0.39",
+        "jiuwenswarm-process-sdk": "0.1.0"
+      }
+    },
+    "roleErrors": []
+  },
+  "provider": {
+    "activeTemplateDigests": [
+      "sha256:d3d91a57bfcab6db2b4fe0eb8c5cc314005c2b2e9ba3847ec401a1a7b65b0df7"
+    ],
+    "admissionPolicy": {
+      "accepting": true,
+      "active": 0,
+      "maxActiveDelegations": 2,
+      "revision": 2,
+      "service": "svc-dcf2221e-99ae-477a-9145-9b252b812a09"
+    },
+    "agentId": "svc-dcf2221e-99ae-477a-9145-9b252b812a09",
+    "categoryId": "cat_dev",
+    "declarationDigest": "sha256:6bb9e0892eb22daba588590909b7b005d541d6495232a21f9998357b3d34ed31",
+    "executionStatus": "not_reported",
+    "indexReady": true,
+    "indexedCategoryId": "cat_dev",
+    "indexedRevision": 1,
+    "localExecution": {
+      "blockedRequests": 1,
+      "configured": true,
+      "errors": {
+        "code": "not_ready",
+        "type": "HTTPStatusError"
+      },
+      "executionReady": true,
+      "hostAvailable": true,
+      "publicationValidUntil": 1796176080.0,
+      "unavailableNativeTools": [],
+      "unavailableSkills": [],
+      "uncheckedNativeTools": []
+    },
+    "publicationAuthorization": null,
+    "published": true,
+    "publishedTermsDigest": "sha256:fe644af56c4ed440f65fbe4f8a8bb94e080abc5ad25fa4c81a8455eb3e552dd1",
+    "revision": 1,
+    "templateExpiresAt": "2026-12-02T01:48:00Z",
+    "templateReady": true
+  },
+  "currentCorrections": {
+    "targetedTests": {
+      "passed": 45,
+      "seconds": 41.85
+    },
+    "designAndDocumentationPassed": true,
+    "nativeRetestAfterCorrection": false,
+    "changes": [
+      "Make configuration-body prohibition unconditional",
+      "Clear only superseded service profile errors",
+      "Announce HTTP/1 closure on unexpected errors",
+      "Target the actual Windows lock owner in process-exit proof"
+    ]
+  },
+  "limits": [
+    "Native model read the public demonstration account configuration; private credential isolation failed in this attempt",
+    "First frontend turn was stopped after the failure was observed; original installer continued and normal same-session continuation was used",
+    "Observed SDK retained a stale initial unpublished error after publication; corrected source has not yet been native-retested",
+    "Account and business setup were existing; not a fresh complete signup/configuration tutorial",
+    "No commissioned production/acceptance/payment, assistant end-to-end, meeting flow or new film proved by this record",
+    "New complete local regression before correction ended 943 passed, 39 skipped, 2 failed; do not treat targeted checks as a full pass"
+  ]
+}

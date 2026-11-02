@@ -3,7 +3,7 @@ from a2c.card import card_digest
 from a2c.errors import CARD_INVALID, fail
 from a2c.slots import verify_card
 from .store import jdump, jload, now
-from .observation.contracts import extends
+from .delegation.contracts import evidence_extends
 
 
 def party(platform, uid, card):
@@ -51,8 +51,8 @@ def observe(platform, uid, body):
         if card:
             old = conn.execute("SELECT detail,state FROM orders WHERE card_digest=?", (cd,)).fetchone()
             oldcard = jload(old["detail"]).get("card") if old else None
-            stale = bool(oldcard and not extends(oldcard,card))
-            if stale and not extends(card,oldcard):
+            stale = bool(oldcard and not evidence_extends(oldcard,card))
+            if stale and not evidence_extends(card,oldcard):
                 fail(CARD_INVALID,'Observation signature chain conflicts with the original contract snapshot')
             state = "started" if card["fulfillment"].get("receipt") else "forming"
             ended = platform.market.market.store.get("ledger", cd)

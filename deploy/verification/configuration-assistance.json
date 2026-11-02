@@ -1,0 +1,199 @@
+{
+  "format": "ioalab.configuration-verification/1",
+  "status": "passed",
+  "scope": "Pre-start configuration, credential boundaries, runtime locking and installed product commands",
+  "gitHead": "5f8a5dcdaaf7913feab11013b4149dbc645f5c2e",
+  "verifiedUncommittedWorktree": true,
+  "sourceSnapshot": {
+    "declaredInputs": 999,
+    "unchangedDuringGates": true,
+    "localArchiveSha256": "fecdc5d7a3e58553f3eebd3790ae934457ca895c879242fd092689470ecd2acd",
+    "accessSourceSha256": {
+      "src/access/sdk/README.md": "68669abab3a6448b22e26c2ff10741f185189a794c896e6b20f7c2bd8541f11b",
+      "src/access/sdk/VERSION": "d7db3ee04a0c856c3618e254fae59f270c5b1741b9c0ca851b109a85bf4a3a14",
+      "src/access/sdk/ioalab_sdk/__init__.py": "9db8e01ed0962b6a7769a3f76e7b02bfcf08fa1d8b30fcbd9af5a254939a8c58",
+      "src/access/sdk/ioalab_sdk/adapters/__init__.py": "01a32460259f041dd9a1d0ae514a99e4c22a98aef52a5063591b221cb8a39d78",
+      "src/access/sdk/ioalab_sdk/adapters/endpoint.py": "a44c6829bca4ffed6f19ec8f780d50661dac7d042651299fcd269a46f63c21d7",
+      "src/access/sdk/ioalab_sdk/adapters/reports.py": "6027b72464c00ce73e61dde2f8915edcbf11b5640de0b271df2a71c425550640",
+      "src/access/sdk/ioalab_sdk/adapters/store.py": "4a77c9757ae60f99c792808b031476678324e5e35f2ce9f60f1292f66b096bf2",
+      "src/access/sdk/ioalab_sdk/adapters/transport.py": "4abf862ea75e7bf8b2778e929385f2b296e7079509d7b32f9b77b755fe2e5ae4",
+      "src/access/sdk/ioalab_sdk/assistant/__init__.py": "f73a9587ed428cfe9486faa023d9669a45eed9ec423978332899f7e2deb346d7",
+      "src/access/sdk/ioalab_sdk/assistant/contracts.py": "ba7d2a22003900af2a87ce52b33b8b1e3258592b4718f685f884d2cf5e97077b",
+      "src/access/sdk/ioalab_sdk/assistant/delegation.py": "53e9ab8d14d8f35fbd76f8431ee114a416932701ac4ce43020625271b914bdbf",
+      "src/access/sdk/ioalab_sdk/assistant/fulfillment.py": "d7e88e222665ddfaabef3207561bda4027f767b279a4dd171942bbf8f11ae4b1",
+      "src/access/sdk/ioalab_sdk/assistant/role.py": "37aa9a678f0acd8614632ed89bc52c1142681dd32596cea8ab02a1b876fff706",
+      "src/access/sdk/ioalab_sdk/assistant/rules.py": "7cb676befba1bbbe12267d323af7cb454ea9e583b70b8d2fe1995e29fa6dfca5",
+      "src/access/sdk/ioalab_sdk/assistant/termination.py": "1241ade65e27fb91c2a60cba3567a05a8c12df1c45083bc46e723dc7d4c12679",
+      "src/access/sdk/ioalab_sdk/assistant/trading.py": "fcf9646c853eea1177f965e0d1a0ead44bf8431ca8a47ed97712526c6618016f",
+      "src/access/sdk/ioalab_sdk/cli.py": "3bf01eab06b775534824ebb493cfad8ad7fd1feaff28bd25eb051132b268ff1d",
+      "src/access/sdk/ioalab_sdk/client.py": "d31a973cc2ee5f1c128f3ef45bc29a42e748f72eda5358e4cccee6c5f4a1aea5",
+      "src/access/sdk/ioalab_sdk/lease.py": "e3c85c3b362045e16581c7339d6777183171089dba5a290e879c8a63d3068240",
+      "src/access/sdk/ioalab_sdk/message_cli.py": "0cfc696de5728fc57a6182cbefa3a6982200fe88fe05c296470b5c8684ab85ef",
+      "src/access/sdk/ioalab_sdk/messaging.py": "7ecfaa7fbdd05f86f961287b061847c4f637772205b594cf9eb23807f9591311",
+      "src/access/sdk/ioalab_sdk/observation.py": "4209d2ab102e86f2e4f5f66d3e56e60f12b3c517352eae860adf8093c56ce425",
+      "src/access/sdk/ioalab_sdk/provider/__init__.py": "3439b18bfd6bdabf53349c3b97eb88f7583794c0ad651b0bc688462793387397",
+      "src/access/sdk/ioalab_sdk/provider/admission.py": "acbd24aa3c2d76b57a1c8ed5427ce1f4f52e1e6bc43eb732187759f3263d4440",
+      "src/access/sdk/ioalab_sdk/provider/agent.py": "16b9bf61c1a2fdb7a60e4f078cf1da2b8bc6ba71fdebd60ee286e493f18b2a4b",
+      "src/access/sdk/ioalab_sdk/provider/configuration.py": "f047e70e4e18985a54d42ae8922f47f509cb4b4f0f5e60bd95cdfa540c84ec24",
+      "src/access/sdk/ioalab_sdk/provider/execution.py": "6cffca68eb4ee0b0303d5597ad086381f833eccf6650b98abc44e080931bff20",
+      "src/access/sdk/ioalab_sdk/provider/policy.py": "991a20871e420f748a379691c0d61635648dac05f66634d57edccf58da2b4862",
+      "src/access/sdk/ioalab_sdk/provider/production.py": "71abce3784914f518b830c12a571730b81d18f83e162721ccc5e2a1176f5c850",
+      "src/access/sdk/ioalab_sdk/provider/publication.py": "83af1febf85fb925ee3b82d372d8891331d135592244228c0f17a2e2d2facbda",
+      "src/access/sdk/ioalab_sdk/provider/tasks.py": "1941b7de22a490c8ae9d300bde203d1ce6fbc1fe2eb300ca9b589dce971d1b45",
+      "src/access/sdk/ioalab_sdk/provider/termination.py": "b1efa6ccaa006d7e390d7a4a230df2a381c1dcc7b178fe987355f411751bb312",
+      "src/access/sdk/ioalab_sdk/provider/terms.py": "5ae3e4e77d3490334f7b76dc948537a1571cbc43edfdd3cb65a1b355b178a83f",
+      "src/access/sdk/ioalab_sdk/provider/verifiers.py": "d664043ec4c4d00c4a517a3b80c6141fd0fe3db931744d831808e0a0129a02ee",
+      "src/access/sdk/ioalab_sdk/provider_app.py": "961addcb187004d0aee23acadac0c74891ce4ae26c62f4e0631c0792d40ca9ed",
+      "src/access/sdk/ioalab_sdk/provider_capability.py": "4a519fac5f77834ceb549615b91240f11098fbccd9495cebcb91bb02919ee34b",
+      "src/access/sdk/ioalab_sdk/provider_cli.py": "5cd4d0afa96b277b35ef3b9ca5d129774ef82a5c8514cf2d2af94f67b36dc65c",
+      "src/access/sdk/ioalab_sdk/runtime/__init__.py": "622651f96b76949e18b6d1f07c68520aea5165f054fcc5ed21fb07c7a63d67b4",
+      "src/access/sdk/ioalab_sdk/runtime/__main__.py": "1b2205d5ef44d5984f993362c076babbe7609d3117a1c6c6578da212ae4127e5",
+      "src/access/sdk/ioalab_sdk/runtime/authentication.py": "380e49fd5dcf70ce1bb11c9c80b84feea6da92bef9c0e652e8cc1ebd7d9c8c86",
+      "src/access/sdk/ioalab_sdk/runtime/config.py": "2891b66435215098896b5cebb94a3f3edffc0eb41e8baa9312023c92c586c686",
+      "src/access/sdk/ioalab_sdk/runtime/configuration.py": "15d2d03c55626e35509ba7bb151d0f6bcdda3ee19c8e00b1deca4e39962acb7c",
+      "src/access/sdk/ioalab_sdk/runtime/confirmations.py": "60df1ad0ff8bc4348ab52ea270eb84ef093f7792debf570d504ab597e0d73a37",
+      "src/access/sdk/ioalab_sdk/runtime/connection.py": "111847d6ed0c8cc8a81125c2519a0fcf333e3941b9413a31dbf4b3f696d62f05",
+      "src/access/sdk/ioalab_sdk/runtime/files.py": "6e129931ec8309a768b929e5e27daebb7e686cf4b57e0eadf8c05fe8e000bb6b",
+      "src/access/sdk/ioalab_sdk/runtime/files_api.py": "97d8bad4b552078b4d68f601e13eea89760862e860e42cbd8eb2da468cb0e7a8",
+      "src/access/sdk/ioalab_sdk/runtime/host.py": "1acedd5f19903dd5f3a25f5a9438bb7836ec03cc2aa1518306b19de4ed5b4932",
+      "src/access/sdk/ioalab_sdk/runtime/identities.py": "86d41fc472dd444d4a564ba93c17a175d7a05a2c2cefa2377e6a4812aaba8f51",
+      "src/access/sdk/ioalab_sdk/runtime/identity.py": "d4a99d70167a9025d34a3bbfedb036096c403bb4d5d37cb07191adc2a15816c6",
+      "src/access/sdk/ioalab_sdk/runtime/installation.py": "84b86cf43f4f1c9974a0a8e9a924f8e360a4742d32de4d7de8bdee09fbe2ac82",
+      "src/access/sdk/ioalab_sdk/runtime/ipc.py": "a64e15a20ece265352300a986fd88a23f908d40e2c81d6185338924793275fc7",
+      "src/access/sdk/ioalab_sdk/runtime/observations.py": "8b97beb3acba027ff3fa80ca541fbca2e9613e4bbd02ea14a222e4126648f398",
+      "src/access/sdk/ioalab_sdk/runtime/protocol.py": "e9b30da26773ec261b0af690da975567a9514a82d39869019a4d7e7a87a32b77",
+      "src/access/sdk/ioalab_sdk/runtime/questions.py": "7fcf70d6c36b935e815fec49c875c51ce46d919ba238bb76070ca48999dea939",
+      "src/access/sdk/ioalab_sdk/runtime/resident.py": "6e83c52427a1753874eac319d6ddb70736035126943874c20f71ac14d8ca3de9",
+      "src/access/sdk/ioalab_sdk/runtime/scheduling.py": "8e2a1b714213c9820c28246e5f9363f9f2192b59147070ee4cdef5a39df077fc",
+      "src/access/sdk/ioalab_sdk/runtime/session.py": "a211d959b39a98883c6b9678c8fc93463248800ba7ec491beb8b2479e73446d0",
+      "src/access/sdk/ioalab_sdk/runtime/store.py": "803afd1d5957f4f330a7059cdbd0d72c72cc9eb2e38152049350eb9bba0b49f7",
+      "src/access/sdk/ioalab_sdk/runtime/user_ui.py": "cd4ec825c8caef4be00511af0dd2cee2ec90bd1cc14732abd5eb3ff2c3469896",
+      "src/access/sdk/ioalab_sdk/runtime/web/user.html": "8f85b4d41eb9982ae4a4a1ff5222bdd1922af2ada8ac0986b000bc8d07d1e70b",
+      "src/access/sdk/ioalab_sdk/scope.py": "dbc36b3e291a6f817790732c86d2f5878d50c953121cb62dd2953fd567341960",
+      "src/access/sdk/ioalab_sdk/store.py": "51bdcf629b685b34102a1518106f6b60d36c0d1f35a4e79e108bf58d37f59ff0",
+      "src/access/sdk/ioalab_sdk/swarm_web.py": "5d521a16783c80e0fbd6b677c5679287f6eeacb9f2598cc07c3e5f184f41b4a3",
+      "src/access/sdk/ioalab_sdk/templates.py": "637361bca6fb57c3a27984060c8b6a1c6c93ccf9caa272d599eb23bd3b9ea1a4",
+      "src/access/sdk/ioalab_sdk/transport.py": "5f4460719326b3aacc54e4fb34eeec932804225d482224deaa3dc38e6be16e90",
+      "src/access/sdk/ioalab_sdk/workflow.py": "6707742e1b8429fae8b66f8ced365c2109330ad37650e7f6131ddd8d31d0bb99",
+      "src/access/sdk/pyproject.toml": "7193a8179e92c140a7095452baa97b65d7aa29217fde76485e98856954b1a5dd",
+      "src/access/skills/README.md": "b8afb7d57ad7d8dee45d94cd37de970f145f9914b6d31ed876969d73b8e3adac",
+      "src/access/skills/VERSION": "0c15835b864a0b3f8d04edeb9e8671d03a2f9e67395c20b40f7065f9e45c4f0d",
+      "src/access/skills/_shared/installer.py": "e6d5aab671b9fa5a9d8b79ac02a518e02f5dcd1e06919493ff02008bd7c13f3f",
+      "src/access/skills/_shared/ioalab.py": "d3741c9f6960d00d4252f06aec2f9eb30288f2fe5f4e6f13f9250a8be0206c3c",
+      "src/access/skills/_shared/references/shared-runtime.md": "20951a5bb4f3a58e8ccf3cca270343670bd2e9a70ab65afa884cc46c71f9b05b",
+      "src/access/skills/_shared/requirements.lock": "6a001e092f28385ab231b6b4fb4e281c9e899aa7919921b8f86128cc34edf381",
+      "src/access/skills/assistant/SKILL.md": "2bc8c809585970d0db92747c83b09e4314e164647b939d2f8bdea8127939f426",
+      "src/access/skills/assistant/references/delegation.md": "fef1db9aabe09843876fc63145a29d366ef7c805cef3f749cbcc939a9eb03362",
+      "src/access/skills/assistant/references/inbox-rules.md": "98f03394e18c5119ef1a3aa91edf507f2084ea39b550dd8f1f9dd2bc51c4d9b6",
+      "src/access/skills/assistant/references/messaging.md": "70055c21c471cb2af2237f56e1e1930e99e6a41b65005e63c96dca5eac99b0d0",
+      "src/access/skills/assistant/references/setup.md": "4507fa2aeff934bc537f79f614639b7cc98e4e1c23fa01848b15e8e94da08371",
+      "src/access/skills/assistant/settings.example.json": "68c8e9dc63eb690e7797f4e12db659513cd0b15e72520521ac36ca9fdab44d8a",
+      "src/access/skills/provider/SKILL.md": "5ed0b9f0d737d5a9af7445c7d78b7857e93c177cbee7d66cbd86f1199c6ec2af",
+      "src/access/skills/provider/references/contracts.md": "78bb955b8cdbd9a86728a187006cb03475327c84ee528c2f5f0c318f08be7c53",
+      "src/access/skills/provider/references/execution.md": "166be766fd391be82244345bda694de186e256f7048fb9d928cb6c2dc38a8f37",
+      "src/access/skills/provider/references/publication.md": "dabf03ea50733054462cb27cb3b9d834c14e8e3f158d3fe8140788ba7a634a2a",
+      "src/access/skills/provider/references/reputation.md": "40f539b91e31e11b90e3db6d4f2efd39c523971c5c14e5b9aeaccab49c38ba05",
+      "src/access/skills/provider/references/setup.md": "726859a81b473b24d52b7ef496e4a37fd33f2b718a5dba63a87d0810197febc0",
+      "src/access/skills/provider/settings.example.json": "b78e599efc4295f4466d708d8b43a6f1370f69cd05cf0da371cfda854fe457bc",
+      "src/hosts/jiuwen/README.md": "8c32cff6d66c5b33d396fd9b2b2f4fe54f2e59670b9fc668ea758755108142fe",
+      "src/hosts/jiuwen/VERSION": "b1f9fd971d2726eca7354ac69d646954d94fdac886e8507e3e7d7e9ae2493df3",
+      "src/hosts/jiuwen/examples/calendar-tools.json": "369c6807e2a152cc5995f34477f8617e9c5a764d2a8d78b7b7ee9a601f675bbb",
+      "src/hosts/jiuwen/ioalab_jiuwen/__init__.py": "a768ee94644e01c4a20def5b946c6249cd7bfb34d62ca32f86bf6f987200f90b",
+      "src/hosts/jiuwen/ioalab_jiuwen/__main__.py": "b5d6c533fea123062e990e3fa85a26b5448457141d2b9dd89fcb6715643bd921",
+      "src/hosts/jiuwen/ioalab_jiuwen/configuration.py": "1f0437526c0d2617e911fd78be659dbc859b9408be7b437720f7deff7ca62557",
+      "src/hosts/jiuwen/ioalab_jiuwen/process.py": "23d8048a02ce0507bcc8174366c2dc1e6941307908f5ca0c9db9021f9727102d",
+      "src/hosts/jiuwen/ioalab_jiuwen/resources/ioa-notifications/extension.py": "ab3b3499a0ffa14dd602901e1c6b00236ef6d32f5f8864f5606098c765301fc0",
+      "src/hosts/jiuwen/ioalab_jiuwen/resources/ioa-notifications/extension.yaml": "091507b4229d55ecc787df235728153c2035c87887fa568cc7c80b003a4093d7",
+      "src/hosts/jiuwen/ioalab_jiuwen/skills.py": "cf2cb044a4e44bb7b7167e35ece854e1874a82cd4e579d8a6c6daac30a106aaf",
+      "src/hosts/jiuwen/ioalab_jiuwen/tools.py": "6f92ba4cb6af779d008619b716fe04ffe73a37b25e8b4eb8dd665c73dcdf8019",
+      "src/hosts/jiuwen/ioalab_jiuwen/web_client.py": "541e11edfbc1eca621466f1c8313d85c1c2d355b647487d67e5245512247a873",
+      "src/hosts/jiuwen/ioalab_jiuwen/web_notifications.py": "1ec4b29544c040161a75a7ccfaf29941497b453901004069bdd8a74548bb4585",
+      "src/hosts/jiuwen/ioalab_jiuwen/web_setup.py": "fdb437dae1b40942c008d121071e57a7d3b6733f34c0030cd4a731fc6baa9f55",
+      "src/hosts/jiuwen/pyproject.toml": "1acd83cf331ccec74e1df729dd8bdca259cb8187a98f2b44d921383f56e5e890"
+    }
+  },
+  "commands": [
+    {
+      "command": "python -m pytest -q --tb=short tests/test_configuration_edit.py tests/test_access_products.py tests/test_background_installation.py tests/test_provider_admission.py tests/test_provider_business.py",
+      "passed": 57,
+      "elapsedSeconds": 107.58
+    },
+    {
+      "command": "python 设计/check.py"
+    },
+    {
+      "command": "python tools/check_docs.py"
+    },
+    {
+      "command": "python -m pytest -q --tb=short tests",
+      "results": {
+        "passed": 867,
+        "skipped": 39
+      }
+    },
+    {
+      "command": "python tools/selfcheck.py"
+    }
+  ],
+  "gates": [
+    {
+      "gate": "design",
+      "exitCode": 0,
+      "elapsedSeconds": 0.12
+    },
+    {
+      "gate": "documentation",
+      "exitCode": 0,
+      "elapsedSeconds": 0.23
+    },
+    {
+      "gate": "tests",
+      "exitCode": 0,
+      "elapsedSeconds": 1942.73
+    },
+    {
+      "gate": "selfcheck",
+      "exitCode": 0,
+      "elapsedSeconds": 48.32
+    }
+  ],
+  "builds": [
+    {
+      "target": "windows-x86_64",
+      "releaseId": "4dfb3510a72e44cb5eff453bcd1cce4b44b68a84c5cd801a4823b77f14dff920",
+      "sdkModules": 63
+    },
+    {
+      "target": "linux-x86_64",
+      "releaseId": "9535616bbda98a254e4b0a8dfcf41da920ef82f8c5f70efb69d4080eb9316f9c",
+      "sdkModules": 63
+    }
+  ],
+  "cleanWindowsInstallation": {
+    "status": "passed",
+    "a2c": "0.0.22",
+    "sdkModules": 63,
+    "configurationSaved": true,
+    "credentialPreserved": true,
+    "replayChanged": false,
+    "ranSwarm": false,
+    "authenticated": false,
+    "sentMail": false
+  },
+  "verifiedInvariants": [
+    "Configuration queries and validation create no runtime data or network/model/tool effects",
+    "Non-credential updates preserve account, credential, resources, other profiles and private tool options",
+    "Existing identity role, case-fold collisions, forbidden fields and file aliases are rejected",
+    "Actual instance lock rejects changes; source snapshot is checked before authentication and database initialization",
+    "Same-value replay reports unchanged; stale or concurrently changed source is not overwritten",
+    "After an actual runtime shutdown, updating concurrency and restarting preserves account and agent identity",
+    "Both product entrypoints delegate parsing to installed SDK/host commands without reading configuration bodies"
+  ],
+  "notProven": [
+    "Native Swarm full configuration/publication/user-confirmation flow",
+    "Default Linux/systemd installation and upgrade",
+    "Four new demonstration videos",
+    "Full project migration or remote publication"
+  ],
+  "reviewHold": "Existing automatic-review rejection of Lab publication remains; no commit, tag or push performed"
+}

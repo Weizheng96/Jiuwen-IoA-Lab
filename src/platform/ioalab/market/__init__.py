@@ -30,6 +30,7 @@ class MarketService:
         from ..delegation.market import AdmissionMarket
         self.market = AdmissionMarket(signer, keys=keys, fetch=fetch, clock=clock, store=store, recognized_services={}, models=models or {})
         self.now = self.market.now
+        self.request_outcomes = lambda provider: ()
 
     @property
     def id(self) -> str:
@@ -131,10 +132,16 @@ class MarketService:
                 success += 1
             elif outcome == "arbitrated":
                 r = rulings.get(cd, {})
+                if r.get("liable") not in ("client", "provider"):
+                    continue
                 total += 1
                 if r.get("liable") == "client":
                     success += 1
             # client-terminated：不计
+        for ruling in self.request_outcomes(provider_id):
+            if ruling.get("liable") in ("client", "provider"):
+                total += 1
+                success += ruling["liable"] == "client"
         entry = {"kind": "reputation", "provider": provider_id, "completed": total,
                  "successRate": round(success / total, 3) if total else None, "issuedAt": fmt_time(self.now())}
         entry["signature"] = _sign_free(self.signer, entry, self.now())
@@ -173,6 +180,73 @@ class MarketService:
         self.market.record_ruling(card, ruling)
         self.db.run("INSERT OR REPLACE INTO rulings (card_digest, period, at, ruling) VALUES (?,?,?,?)", cd, period, now(), jdump(ruling))
         return ruling
+
+
+    def evaluate_case(self,basis,route,materials):
+        """Use original signed snapshots and A2C criteria, outside a DB transaction."""
+        from dataclasses import asdict
+        from ..errors import LabError
+        if route=='deterministic':
+            liable={'start-overdue':'provider','deliver-overdue':'provider','proposal-overdue':'provider',
+                    'accept-overdue':'client','payment-overdue':'client','authorize-overdue':'client'}.get(basis['ground'])
+            if liable is None:raise LabError('history_gap','This ground requires independent review',status=409)
+            return {'rulingKind':'deadline','liable':liable,'evidence':{'ground':basis['ground'],'status':'deadline_passed'}}
+        if route!='recompute' or basis['ground']!='acceptance-failed':
+            raise LabError('history_gap','This ground requires independent review',status=409)
+        files=materials.get('deliveryFiles',{})
+        manifest=basis['card']['fulfillment']['periods'][basis['period']-1]['manifest']
+        if {name:digest_bytes(data) for name,data in files.items()}!={item['name']:item['digest'] for item in manifest['files']}:
+            raise LabError('history_gap','Submitted bytes differ from the original signed manifest',status=409)
+        result=self.market.recompute(basis['card'],basis['period'],files)
+        if result.status not in ('pass','fail'):
+            raise LabError('unknown_result','Original recompute did not return a final program result',status=409)
+        return {'rulingKind':'recompute','liable':'client' if result.status=='pass' else 'provider',
+            'evidence':{'status':result.status,'runs':[asdict(run) for run in result.runs],'errors':list(result.errors)}}
+
+    def prepare_ruling(self,case_ref,admission,basis,result,materials,decision_evidence):
+        """One timestamp binds the document and its free market signature."""
+        from a2c.codec import digest
+        from ..errors import LabError
+        if result.get('liable') not in ('client','provider','none') or result.get('rulingKind') not in ('deadline','recompute','review'):
+            raise LabError('history_gap','Restore the original complete evaluation',status=409)
+        if result['rulingKind']=='review':
+            if not isinstance(result.get('operator'),str) or not isinstance(result.get('reason'),str) or not result['reason'].strip():
+                raise LabError('history_gap','Restore the independent original review',status=409)
+        elif result['liable']=='none':raise LabError('history_gap','Only independent review can be neutral',status=409)
+        at=self.now()
+        ruling={'kind':'ruling','caseRef':case_ref,'admissionId':admission,'subject':basis['subject'],
+            'ground':basis['ground'],'basisDigest':digest(basis),'materialsDigest':digest(materials),
+            'rulingKind':result['rulingKind'],'liable':result['liable'],'evidence':result['evidence'],
+            'decisionEvidenceDigest':digest(decision_evidence),'issuedAt':fmt_time(at)}
+        if result['rulingKind']=='review':
+            ruling.update(operator=result['operator'],reason=result['reason'])
+            if 'compensation' in result:ruling['compensation']=result['compensation']
+        if basis['period'] is not None:ruling['period']=basis['period']
+        if basis['subject']['kind']=='contract':ruling['cardDigest']=basis['subject']['digest']
+        ruling['signature']=_sign_free(self.signer,ruling,at)
+        return ruling
+
+    def commit_ruling_in(self,conn,basis,ruling):
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Ruling needs the owned application transaction')
+        if basis['subject']['kind']=='contract':
+            from ..errors import LabError
+            prior=self.ruling_for(basis['subject']['digest'])
+            if prior is not None:raise LabError('history_gap','Do not overwrite an original market ruling',status=409)
+            outcome=self.contract_outcome(basis['subject']['digest'])
+            if outcome is not None:
+                if outcome['outcome'] not in ('completed','client-terminated') or ruling['liable']!='none':
+                    raise LabError('revision_conflict','Preserve the original market conclusion',status=409)
+                return
+            self.market.record_ruling(basis['card'],ruling)
+            conn.execute('INSERT INTO rulings(card_digest,period,at,ruling) VALUES(?,?,?,?)',
+                (basis['subject']['digest'],basis['period'],self.now().timestamp(),jdump(ruling)))
+
+    def ruling_for(self,reference):
+        return self.market.store.get('rulings',reference)
+
+    def contract_outcome(self,reference):
+        value=self.market.store.get('ledger',reference)
+        return {'outcome':value['outcome'],'closedAt':value['closedAt']} if value else None
 
     def ledger(self) -> dict:
         return self.market.store.all("ledger")

@@ -1,14 +1,13 @@
 """Service ingress and per-interaction original Providers on the shared runtime."""
-import copy
-import re
 import threading
 import time
 import httpx
 
 from a2c.binding import A2ATransport
 from a2c.common import Directory
-from a2c.codec import parse_time
+from a2c.codec import parse_time,utcnow
 from a2c.provider import Provider
+from a2c.payment.ap2 import AP2Payment
 from a2c.errors import A2CError
 from a2c.slots import verify_template
 from ..adapters import ProtocolStore,SessionTransport
@@ -23,20 +22,8 @@ from .policy import HostPolicy
 class ProviderExecution:
     def __init__(self,role,runtime,host):
         self.role,self.runtime,self.host=role,runtime,host
-        self.configs=copy.deepcopy(runtime.config.provider.get('services',{}))
-        if type(runtime.config.provider.get('require_publication_authorization',False)) is not bool:raise RuntimeFault('invalid_input','require_publication_authorization must be boolean')
-        if set(runtime.config.provider)-{'services','require_publication_authorization'} or not isinstance(self.configs,dict):raise RuntimeFault('invalid_input','Configure provider.services by local service profile')
-        for profile,config in self.configs.items():
-            if profile not in role.identities or not isinstance(config,dict) or set(config)-{'instructions','skills','resources','native_tools','max_active_delegations','accepting'} or not isinstance(config.get('instructions'),str) or not config['instructions'].strip():
-                raise RuntimeFault('invalid_input','Each service needs its local profile and professional instructions')
-            if type(config.get('max_active_delegations',1)) is not int or not 1<=config.get('max_active_delegations',1)<=1000 or type(config.get('accepting',True)) is not bool:
-                raise RuntimeFault('invalid_input','Configure bounded active delegations and accepting flag')
-            if not isinstance(config.get('skills',[]),list) or len(config.get('skills',[]))>32 or any(not isinstance(skill,str) or not skill.strip() for skill in config.get('skills',[])) or len(set(config.get('skills',[])))!=len(config.get('skills',[])):
-                raise RuntimeFault('invalid_input','Use installed local business skill references')
-            if not isinstance(config.get('resources',{}),dict) or len(encode(config.get('resources',{})).encode())>65536:raise RuntimeFault('invalid_input','Use bounded local business resource metadata')
-            native=config.get('native_tools',{})
-            if not isinstance(native,dict) or len(native)>64 or any(not isinstance(name,str) or not re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name) or name=='ask_user' or level not in ('allow','ask','deny') for name,level in native.items()):
-                raise RuntimeFault('invalid_input','Use exact installed native tool names and allow, ask or deny permissions')
+        from .configuration import validate_provider
+        self.configs=validate_provider(runtime.config.provider,runtime.config.identities)
         self.stop=threading.Event();self.changed=threading.Event();self.thread=None
         self.active=set();self.contexts={};self.lock=threading.RLock()
         self.public=A2ATransport(http=lambda:httpx.AsyncClient(timeout=20,trust_env=False))
@@ -48,11 +35,14 @@ class ProviderExecution:
         self.production=Production(self)
         from .tasks import ProviderTasks
         self.tasks=ProviderTasks(self)
+        from .termination import Termination
+        self.termination=Termination(self)
 
     def bind(self):
         if not self.role.identities:return {}
         return {'jobs':{'provider.a2c':JobHandler(self.run,'provider-a2c-v1',True,self.model_available),
                         'provider.control':JobHandler(self.run,'provider-control-v1',False,control=True),
+                        'provider.settlement':JobHandler(self.termination.run,'provider-settlement-v1',False,control=True),
                         'provider.production':JobHandler(self.production.run,'provider-production-v1',True,self.model_available)},'profiles':list(self.configs)}
 
     def business_tools(self,profile,expected=None):
@@ -133,6 +123,7 @@ class ProviderExecution:
                 templates=self.templates(identity)
                 if templates:
                     self.configure(identity);self.published[profile]=max(parse_time(t['validUntil']).timestamp() for t in templates)
+                    self.errors.pop('profile:'+profile,None)
             except Exception as exc:
                 self.published.pop(profile,None)
                 self.errors['profile:'+profile]={'code':getattr(exc,'code','not_ready'),'type':type(exc).__name__}
@@ -152,7 +143,9 @@ class ProviderExecution:
                         self.reject(identity,value,exc.code)
                 except httpx.HTTPError:self.errors[value['messageId']]={'code':'platform_unavailable'}
         for endpoint in list(self.contexts.values()):
-            try:self.production.advance(endpoint)
+            try:
+                self.termination.advance(endpoint)
+                self.production.advance(endpoint)
             except (RuntimeFault,A2CError,httpx.HTTPError) as exc:self.errors[endpoint.interaction]={'code':getattr(exc,'code','platform_unavailable')}
 
     def intent(self,identity,message):
@@ -202,6 +195,9 @@ class ProviderExecution:
         reference=self.runtime.scheduler.reference(identity.agent_id,handler,message['messageId'])
         try:
             current=self.runtime.scheduler.get(reference)
+            # Restore original protocol state even when every received control
+            # already completed before a process restart. No new task is run.
+            self.context(identity,relation,current)
             candidates=[current]
             if current['status']=='completed':
                 try:candidates.append(self.runtime.scheduler.get(self.runtime.scheduler.reference(identity.agent_id,'provider.a2c',message['messageId'])))
@@ -219,11 +215,11 @@ class ProviderExecution:
         self.runtime.scheduler.submit(identity.agent_id,relation['id'],handler,{'messageId':message['messageId'],'profile':identity.profile},
             operation_id=message['messageId'],session=relation['session'],deadline=instant(message['expiresAt']),admitted=True)
 
-    def context(self,identity,relation,job):
+    def context(self,identity,relation,job,*,for_execution=False):
         with self.lock:
             endpoint=self.contexts.get(relation['id'])
             if endpoint:
-                endpoint.provider.policy=HostPolicy(self,identity,relation,endpoint.provider,job,endpoint.store.get('context','config'),endpoint.provider.transport.admission)
+                if for_execution:endpoint.provider.policy=HostPolicy(self,identity,relation,endpoint.provider,job,endpoint.store.get('context','config'),endpoint.provider.transport.admission)
                 return endpoint
             original=self.runtime.store.checkpoint('provider-inbox:'+identity.agent_id,relation['origin'])
             if not original or 'admission' not in original:raise RuntimeFault('not_ready','Recover the original intent and admission first')
@@ -234,11 +230,14 @@ class ProviderExecution:
                 config={key:self.configs[identity.profile].get(key,[] if key=='skills' else {} if key in ('resources','native_tools') else '') for key in ('instructions','skills','resources','native_tools')}
                 config['businessTools']=[tool.policy() for tool in self.business_tools(identity.profile).values()];store.put('context','config',config)
             transport=SessionTransport(self.runtime,identity,relation['id'],aid,relation['peer'],public=self.public)
-            provider=Provider(identity.signer,market=self.runtime.account.config['market'],keys=Directory(fetch=transport.jwks),transport=transport,
-                fetch=self.runtime.account.fetch_package,store=store,ap2_key=identity.payment,name=identity.name,
+            keys=Directory(fetch=transport.jwks)
+            payment=AP2Payment(transport,psp=self.runtime.account.config['pay'],payer=identity.payment,
+                instrument={'id':'ioalab-virtual','type':'wallet'},clock=utcnow,keys=keys,store=store)
+            provider=Provider(identity.signer,market=self.runtime.account.config['market'],keys=keys,transport=transport,
+                fetch=self.runtime.account.fetch_package,store=store,ap2_key=identity.payment,name=identity.name,payment=payment,
                 model=model_port(self.runtime,self.host,identity,relation['id']))
             provider.store.put('templates',original['template']['templateDigest'],original['template'])
-            endpoint=EndpointSession(self.runtime,identity,relation['id'],provider)
+            endpoint=EndpointSession(self.runtime,identity,relation['id'],provider,on_permit=lambda permit:provider.bind_contract(permit['contractCard'],deposit_voucher=permit.get('depositVoucher')) if permit.get('contractCard') else None)
             provider.policy=HostPolicy(self,identity,relation,provider,job,config,aid)
             self.contexts[relation['id']]=endpoint
             return endpoint
@@ -247,7 +246,7 @@ class ProviderExecution:
         identity=self.role.identities[job['payload']['profile']]
         relation=self.runtime.store.interaction(interaction_id=job['interaction'])
         message=next(frame['message'] for frame in self.runtime.store.messages(identity.agent_id) if frame['message']['messageId']==job['payload']['messageId'])
-        endpoint=self.context(identity,relation,job)
+        endpoint=self.context(identity,relation,job,for_execution=True)
         if message['body']['op']=='request.submit':endpoint.provider.transport.request=message['body']['body']['request']
         resume=self.tasks.require_continuation(identity,job,relation,message)
         result=endpoint.finish(message,resume_request=resume) if job['handler']=='provider.a2c' else endpoint.prepare(message)

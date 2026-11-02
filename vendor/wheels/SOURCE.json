@@ -1,14 +1,14 @@
 {
   "package": "a2c",
-  "version": "0.0.20",
-  "wheel": "a2c-0.0.20-py3-none-any.whl",
-  "sha256": "4658b6976dbcc42ff9e79acc5dd8b5327036cd78203f05b34c631675261d3f30",
+  "version": "0.0.22",
+  "wheel": "a2c-0.0.22-py3-none-any.whl",
+  "sha256": "a80fee19210bb8b809208a43df396c9cb599ee16479987e9320a32c2f4b18d5b",
   "source": {
     "repo": "https://github.com/Weizheng96/AgentContractProtocol",
-    "commit": "c4a443fd53636328a756c3d376b61732d932b02f",
+    "commit": "9bb748b6f4fa8d9ebb3830dc5d6479eca9bcc6f1",
     "subdirectory": "src",
-    "design_version": "v0.0.20"
+    "design_version": "v0.0.22"
   },
-  "built": "2026-11-01",
+  "built": "2026-11-02",
   "tool": "tools/sync_a2c.py"
 }

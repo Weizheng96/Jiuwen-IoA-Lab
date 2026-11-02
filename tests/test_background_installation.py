@@ -189,3 +189,44 @@ def test_corrupt_install_metadata_is_not_trusted_even_with_a_live_worker_lock(tm
         result=installer.prepare(assets,cache,launch=True,retry=True)
     assert result['status']=='unknown' and result['error']['code']=='unknown_result'
     assert release.task.read_bytes()==before and not release.envdir.exists()
+
+
+def test_install_worker_waits_for_status_probe_then_keeps_its_original_attempt(tmp_path):
+    import threading
+    from conftest import wait_for
+    _,installer,assets,cache=bundle(tmp_path)
+    release=installer.Release(assets,cache);attempt=str(uuid.uuid4())
+    release.save({'releaseId':release.id,'attemptId':attempt,'phase':'launching','logPath':str(release.log(attempt))})
+    marker=tmp_path/'claim-started';driver=tmp_path/'claim-worker.py'
+    driver.write_text('''import importlib.util
+from contextlib import contextmanager
+from pathlib import Path
+import sys
+spec=importlib.util.spec_from_file_location('isolated_installer',sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+original=module.lock
+@contextmanager
+def observed(path,*args,**kwargs):
+    if str(path).endswith('.install.lock'):Path(sys.argv[5]).write_text('claiming')
+    with original(path,*args,**kwargs):yield
+module.lock=observed
+raise SystemExit(module.work(sys.argv[2],sys.argv[3],sys.argv[4]))
+''',encoding='utf-8')
+    env={**os.environ,'IOALAB_PYPI_INDEX':'http://not-allowed.invalid'}
+    child=None
+    try:
+        with release.log(attempt).open('wb') as log:
+            with installer.lock(release.install_lock):
+                child=subprocess.Popen([sys.executable,'-I',str(driver),str(assets.parent/'scripts/installer.py'),
+                    str(assets),str(cache),attempt,str(marker)],env=env,stdout=log,stderr=subprocess.STDOUT)
+                wait_for(marker.is_file,timeout=5)
+                threading.Event().wait(.1)
+                assert child.poll() is None,'Status probe collision killed the original installation worker'
+            assert child.wait(timeout=10)==1  # Deliberate mirror validation failure, before venv/pip.
+        current=release.state()
+        assert current['attemptId']==attempt and current['phase']=='failed'
+        assert 'HTTPS package mirror' in current['message']
+        assert not release.envdir.exists() and release.log(attempt).is_file()
+    finally:
+        if child and child.poll() is None:
+            child.terminate();child.wait(timeout=10)

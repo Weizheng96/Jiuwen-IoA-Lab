@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from _support import as_admin
-from ioalab.observation.contracts import extends
+from ioalab.delegation.contracts import evidence_extends
 
 
 def report(local_client):
@@ -67,10 +67,10 @@ def test_snapshot_cannot_remove_or_replace_original_receipt_or_equal_length_sign
     original={'signatures':{'1':'original','2':'provider','3':'market','4':[]},
               'fulfillment':{'receipt':{'signature':'original-receipt'}}}
     older=copy.deepcopy(original);older['fulfillment']['receipt']=None
-    assert not extends(original,older) and extends(older,original)
+    assert not evidence_extends(original,older) and evidence_extends(older,original)
     fork=copy.deepcopy(original);fork['fulfillment']['receipt']={'signature':'another-receipt'}
-    assert not extends(original,fork) and not extends(fork,original)
+    assert not evidence_extends(original,fork) and not evidence_extends(fork,original)
     fork=copy.deepcopy(original);fork['signatures']['1']='another-valid-looking-signature'
-    assert not extends(original,fork) and not extends(fork,original)
+    assert not evidence_extends(original,fork) and not evidence_extends(fork,original)
     advanced=copy.deepcopy(original);advanced['signatures']['4']=['delivery']
-    assert extends(original,advanced) and not extends(advanced,original)
+    assert evidence_extends(original,advanced) and not evidence_extends(advanced,original)

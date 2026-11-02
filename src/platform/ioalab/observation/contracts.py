@@ -11,6 +11,7 @@ from a2c.jws import header_of
 from a2c.slots import verify_card
 
 from ..payments import money
+from ..delegation.contracts import evidence_extends
 
 
 SCHEMA='''CREATE TABLE IF NOT EXISTS observation_contracts(
@@ -22,15 +23,9 @@ def encoded(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,sep
 def fingerprint(value):return hashlib.sha256(value.encode('utf-8')).hexdigest()
 
 
-def extends(previous,current):
-    receipt=previous.get('fulfillment',{}).get('receipt')
-    if receipt and current.get('fulfillment',{}).get('receipt')!=receipt:return False
-    for key,old in previous['signatures'].items():
-        new=current['signatures'][key]
-        if isinstance(old,list):
-            if new[:len(old)]!=old:return False
-        elif old and new!=old:return False
-    return True
+def net_amount(payment):
+    value=money(payment['amount'])
+    return -value if payment['direction']=='refund' else money(0) if payment['direction']=='internal' else value
 
 
 class ContractProjection:
@@ -77,7 +72,7 @@ class ContractProjection:
             if old:
                 if old['digest']!=cd or old['card_hash']!=fingerprint(old['card']):return False
                 if old['card_hash']==checksum:return False
-                if not extends(json.loads(old['card']),card):return False
+                if not evidence_extends(json.loads(old['card']),card):return False
         except (A2CError,KeyError,TypeError,ValueError):return False
         now=self.clock()
         conn.execute('''INSERT INTO observation_contracts VALUES(?,?,?,?,?,?,?)
@@ -93,8 +88,8 @@ class ContractProjection:
             cards=[]
             offer=self.db.one('SELECT result FROM delegation_offers WHERE admission=?',row['id'])
             if offer:cards.append(json.loads(offer['result']).get('card'))
-            original=self.db.one('SELECT card FROM delegation_contracts WHERE admission=?',row['id'])
-            if original:cards.append(json.loads(original['card']))
+            original=self.db.one('SELECT card,progress FROM delegation_contracts WHERE admission=?',row['id'])
+            if original:cards.append(json.loads(original['progress'] or original['card']))
             for message in self.db.rows("SELECT kind,envelope FROM delivery_messages WHERE interaction=? AND kind IN ('a2c.request','a2c.result') AND envelope IS NOT NULL ORDER BY created,seq",row['interaction']):
                 body=json.loads(message['envelope'])['body']
                 content=body.get('body',{}) if message['kind']=='a2c.request' else body.get('reply',{}).get('body',{})
@@ -110,20 +105,24 @@ class ContractProjection:
         return changed
 
     def income(self,owner):
-        records=self.db.rows("""SELECT a.service,p.purpose,p.amount FROM admission_payments link
-            JOIN payment_records p ON p.payment_id=link.payment_id JOIN delegation_admissions a ON a.id=link.admission
-            JOIN delegation_intents i ON i.origin=a.origin JOIN agents c ON c.id=a.client JOIN agents s ON s.id=a.service
+        records=self.db.rows("""SELECT a.service,p.purpose,p.amount,p.payer_id,p.payee_id,s.owner_id AS service_owner
+            FROM admission_payments link JOIN payment_records p ON p.payment_id=link.payment_id
+            JOIN delegation_admissions a ON a.id=link.admission JOIN delegation_intents i ON i.origin=a.origin
+            JOIN agents c ON c.id=a.client JOIN agents s ON s.id=a.service
             LEFT JOIN delegation_contracts f ON f.admission=a.id
-            WHERE s.owner_id=? AND p.payee_id=s.owner_id AND p.payer_id=c.owner_id
-            AND p.provider=json_extract(s.meta,'$.protocolId') AND p.currency='CNY'
+            WHERE s.owner_id=? AND p.provider=json_extract(s.meta,'$.protocolId') AND p.currency='CNY'
             AND p.currency=json_extract(i.details,'$.template.pricing.currency')
+            AND ((p.payer_id=c.owner_id AND p.payee_id=s.owner_id)
+                OR (p.purpose='termination' AND p.payer_id=s.owner_id AND p.payee_id=c.owner_id))
             AND ((p.purpose='proposal-fee' AND p.ref=a.binding)
-                OR (p.purpose IN ('deposit','installment') AND p.ref=f.digest))""",owner)
+                OR (p.purpose IN ('deposit','installment','termination') AND p.ref=f.digest))""",owner)
         totals={}
         for row in records:
+            direction='internal' if row['payer_id']==row['payee_id'] else 'refund' if row['payer_id']==row['service_owner'] else 'payment'
+            delta=net_amount({**row,'direction':direction})
             value=totals.setdefault(row['service'],{'earned':money(0),'commissionEarned':money(0),'proposalFeesEarned':money(0)})
-            value['earned']+=money(row['amount'])
-            value['proposalFeesEarned' if row['purpose']=='proposal-fee' else 'commissionEarned']+=money(row['amount'])
+            value['earned']+=delta
+            value['proposalFeesEarned' if row['purpose']=='proposal-fee' else 'commissionEarned']+=delta
         return {actor:{key:str(amount) for key,amount in value.items()} for actor,value in totals.items()}
 
     def service_completions(self,owner):
@@ -183,12 +182,15 @@ class ContractProjection:
 
     def payments(self,row):
         template=json.loads(row['details'])['template']
-        records=self.db.rows('''SELECT p.* FROM admission_payments a JOIN payment_records p ON p.payment_id=a.payment_id
-            WHERE a.admission=? AND p.payer_id=? AND p.payee_id=? AND p.provider=? AND p.currency=?
-            ORDER BY p.created,p.period''',row['admission'],row['owner_id'],row['service_owner_id'],template['provider'],template['pricing']['currency'])
+        records=self.db.rows("""SELECT p.* FROM admission_payments a JOIN payment_records p ON p.payment_id=a.payment_id
+            WHERE a.admission=? AND p.provider=? AND p.currency=?
+            AND ((p.payer_id=? AND p.payee_id=?) OR (p.purpose='termination' AND p.payer_id=? AND p.payee_id=?))
+            ORDER BY p.created,p.period""",row['admission'],template['provider'],template['pricing']['currency'],
+            row['owner_id'],row['service_owner_id'],row['service_owner_id'],row['owner_id'])
         return [{'at':r['created'],'amount':r['amount'],'purpose':r['purpose'],'period':r['period'],
-                 'payment_id':r['payment_id'],'currency':r['currency']} for r in records
-                if r['purpose'] in ('deposit','installment','proposal-fee')
+                 'payment_id':r['payment_id'],'currency':r['currency'],
+                 'direction':'internal' if r['payer_id']==r['payee_id'] else 'refund' if r['payer_id']==row['service_owner_id'] else 'payment'}
+                for r in records if r['purpose'] in ('deposit','installment','proposal-fee','termination')
                 and r['ref']==(row['binding'] if r['purpose']=='proposal-fee' else row['digest'])]
 
     def view(self,row,*,private=False):
@@ -203,9 +205,10 @@ class ContractProjection:
             payments=self.payments(row);template=json.loads(row['details'])['template']
             ending=self.market.market.store.get('ledger',row['digest'])
             return {**base,'state':ending['outcome'] if ending else 'unknown','phase':'合同副本待恢复','signatures':{},'payments':payments,
-                'paid':str(sum((money(p['amount']) for p in payments if p['purpose']!='proposal-fee'),money(0))),
-                'proposalFeePaid':str(sum((money(p['amount']) for p in payments if p['purpose']=='proposal-fee'),money(0))),
-                'earned':str(sum((money(p['amount']) for p in payments),money(0))),
+                'paid':str(sum((net_amount(p) for p in payments if p['purpose']!='proposal-fee'),money(0))),
+                'proposalFeePaid':str(sum((net_amount(p) for p in payments if p['purpose']=='proposal-fee'),money(0))),
+                'refunded':str(sum((money(p['amount']) for p in payments if p['direction']=='refund'),money(0))),
+                'earned':str(sum((net_amount(p) for p in payments),money(0))),
                 'total':None,'provider_id':template['provider'],'formation':template['formation']}
         template=json.loads(row['details'])['template']
         signatures={key:[bool(s) for s in value] if isinstance(value,list) else bool(value) for key,value in card['signatures'].items()}
@@ -216,18 +219,21 @@ class ContractProjection:
         if facts.get('receipt'):state='started'
         if signatures['5']:state='delivered'
         if signatures['7']:state='accepted'
+        terminated=bool(card['fulfillment'].get('termination'))
+        if terminated:state='terminated'
         if ending:state=ending['outcome']
         phase={'signed':'已成约','offered':'待确认合同','started':'履约中','delivered':'等待验收','accepted':'已签验收',
-               'completed':'已结清','client-terminated':'已解除','arbitrated':'已裁定'}.get(state,state)
+               'completed':'已结清','client-terminated':'已解除 · 已结清','terminated':'已解除 · 待结清','arbitrated':'已裁定'}.get(state,state)
         if not row['effective']:phase='等待服务方复签' if signatures['1'] else '等待用户确认合同'
         waiting=json.loads(facts['step']) if facts.get('step') else None
-        if waiting and not ending:phase='等待用户授权'
+        if waiting and not ending and not terminated:phase='等待用户授权'
         result={**base,'provider_id':card['provider'],'template_digest':card['templateDigest'],
             'formation':template['formation'],'total':str(card['derived']['total']),'state':state,'phase':phase,
             'signatures':signatures,'periods':len(card['derived']['periods']),'payments':payments,
-            'paid':str(sum((money(p['amount']) for p in commission),money(0))),
-            'proposalFeePaid':str(sum((money(p['amount']) for p in payments if p['purpose']=='proposal-fee'),money(0))),
-            'earned':str(sum((money(p['amount']) for p in payments),money(0)))}
+            'paid':str(sum((net_amount(p) for p in commission),money(0))),
+            'proposalFeePaid':str(sum((net_amount(p) for p in payments if p['purpose']=='proposal-fee'),money(0))),
+                'refunded':str(sum((money(p['amount']) for p in payments if p['direction']=='refund'),money(0))),
+            'earned':str(sum((net_amount(p) for p in payments),money(0)))}
         if ending and ending.get('outcome')=='completed' and len(signatures['7'])<len(card['derived']['periods']):
             result.update(evidenceStatus='partial',phase='已结清 · 部分历史证据缺失')
         result['executionState']='unknown' if not ending and self.unknown(row['admission']) else None

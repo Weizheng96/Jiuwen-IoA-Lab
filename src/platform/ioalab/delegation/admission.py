@@ -10,7 +10,7 @@ from a2c.codec import digest,parse_time,parse_duration
 from a2c.common import Directory
 from a2c.jws import check_fresh,header_of
 from a2c.errors import A2CError
-from a2c.slots import verify_card
+from a2c.slots import verify_card,verify_template
 
 from ..errors import LabError
 
@@ -129,6 +129,31 @@ class Admissions:
 
     def expire_in(self,conn):
         conn.execute("UPDATE delegation_admissions SET state='released' WHERE state='held' AND hold_until<=?",(self.clock(),))
+
+    def expired_proposals_in(self,conn):
+        """Read provably expired offers; caller commits release with closure."""
+        expired=[]
+        rows=conn.execute("SELECT a.* FROM delegation_admissions a JOIN delegation_offers o ON o.admission=a.id WHERE a.state='committed'").fetchall()
+        for row in rows:
+            try:
+                source=self.evidence_in(conn,row['id']);template=source['template']
+                if template['formation']!='proposal':continue
+                request,card=source['signedRequest'],source['offer']['card']
+                until=parse_time(header_of(card['signatures']['3'])['a2c-ts'])+parse_duration(template['deadlines']['respondWithin'])+parse_duration(template['deadlines']['startWithin'])
+                if self.clock()<=until.timestamp():continue
+                keys=self.contracts.keys(row);verify_template(template,keys)
+                validate_request(template,request);header=verify_request(request)
+                validate_card(template,card,request=request)
+                chain=verify_card(template,card,keys,request_ts=parse_time(header['a2c-ts']))
+                if (request_digest(request)!=row['binding'] or template['templateDigest']!=row['template']
+                        or card['delegationScopeDigest']!=row['scope'] or card['signatures']['1']
+                        or not chain.ts.get(2) or not chain.ts.get(3)):continue
+                if not self.contracts.unselected_offer_in(conn,row,card):continue
+                expired.append(row)
+            except (A2CError,LabError,KeyError,TypeError,ValueError,AttributeError):
+                # Missing/corrupt originals require reconciliation, never release.
+                continue
+        return expired
 
     def can_close_in(self,conn,origin):
         return not conn.execute("SELECT 1 FROM delegation_admissions WHERE origin=? AND state='committed'",(origin,)).fetchone()
@@ -298,6 +323,16 @@ class Admissions:
             if any(item for slot,value in card['signatures'].items() if slot not in ('1','2') for item in (value if isinstance(value,list) else [value])):raise ValueError()
             if verify_card(template,card,keys).effective is None:raise ValueError()
         except (A2CError,TypeError,KeyError,ValueError):raise LabError('invalid_input','Countersign result changed its bound card or original signature chain') from None
+
+    def evidence_in(self,conn,identifier):
+        """Original obligation facts only; no current-publication or expiry checks."""
+        row=self.admission(conn,identifier)
+        details=json.loads(self.intent(conn,row['origin'])['details'])
+        request=conn.execute('SELECT * FROM delegation_signed_requests WHERE admission=?',(row['id'],)).fetchone()
+        offer=conn.execute('SELECT result FROM delegation_offers WHERE admission=?',(row['id'],)).fetchone()
+        return {'admission':dict(row),'template':details['template'],
+            'signedRequest':json.loads(request['request']) if request else None,
+            'requestMessageId':request['message'] if request else None,'offer':json.loads(offer['result']) if offer else None}
 
     def signed_request_in(self,conn,identifier,message,request,*,started=False):
         identifier=self.admission(conn,identifier)['id']

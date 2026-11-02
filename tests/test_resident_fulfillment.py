@@ -206,7 +206,9 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         assert http.get('/api/orders/'+ref,headers=own_headers).json()['card']==actual['card']
         assert displayed['proposalFeePaid']==('1.00' if formation=='proposal' else '0.00')
         assert all('card' not in row and 'detail' not in row for row in platform.contract_views.list())
-        assert platform.contract_views.rebuild()==0
+        original_view=platform.db.one('SELECT * FROM observation_contracts WHERE digest=?',ref)
+        platform.contract_views.rebuild()
+        assert platform.db.one('SELECT * FROM observation_contracts WHERE digest=?',ref)==original_view
         # A replay/older copy or altered signature must never roll the display backward.
         record=platform.db.one('SELECT * FROM observation_contracts WHERE digest=?',ref)
         offer=platform.db.one('SELECT result FROM delegation_offers WHERE admission=?',actual['admissionId'])
@@ -252,6 +254,10 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         aid=actual['admissionId']
         assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',aid)['state']=='released'
         assert platform.market.reputation(provider.identities[0].protocol_id)['completed']==1
+        reputation=LocalClient(provider.config.home).call('provider.reputation',{'profile':'service'})
+        assert reputation['status']=='completed',reputation
+        entry=reputation['data']['reputation']
+        assert entry['completed']==1 and entry['successRate']==1 and entry['signature']
         assert blocked_close==[True]
         assert bool(dropped)==lose_payment
         # Rebuild only the disposable display copy, then expire this closed test interaction.
@@ -271,15 +277,31 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
             platform.db.run('UPDATE delivery_messages SET expires=0,retain_until=0 WHERE interaction=?',iid)
             platform.messaging.delivery.cleanup()
             assert not platform.db.one('SELECT 1 FROM delivery_messages WHERE interaction=? AND envelope IS NOT NULL',iid)
-            assert platform.contract_views.rebuild()==0
+            original_view=platform.db.one('SELECT * FROM observation_contracts WHERE digest=?',ref)
+            platform.contract_views.rebuild()
+            assert platform.db.one('SELECT * FROM observation_contracts WHERE digest=?',ref)==original_view
             retained=next(row for row in platform.contract_views.list(assistant.account.account['id'],private=True) if row['card_digest']==ref)
             assert retained['card']==actual['card'] and retained['state']=='completed'
-            # Losing the display copy after payload cleanup cannot recreate missing acceptance signatures.
+            # A display loss is recoverable from the retained verified authority.
+            authority=platform.db.one('SELECT progress FROM delegation_contracts WHERE admission=?',aid)['progress']
+            assert json.loads(authority)==actual['card']
             platform.db.run('DELETE FROM observation_contracts WHERE admission=?',aid)
             assert platform.contract_views.rebuild()>0
-            partial=next(row for row in platform.contract_views.list(assistant.account.account['id'],private=True) if row['card_digest']==ref)
-            assert partial['state']=='completed' and partial['evidenceStatus']=='partial'
-            assert partial['signatures']['7']==[] and partial['paid']=='9.00'
+            recovered=next(row for row in platform.contract_views.list(assistant.account.account['id'],private=True) if row['card_digest']==ref)
+            assert recovered['state']=='completed' and recovered['evidenceStatus']=='verified'
+            assert recovered['card']==actual['card'] and recovered['signatures']['7']==[True] and recovered['paid']=='9.00'
+            # If that original is also lost, no remaining source may invent it.
+            try:
+                platform.db.run('UPDATE delegation_contracts SET progress=NULL WHERE admission=?',aid)
+                platform.db.run('DELETE FROM observation_contracts WHERE admission=?',aid)
+                assert platform.contract_views.rebuild()>0
+                partial=next(row for row in platform.contract_views.list(assistant.account.account['id'],private=True) if row['card_digest']==ref)
+                assert partial['state']=='completed' and partial['evidenceStatus']=='partial'
+                assert partial['signatures']['7']==[] and partial['paid']=='9.00'
+            finally:
+                platform.db.run('UPDATE delegation_contracts SET progress=? WHERE admission=?',authority,aid)
+                platform.db.run('DELETE FROM observation_contracts WHERE admission=?',aid)
+                platform.contract_views.rebuild()
         turns=[turn for turn in host.turns if json.loads(turn.input)['phase']=='production']
         assert len(turns)==2 and len({turn.session_id for turn in turns})==1
 

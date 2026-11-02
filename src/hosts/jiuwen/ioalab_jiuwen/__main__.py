@@ -8,7 +8,7 @@ from ioalab_sdk.assistant.role import AssistantRole
 from ioalab_sdk.provider import ProviderRole
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.resident import ResidentRuntime
-from ioalab_sdk.runtime.__main__ import start
+from ioalab_sdk.runtime.__main__ import start,setup_command,validate_roles
 from ioalab_sdk.runtime.ipc import public_error
 from ioalab_sdk.runtime.protocol import RuntimeFault,configure_stdio
 from .process import ProcessHost
@@ -18,16 +18,27 @@ from .tools import ConfiguredTools
 def main(argv=None):
     configure_stdio()
     parser=argparse.ArgumentParser(prog='ioalab-jiuwen')
-    parser.add_argument('command',choices=('start','serve','web-extension'))
+    parser.add_argument('command',choices=('start','serve','web-extension','configuration','configure','validate'))
     parser.add_argument('--config',type=Path,required=True)
     parser.add_argument('--args-file',type=Path)
     parser.add_argument('--role',choices=('assistant','service'))
     args=parser.parse_args(argv)
     if args.command=='web-extension':
         if not args.args_file or not args.role:parser.error('--args-file and --role are required for web-extension')
-    elif args.args_file or args.role:parser.error('--args-file and --role are only for web-extension')
+    elif args.command=='configure':
+        if not args.args_file or args.role:parser.error('configure requires --args-file without --role')
+    elif args.args_file or args.role:parser.error('--args-file is only for configure/web-extension; --role is only for web-extension')
     runtime=tools=None
     try:
+        if args.command in ('configuration','configure','validate'):
+            from .configuration import HOST_FIELDS,merge_host,validate_host
+            def validate(config):
+                validate_roles(config)
+                validate_host(config,base_dir=args.config.resolve().parent)
+            result=setup_command(args.command,args.config,args.args_file,validate=validate,
+                                 host_update=merge_host,host_fields=HOST_FIELDS)
+            print(json.dumps(result,ensure_ascii=False))
+            return 0
         if args.command=='web-extension':
             from .web_setup import prepare_extension
             print(json.dumps(prepare_extension(args.config,args.args_file,args.role),ensure_ascii=False))

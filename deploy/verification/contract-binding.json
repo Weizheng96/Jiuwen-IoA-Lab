@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-01",
+  "scope": "Actual local HTTP/WS effective contract binding before work or deposit; explicit host and trusted-user test drivers",
+  "checks": {
+    "focused": "14 passed, 2 skipped in 118.82s",
+    "newBindingCases": 4,
+    "designAndDocumentation": true,
+    "currentFullLabRegression": "not run after this change"
+  },
+  "proved": [
+    "Both proposal and countersign form the original card and register it without work.start or payment",
+    "Original account, service, admission, selection and signatures cannot be replaced",
+    "A lost committed binding response recovers the original slot 1 and registration without another model review"
+  ],
+  "upstream": {
+    "repository": "https://github.com/Weizheng96/AgentContractProtocol",
+    "commit": "712cce08ad78e58f90af9dbfda0bcd8201b66c23",
+    "pushed": true,
+    "labDependencyUpgraded": false
+  },
+  "sources": {
+    "src/platform/ioalab/delegation/contracts.py": "sha256:3c96e6cffc712286ef799b2936b278c18ee0756c34c681a815a78ec8dab37e9d",
+    "src/platform/ioalab/delegation/relay.py": "sha256:3535ecee7c417c60ba1043c475fb291773773b773df6e91bfc9875d786c0fc10",
+    "src/platform/ioalab/messaging/delivery.py": "sha256:1ba5f7c0b027b46cda5d96c2049c4c48eade4313c156494dd0f4a9bc174d4092",
+    "src/access/sdk/ioalab_sdk/assistant/contracts.py": "sha256:ba7d2a22003900af2a87ce52b33b8b1e3258592b4718f685f884d2cf5e97077b",
+    "tests/test_contract_binding.py": "sha256:3cba632861952f7d545d401be37f77e2cce66b93304162259a5c50ec8cb097c9",
+    "tests/test_resident_contracts.py": "sha256:fbf06b11d42ef806369ee8f9485194c7b4fdb52639124c2346cb1f38dfc7348e"
+  },
+  "limits": [
+    "Two real Jiuwen contract cases skipped by their existing environment gate",
+    "No native user confirmation, real model, email, new movie or Linux/systemd acceptance",
+    "Termination, reverse AP2 payment and execution convergence remain in progress",
+    "No Lab commit, tag or push; the existing publication review hold remains"
+  ]
+}

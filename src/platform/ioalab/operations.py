@@ -31,6 +31,7 @@ class PaymentOperations:
     def __init__(self,db,identities,psp,admissions,scopes,*,record=None):
         self.db,self.identities,self.psp,self.admissions,self.scopes=db,identities,psp,admissions,scopes
         self.record=record
+        self.arbitrations=None
         with db.lock:db.conn.executescript(PAYMENT_OPERATIONS_SCHEMA)
 
     def project(self,prepared):
@@ -66,11 +67,12 @@ class PaymentOperations:
             return json.loads(old['result']),False
         payment=prepared.payment
         if payment is None:raise LabError('unknown_result','The original operation receipt needs reconciliation',status=409)
+        if self.arbitrations:self.arbitrations.payment_in(conn,prepared.admission,payment,json.loads(prepared.original) if prepared.original else None)
         created=self.admissions.payment_in(conn,owner,actor,prepared.admission,payment,original=json.loads(prepared.original) if prepared.original else None)
         try:reply,transferred=self.psp.commit(conn,payment)
         except A2CError as exc:
             raise LabError('forbidden','Payment changed or expired before transaction commit',status=403) from exc
-        if created:self.scopes.record_payment_in(conn,owner,actor,payment.scope_digest,payment)
+        if created and not payment.refund:self.scopes.record_payment_in(conn,owner,actor,payment.scope_digest,payment)
         if self.record and prepared.original:
             card=json.loads(prepared.original).get('card')
             if card:self.record(conn,prepared.admission,card)
@@ -95,6 +97,7 @@ class MarketOperations:
     def __init__(self,db,identities,admissions,market,*,contracts=None,psp=None,close=None,record=None):
         self.db,self.identities,self.admissions,self.market=db,identities,admissions,market
         self.contracts,self.psp,self.close,self.record=contracts,psp,close,record
+        self.arbitrations=None
         with db.lock:db.conn.execute('''CREATE TABLE IF NOT EXISTS delegation_market_operations(
              owner TEXT NOT NULL,actor TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
              PRIMARY KEY(actor,id))''')
@@ -116,6 +119,7 @@ class MarketOperations:
             if old['owner']!=owner or old['fingerprint']!=fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
             return PreparedEndorsement(operation,fingerprint,json.dumps(payload),old['result'])
         with self.db.tx() as conn:
+            if self.arbitrations:self.arbitrations.guard_in(conn,payload['admissionId'],payload['op'],payload['body'])
             result=self.admissions.issued_offer_in(conn,owner,actor,payload['admissionId'],fingerprint)
             template=None if result else self.admissions.proposal_eligible_in(conn,owner,actor,payload['admissionId'],payload['request'],payload['body']['card'])
         if result:return PreparedEndorsement(operation,fingerprint,json.dumps(payload),json.dumps(result))
@@ -133,6 +137,7 @@ class MarketOperations:
             if old['owner']!=owner or old['fingerprint']!=prepared.fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
             return json.loads(old['result'])
         payload=json.loads(prepared.payload)
+        if self.arbitrations:self.arbitrations.guard_in(conn,payload['admissionId'],payload['op'],payload['body'])
         if payload['op']!='card.endorse':return self.apply_contract_in(conn,owner,actor,prepared,payload)
         result=self.admissions.issued_offer_in(conn,owner,actor,payload['admissionId'],prepared.fingerprint)
         if result is None:
@@ -154,7 +159,9 @@ class MarketOperations:
         if old:
             if old['owner']!=owner or old['fingerprint']!=fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
             return PreparedEndorsement(operation,fingerprint,json.dumps(payload),old['result'])
-        with self.db.tx() as conn:_,template=self.contracts.market_in(conn,owner,actor,payload)
+        with self.db.tx() as conn:
+            if self.arbitrations:self.arbitrations.guard_in(conn,payload['admissionId'],payload['op'],payload['body'])
+            _,template=self.contracts.market_in(conn,owner,actor,payload)
         try:result,changes=self.market.prepare_contract(template,payload['op'],payload['body']['card'])
         except (A2CError,KeyError,TypeError,ValueError) as exc:raise LabError('invalid_input','Original market rejected contract evidence: '+str(exc)) from None
         return PreparedEndorsement(operation,fingerprint,json.dumps(payload),json.dumps(result),changes=json.dumps(changes))
@@ -163,14 +170,10 @@ class MarketOperations:
         row,template=self.contracts.market_in(conn,owner,actor,payload)
         if prepared.changes is None:raise LabError('unknown_result','Restore the original contract market effect',status=409)
         if payload['op']=='card.close':
-            from decimal import Decimal
-            from a2c.card import card_digest
-            card=payload['body']['card'];accepted=len(card['signatures']['7'])
-            amounts=[('deposit',None,card['derived']['deposit']),*[('installment',i+1,period['amount']) for i,period in enumerate(card['derived']['periods'][:accepted])]]
-            term=card['fulfillment'].get('termination',{})
-            if term.get('quote'):amounts.append(('termination',None,max(Decimal(0),Decimal(str(term['quote']['fee']))-Decimal(str(card['derived']['deposit'])))))
-            self.psp.require_payments_in(conn,ref=card_digest(card),currency=template['pricing']['currency'],payer=self.identities.agent(row['client'])['owner_id'],payee=owner,amounts=amounts)
+            self.psp.require_contract_payments_in(conn,template,payload['body']['card'],keys=self.contracts.keys(row))
         self.market.commit_contract_in(conn,json.loads(prepared.changes))
+        result_card=json.loads(prepared.result).get('card') or payload['body']['card']
+        self.contracts.advance_in(conn,row,result_card)
         if self.record:
             result_card=json.loads(prepared.result).get('card') or payload['body']['card']
             self.record(conn,row['id'],result_card)

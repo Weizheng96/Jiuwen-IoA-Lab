@@ -11,6 +11,7 @@ description: 配置或接入用户已有的九问 Swarm，使用原生 Skill、�
 |---|---|
 | 安装定位、原生技能或扩展配置 | [配置边界](references/configuration.md) |
 | Process 调用、会话、用户确认或网页消息 | [接口与会话](references/interfaces.md) |
+| 项目自建托管实例、端口与服务停止 | [托管实例](references/managed-runtime.md) |
 | 能力缺失、运行异常或交付核验 | [排错与证据](references/verification.md) |
 
 先用当前项目的已安装版本及公开能力判断兼容性；参考页记的是核实过的机制，不能据此要求所有用户换到同一版本。

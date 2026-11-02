@@ -64,6 +64,10 @@ class SessionTransport:
         allowed={self.runtime.account.config['market'],self.runtime.account.config['pay'],self.peer}
         if uri not in allowed and uri not in {value+'/.well-known/jwks.json' for value in allowed}:
             raise RuntimeFault('forbidden','Key lookup is outside the configured protocol parties')
+        if self.peer==self.relation['peer'] and uri in (self.peer,self.peer+'/.well-known/jwks.json'):
+            # Personal-assistant protocol IDs are stable local IDs, not URLs.
+            # Only the bound peer can resolve through this configured platform.
+            uri=self.runtime.account.base+'/a2a/agents/'+self.peer+'/.well-known/jwks.json'
         return self.public.jwks(uri)
 
     def send(self,to,op,body,files=None,task_id=None):

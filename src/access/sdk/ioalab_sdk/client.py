@@ -54,10 +54,11 @@ class LabClient(DelegationScopes):
         IdentityClient(self.session).enroll('assistant',self.signer.id,self.signer,
             {'agent':self.signer.jwk,'user':self.user.jwk,'payer':self.payer.jwk},
             name='九问 Swarm' if self.source=='client' else '实验客户端',source=self.source)
-        self.client = Client(self.signer, keys=Directory(fetch=self.transport.jwks), transport=self.transport,
-                             fetch=self.fetch_package, store=self.store, user=self.user,
+        keys=Directory(fetch=self.transport.jwks)
+        self.client = Client(self.signer, keys=keys, transport=self.transport,
+                             fetch=self.fetch_package, store=self.store, user=self.user, ap2_key=self.payer,
                              payment_provider={"id": self.config["pay"], "jwksUri": self.config["pay"] + "/.well-known/jwks.json"},
-                             payment=AP2Payment(self.transport, psp=self.config["pay"], payer=self.payer, clock=utcnow,
+                             payment=AP2Payment(self.transport, psp=self.config["pay"], payer=self.payer, clock=utcnow, keys=keys, store=self.store,
                                                 instrument={"id": "ioalab-" + self.account["id"], "type": "wallet"}),
                              markets=(self.config["market"],))
         import os

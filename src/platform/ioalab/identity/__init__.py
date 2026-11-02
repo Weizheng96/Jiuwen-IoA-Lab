@@ -72,6 +72,17 @@ class IdentityDirectory:
         row=self.db.one('SELECT owner_id,meta FROM agents WHERE id=?',party['id'])
         return bool(row and row['owner_id']==owner and json.loads(row['meta']).get('clientJwk')==party.get('jwk'))
 
+    def payment_party(self,protocol):
+        """Historical bound party and AP2 key; independent of wallet or role direction."""
+        if not isinstance(protocol,str):raise LabError('invalid_input','Use an original protocol identity')
+        rows=self.db.rows("SELECT * FROM agents WHERE id=? OR json_extract(meta,'$.protocolId')=? OR json_extract(meta,'$.url')=?",protocol,protocol,protocol)
+        if len(rows)!=1:raise LabError('not_ready','Payment party identity is unavailable',status=409)
+        row=rows[0];meta=json.loads(row['meta'])
+        identity=row['id'] if row['role']=='assistant' else meta.get('protocolId',meta.get('url'))
+        key=meta.get('payerJwk') if row['role']=='assistant' else meta.get('ap2_jwk')
+        if identity!=protocol or not isinstance(key,dict):raise LabError('not_ready','The original AP2 identity is not bound',status=409)
+        return {'agentId':row['id'],'protocolId':identity,'owner':row['owner_id'],'jwk':key}
+
     def saved_keys(self):
         keys,owners=[],{}
         for row in self.db.rows('SELECT id,owner_id,meta FROM agents'):

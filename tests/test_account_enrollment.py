@@ -53,6 +53,7 @@ def test_account_credit_failure_rolls_back_account_and_invite(platform,client):
     try:
         response=client.post('/api/auth/register',json=body)
         assert response.status_code==500
+        assert response.headers.get('connection')=='close'
         assert platform.db.one('SELECT 1 FROM users WHERE username=?',body['username']) is None
         assert platform.db.one('SELECT used_by FROM invites WHERE code=?',invite)['used_by'] is None
     finally:
@@ -177,7 +178,7 @@ def test_independent_service_binds_public_keys_and_connects_without_assistant(pl
     assert result['role']=='service'
     assert platform.db.one("SELECT 1 FROM agents WHERE owner_id=? AND role='assistant'",user['id']) is None
     response=session.http.get(result['protocolId']+'/.well-known/jwks.json').raise_for_status().json()
-    assert response=={'keys':[parts[1].jwk]}
+    assert response=={'keys':[parts[1].jwk,parts[2]['payee']]}
     assert session.http.get(result['protocolId']+'/.well-known/agent-card.json').status_code==409
     catalog=session.http.get(session.base+'/api/catalog',headers={'Authorization':'Bearer '+session.token}).raise_for_status().json()
     assert all(row['id']!=result['agentId'] for row in catalog)

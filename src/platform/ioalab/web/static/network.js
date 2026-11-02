@@ -11,7 +11,7 @@ window.IoaNetwork = (() => {
     nodes[key]=id; components[key]=[title,protocol,hint];
   });
   let selected='assistant',latest=null,selectedOrder=null,lastSeq=null,messageStates=new Map();
-  const done = new Set(['completed','finished','arbitrated','client-terminated','terminated']);
+  const done = new Set(['completed','finished','arbitrated','client-terminated']);
   const live=[], rng=NetworkMap.random(4721), peerSlots=new Map();
   let nextAmbient=0;
   const el=key=>document.getElementById(nodes[key] || key);
@@ -152,7 +152,7 @@ window.IoaNetwork = (() => {
       ? (done.has(o.state) ? "已结束委托" : "当前委托") + " · " + o.providerName
       : "等待九问发起需求";
     document.getElementById("journey-evidence").innerHTML = o
-      ? `<span>合同总额 <b>${escape(o.total)}</b></span><span>实际已付 <b>${escape(o.paid || "0.00")}</b></span><small>虚拟币 · 验收执行位于个人助手本地</small>`
+      ? `<span>合同总额 <b>${escape(o.total)}</b></span><span>净支出 <b>${escape(o.paid || "0.00")}</b></span><small>虚拟币 · 验收执行位于个人助手本地</small>`
       : "<small>记录来自真实 SDK 调用与平台证据；未观察的步骤不会补成已完成。</small>";
   }
   return {

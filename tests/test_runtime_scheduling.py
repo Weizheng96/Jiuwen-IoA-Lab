@@ -235,3 +235,24 @@ def test_restart_marks_running_unknown_but_keeps_queued_and_handler_revision(sto
         assert restored.get(blocked)['status']=='queued'
         assert restored.get(running)['status']=='unknown'
     finally:restored.close()
+
+
+def test_stopping_pending_business_checks_all_jobs_and_preserves_active_and_unknown_writers(store):
+    gate=threading.Event();entered=threading.Event()
+    def running(job):
+        entered.set();assert gate.wait(10)
+        return JobOutcome('completed',{})
+    queue=Scheduler(store,{'model':JobHandler(running,'v1')},max_pending=200).start()
+    try:
+        active=submit(queue,'original');wait_for(entered.is_set)
+        queued=[submit(queue,'original') for _ in range(105)]
+        all_jobs=queue.stop_pending('a','original',('model',),{'reason':'terminated'})
+        assert len(all_jobs)==106 and next(row for row in all_jobs if row['id']==active)['executing']
+        assert queue.is_executing(active) and queue.get(active)['status']=='running'
+        assert all(queue.get(job)['status']=='rejected' for job in queued)
+        gate.set();wait_for(lambda:not queue.is_executing(active))
+        unknown=submit(queue,'unknown')
+        wait_for(lambda:queue.get(unknown)['status']=='completed' and not queue.is_executing(unknown))
+        with store.transaction() as conn:conn.execute("UPDATE runtime_jobs SET state='unknown' WHERE id=?",(unknown,))
+        assert queue.stop_pending('a','unknown',('model',),{'reason':'terminated'})==[{'id':unknown,'state':'unknown','executing':False}]
+    finally:gate.set();queue.close()

@@ -117,7 +117,7 @@ class ExternalProvider:
         self.provider = Provider(self.keys.signer, market=self.market_id, keys=directory, transport=transport, fetch=self._fetch_pkg,
                                  store=Store(self.data_dir / "store.json"), policy=_Policy(self._on_start), ap2_key=self.keys.ap2, name=self.d["name"])
         self.app = build_app(self.provider, name=self.d["name"], base_url=self.public_url, role="provider",
-                             jwks={"keys": [self.keys.signer.jwk]}, extensions=(A2C_EXTENSION, AP2_EXTENSION))
+                             jwks={"keys": [self.keys.signer.jwk, self.keys.ap2.jwk]}, extensions=(A2C_EXTENSION, AP2_EXTENSION))
         self.token = ""
         self.registration: dict = {}
         self.template: dict = {}

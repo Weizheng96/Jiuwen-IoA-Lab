@@ -1,22 +1,29 @@
 """Common configuration only; role/host namespaces are validated by their owners."""
-from dataclasses import dataclass,field
+from dataclasses import dataclass,field,replace
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
 
-from .files import read_json
 from .protocol import RuntimeFault
 from a2c.codec import digest
 
 
 def read_configuration(path):
     """Read user settings once; diagnostics may only need their data locator."""
-    try:value=read_json(path)
+    return configuration_snapshot(path)[0]
+
+
+def configuration_snapshot(path):
+    try:
+        raw=Path(path).read_bytes()
+        value=json.loads(raw.decode('utf-8-sig'))
     except (OSError,ValueError):
         raise RuntimeFault('invalid_input','Use a readable UTF-8 JSON configuration object','configure') from None
     if not isinstance(value,dict):raise RuntimeFault('invalid_input','Configuration must be an object','configure')
-    return value
+    return value,hashlib.sha256(raw).hexdigest()
 
 
 def data_directory(path,value):
@@ -39,6 +46,15 @@ class RuntimeConfig:
     provider: dict=field(default_factory=dict)
     host: dict=field(default_factory=dict)
     user_browser: str|None=None
+    source: Path|None=field(default=None,repr=False,compare=False)
+    source_digest: str|None=field(default=None,repr=False,compare=False)
+
+    def require_current(self):
+        if self.source is None:return
+        try:current=hashlib.sha256(self.source.read_bytes()).hexdigest()
+        except OSError:current=None
+        if current!=self.source_digest:
+            raise RuntimeFault('configuration_changed','Configuration changed during setup; inspect it and start again','runtime.configuration')
 
     def public_summary(self):
         value={'platform':self.platform,'username':self.username,'dataDir':str(self.home),'identities':list(self.identities),
@@ -49,7 +65,8 @@ class RuntimeConfig:
     @classmethod
     def load(cls,path):
         path=Path(path).resolve()
-        return cls.from_mapping(path,read_configuration(path))
+        value,snapshot=configuration_snapshot(path)
+        return replace(cls.from_mapping(path,value),source=path,source_digest=snapshot)
 
     @classmethod
     def from_mapping(cls,path,value):
@@ -87,9 +104,9 @@ class RuntimeConfig:
         for profile in profiles:
             if not isinstance(profile,dict) or set(profile)!={'key','role','name'}:invalid('Identity profiles require key, role and name')
             key=profile['key']
-            if not isinstance(key,str) or not re.fullmatch('[A-Za-z0-9][A-Za-z0-9_-]{0,63}',key) or key in keys:
+            if not isinstance(key,str) or not re.fullmatch('[A-Za-z0-9][A-Za-z0-9_-]{0,63}',key) or key.casefold() in keys:
                 invalid('Identity profile keys must be distinct local names')
-            keys.add(key)
+            keys.add(key.casefold())
             if profile['role'] not in ('assistant','service'):invalid('Unsupported identity role')
             if not isinstance(profile['name'],str) or not 1<=len(profile['name'])<=120:invalid('A bounded identity display name is required')
             assistants+=profile['role']=='assistant'

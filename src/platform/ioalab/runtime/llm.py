@@ -6,6 +6,12 @@ class LLM:
         self.s = settings
         self.enabled = bool(settings.llm.get("api_key")) and not settings.stub
 
+    def arbitration_binding(self,identities):
+        """Noncredential identity of only the models actually used by this case."""
+        if not identities:return {}
+        return {'endpoint':self.s.llm.get('api_base'),
+                'models':{identity:self.s.arbitration_models.get(identity) for identity in sorted(identities)}}
+
     def model_ports(self):
         import json
         ports={}

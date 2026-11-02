@@ -57,6 +57,7 @@ class DeliveryBroker:
         self.publications=None
         self.admissions=self.payment_operations=None
         self.market_operations=None
+        self.arbitrations=None
         self.protocol=None
         self.observe_in=None
         self._listeners={}
@@ -150,11 +151,16 @@ class DeliveryBroker:
             raise LabError('invalid_input','Operation type and identity must be strings')
         if kind.startswith('scope.') and self.scopes:return self.scopes.operation(owner,actor,kind,operation)
         if kind=='service.publish' and self.publications:return self.publications.operation(owner,actor,operation)
+        if kind.startswith('arbitration.') and self.arbitrations:return self.arbitrations.operation(owner,actor,kind,operation)
         if kind.startswith('admission.') and self.admissions:return self.admissions.operation(owner,actor,kind,operation)
         if kind=='ap2.pay' and self.payment_operations:return self.payment_operations.operation(owner,actor,operation)
         if kind=='a2c.market' and self.market_operations:return self.market_operations.operation(owner,actor,operation)
         row=self.db.one('SELECT result FROM delivery_operations WHERE actor=? AND kind=? AND id=?',actor,kind,operation)
-        if not row:raise LabError('not_ready','Operation has no accepted result',status=404,recovery='retry_original')
+        if not row:
+            key=hashlib.sha256(encode([actor,kind,operation]).encode()).hexdigest()
+            if self.db.one('SELECT 1 FROM delivery_operation_ids WHERE digest=?',key):
+                raise LabError('history_gap','Operation receipt has left retained history',status=409,recovery='restore_state')
+            raise LabError('not_ready','Operation has no accepted result',status=404,recovery='retry_original')
         return json.loads(row['result'])
 
     def control(self,owner,connection,generations,frame):
@@ -170,6 +176,11 @@ class DeliveryBroker:
         prepared=None
         payment=None
         endorsement=None
+        arbitration=None
+        if kind.startswith('arbitration.'):
+            if not self.arbitrations:raise LabError('not_ready','Arbitration case authority is unavailable',status=409)
+            with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
+            arbitration=self.arbitrations.prepare(owner,actor,kind,frame.get('operationId'),payload)
         if kind=='a2c.market':
             if not self.market_operations:raise LabError('not_ready','Market application is unavailable',status=409)
             with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
@@ -182,7 +193,7 @@ class DeliveryBroker:
             if not self.scopes:raise LabError('not_ready','Scope authorization is not configured',status=409)
             with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
             prepared=self.scopes.prepare(owner,actor,kind,payload)
-        handlers={'message.send':self._send,'message.ack':self._ack,'request.start':self._start,'interaction.close':self._close}
+        handlers={'message.send':self._send,'message.ack':self._ack,'request.start':self._start,'interaction.close':self._close,'contract.bind':self._bind_contract}
         self.cleanup()
         inserted=False
         transferred=False
@@ -199,6 +210,8 @@ class DeliveryBroker:
                 fresh=not conn.execute('SELECT 1 FROM delegation_market_operations WHERE actor=? AND id=?',(actor,frame.get('operationId'))).fetchone()
                 result=self.market_operations.apply_in(conn,owner,actor,endorsement)
                 if fresh and self.observe_in:activity=self.observe_in(conn,frame,result,fresh=True)
+            elif arbitration is not None:
+                result=self.arbitrations.apply_in(conn,owner,actor,kind,arbitration)
             elif kind.startswith('admission.'):
                 if not self.admissions:raise LabError('not_ready','Admission authority is unavailable',status=409)
                 result=self.admissions.apply_in(conn,owner,actor,kind,frame.get('operationId'),payload)
@@ -391,13 +404,19 @@ class DeliveryBroker:
         if interaction['state']!='open' or interaction['deadline']<=self.clock():
             raise LabError('closed','Interaction no longer accepts new work',status=409)
 
+    def _bind_contract(self,conn,actor,payload,generation):
+        if not self.protocol:raise LabError('not_ready','Established contract authority is unavailable',status=409)
+        owner=self.identities.agent(actor)['owner_id']
+        return self.protocol.bind_in(conn,owner,actor,payload)
+
     def _start(self,conn,actor,payload,generation):
         request=self._row(conn,payload.get('messageId'))
         if request['recipient']!=actor or request['kind'] not in ('message.request','delegation.intent','a2c.request'):raise LabError('forbidden','Only the recipient can begin this request',status=403)
         if request['interaction']!=payload.get('interactionId'):raise LabError('id_conflict','Request interaction does not match',status=409)
         interaction=self._interaction(conn,request['interaction'])
+        authority=self.protocol.context_in(conn,json.loads(request['envelope'])) if request['kind']=='a2c.request' else {}
         if request['started'] is not None:
-            return {'messageId':request['id'],'startedAt':stamp(request['started']),'resumed':True,'originalGeneration':request['start_generation'],'requestState':request['request_state']}
+            return {'messageId':request['id'],'startedAt':stamp(request['started']),'resumed':True,'originalGeneration':request['start_generation'],'requestState':request['request_state'],**authority}
         if request['kind']!='a2c.request':self._open(interaction)
         if request['expires']<=self.clock():raise LabError('expired','Request expired before processing',status=409)
         if request['request_state'] in TERMINAL:raise LabError('closed','Request already has a final result',status=409)
@@ -405,7 +424,7 @@ class DeliveryBroker:
         elif request['kind']=='delegation.intent':self.admissions.start_in(conn,actor,request['id'])
         else:self.protocol.start_in(conn,json.loads(request['envelope']))
         conn.execute("UPDATE delivery_messages SET started=?,start_generation=?,request_state='processing' WHERE id=?",(self.clock(),generation,request['id']))
-        return {'messageId':request['id'],'startedAt':stamp(self.clock()),'resumed':False,'requestState':'processing'}
+        return {'messageId':request['id'],'startedAt':stamp(self.clock()),'resumed':False,'requestState':'processing',**authority}
 
     def _result(self,conn,value):
         request=self._row(conn,value.get('inReplyTo'))
@@ -476,6 +495,16 @@ class DeliveryBroker:
         self._retain(conn,interaction['id'],interaction['origin'],interaction['sender'],interaction['recipient'])
         self._closed_notices(conn,interaction['origin'],interaction['sender'],interaction['recipient'],reason,interaction['id'])
 
+
+    def ruling_in(self,conn,admission,ruling):
+        """System-only reliable notices commit with the original case and market."""
+        row=self.admissions.admission(conn,admission)
+        for actor in (row['client'],row['service']):
+            self._enqueue(conn,{'messageId':str(uuid.uuid4()),
+                'kind':'contract.ruling','sender':SYSTEM,'recipient':actor,'interactionId':row['interaction'],
+                'originMessageId':row['origin'],'expiresAt':stamp(self.clock()+self.s.message_ttl_days*86400),
+                'body':{'caseRef':ruling['caseRef'],'admissionId':admission,'subject':ruling['subject'],'ruling':ruling}})
+
     def contract_closed_in(self,conn,iid):
         """Application calls only after original market/payment/admission validation."""
         interaction=self._interaction(conn,iid)
@@ -533,6 +562,17 @@ class DeliveryBroker:
         closed=self.db.one('SELECT 1 FROM delivery_closed_origins WHERE origin=?',origin)
         return {'originMessageId':origin,'interactionId':None,'state':'closed' if closed else request['request_state']}
 
+    def protocol_history_in(self,conn,message):
+        """Internal original-message reader for the protocol owner; no cleanup."""
+        try:request=self._row(conn,message)
+        except LabError as exc:raise LabError('history_gap','Original protocol request has left retained history',status=409,recovery='restore_state') from exc
+        if request['kind']!='a2c.request':raise LabError('history_gap','Original protocol request is unavailable',status=409,recovery='restore_state')
+        replies=conn.execute("SELECT * FROM delivery_messages WHERE in_reply=? AND kind='a2c.result' ORDER BY created,seq",(message,)).fetchall()
+        if request['envelope'] is None or any(r['envelope'] is None for r in replies):
+            raise LabError('history_gap','Original protocol evidence has left retained history',status=409,recovery='restore_state')
+        return {'request':json.loads(request['envelope']),'startedAt':stamp(request['started']) if request['started'] is not None else None,
+            'results':[json.loads(r['envelope']) for r in replies]}
+
     def message(self,owner,actor,mid):
         self.cleanup()
         self.identities.owned(owner,actor)
@@ -550,16 +590,22 @@ class DeliveryBroker:
                     for r in rows]
 
     def cleanup(self):
-        now=self.clock()
+        now=self.clock();changed=False
         with self.db.tx() as conn:
             conn.execute("UPDATE delivery_messages SET request_state='expired',retain_until=MAX(retain_until,?) WHERE kind IN ('message.request','delegation.intent') AND started IS NULL AND expires<=? AND request_state='pending'",
                          (now+self.s.message_retention_days*86400,now))
             conn.execute("UPDATE delivery_messages SET delivery_state='expired' WHERE expires<=? AND delivery_state='queued'",(now,))
+            if self.admissions is not None and self.protocol is not None:
+                for admission in self.admissions.expired_proposals_in(conn):
+                    interaction=conn.execute('SELECT * FROM delivery_interactions WHERE id=?',(admission['interaction'],)).fetchone()
+                    if interaction is None or interaction['state']!='open' or not self.protocol.proposal_finished_in(conn,admission['id'],self.protocol_history_in):continue
+                    self.admissions.finish_in(conn,admission['id'])
+                    self._end(conn,interaction,'proposal-expired');changed=True
             for interaction in conn.execute("SELECT * FROM delivery_interactions WHERE state='open' AND deadline<=?",(now,)).fetchall():
                 if interaction['kind']=='delegation':
                     if not self.admissions.can_close_in(conn,interaction['origin']):continue
                     self.admissions.close_in(conn,interaction['origin'])
-                self._end(conn,interaction,'deadline')
+                self._end(conn,interaction,'deadline');changed=True
             protected="COALESCE(interaction IN (SELECT id FROM delivery_interactions WHERE state='open'),0) OR COALESCE(interaction IN (SELECT interaction FROM delivery_messages WHERE kind='message.request' AND request_state IN ('processing','unknown')),0) OR (kind='message.request' AND request_state IN ('processing','unknown'))"
             conn.execute(f'UPDATE delivery_messages SET envelope=NULL,result=NULL WHERE retain_until<=? AND NOT ({protected})',(now,))
             cutoff=now-self.s.message_metadata_days*86400
@@ -577,3 +623,4 @@ class DeliveryBroker:
                          (self.s.message_retention_days*86400,cutoff,self.s.message_retention_days*86400,cutoff))
             conn.execute('DELETE FROM delivery_closed_origins WHERE closed_at<? AND origin NOT IN (SELECT id FROM delivery_messages)',(cutoff,))
             conn.execute("DELETE FROM delivery_interactions WHERE state='closed' AND closed_at<? AND id NOT IN (SELECT interaction FROM delivery_messages WHERE interaction IS NOT NULL)",(cutoff,))
+        if changed:self.notify()

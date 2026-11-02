@@ -83,7 +83,7 @@ def test_published_service_exposes_original_proof_keys_templates_and_actual_cate
         assert originals[0]['signatures']['provider']==body['templates'][0]['signatures']['provider']
         verify_template(originals[0],Directory(fetch=transport.jwks))
     finally:transport.close()
-    assert account.http.get(identity.protocol_id+'/.well-known/jwks.json').json()=={'keys':[identity.signer.jwk]}
+    assert account.http.get(identity.protocol_id+'/.well-known/jwks.json').json()=={'keys':[identity.signer.jwk,identity.payment.jwk]}
 
 
 def test_upload_checks_bound_identity_signature_category_and_ordinary_template_policy(platform,service):

@@ -39,6 +39,7 @@ class ResidentRuntime:
             prepare_home(config.home)
             # This same OS lock also fences the pre-migration direct client entry.
             self._lease=Lease(config.home/'client.lock',timeout=0)
+            config.require_current()
             index=read_json(config.home/'identity-index.json') if (config.home/'identity-index.json').exists() else {}
             if not set(index).issubset({p['key'] for p in config.identities}):
                 raise RuntimeFault('identity_conflict','Keep existing identity profiles until their business is migrated','migrate')
