@@ -1,6 +1,6 @@
 {
   "scope": "Unformed candidate projection and workbench grouping; not native Skill onboarding or completed user business",
-  "recordedAt": "2026-11-02T07:12:43.443463+00:00",
+  "recordedAt": "2026-11-02T07:17:44.342001+00:00",
   "designVersion": "v0.0.110",
   "baseCommit": "979ca17990b97758dcd10a511bb643c608a002e6",
   "testedSourceTree": "a67204450c5bddb479426f51061c5c3812896368",
@@ -48,10 +48,30 @@
     "Actual assistant/provider JavaScript renderers with explicit in-memory DOM driver: candidate grouping, labels, fees and selection"
   ],
   "realPages": {
-    "experimentalCoreUpdated": false,
-    "assistant": false,
-    "provider": false,
-    "admin": false
+    "experimentalCoreUpdated": true,
+    "sourceCommit": "c7c75d1dc685837487a38af8ee09591e34159815",
+    "assistant": true,
+    "provider": true,
+    "admin": true,
+    "observations": [
+      "Both original expired candidates display unformed-closed, prices299 and0 retained",
+      "Assistant signed/current/history contract counts remain0; provider current/history0 and candidate count2",
+      "Admin order table shows original two candidates closed without contract commission or reputation"
+    ],
+    "screenshots": {
+      "assistant": {
+        "path": "docs/progress/unformed-assistant.png",
+        "sha256": "ffe0f225c26f14c1e553a774db8a2eec5f558b2f185c7ec13c7cbc6fe5ef8947"
+      },
+      "provider": {
+        "path": "docs/progress/unformed-provider.png",
+        "sha256": "750165de4886de416b0a012487dd4283e31ffd02419afafb0cc176174ca2d328"
+      },
+      "admin": {
+        "path": "docs/progress/unformed-admin.png",
+        "sha256": "e1e1ba8244bdcf060e15bbfdcacca35d1f747d2b8c394d24a24ea4b2aa7b5187"
+      }
+    }
   },
   "nativeBoundary": {
     "userRestartedEdge": true,
@@ -75,8 +95,71 @@
     "executableInputsChangedAfterRegression": false
   },
   "limits": [
-    "Real page review pending published Core update",
     "Windows skipped checks retain their original scope",
     "Nail business repair, native UI, full default Linux controller and four new films are not this checkpoint"
-  ]
+  ],
+  "liveCoreUpdate": {
+    "core": {
+      "pid": 28872,
+      "previousPid": 25756,
+      "port": 18750,
+      "url": "http://127.0.0.1:18750",
+      "sourceCommit": "c7c75d1dc685837487a38af8ee09591e34159815",
+      "scope": "Owned isolated Core; published workbench correction, original data and resident SDKs retained"
+    },
+    "sdkBefore": {
+      "assistant": {
+        "runtimeId": "7be4c928-ff66-4607-acfc-ea241278eb2d",
+        "bootId": "60937c82-8d4a-49f7-b461-65d8c300fd99",
+        "platformConnected": true,
+        "roleErrors": []
+      },
+      "provider": {
+        "runtimeId": "60d6abd4-6822-4d54-ac1d-b82281780409",
+        "bootId": "4a1cf014-51c7-4ba1-938e-59f048c75e89",
+        "platformConnected": true,
+        "roleErrors": [],
+        "admissionPolicy": {
+          "accepting": true,
+          "active": 0,
+          "maxActiveDelegations": 2,
+          "revision": 4,
+          "service": "svc-dcf2221e-99ae-477a-9145-9b252b812a09"
+        }
+      }
+    },
+    "sdkAfter": {
+      "assistant": {
+        "runtimeId": "7be4c928-ff66-4607-acfc-ea241278eb2d",
+        "bootId": "60937c82-8d4a-49f7-b461-65d8c300fd99",
+        "platformConnected": true,
+        "roleErrors": []
+      },
+      "provider": {
+        "runtimeId": "60d6abd4-6822-4d54-ac1d-b82281780409",
+        "bootId": "4a1cf014-51c7-4ba1-938e-59f048c75e89",
+        "platformConnected": true,
+        "roleErrors": [],
+        "admissionPolicy": {
+          "accepting": true,
+          "active": 0,
+          "maxActiveDelegations": 2,
+          "revision": 4,
+          "service": "svc-dcf2221e-99ae-477a-9145-9b252b812a09"
+        }
+      }
+    },
+    "originalFactsUnchanged": true,
+    "accountsWalletsOffersFeesAndKeysUnchanged": true,
+    "rawSqlBusinessWrites": false,
+    "swarmConfigurationChanged": false
+  },
+  "uiLoginEffects": {
+    "routineProviderBrowserLogins": 1,
+    "newVirtualCreditEntries": 1,
+    "virtualCredit": "100.00",
+    "kind": "login",
+    "businessTransfersAdded": 0,
+    "scope": "Normal login gift during page review after the unchanged-data upgrade; no repeated login funding"
+  }
 }
