@@ -113,6 +113,20 @@ class EndpointSession:
             task=self.provider.tasks.get(stable('task',mid))
             if not task:return None
             if op=='request.submit':
+                rejected=self.provider.transport._market_rejection()
+                if rejected:
+                    if rejected['payload']['request']!=subject:
+                        raise RuntimeFault('protocol_error','Original market rejection does not match this request')
+                    # Preserve the original decision, signed proposal and WS
+                    # receipt. No model, signing or market call is repeated.
+                    failure=self.provider.transport._market_error(rejected['error']).to_payload(op)
+                    task.state='failed'
+                    artifact={'error':failure['error']}
+                    if artifact not in task.artifacts:task.artifacts.append(artifact)
+                    self.save_tasks()
+                    packed=self.pack(Reply(failure,task_id=task.id,state='failed'))
+                    self.store.put('calls',mid,{'fingerprint':digest(payload),'state':'finished','reply':packed})
+                    return self.publish(message,packed)
                 receipt=self.provider.transport.control_receipt('a2c.market')
                 if not receipt:return None
                 card=receipt['result'].get('card')

@@ -7,9 +7,11 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 from a2c.binding import A2ATransport
+from a2c.card import request_digest
 from a2c.codec import digest,digest_bytes
 from a2c.common import Reply,Task
-from a2c.errors import A2CError
+from a2c.errors import A2CError,CARD_INVALID,CODES
+from a2c.jws import header_of
 from ..runtime.files_api import PrivateFiles
 from ..runtime.protocol import RuntimeFault,stamp
 
@@ -114,7 +116,15 @@ class SessionTransport:
             from .payments import PaymentRecovery
             return PaymentRecovery(self).send(payload)
         record=self._saved(self._key('control',kind),{'payload':payload})
-        result=self.runtime.connection.call(self.identity.agent_id,kind,record['payload'],operation_id=self._identity(kind))
+        rejected=self._market_rejection() if kind=='a2c.market' else None
+        if rejected:raise self._market_error(rejected['error'])
+        try:result=self.runtime.connection.call(self.identity.agent_id,kind,record['payload'],operation_id=self._identity(kind))
+        except RuntimeFault:
+            # Only the original authenticated negative receipt is a known
+            # rejection. A local timeout or an unknown result remains unknown.
+            rejected=self._market_rejection() if kind=='a2c.market' else None
+            if rejected:raise self._market_error(rejected['error']) from None
+            raise
         if 'error' in result:raise A2CError(result['error']['code'],result['error'].get('message',''))
         return Reply(result)
 
@@ -154,6 +164,42 @@ class SessionTransport:
         record=self.runtime.store.checkpoint(self.namespace,self._key('control',kind))
         response=self.runtime.store.response(self.identity.agent_id,kind,self._identity(kind))
         return {'payload':record['payload'],'result':response['result']} if record and response and response['ok'] else None
+
+    def _market_rejection(self):
+        """Read a bound, definite original proposal rejection; never retry it."""
+        kind='a2c.market';operation=self._identity(kind)
+        record=self.runtime.store.checkpoint(self.namespace,self._key('control',kind))
+        payload=record.get('payload') if isinstance(record,dict) else None
+        if (not isinstance(payload,dict) or payload.get('op')!='card.endorse'
+                or payload.get('admissionId')!=self.admission or not isinstance(payload.get('request'),dict)
+                or not isinstance(payload.get('body'),dict) or not isinstance(payload['body'].get('card'),dict)
+                or record.get('fingerprint')!=digest({'payload':payload})):return None
+        request=payload['request'];card=payload['body']['card'];party=getattr(self.identity,'protocol_id',None)
+        if (self.request is not None and request!=self.request
+                or not party or request.get('provider')!=party or card.get('provider')!=party
+                or not request.get('templateDigest') or card.get('templateDigest')!=request['templateDigest']
+                or card.get('requestDigest')!=request_digest(request)
+                or not isinstance(card.get('signatures'),dict)):return None
+        try:header=header_of(card['signatures'].get('2'))
+        except A2CError:return None
+        if header['a2c-slot']!='2' or header['a2c-signer']!=party:return None
+        original=self.runtime.store.operation(self.identity.agent_id,kind,operation)
+        if not original or original['payload']!=payload:return None
+        frame=original.get('response')
+        if (not isinstance(frame,dict) or frame.get('agentId')!=self.identity.agent_id
+                or frame.get('operation')!=kind or frame.get('operationId')!=operation
+                or frame.get('ok') is not False or frame.get('outcome') not in (None,'rejected')):return None
+        error=frame.get('error')
+        if (not isinstance(error,dict) or not all(isinstance(error.get(k),str) and error[k] for k in ('code','message','recovery'))
+                or error['code'] in ('unknown_result','result_unknown')):return None
+        return {'payload':copy.deepcopy(payload),'error':copy.deepcopy(error)}
+
+    @staticmethod
+    def _market_error(error):
+        # Core business codes are not A2C error codes. Keep the original frame
+        # intact and preserve its reason in the existing protocol message field.
+        code=error['code']
+        return A2CError(code,error['message']) if code in CODES else A2CError(CARD_INVALID,'['+code+'] '+error['message'])
 
     def payment_attempts(self,ref,purpose='installment',period=None):
         from .payments import PaymentRecovery
