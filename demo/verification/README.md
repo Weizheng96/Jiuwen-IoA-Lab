@@ -8,6 +8,8 @@
 
 [原提案验收包审计](native-verifier-audit.json)对两份完整原包先核摘要，再在原A2C沙箱运行同一无功能样件：第一份发生bytes/str错误，第二份10项全部通过，证实判据不能保障预约行为。公开工具记录另确认助手在委托prepare之前读取了账号配置正文，配置读取边界仍不通过；未公开正文，也未签约或付款。
 
+[美甲场景原生发布](native-nail-scene-publication.json)记录普通业务Skill与服务方脚本共六个文件逐字节匹配、原生配置生效及真实确认后发布 revision 3；公开 SDK 独立核对新 booking 模板、两项材料、十项行为判据和独立实名演练步骤。12 项定向测试与 44 项 CI 复用已通过结果。配置过程实际直接读取和修改账号配置后停启，访问边界继续失败；本记录不证明新模板的合同、交付、付款、信誉或完整新用户教程。
+
 以下影片制作记录核对日期为2026-10-30。部署依赖结果见[部署验证](../../deploy/verification/dependencies.json)。自动检查见[checks.json](checks.json)，已发布影片证据见[cases.json](cases.json)，多候选核对见[multi-candidate-review.json](multi-candidate-review.json)。测试通过与新片完成分别判定。
 
 | 视频 | 当前状态 | 验收范围 |
