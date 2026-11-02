@@ -1,0 +1,139 @@
+{
+  "status": "partial_payment_rejected",
+  "scope": "原生美甲单已成约、生产、取件、WASM核验和签7；原AP2明确拒绝，尚未结清或完成本单信誉，不计自主整单通过。",
+  "observedAt": "2026-11-02T12:52:13.948123+00:00",
+  "identityAndVersion": {
+    "quoteRef": "2434ca0a-b4f4-58bc-ac71-2b242f406bb5",
+    "cardId": "2434ca0a-b4f4-58bc-ac71-2b242f406bb5-v1",
+    "contractRef": "sha256:459566ad901407da1c1ced7b289fd76d033aae57c0c8a4aca2b21d8ef64d0fcf",
+    "taskRef": "5f87b859-924a-5674-93df-6b1b30793b30",
+    "interactionId": "8b5d013c-d0c4-4976-90b2-b08252ae2e0a",
+    "installedReleaseId": "3f7095a959da67da3ef58e8586360628eb628c86e687d47d3409d407f4ab5ff9",
+    "runtimeId": "7be4c928-ff66-4607-acfc-ea241278eb2d",
+    "sourceFixesNotInstalledInThisRun": [
+      "0.0.113",
+      "0.0.114"
+    ],
+    "sourceFixValidationDoesNotRetroactivelyPassThisRun": true
+  },
+  "realConfirmationAndLifecycle": {
+    "contractConfirmationRef": "c5fe336c-a0b0-5f3b-a39f-49b8ed71594f",
+    "contractConfirmationOperationId": "5d391ebf-8d73-4285-9083-f764a2da6d92",
+    "contractDecision": "原生真实本地owner UI自动化允许后恢复原操作；后续SDK独立证实formed和started。",
+    "laterContractConfirmationSnapshot": {"status": "expired","contractRollback": false},
+    "stepConfirmation": {"reference": "bc1d24d3-5286-5af0-9e66-b3f7559b127d","status": "answered","operationId": "58dea522-8ed4-4818-8831-f69bf374258a","stage": "delegation.answer_step","action": "answer_step","bindingDigest": "cfea22735ac1a107054f568b210fb56e4a2cb5bf7e667195a653558fbd066f5a"},
+    "stepDecisionMethod": "Codex隔离自动化经真实owner入口答复；不是真人答复，不提交真实身份资料。",
+    "stepOperation": {"operationId": "58dea522-8ed4-4818-8831-f69bf374258a","status": "completed","stepAuthorization": {"kind": "step-authorization","stepRequestDigest": "sha256:474710aa2fd6451fb5677b6c0c4144c7cfc3154702843fc63a9f91187a692abc","granted": true,"present": true,"signatureVerified": true,"matchesOriginalStepRequest": true}},
+    "acceptConfirmation": {"reference": "bbf47e51-bb66-52e3-910c-58530fa3f415","status": "approved","stage": "delegation.accept","action": "accept","operationId": "dbfa5859-6fe1-4a68-8cf2-dd127614e3c9"},
+    "acceptDecisionMethod": "用户本轮明确授权299虚拟验收过账；Codex在真实owner UI自动化允许bbf47e51-bb66-52e3-910c-58530fa3f415后原生恢复原accept。",
+    "finalLifecycle": {"quoteRef": "2434ca0a-b4f4-58bc-ac71-2b242f406bb5","taskRef": "5f87b859-924a-5674-93df-6b1b30793b30","interactionId": "8b5d013c-d0c4-4976-90b2-b08252ae2e0a","formed": true,"started": true,"availablePeriods": 1,"acceptedPeriods": 1,"payment": "unpaid","closed": false},
+    "finalSignatureCounts": {"4": 1,"5": 1,"6": 1,"7": 1}
+  },
+  "deliveryAndOriginalWasmVerification": {
+    "deliveryManifestDigest": "sha256:aeb0f848452de9e3368e06878f14f49c385ff33b0003ddbea24f861fa049d697",
+    "files": [
+      {"digest": "sha256:6dc04abe9f6dcef6dadf002a7537e1aedf96bf5c9e3dc472f62e74cb5e3ba595","mediaType": "application/json","name": "booking.json"}
+    ],
+    "deliveryBytesIndependentlyRead": false,
+    "deliverySourceStaticReview": "本轮未发现公开助手只读缓存文件接口，未重做会签6的fetch，未读私库，不宣称已独立审查booking.json正文。",
+    "verifyJob": {"reference": "b404ce63-b7a0-5c2b-8d43-90b863647d62","interactionId": "8b5d013c-d0c4-4976-90b2-b08252ae2e0a","status": "completed","agentId": "urn:ioalab:assistant:b06ef09b-3e2c-4a54-a215-89284c0e8bd5","originalOperationId": "1fc3cce9-beb5-46d3-b35a-f4b80a02b636","contractRef": "sha256:459566ad901407da1c1ced7b289fd76d033aae57c0c8a4aca2b21d8ef64d0fcf","period": 1},
+    "originalReportStatus": "pass",
+    "originalReportErrors": [],
+    "checks": [
+      {"check": "预约配置逐项符合合同","ok": true},
+      {"check": "可以预约并查询","ok": true},
+      {"check": "满额后拒绝新增预约","ok": true},
+      {"check": "取消后释放名额","ok": true},
+      {"check": "小程序源码结构与预约配置齐全","ok": true},
+      {"check": "重复提交不重复占位","ok": true},
+      {"check": "连续竞争请求不超容量","ok": true},
+      {"check": "相同请求重试返回原预约","ok": true},
+      {"check": "不同时段独立计数","ok": true},
+      {"check": "重复取消不误减名额","ok": true}
+    ],
+    "verifierPackage": {"id": "nail_mashangfei@1.0.2","digest": "sha256:6f3e14dce2a84f6356dcf3d8372121c1d944f31767f920f80ba0b16b8929e0ca","bytes": 4505,"digestVerified": true,"manifest": {"entry": "verify:verify","id": "nail_mashangfei@1.0.2","kind": "script","reads": ["spec.booking.shop","spec.booking.open","spec.booking.close","spec.booking.capacity","spec.booking.level","spec.booking.service1Name","spec.booking.service1Minutes","spec.booking.service2Name","spec.booking.service2Minutes"],"runtime": "cpython-3.13-wasi"},"sourceFileSha256": {"verify.py": "fa7d8fecdb95418702c69d06418f86469623bcc827d7833f9056f8dfd24315cd"},"executedByThisAudit": false},
+    "hostExecutedDeliveryOrVerifierSource": false,
+    "reportMetadataLimit": "公开SDK薄报告保留原status/checks/errors；未暴露逐次WASM运行hash、fuel或耗时，原包声明runtime另列，未重跑。"
+  },
+  "publicSdkPaymentEvidence": {
+    "originalAcceptOperationId": "dbfa5859-6fe1-4a68-8cf2-dd127614e3c9",
+    "originalAcceptJobStatus": "unknown",
+    "originalAcceptJobRef": "76385a03-b6b4-5e12-ab3e-efccdb8881dd",
+    "originalAp2Reference": {"kind": "delivery","agentId": "urn:ioalab:assistant:b06ef09b-3e2c-4a54-a215-89284c0e8bd5","operation": "ap2.pay","operationId": "bba27386-66e6-5677-9738-cccbe9238baf"},
+    "originalAp2ReceiptStatus": "rejected",
+    "originalAp2ReceiptOk": false,
+    "originalAp2Error": {"code": "forbidden","message": "Payment changed or expired before transaction commit","recovery": "correct_input"},
+    "voucherPresent": false,
+    "failureLayer": "PaymentOperations.apply_in调用psp.commit；内部A2CError被统一转为公开forbidden。",
+    "specificInternalCauseKnown": false,
+    "transportReceipts": [
+      {"method": "acceptance.notify","state": "completed","queryStatus": "completed"},
+      {"method": "ap2.checkout","state": "completed","queryStatus": "completed"},
+      {"method": "payment.notify","state": null,"queryStatus": "rejected"}
+    ],
+    "receiptLimit": "message.send成功只证平台接收；原AP2回执则明确是提交层拒绝。拒绝回执不等于已证明所有其他外部付款尝试均不存在。"
+  },
+  "amountAndFinalState": {
+    "unit": "virtual",
+    "scopeSpentObserved": "2.00",
+    "contractInstallmentDue": 299,
+    "expectedFinalScopeSpentIfInstallmentPaidAndNoOtherCharges": "301.00",
+    "expected301IsNotPaid301": true,
+    "paymentState": "unpaid",
+    "voucherCount": 0,
+    "closed": false,
+    "completionReputation": "not_completed_for_this_contract"
+  },
+  "separateInternalReadOnlyDiagnosis": {
+    "evidenceType": "Core内部只读诊断；不是原生流程或公开SDK证据，不修改上述公开证明边界。",
+    "observedAt": "2026-11-02T12:52:56.409821+00:00",
+    "sourceFile": "temp/checks/native-nail-v112/payer-ledger-readonly.json",
+    "sourceSha256": "0d4976a62f78947b51c6f58ee91bb9df119df3b13e66fe4faf6cbce8a86a7eea",
+    "method": "mode=ro、query_only、单事务；仅本任务actor到虚拟余量及本合同payment_records的定向查询。",
+    "virtualAvailable": "298.00",
+    "installmentDue": 299,
+    "paymentRecordCount": 0,
+    "insufficientPaymentPrerequisite": true,
+    "limit": "余量298不足应付299是已证付款前提；未读取原私有付款载荷或密钥，不能认定泛化错误只有这一内部原因。"
+  },
+  "guidedFlowAndUntestedBoundaries": {
+    "autonomousNativeEndToEndPassed": false,
+    "configurationBoundary": "failed；原生configure_role被拒后read_file/edit_file账号配置，再stop/start；没有runtime.configure。",
+    "publicationEvidence": "demo/verification/native-nail-scene-publication.json",
+    "guidanceRequired": [
+      "原生两次误将contract digest当stepRequestDigest；Codex从公开step对象调用原A2C objects.object_digest提供真实摘要。",
+      "异步verify job及operation状态查询需要多次调试指导；原CLI会剔除业务operationId，独立核验用安装SDK LocalClient保留内外ID。",
+      "原生对unpaid盲目轮询；Codex从公开原AP2回执核出明确提交层拒绝，未将job unknown等同付款pending。"
+    ],
+    "wechatClientActualUi": "not_tested",
+    "multipleProviderComparison": "not_tested",
+    "newUserTutorial": "not_passed",
+    "fullRegressionForThisRun": "not_run",
+    "normalAdminVirtualAllowanceAndOriginalContractRecovery": "not_completed"
+  },
+  "localReadOnlyEvidence": [
+    {"file": "current-contract-readonly-audit.json","sha256": "b03276448769bcd47006877705f917433ac240905b2dd22720e70cb4913d5fec"},
+    {"file": "contract-post-step-readonly-audit.json","sha256": "ccc1f90ccd3d251f4c58576db395f7c9f336f637796119a24a2fe303b9f136fa"},
+    {"file": "verify-job-readonly-audit.json","sha256": "f292f68eff05a234f9ca4be8aaaa90ab3fe1fe3cf8cae0590a36cba82da0cb48"},
+    {"file": "accept-payment-readonly-diagnosis.json","sha256": "5a9b4682dedf7ec7783850354f902fdaf75b7849ef33148e37536802740d6858"},
+    {"file": "accept-original-receipts-audit.json","sha256": "eb2ab63bb8e809b996727dff9a6e26d23f268290fcff1b55f5e8f382e8a2aaf4"},
+    {"file": "fulfillment-final-readonly-audit.json","sha256": "0296b15492f92da4f9861d0d48a7bfa8a841264a5edd184a3d2c7d5134019ad8"}
+  ],
+  "nativeHistoryMetadata": {
+    "sessionId": "web_1a19be92cdb_78fb1cb9609a",
+    "captureMethod": "主代理在终态通过既有公开history helper一次抓取；本子任务未重捕获。",
+    "pages": 15,
+    "messages": 705,
+    "toolCallCounts": {"bash": 125,"write_file": 59,"read_file": 6,"glob": 2,"skill_tool": 11},
+    "matchedAccountConfigurationReadCallIds": [
+      "call_0db1d3216cd046279e970718"
+    ],
+    "pipInstallCallsMatched": 0,
+    "repeatedStatusQueriesObserved": true,
+    "verifyCallsObserved": 2,
+    "rawEvidenceSha256": "db77b30c712f04f00070dc230c95b750e99de72ac26667f338a062585f3816d0",
+    "rawEvidencePrivateAndNotBundled": true,
+    "coverageLimit": "统计与匹配项来自主代理helper元数据摘要；不输出配置正文，不证明硬隔离或不存在其他未匹配访问方式。"
+  },
+  "evidenceStorageBoundary": "本公开文件仅含元数据；本机原始回执、配置、凭据、原始消息、浏览器状态和私有业务数据不入库。"
+}

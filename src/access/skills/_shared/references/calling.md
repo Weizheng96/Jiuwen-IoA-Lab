@@ -16,7 +16,7 @@ python "<skill_directory>/scripts/ioalab.py" <operation> --config "<原外置配
 
 ## 读取异步作业
 
-异步结果中的data.reference是完整对象，例如{"kind":"job","id":"实际UUID"}。调用operations.get时参数为{"reference":{"kind":"job","id":"原UUID"}}；原样复制data.reference，不只传id、data.job.reference字符串或外层整份回执。
+异步结果中的data.reference是完整对象，例如{"kind":"job","id":"实际UUID"}。调用operations.get时参数为{"reference":{"kind":"job","id":"原UUID"}}，原样复制完整data.reference。若实际履约回执给出data.job.reference的UUID字符串，将其作为上述reference.id并保留kind="job"；不只传字符串、id或外层整份回执。履约也可用流程页的status加fulfillmentOperationId直接查原动作；顶层operationId只用于本次调用幂等，不是被查询动作。
 
 operations.get外层status=completed只表示查询完成。继续检查data.status：queued/running继续查询原引用；completed后从data.data取得原业务结果。比较结果的candidates和verifierPackages位于该原业务结果中；按reviewRef读取已提供的真实源码，不能去本地目录寻找ioalab://资源。查询被拒绝或内容缺失时明确未核对，不能自行概括覆盖、签约或重做征集。
 

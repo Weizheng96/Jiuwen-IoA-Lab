@@ -31,7 +31,7 @@ prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 ca
 | `assistant.delegation.verify` | 合同、里程碑及交付引用 | 本地运行卡载验收器取得报告；不签署接受 |
 | `assistant.delegation.accept` | 交付、验收阶段的可信确认引用 | 复用原 Client.accept 复验、签7、通知及通过后的分期付款；各项分别返回，失败或不明确时不伪造通过 |
 | `assistant.delegation.pay` | contractRef、原付款用途和期次 | 在授权内恢复相应原 AP2 付款与通知，不重验收、不重复扣款；不能根据自然语言“通过”付款 |
-| `assistant.delegation.status` | 任务或合同引用 | 原协议状态、候选、等待事项、验收与付款分别列示；合同环节返回已验证的当前请求及其对象摘要 |
+| `assistant.delegation.status` | 任务、报价或合同引用；合同查询可选fulfillmentOperationId | 原协议状态、候选、等待事项、验收与付款分别列示；合同环节返回已验证的当前请求及其对象摘要，目标履约动作结果另列 |
 | `assistant.delegation.termination_quote` | contractRef | 异步取得原签名解除报价，保存 terminationQuoteRef、期次、金额与有效窗口；不解除或付款 |
 | `assistant.delegation.terminate` | contractRef、mode（agreed/unilateral），协商时含 terminationQuoteRef；可选原因及原 confirmationRef | 预览实际解除依据并独立确认，沿原操作执行 A2C 解除；分别返回通知、结算及结清状态，不将全部视为完成 |
 | `assistant.delegation.dispute` | contractRef或quoteRef二选一、ground、必要period、材料引用；可选原confirmationRef | SDK先取原依据并独立请求用户确认，申请与真实受理分别返回；恢复原caseRef，不执行裁定付款 |
@@ -65,7 +65,9 @@ confirm 使用本机 quoteRef，可选 confirmationRef，不接收模型另传�
 
 签署或服务方答复未知时保留原卡、确认来源、选择回执及任务。恢复只消费已保存签1或沿原交互返回的有效签2，不能重新签署或再运行审查模型。用户确认的时效只约束新的动作，不抹掉已经有效的原签名。合同预览列出全部卡载材料、摘要及发送阶段，区分签前审查与开工发送；实际材料授权不得超出真实用户批准的范围，新增材料须另行确认。合同确认本身不启动生产、不授权实名环节，也不表示验收或付款完成。
 
-履约操作统一使用 contractRef，SDK 固定原交互、原任务和已确认合同。status 可附原 operationId，组合原成约记录、该操作与最新协议事实，分别显示开工、待授权环节、可取件期次、验收和付款；不把确认时的未开工快照当成永久当前状态。fetch、verify、accept 和 pay 显式指定 period。具体原方法、组合调用及未知恢复见 [A2C 适配](A2C适配.md)。
+履约操作统一使用contractRef，SDK固定原交互、原任务和已确认合同。status以contractRef查询时，唯一的可选履约动作查询字段为fulfillmentOperationId，必须是原履约动作回执中operationId的非空字符串；它独立于本次查询的外层幂等operationId，不接受operationId作为旧业务字段或别名。未提供时查询合同当前事实；提供时另外在data.operation返回该原动作的进展或结果，并核对其属于同一合同，未知或跨合同引用明确拒绝。
+
+合同状态组合原成约记录与最新协议事实，分别显示开工、待授权环节、可取件期次、验收和付款；不把确认时的未开工快照当成永久当前状态，也不把合同已验收期次当作某次验收作业的进度。异步作业仍可用operations.get读取原完整reference，查询入口不触发新履约效果。fetch、verify、accept和pay显式指定period。具体原方法、组合调用及未知恢复见[A2C适配](A2C适配.md)。
 
 合同status的data.stepRequest只返回原合同、Task及当前阶段对应且已经完成原签名核验的待答复请求，data.stepRequestDigest由SDK对该同一对象调用原A2C的`a2c.objects.object_digest`生成。无当前待答复请求或合同已经解除时，两字段均为null。原协议查询或核验结果未知时，不得暴露尚未核验的候选请求及其摘要；保留原引用，按共用恢复规则核实。
 

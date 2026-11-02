@@ -40,6 +40,6 @@ inspect示例：{"service":"<search.data.hits[i].id>"}。request外层只含task
 
 materials 按模板材料名组织，提供 text 或 bytesBase64 及可选 spec。材料不得超出用户已授权范围。服务、模板、报价及合同引用从实际结果获取，不能编造 ID。
 
-status 也可附原 operationId 查询履约动作。报价/合同/动作引用用途不同；脚本参数文件中的 operationId 是同一操作的恢复键，不是新交易请求。readonly 业务查询也按脚本参数格式创建文件。
+status 可附 fulfillmentOperationId 查询某次履约动作，取值为 start、answer_step、fetch、verify、accept 或 pay 的原回执 data.operationId；从 status.data.operation.status 及 data.operation.data 读取原动作结果。acceptedPeriods 与 vouchers 分别表示已签验收和付款，不能用它们判断 verify 是否通过。报价/合同/动作引用用途不同；脚本参数文件中的顶层 operationId 仅是本次调用的恢复键，不能代替 fulfillmentOperationId。只读查询也创建独立参数文件，不覆盖原业务文件。
 
 验收不通过或拿不准时向用户说明报告和选项，不擅自付款或发起仲裁。当前 SDK 若对某异常给出未支持/未就绪，保留原证据并说明，不能自行调用私有接口绕过。用户拒绝和未知结果均停止对应新效果。

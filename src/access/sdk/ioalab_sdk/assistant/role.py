@@ -105,8 +105,11 @@ class AssistantRole:
             return {'status':'completed','data':self.runtime.account.api('POST','/search',{'query':args['query'],'top_k':args.get('topK',8)})}
         elif name=='delegation.status' and set(args)=={'quoteRef'}:return self.trading.status(args['quoteRef'])
         elif name=='delegation.status' and 'contractRef' in args:
-            self.fields(args,('contractRef',),('operationId',))
-            if self.contracts.record(args['contractRef']).get('result',{}).get('formed'):return self.fulfillment.status(args['contractRef'],args.get('operationId'))
+            self.fields(args,('contractRef',),('fulfillmentOperationId',))
+            target=args.get('fulfillmentOperationId')
+            if 'fulfillmentOperationId' in args and (not isinstance(target,str) or not target.strip()):
+                raise RuntimeFault('invalid_input','Use the saved nonempty fulfillmentOperationId')
+            if self.contracts.record(args['contractRef']).get('result',{}).get('formed'):return self.fulfillment.status(args['contractRef'],target)
             return self.contracts.status(args['contractRef'])
         if name=='delegation.intent':
             self.fields(args,('taskRef','service'),('request','card','ttlSeconds'))

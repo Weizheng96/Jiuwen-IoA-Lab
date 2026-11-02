@@ -1,13 +1,109 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>IoA Lab · 本机用户确认</title><style>
-:root{font-family:"Microsoft YaHei",system-ui,sans-serif;color:#17253a;background:#f3f6fb}body{max-width:1050px;margin:36px auto;padding:0 24px}h1{font-size:28px}p{line-height:1.7;color:#516176}.card{background:white;border:1px solid #dce4f0;border-radius:18px;padding:24px;margin:20px 0;box-shadow:0 6px 24px #243a6710}header{display:flex;justify-content:space-between;align-items:center;gap:20px}.state{background:#edf2fb;padding:7px 12px;border-radius:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f8fd;padding:18px;border-radius:12px;line-height:1.6;max-height:470px;overflow:auto}button{border:0;border-radius:10px;padding:12px 26px;font:inherit;font-weight:600;cursor:pointer;background:#175fe6;color:white;margin:10px 12px 0 0}.reject{background:#e9eef6;color:#31445f}button:disabled{opacity:.5;cursor:default}label{display:block;margin:12px 0}textarea,select{box-sizing:border-box;width:100%;border:1px solid #c9d5e6;border-radius:8px;padding:10px;font:inherit}#error{color:#a52c36}small{color:#66778c}
+:root{font-family:"Microsoft YaHei",system-ui,sans-serif;color:#17253a;background:#f3f6fb}body{max-width:1050px;margin:36px auto;padding:0 24px}h1{font-size:28px}p{line-height:1.7;color:#516176}.card{background:white;border:1px solid #dce4f0;border-radius:18px;padding:24px;margin:20px 0;box-shadow:0 6px 24px #243a6710}header{display:flex;justify-content:space-between;align-items:center;gap:20px}.state{background:#edf2fb;padding:7px 12px;border-radius:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f8fd;padding:18px;border-radius:12px;line-height:1.6;max-height:470px;overflow:auto}button{border:0;border-radius:10px;padding:12px 26px;font:inherit;font-weight:600;cursor:pointer;background:#175fe6;color:white;margin:10px 12px 0 0}.reject{background:#e9eef6;color:#31445f}button:disabled{opacity:.5;cursor:default}label{display:block;margin:12px 0}textarea,select{box-sizing:border-box;width:100%;border:1px solid #c9d5e6;border-radius:8px;padding:10px;font:inherit}#error,.decision-error{color:#a52c36}small{color:#66778c}
 </style><h1>本机用户确认</h1><p>请核对具体对象、处理范围和工具后再决定。此页面的决定仅适用于显示的原操作。</p><p id="error"></p><main id="cards"></main>
 <script>
-let csrf='',busy=false;const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const labels={pending:'等待您的决定',approved:'已允许',rejected:'已拒绝',answered:'已答复',expired:'已过期'};
-async function api(path,body){const r=await fetch(path,{method:body?'POST':'GET',credentials:'same-origin',headers:body?{'Content-Type':'application/json','X-Ioa-Csrf':csrf}:{},body:body?JSON.stringify(body):undefined});const v=await r.json();if(!r.ok)throw Error(v.error?.message||'本机请求失败');return v}
-async function refresh(){if(busy)return;try{const data=await api('/user/api');csrf=data.csrf;document.getElementById('cards').innerHTML=data.confirmations.map(item=>{const b=item.binding;let fields='';if(item.kind==='question')fields=item.questions.map((q,index)=>`<label>${esc(q.question||q.title||q.text||'问题 '+(index+1))}${q.options?.length?`<select data-answer="${index}"${q.multi_select?' multiple':''}><option value="">请选择</option>${q.options.map(o=>`<option value="${esc(o.value)}">${esc(o.label||o.text||o.value)}</option>`).join('')}</select>`:''}<textarea data-text="${index}" rows="2" placeholder="您的补充答复"></textarea></label>`).join('');return `<section class="card" data-ref="${esc(item.reference)}" data-digest="${esc(item.bindingDigest)}"><header><b>${esc(b.preview.title||b.action)}</b><span class="state">${esc(labels[item.status]||item.status)}</span></header><p>智能体：${esc(item.agentId)}<br>阶段：${esc(item.stage)} · 动作：${esc(item.action)}</p><pre>${esc(JSON.stringify(b.preview,null,2))}</pre>${fields}${item.status==='pending'?item.kind==='approval'?'<button data-decision="approve">允许此操作</button><button class="reject" data-decision="reject">拒绝</button>':'<button data-decision="answer">提交答复</button>':''}<p><small>有效至 ${esc(new Date(item.expiresAt).toLocaleString())}</small></p></section>`}).join('')||'<section class="card">当前没有待确认操作。</section>';document.getElementById('error').textContent=''}catch(e){document.getElementById('error').textContent=e.message}}
-document.getElementById('cards').addEventListener('focusin',()=>busy=true);document.getElementById('cards').addEventListener('focusout',()=>setTimeout(()=>{busy=!!document.querySelector('#cards :focus')},0));
-document.getElementById('cards').addEventListener('click',async event=>{const button=event.target.closest('[data-decision]');if(!button)return;const card=button.closest('.card'),body={reference:card.dataset.ref,bindingDigest:card.dataset.digest,decision:button.dataset.decision};if(body.decision==='answer')body.answers=[...card.querySelectorAll('[data-text]')].map(input=>{const choice=card.querySelector(`[data-answer="${input.dataset.text}"]`);return {selected_options:choice?[...choice.selectedOptions].map(option=>option.value).filter(Boolean):[],custom_input:input.value}});busy=true;button.disabled=true;try{await api('/user/decision',body)}catch(e){document.getElementById('error').textContent=e.message}finally{busy=false;await refresh()}});
-(async()=>{try{const token=location.hash.slice(1);history.replaceState(null,'','/user');if(token)await api('/user/session',{token});await refresh();setInterval(refresh,1500)}catch(e){document.getElementById('error').textContent=e.message}})();
+let csrf='',refreshVersion=0,refreshing=false,refreshQueued=false;
+const cards=document.getElementById('cards'),records=new Map(),drafts=new Map(),finals=new Map(),submitting=new Set();
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const labels={pending:'等待您的决定',approved:'已允许',rejected:'已拒绝',answered:'已答复',expired:'已过期',cancelled:'已取消'};
+const keyOf=item=>JSON.stringify([item.reference,item.bindingDigest]);
+async function api(path,body){
+  const r=await fetch(path,{method:body?'POST':'GET',credentials:'same-origin',headers:body?{'Content-Type':'application/json','X-Ioa-Csrf':csrf}:{},body:body?JSON.stringify(body):undefined});
+  const v=await r.json();
+  if(!r.ok){const error=Error(v.error?.message||'本机请求失败');error.httpStatus=r.status;throw error}
+  return v;
+}
+function capture(record){
+  if(record.item.kind!=='question'||record.item.status!=='pending')return;
+  const answers=[...record.node.querySelectorAll('[data-text]')].map(input=>{
+    const choice=record.node.querySelector(`[data-answer="${input.dataset.text}"]`);
+    return {selected_options:choice?[...choice.selectedOptions].map(option=>option.value).filter(Boolean):[],custom_input:input.value};
+  });
+  drafts.set(record.key,answers);
+  return answers;
+}
+function formState(record){
+  const disabled=record.submitting||record.unknown||record.item.status!=='pending';
+  for(const input of record.node.querySelectorAll('select,textarea,button'))input.disabled=disabled;
+  record.node.querySelector('[data-decision-error]').textContent=record.error;
+}
+function draw(record){
+  const item=record.item,b=item.binding,signature=JSON.stringify(item);
+  if(record.signature!==signature){
+    let fields='';
+    if(item.kind==='question')fields=item.questions.map((q,index)=>`<label>${esc(q.question||q.title||q.text||'问题 '+(index+1))}${q.options?.length?`<select data-answer="${index}"${q.multi_select?' multiple':''}><option value="">请选择</option>${q.options.map(o=>`<option value="${esc(o.value)}">${esc(o.label||o.text||o.value)}</option>`).join('')}</select>`:''}<textarea data-text="${index}" rows="2" placeholder="您的补充答复"></textarea></label>`).join('');
+    record.node.innerHTML=`<header><b>${esc(b.preview.title||b.action)}</b><span class="state">${esc(labels[item.status]||item.status)}</span></header><p>智能体：${esc(item.agentId)}<br>阶段：${esc(item.stage)} · 动作：${esc(item.action)}</p><pre>${esc(JSON.stringify(b.preview,null,2))}</pre>${fields}${item.status==='pending'?item.kind==='approval'?'<button data-decision="approve">允许此操作</button><button class="reject" data-decision="reject">拒绝</button>':'<button data-decision="answer">提交答复</button>':''}<p class="decision-error" data-decision-error role="alert"></p><p><small>有效至 ${esc(new Date(item.expiresAt).toLocaleString())}</small></p>`;
+    record.signature=signature;
+    if(item.status==='pending')for(const input of record.node.querySelectorAll('[data-text]')){
+      const answer=drafts.get(record.key)?.[Number(input.dataset.text)];
+      input.value=answer?.custom_input||'';
+      const choice=record.node.querySelector(`[data-answer="${input.dataset.text}"]`);
+      if(choice&&answer)for(const option of choice.options)option.selected=answer.selected_options.includes(option.value);
+    }
+  }
+  formState(record);
+}
+function reconcile(items){
+  for(const record of records.values())capture(record);
+  const active=document.activeElement,selection=active&&typeof active.selectionStart==='number'?[active.selectionStart,active.selectionEnd]:null;
+  const retained=new Set(),ordered=[];
+  for(const incoming of items){
+    const key=keyOf(incoming),item={...incoming};retained.add(key);
+    if(item.status==='pending'&&finals.has(key))item.status=finals.get(key);
+    if(item.status!=='pending'){finals.set(key,item.status);drafts.delete(key)}
+    let record=records.get(key);
+    if(!record){
+      const node=document.createElement('section');node.className='card';
+      node.dataset.key=key;node.dataset.ref=item.reference;node.dataset.digest=item.bindingDigest;
+      record={key,node,item,error:'',unknown:false,submitting:false};records.set(key,record);
+    }else{
+      if(record.unknown&&item.status!=='pending')record.error='';
+      record.unknown=false;record.item=item;
+    }
+    draw(record);ordered.push(record.node);
+  }
+  for(const [key,record] of records)if(!retained.has(key)){record.node.remove();records.delete(key);drafts.delete(key)}
+  let cursor=cards.firstElementChild;
+  for(const node of ordered){if(node===cursor)cursor=cursor.nextElementSibling;else cards.insertBefore(node,cursor)}
+  for(const node of [...cards.children])if(!ordered.includes(node))node.remove();
+  if(!ordered.length){const empty=document.createElement('section');empty.className='card';empty.textContent='当前没有待确认操作。';cards.appendChild(empty)}
+  if(active&&cards.contains(active)){
+    if(document.activeElement!==active)active.focus();
+    if(selection)active.setSelectionRange(...selection);
+  }
+}
+async function refresh(){
+  if(refreshing){refreshQueued=true;return}
+  refreshing=true;const version=refreshVersion;
+  try{
+    const data=await api('/user/api');
+    if(version!==refreshVersion||submitting.size)return;
+    csrf=data.csrf;reconcile(data.confirmations);document.getElementById('error').textContent='';
+  }catch(error){if(version===refreshVersion)document.getElementById('error').textContent=error.message}
+  finally{refreshing=false;if(refreshQueued){refreshQueued=false;void refresh()}}
+}
+for(const eventName of ['input','change'])cards.addEventListener(eventName,event=>{
+  const card=event.target.closest('.card'),record=card&&records.get(card.dataset.key);
+  if(record&&!record.submitting&&!record.unknown)capture(record);
+});
+cards.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-decision]');if(!button)return;
+  const card=button.closest('.card'),record=records.get(card.dataset.key);
+  if(!record||record.item.status!=='pending'||record.submitting||record.unknown)return;
+  const body={reference:record.item.reference,bindingDigest:record.item.bindingDigest,decision:button.dataset.decision};
+  if(body.decision==='answer')body.answers=capture(record);
+  record.submitting=true;record.error='';submitting.add(record.key);refreshVersion++;formState(record);
+  try{
+    const result=await api('/user/decision',body);
+    if(result.reference!==body.reference||result.bindingDigest!==body.bindingDigest||!result.status||result.status==='pending')throw Error('尚未核实原确认的提交结果');
+    record.item={...record.item,...result};finals.set(record.key,result.status);drafts.delete(record.key);
+  }catch(error){
+    record.unknown=!(error.httpStatus>=400&&error.httpStatus<500);
+    record.error=record.unknown?'提交结果尚未确认，正在核对原确认记录；不会自动重发。 '+error.message:error.message;
+  }finally{
+    record.submitting=false;submitting.delete(record.key);refreshVersion++;draw(record);void refresh();
+  }
+});
+(async()=>{try{const token=location.hash.slice(1);history.replaceState(null,'','/user');if(token)await api('/user/session',{token});await refresh();setInterval(refresh,1500)}catch(error){document.getElementById('error').textContent=error.message}})();
 </script></html>

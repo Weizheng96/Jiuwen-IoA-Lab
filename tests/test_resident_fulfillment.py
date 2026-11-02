@@ -76,7 +76,7 @@ def configure_template(monkeypatch):
 
 
 def operation(assistant,reference,key):
-    value=LocalClient(assistant.config.home).call('assistant.delegation.status',{'contractRef':reference,'operationId':key})
+    value=LocalClient(assistant.config.home).call('assistant.delegation.status',{'contractRef':reference,'fulfillmentOperationId':key})
     assert value['status']=='completed',value
     state=value['data']['operation']
     return state if state.get('status') in ('completed','rejected','failed','unknown') else None
@@ -100,7 +100,7 @@ def accept_preview(assistant,reference):
 
 @pytest.mark.parametrize('formation',['proposal','countersign'])
 @pytest.mark.parametrize('lose_payment',[False,True])
-def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_reputation(platform,client,tmp_path,monkeypatch,formation,lose_payment):
+def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_reputation(platform,client,tmp_path,monkeypatch,capsys,formation,lose_payment):
     http=client
     configure_template(monkeypatch)
     with participants(platform,tmp_path,formation=formation,fee=1 if formation=='proposal' else 0,agent_host=ProductionHost(),verifier_source=VERIFIER) as (provider,assistant,host,template,task):
@@ -115,6 +115,21 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         platform.db.run('UPDATE delegation_intents SET expires=? WHERE service=?',time.time()-1,actor)
         key,_=invoke(assistant,ref,'start')
         wait_for(lambda:operation(assistant,ref,key));assert operation(assistant,ref,key)['status']=='completed',operation(assistant,ref,key)
+        # Exercise the real CLI argument rewrite, IPC and role together: the
+        # query's idempotency key must not swallow the original action identity.
+        from ioalab_sdk.runtime.__main__ import main as sdk_main
+        query=tmp_path/'start-status.json';outer=uid()
+        private_json(query,{'contractRef':ref,'fulfillmentOperationId':key,'operationId':outer})
+        capsys.readouterr()
+        assert sdk_main(['call','assistant.delegation.status','--config',str(assistant.config.source),'--args-file',str(query)])==0
+        queried=json.loads(capsys.readouterr().out)
+        assert queried['operationId']==outer and queried['data']['operation']['data']['operationId']==key
+        assert json.loads(query.read_text(encoding='utf-8'))=={'contractRef':ref,'fulfillmentOperationId':key,'operationId':outer}
+        direct=LocalClient(assistant.config.home)
+        assert direct.call('assistant.delegation.status',{'contractRef':ref,'operationId':key})['status']=='rejected'
+        for target in ('',None,1,{}):
+            invalid=direct.call('assistant.delegation.status',{'contractRef':ref,'fulfillmentOperationId':target})
+            assert invalid['status']=='rejected' and invalid['error']['code']=='invalid_input'
         wait_for(lambda:status(assistant,ref)['data']['stepRequest'])
         current=status(assistant,ref)['data'];sr=current['stepRequest'];step_digest=current['stepRequestDigest'];client=LocalClient(assistant.config.home)
         assert step_digest==objects.object_digest(sr) and step_digest!=ref
