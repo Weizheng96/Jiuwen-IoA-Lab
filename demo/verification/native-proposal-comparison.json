@@ -1,0 +1,110 @@
+{
+  "status": "comparison_passed_only_fulfillment_pending",
+  "recordedDate": "2026-11-03",
+  "scope": "三家正式提案在同次比较时均有效；后续重征发现验收包转抄错误，修复后的原生业务仍待验收。",
+  "comparison": {
+    "status": "passed",
+    "evaluatedAt": "2026-11-03T04:01:17Z",
+    "taskRef": "aa5027e9-8114-576a-bd1c-1903ae36ade4",
+    "operationId": "1759045a-19a6-42ca-95d4-51b3f625c9cc",
+    "reference": {"kind": "job", "id": "001921df-29aa-5e58-8a30-e66660f080ce"},
+    "budget": "500.00",
+    "proposalFeeLimit": "100.00",
+    "candidates": [
+      {
+        "service": "码上飞",
+        "quoteRef": "fc37c056-8001-517e-bff8-a2d0764903b3",
+        "amount": 299,
+        "stateAtEvaluation": "offered",
+        "validUntil": "2026-11-03T04:01:31Z",
+        "signedSlots": [2, 3],
+        "verifierKind": "script",
+        "coverage": "10项确定性行为判据；竞争和重试为顺序模拟，不是实际并发或网络故障注入。",
+        "packageDigest": "sha256:6f3e14dce2a84f6356dcf3d8372121c1d944f31767f920f80ba0b16b8929e0ca",
+        "sourceSha256": "fa7d8fecdb95418702c69d06418f86469623bcc827d7833f9056f8dfd24315cd"
+      },
+      {
+        "service": "快搭建站",
+        "quoteRef": "9d8460fd-da4a-5284-9f10-7d5342affb49",
+        "amount": 259,
+        "stateAtEvaluation": "offered",
+        "validUntil": "2026-11-03T04:02:24Z",
+        "signedSlots": [2, 3],
+        "verifierKind": "script",
+        "coverage": "5项基础行为判据；不覆盖扩展幂等、重试、时段隔离和重复取消。",
+        "packageDigest": "sha256:7b7c6037af5f5b452e05543ddb5317595fe21422b788b967cd0d7f1a9bd4ebda",
+        "sourceSha256": "1249555bc9673ab80d423f75c3666f751d1cfd2b8a5cbe59411c76d16fd2cb46"
+      },
+      {
+        "service": "灵犀小程序",
+        "quoteRef": "0d5ba318-9f68-5935-89d2-03555bb8c889",
+        "amount": 239,
+        "stateAtEvaluation": "offered",
+        "validUntil": "2026-11-03T04:10:37Z",
+        "signedSlots": [2, 3],
+        "verifierKind": "skill",
+        "coverage": "L2模型观察预约、取消和容量控制三项，程序据观察结果判定；不等同确定性行为测试。",
+        "packageDigest": "sha256:b113d1d9f0e60db6959739b46ebf05349dc5eecd65c3ea4f1a40864d8c495b2a",
+        "sourceSha256": "4cf1b4a8ff04a15e8fe4326948df06bc7d874a4a9c0d633c1a8458709a190160"
+      }
+    ],
+    "limits": "最早提案在该次比较后14秒到期；以上为历史有效快照，三卡均未签1，不证明当前仍可采纳、已成约或已履约。",
+    "feesAtComparisonRound": {"originalPaid": "3.00", "newPublishedFees": "3.00", "cumulativeDerived": "6.00", "basis": "原已付3加三份新正式提案各1；所引公开账本在补灵犀前为5，未以推算6冒充当时的独立账本查询。"}
+  },
+  "method": {
+    "mode": "operator_guided_native_ui",
+    "description": "Root通过原生九问网页自动化发送纯业务需求，核对原公开回执，并以业务话语纠正漏征集；不是全程无人指导自主完成。",
+    "correction": "中途模型误将原灵犀替换成尊享定制，得到1280虚拟币的未签countersign算价卡；超预算且未成约，后经指导补灵犀，最终比较排除了尊享。",
+    "sourceReview": "按原比较回执阅读完整验收源码并静态核对。脚本确实调用交付的BookingEngine；level常量由原A2C从模板注入。此阅读不执行交付，也不证明新交付通过。"
+  },
+  "preSignRevalidation": {
+    "outcome": "not_adopted",
+    "quoteRef": "e217ae37-92c4-5ed5-aadf-784c8925e7dc",
+    "cardDigest": "sha256:2ba9a525355b07770abc7cfae6ca9ea2620ba2684142d945a9989b884f721a4e",
+    "amount": 299,
+    "signedSlots": [2, 3],
+    "packageDigest": "sha256:4f372cde1b58127a2f1c87ca57cbab128d42b219e674dfce1d4824f2b41ce439",
+    "sourceSha256": "1672e7135cfd5b346e3c5b28badd5bc007d04b27745b82b2620f6250043e6fc5",
+    "difference": "与原299提案的6f3e14…e0ca包不同，源码第46行仅第二次预约键由lost-response转抄成lost-script；语法有效但语义改变。",
+    "confirmation": "所引查询保存pending、截止04:16:17Z；截至本记录期限已过，未取得批准，未签1。",
+    "isolatedWasmCheck": {"runtime": "cpython-3.13-wasi", "unchangedExistingFixture": true, "originalGoodChecks": "10/10", "changedPackageChecks": "9/10，第8项相同请求重试失败", "seconds": [0.329, 0.297], "hostExecutedVerifierOrDelivery": false, "newBusinessDelivery": false}
+  },
+  "latestCitedScope": {
+    "operationId": "4363855f-411e-43b4-b927-be330e71242f",
+    "state": "active",
+    "budget": "500.00",
+    "proposalFeesPaid": "7.00",
+    "selectedCardDigest": null,
+    "contractTotal": "0.00",
+    "contractPaid": "0.00",
+    "meaning": "含后续重征码上飞新增1虚拟币；不同于三家比较轮次的累计6，不把候选选择意向当成已选中合同。"
+  },
+  "fixAndRemainingWork": {
+    "commit": "96b85356232627c7a13cad3a0a2e49dff0ea6c88",
+    "change": "复用精确上传的真实验收包引用，避免逐单转抄源码；已提交推送，定向B为54通过、7.40秒。",
+    "canonicalPackage": "sha256:62326c904cc28683b18d606a9ec589a807b32a5bc61007e0acf0a4d96c3e409b",
+    "canonicalSourceSha256": "eb36fb8c6c34ff0aaabee40e52c1966b4cc615e20ac8c53f576504b6c309ef62",
+    "exactUploadOperationId": "3a2a277d-1cc7-47e6-987a-abdc56927cb8",
+    "canonicalWasmCheck": "同一既有样件10项通过，0.281秒；真实WASM运行，非宿主执行、非新业务交付。",
+    "nativeFixAcceptance": "pending：业务Skill ZIP已构建；Chrome扩展的Allow file URLs拒绝阻止原生导入，等待用户恢复后继续，不算原生修复验收完成。",
+    "video": "用户恢复Edge连接后，Root取得1600×791真实首帧，仅证明采集通路；完整镜头仍待录制，没有新版影片。",
+    "fullStageC": "本轮未重跑；旧阶段输入的完整结果不覆盖此修复。",
+    "next": "完成正常原生导入，重新核有效提案和精确包引用，再分别完成具体合同、环节授权、真实交付、WASM验收及付款。"
+  },
+  "evidence": [
+    {"localPath": "temp/checks/verifier-gate-sdk-recovery-r2/correct-three-comparison-read-1-result.json", "sha256": "b7f7a805c878c7b96699460d27ff9a968101d207ae8c4b45ea047cd9656d73b6"},
+    {"localPath": "temp/checks/verifier-gate-sdk-recovery-r2/new-mashangfei-status-1-result.json", "sha256": "f98c18a983d46a2ce18116502eb52d5cb5fe174a85e0a649beecade3f2ce83a9"},
+    {"localPath": "temp/checks/verifier-gate-sdk-recovery-r2/new-kuaida-status-1-result.json", "sha256": "cf669c336da966eba49e81d71864af5b9f492d0b43a640a84916348aeece2f95"},
+    {"localPath": "temp/checks/verifier-gate-sdk-recovery-r2/new-lingxi-status-1-result.json", "sha256": "e8ba96433a9562f08107b88745f9ef773c4655993f7e43a3621c50dbe6ff0b1b"},
+    {"localPath": "temp/checks/verifier-gate-sdk-recovery-r2/selected-source-review-result-1-result.json", "sha256": "b3f089de497f0f375fa1739047bee239632c13645efaed52daa724f76b460571"},
+    {"localPath": "temp/checks/verifier-gate-sdk-recovery-r2/selected-current-quote-1-result.json", "sha256": "d5069798f0ef052fd4f2ab1116bcb7767cbd1970b66d5e665fd27506292d6b84"},
+    {"localPath": "temp/checks/verifier-gate-sdk-recovery-r2/selected-confirmation-status-1-result.json", "sha256": "fbbc21a66bb7dbcb9767be64188ae237bc3366663c452f1bbc7fe1eaa8ee1d68"},
+    {"localPath": "temp/checks/verifier-gate-sdk-recovery-r2/selected-current-task-1-result.json", "sha256": "03520ca9c86ac98b3ed699ea8d08a1851d2a2cebe05a0efae40fc5532ead37d7"},
+    {"localPath": "temp/checks/verifier-semantic-smoke-r1/result.json", "sha256": "9be72d6d3ac5cd9f3387f6a8b030e360ea78966428d6780d11df0aeee7585eec"},
+    {"localPath": "temp/checks/verifier-reuse-scene-r1/report.json", "sha256": "8662b8c367f708bfdcfc257ecefc0e7e847ea0e376bf1c5af7ffa554c4c1a24d"},
+    {"localPath": "temp/checks/verifier-reuse-native-r1/exact-upload-result.json", "sha256": "2699d23072c58733d36657122ad04dcf05c7dc4de6570046f76ce322f2368ecd"},
+    {"localPath": "temp/checks/verifier-reuse-native-r1/referenced-build-result.json", "sha256": "60f6ad47b98cf0406b074fdb48d860c954dd543e5ecd86bd9a007b9f89de82a8"},
+    {"localPath": "temp/checks/verifier-canonical-smoke-r1/result.json", "sha256": "eef2eba46fd294450f9bb1804bbcede036df3cfe9b11049c88b7dc25c0a013e6"}
+  ],
+  "evidenceLimit": "路径指向本机保留的忽略目录，供原机按摘要核对；原回执、原始历史、账号配置、凭据及确认入口均不入库。上述样件检查不替代新交付验收、原生全流程、完整C或成片。"
+}
