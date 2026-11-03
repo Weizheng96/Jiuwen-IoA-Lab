@@ -1,0 +1,108 @@
+{
+  "status": "native_closed_contract_cached_file_export_verified",
+  "observedDate": "2026-11-04",
+  "validationLevel": "D",
+  "scope": "精确R1助手产品包原生导入、安装及安全升级后，对原已闭合同的缓存交付文件作正常fetch导出补验；不是新单首取全流程或完整重录。",
+  "firstAttemptAutonomous": false,
+  "packageAndInstalledSource": {
+    "sourceCommit": "e7b1318a88b15b3bc3dc61fb6b26a20c5500e3ed",
+    "assistantZipSha256": "faf2ed0d926c50f7708f32c899da5a5bd4f9295451e969cda7bab0eae6b5e16f",
+    "releaseId": "ddf9b1a9f597f9078c066dd4739bbaa66d9e6cbf54addcf1034e4a9ee8fb30fa",
+    "actualNativeImportEntry": "原版技能上传界面及覆盖确认",
+    "nativeFiles": 19,
+    "allNativeFilesByteEqual": true,
+    "installedSdkPythonModules": 69,
+    "allInstalledSdkPythonByteEqualToFrozenWheel": true,
+    "runtimeSwitchProvenSeparatelyFromInstallation": true,
+    "laterR2GuidePackagePreparedButNotImported": true,
+    "laterSharedRuntimeGuideChangesCoveredByThisRun": false
+  },
+  "safeRuntimeUpgrade": {
+    "method": "原生正常安装查询、停止旧实例、以原配置启动新发行，再分别核实际运行状态",
+    "previousReleaseId": "a987ba4217c6e69706052a1f151a17f1ce1cc701fb4611c7dcf924e33bf94a59",
+    "newReleaseId": "ddf9b1a9f597f9078c066dd4739bbaa66d9e6cbf54addcf1034e4a9ee8fb30fa",
+    "runtimeIdBeforeAndAfter": "c3bb0284-5d30-45ce-a4cf-247e05ac200e",
+    "assistantActorBeforeAndAfter": "urn:ioalab:assistant:8eace0eb-2cab-4641-9c17-d85526a9a6c2",
+    "configurationDigestBeforeAndAfter": "sha256:2e5b15625ae4f5f0e27494dc3cce71638a38defbbf3e70691780475a224e9a40",
+    "ipcAndPlatformConnectedAfter": true,
+    "entireOriginalCardAndVouchersPreserved": true
+  },
+  "nativeContextBoundary": {
+    "oldChatMetadataIdleButUiResidue": true,
+    "inheritedBranch": "分支复制边界落在原最后用户请求，未包含最终助手结果；继承旧指南后转向磁盘搜索，已正常停止，不算新指南通过",
+    "cancelledBranchExecution": "req_mw10tb3n_82",
+    "activeDispatchesAfterCancellation": 0,
+    "privateStoreRescueUsedAsProductSuccess": false,
+    "newSession": "web_1a1a29ce527_99be1af4dc90",
+    "newContext": "只含本次新包setup，然后以自然请求和真实原contractRef执行取件",
+    "flowReference": "references/delegation.md",
+    "actualSkillToolRead": true,
+    "completeChangedExportInstructionMatchesSource": true,
+    "instructionSha256": "1e6e5a3c41bf445d05132c094671681262e6e9d39da5b3e25c9818ce336c2205",
+    "historyToolResultTruncated": true,
+    "fullToolResponseByteEqualityClaim": false
+  },
+  "nativeFetchExport": {
+    "operation": "assistant.delegation.fetch",
+    "operationId": "b293212a-d3e8-4b88-8328-10336a105022",
+    "jobReference": "eab6d937-9eeb-56c3-812b-f381056169a3",
+    "contractRef": "sha256:87f805348a48583f04918aae57520509efbee41a876f51e265682963a841aaad",
+    "period": 1,
+    "file": {"name": "booking.json", "size": 6767, "digest": "sha256:04b44aedb85047a761c144dd1ef44d8db92cb1e669cb645d968dfbfd75830d14", "alreadyPresent": false},
+    "normalSdkFilePathReturned": true,
+    "nativeOutputVisibility": {
+      "actualResultReviewedAfterNormalScroll": true,
+      "fileLocationSizeDigestAndContractVisible": true,
+      "initialUpgradeOnlyScreenshotProvesExportResult": false,
+      "longPathUsesHorizontalScrollingCodeBlock": true,
+      "pageContentModifiedForPresentation": false,
+      "screenshotsRemainPrivate": true
+    },
+    "actualOutputBytesIndependentlyVerified": true,
+    "originalDeliveryDigestMatches": true,
+    "privateCacheExtractionUsedForThisOutput": false,
+    "generatedDeliveryCodeExecuted": false
+  },
+  "originalBusinessPreserved": {
+    "entireCardEqualBeforeAndAfter": true,
+    "allOriginalVouchersEqualBeforeAndAfter": true,
+    "originalVoucherCount": 1,
+    "slot6Count": 1,
+    "slot7Count": 1,
+    "acceptedPeriods": 1,
+    "payment": "paid",
+    "paymentNotifiedPeriods": [1],
+    "closed": true,
+    "additionalPaymentOrReceiptSignature": false
+  },
+  "trustedLocalTool": {
+    "runner": "examples/booking_app.py",
+    "usesActualPublicSdkOutputPathAsConfiguration": true,
+    "same6767ByteInputDigestVerified": true,
+    "previousDatabasePreserved": true,
+    "bookingRows": 3,
+    "activeBookings": 2,
+    "cancelledBookings": 1,
+    "overCapacityGuiRequestRejected": true,
+    "generatedCodeOrVerifierExecutedOnHost": false,
+    "wechatDeploymentClaim": false
+  },
+  "configurationBodyObservationAudit": {
+    "sessions": 2,
+    "observedConfigurationBodyReadCalls": 0,
+    "observedConfigurationBodyWriteCalls": 0,
+    "flaggedCommandsManuallyReviewed": 5,
+    "finding": "所核标记命令只将配置引用传给SDK --config，结果写入为独立工作文件；未观察配置正文读写",
+    "osEnforcedFilesystemAccessIsolationProven": false,
+    "absenceOfMatchedCallsIsGeneralIsolationProof": false,
+    "rawHistoriesAndImagesRemainPrivate": true
+  },
+  "notProven": [
+    "新委托第一次取件、逐期完整履约或新身份接入全流程",
+    "完整新包用户教程重录及物理屏连续视频",
+    "R2仅准备指南包、后来shared-runtime修改或当前HEAD指南的原生使用",
+    "模型文件访问的强制隔离",
+    "新一轮阶段完整C或Linux部署"
+  ],
+  "evidenceBoundary": "依据原生真实上传、安装与取件操作，以及对前后运行与合同快照、当前导出行、输出字节的独立只读核验；不发布机器路径、账号密码、私人正文、完整历史或原图。"
+}
