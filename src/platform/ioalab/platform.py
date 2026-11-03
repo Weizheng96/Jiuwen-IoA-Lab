@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import time
+from datetime import datetime, timezone
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Mapping
@@ -384,6 +385,14 @@ class Platform:
     def _search(self, query: str, top_k: int, *, by: str = "") -> list[dict]:
         """市场检索；事件记下是哪个助手问的（sender）与命中的服务 id，回放才能把检索画到那个助手头上。"""
         hits = self.discovery.search(query, top_k)
+        # Reuse the public directory projection; search neither probes workers nor
+        # reserves admission. Keep the original index/card objects untouched.
+        observed = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        states = {row['id']: row for row in self.service_views.list()}
+        hits = [{**hit, 'availability': ({'observedAt': observed,
+                     **{key: states[hit['id']][key] for key in
+                        ('status', 'activeDelegations', 'maxActiveDelegations')}}
+                     if hit['id'] in states else None)} for hit in hits]
         self.bus.emit("platform", "discovery.search", sender=by, receiver=self.market_id, outcome=self.discovery.last_mode,
                       detail={"query": query[:200], "hits": [h["name"] for h in hits], "ids": [h["id"] for h in hits]})
         return hits
