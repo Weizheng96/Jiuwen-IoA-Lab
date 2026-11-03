@@ -17,8 +17,8 @@ python "<实际技能目录>/scripts/ioalab.py" assistant.delegation.prepare --c
 | 征集与比较 | assistant.delegation.request：taskRef、service、templateDigest、spec，可选 materials | 每家各自保存 quoteRef；提案型取得实际签2/3的报价，待批准只生成未签算价卡，不能为比价向多家复签 |
 | 候选进展 | assistant.delegation.status：quoteRef | accepted/running 等待原结果；必要材料审查另按真实许可处理。比较合格候选的交付、验收覆盖/未覆盖、费用、期限、材料和责任，不固化最低数量 |
 | 统一比较 | assistant.delegation.compare：taskRef、quoteRefs（本次1—32个原引用） | 保存data.reference完整对象，依calling.md查询原作业，data.status=completed后读取data.data；只读比较不重新征集或收费。核候选state及validUntil；结合verifierPackages中reviewRef对应的真实程序和notCovered逐项解释需求覆盖，源码遗漏明确说明；信誉须status=verified，未知不当作零单；不按低价、包名或条目数量选中 |
-| 具体合同 | assistant.delegation.confirm：quoteRef | 展示实际合同及材料发送阶段，取得独立用户确认后重发同一操作；保存 contractRef，status 查询 formed 后才开工 |
-| 开工 | assistant.delegation.start：contractRef | SDK 复用原合同及实际定金/开工回执。新候选失效不等于旧合同失效，仍遵守原合同窗口 |
+| 具体合同 | assistant.delegation.confirm：quoteRef | 展示实际合同及材料发送阶段，取得独立用户确认后重发同一操作；保存 contractRef，status 查询 data.formed 为 true 后才开工 |
+| 开工 | assistant.delegation.start：contractRef | SDK 复用原合同及实际定金/开工回执；status.data.started 为 true 才表示已开工。新候选失效不等于旧合同失效，仍遵守原合同窗口 |
 | 合同环节 | assistant.delegation.status：contractRef，再 assistant.delegation.answer_step：contractRef、stepRequestDigest | 读取 status.data.stepRequest 及同一回执的 data.stepRequestDigest，不用合同摘要，不自行计算或猜测；两字段为空则无当前可答环节。answer_step 取得 waiting 和 confirmationRef 后才打开确认页；用户实际同意/拒绝后重发原操作，不传 granted/confirmed |
 | 交付与取件 | assistant.delegation.status：contractRef；assistant.delegation.fetch：contractRef、period | availablePeriods 及实际签名证明交付，取件保存原文件与签收；不是模型文字“完成” |
 | 验收与付款 | assistant.delegation.verify：contractRef、period；assistant.delegation.accept：contractRef、period | 异步作业先返回引用；accept取得通过报告后进入waiting，展示真实预览和应付款额。取得本期独立确认后用同一operationId重发accept，原Client.accept复验、通知及AP2，分别查实际验收与付款结果 |
@@ -42,7 +42,7 @@ search命中的availability是现有公开状态投影的读取快照，按obser
 
 多期合同按模板顺序逐期取件、验收及付款；每期使用独立的验收确认和操作文件，不把首期同意当作全单同意。状态中的部分付款不表示结清。取件若明确返回failed且error.recovery=retry_read，SDK已核本期尚无签6和缓存；可在原请求内以新的本地读取操作重试一次，再失败则报告网络未就绪；原失败操作重传仍返回原结果，不额外要求用户批准读取。unknown或已有签收时先核原凭证，不换操作强制重签。
 
-spec 是“交付件名→规格对象”，每项不是数组，键和值必须符合实际 specSchema；materials 按声明的材料名组织，提供 text 或 bytesBase64 及可选 spec。例如实际模板交付件为report且specSchema含字符串topic时，spec为 {"report":{"topic":"用户主题"}}。只有真实模板确为无逐单输入的固定成果时才能使用空规格；按单需求无法写入现有模板时应说明不适用，不能删去需求换取通过。
+spec 是“交付件名→规格对象”，每项不是数组，键和值必须符合实际 specSchema；materials 按声明的材料名组织，提供 text 或 bytesBase64 及可选 spec。spec及每份材料spec只填写对应specSchema的非const键，const值由模板提供，不回填。每份材料分别使用其自身声明的规格字段，不能统一套用description。例如实际模板交付件为report且specSchema含字符串topic时，spec为 {"report":{"topic":"用户主题"}}。只有真实模板确为无逐单输入的固定成果时才能使用空规格；按单需求无法写入现有模板时应说明不适用，不能删去需求换取通过。
 
 只有实际模板声明交付件report/topic和材料source/language时，完整request参数示例如下；名称与字段必须替换为inspect所得，不将材料放进spec：
 
@@ -54,7 +54,7 @@ inspect示例：{"service":"<search.data.hits[i].id>"}。request外层只含task
 
 materials 按模板材料名组织，提供 text 或 bytesBase64 及可选 spec。材料不得超出用户已授权范围。服务、模板、报价及合同引用从实际结果获取，不能编造 ID。
 
-status 可附 fulfillmentOperationId 查询某次履约动作，取值为 start、answer_step、fetch、verify、accept 或 pay 的原回执 data.operationId；从 status.data.operation.status 及 data.operation.data 读取原动作结果。acceptedPeriods 与 vouchers 分别表示已签验收和付款，不能用它们判断 verify 是否通过。报价/合同/动作引用用途不同；脚本参数文件中的顶层 operationId 仅是本次调用的恢复键，不能代替 fulfillmentOperationId。只读查询也创建独立参数文件，不覆盖原业务文件。
+status外层status=completed只表示查询完成；合同成约和开工分别读取实际data.formed、data.started布尔值，不猜state='formed'等枚举。status 可附 fulfillmentOperationId 查询某次履约动作，取值为 start、answer_step、fetch、verify、accept 或 pay 的原回执 data.operationId；从 status.data.operation.status 及 data.operation.data 读取原动作结果。acceptedPeriods 与 vouchers 分别表示已签验收和付款，不能用它们判断 verify 是否通过。报价/合同/动作引用用途不同；脚本参数文件中的顶层 operationId 仅是本次调用的恢复键，不能代替 fulfillmentOperationId。只读查询也创建独立参数文件，不覆盖原业务文件。
 
 验收不通过或拿不准时向用户说明报告和选项，不擅自付款或发起仲裁。当前 SDK 若对某异常给出未支持/未就绪，保留原证据并说明，不能自行调用私有接口绕过。用户拒绝和未知结果均停止对应新效果。
 
