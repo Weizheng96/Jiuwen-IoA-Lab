@@ -14,7 +14,7 @@ python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置�
 
 依照真实回执的stage和nextAction继续：stage=installation时查询runtime.install.status；依赖completed后，普通接入再次runtime.start才会校验配置并启动SDK，随后查询runtime.status；仅预装到此结束。安装完成不代表已上线。runtime.install用于单独预装或明确失败后的显式重试，不能当查询反复调用；runtime.validate只做配置检查，普通接入不必另做。其他诊断/业务操作不触发安装。安装结果只以runtime.install.status回执为准，不反复读日志推断完成；明确失败时才按logPath诊断。上述名称是本脚本参数，不是原生工具或技能商店动作。
 
-安装状态查询同样遵守[公共调用的短观察窗口](calling.md#读取异步作业)：单次查询后返回当前阶段，不用for/while加Sleep在一个终端调用内等待数分钟。后台安装继续运行；本轮未完成时保存原任务，结束本轮，稍后只查询同一安装，不重发安装。
+安装、启动及停止的状态查询同样遵守[公共调用的短观察窗口](calling.md#读取异步作业)：单次查询后返回当前阶段，不用for/while加Sleep在一个终端调用内等待数分钟。后台任务继续运行；本轮未完成时保存原引用，结束本轮，稍后只查询同一任务，不重发安装或启动。
 
 | 真实结果 | 下一步 |
 |---|---|
