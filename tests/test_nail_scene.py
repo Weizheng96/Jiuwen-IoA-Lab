@@ -48,6 +48,10 @@ def test_native_scene_build_is_deterministic_and_uses_exact_owned_source(tmp_pat
     assert terms['deliverables'][0]['name'] == 'booking'
     assert terms['deliverables'][0]['specSchema'] == owned['deliverable']['specSchema']
     assert terms['pricing']['proposalFee'] == 1 and terms['authorizableSteps'] == owned['steps']
+    assert terms['deadlines']['respondWithin'] == 'PT30M'
+    assert owned['deadlines']['respondWithin'] == 'PT10M'
+    assert {k: v for k, v in module.definition()['deadlines'].items() if k != 'respondWithin'} == {
+        k: v for k, v in owned['deadlines'].items() if k != 'respondWithin'}
     assert terms['samples'] == [] and not {'a2cVersion', 'kind', 'validUntil', 'provider', 'signatures'} & terms.keys()
     assert 'paymentProviders' not in terms['pricing']
     assert [item['name'] for item in terms['inputs']] == ['requirement_text', 'function_spec']
@@ -61,7 +65,7 @@ def test_native_scene_build_is_deterministic_and_uses_exact_owned_source(tmp_pat
     assert report['verifierPreparation'] == 'task_upload' and report['verifierReference'] is None
 
 
-@pytest.mark.parametrize('fault', ['profile', 'criteria', 'criterion_names', 'source', 'syntax', 'deliverable', 'schema', 'quote'])
+@pytest.mark.parametrize('fault', ['profile', 'criteria', 'criterion_names', 'source', 'syntax', 'deliverable', 'schema', 'quote', 'deadline'])
 def test_invalid_scene_input_is_rejected_before_creating_output(tmp_path, fault):
     module = builder()
     value = deepcopy(module.definition())
@@ -73,6 +77,7 @@ def test_invalid_scene_input_is_rejected_before_creating_output(tmp_path, fault)
     elif fault == 'syntax': value['verifier']['source'] = 'def verify(: invalid'
     elif fault == 'deliverable': value['deliverable']['name'] = 'miniprogram_project'
     elif fault == 'schema': value['deliverable']['specSchema'].pop('capacity')
+    elif fault == 'deadline': value['deadlines']['respondWithin'] = 'PT2H'
     else: value['pricing']['range'] = [299, 500]
     with pytest.raises(ValueError):
         module.build(tmp_path / 'never-created', profile=profile, source=value)

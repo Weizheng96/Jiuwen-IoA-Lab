@@ -38,6 +38,7 @@ def definition(service_id=DEFAULT_SERVICE):
     value = {key: deepcopy(original[key]) for key in (
         'id', 'name', 'description', 'tags', 'formation', 'deliverable', 'inputs',
         'deadlines', 'pricing', 'steps', 'notCovered', 'verifier') if key in original}
+    value['deadlines']['respondWithin'] = 'PT30M'
     value['inputs'] = deepcopy(MATERIALS) + value.get('inputs', [])
     if value['formation'] == 'preapproval':
         value['formation'] = 'countersign'
