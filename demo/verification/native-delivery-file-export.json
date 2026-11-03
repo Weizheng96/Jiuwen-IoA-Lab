@@ -97,10 +97,24 @@
     "absenceOfMatchedCallsIsGeneralIsolationProof": false,
     "rawHistoriesAndImagesRemainPrivate": true
   },
+  "nextTakePreparation": {
+    "sourceCommit": "4c9b2fe53c8058fa697149ef77edb4b5e270acf3",
+    "packageSet": "recording-freeze R3; distinct from the earlier clean-retake R3",
+    "assistantZipSha256": "db5f3ec3047e11ee0386a0ee3a4af949326a86d74802e0d0528ea2756cd510ae",
+    "providerZipSha256": "5109a984588c3bb1168b2dc145a3ea1738eef9567005cbd329b416b6fee3dc61",
+    "sameRuntimeWheelBytesAsNativeVerifiedR1": true,
+    "bothPublicDownloadResponsesByteEqualToFrozenPackages": true,
+    "bothActualBrowserWorkbenchDownloadsByteEqual": true,
+    "mutableDistributionCopiesUpdatedAtomically": true,
+    "frozenEvidencePreserved": true,
+    "coreRestartedForStaticPackageUpdate": false,
+    "newInstructionsNativeImported": false,
+    "completeNewOnboardingOrRecordingProven": false
+  },
   "notProven": [
     "新委托第一次取件、逐期完整履约或新身份接入全流程",
     "完整新包用户教程重录及物理屏连续视频",
-    "R2仅准备指南包、后来shared-runtime修改或当前HEAD指南的原生使用",
+    "后续指南包（含recording-freeze R3）及shared-runtime修改的原生使用；公开下载不等于已导入",
     "模型文件访问的强制隔离",
     "新一轮阶段完整C或Linux部署"
   ],
