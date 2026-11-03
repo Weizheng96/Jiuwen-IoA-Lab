@@ -81,5 +81,16 @@
   ],
   "evidenceBoundary": "由保存的双角色原生导入、公开SDK升级前后快照、真实原生工具记录及owner页检查投影脱敏元数据；不公开配置、私人正文、原图或机器路径。",
   "status": "native_import_and_provider_runtime_upgrade_verified",
-  "stageValidation": "原全量失败及定向补验另见native-stage-v122-followup.json，不在本D合并为通过"
+  "stageValidation": "原全量失败及定向补验另见native-stage-v122-followup.json，不在本D合并为通过",
+  "subsequentRecordingPreflight": {
+    "observedDate": "2026-11-04",
+    "displayMapping": "当前DXGI只读枚举：外接屏3840x2160，第二显卡输出0，物理边界[-3840,0,0,2160]；与此前2560x1440采集配置分别记录，不据此单独认定旧黑帧根因。",
+    "method": "当前外接屏映射的ddagrab有界3秒采集",
+    "realCaptureExitCode": 4294967295,
+    "result": "Desktop duplication access denied; Operation not permitted",
+    "frameObtained": false,
+    "newBusinessEffects": false,
+    "fullRecordingClaim": false,
+    "nextStep": "保持原状态，等待实际桌面唤醒解锁或正常权限恢复后再核采集，不绕过系统拒绝。"
+  }
 }
