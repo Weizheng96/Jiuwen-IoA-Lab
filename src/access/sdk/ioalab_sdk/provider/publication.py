@@ -84,8 +84,8 @@ class ProviderRole:
                     self.fields(args,('profile',),('taskRef',))
                     return {'status':'completed','data':self.execution.tasks.get(self._identity(args['profile']),args.get('taskRef'))}
                 if name=='task.resume':
-                    self.fields(args,('profile','taskRef'))
-                    return self.execution.tasks.resume(self._identity(args['profile']),args['taskRef'],operation)
+                    self.fields(args,('profile','taskRef'),('confirmationRef',))
+                    return self.execution.tasks.resume(self._identity(args['profile']),args['taskRef'],operation,args.get('confirmationRef'))
                 if name == 'reputation':
                     self.fields(args,('profile',))
                     identity=self._identity(args['profile'])

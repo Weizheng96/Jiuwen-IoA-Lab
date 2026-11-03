@@ -1,5 +1,6 @@
 """Owner queries and verified continuation of the original provider job."""
 import json
+import threading
 import uuid
 
 from a2c.errors import A2CError
@@ -13,6 +14,9 @@ class ProviderTasks:
 
     def __init__(self,execution):
         self.execution=execution;self.runtime=execution.runtime
+        from .production_recovery import ProductionRecovery
+        self.production=ProductionRecovery(execution)
+        self.lock=threading.RLock()
 
     @staticmethod
     def namespace(identity):return 'provider-recovery:'+identity.agent_id
@@ -61,6 +65,17 @@ class ProviderTasks:
         return True,'verifier_upload_round_finished',proof
 
     def snapshot(self,identity,job):
+        if job['handler']=='provider.production':
+            candidate=None
+            try:
+                candidate=self.production.candidate(identity,job)
+                reason='runtime_verified' if candidate['mode']=='runtime_verified' else 'owner_review_required'
+            except (RuntimeFault,A2CError) as exc:reason=exc.code
+            mode=candidate['mode'] if candidate else None
+            return {'taskRef':job['id'],'phase':'production','status':job['state'],'interactionId':job['interaction'],
+                    'sessionId':job['session'],'canResume':mode=='runtime_verified','resumeReason':reason,
+                    'recoveryMode':mode,'requiresConfirmation':mode=='owner_review',
+                    'result':json.loads(job['result']) if job['result'] else None}
         try:
             allowed,reason,_=self.eligible(identity,job)
         except RuntimeFault as exc:allowed,reason=False,exc.code
@@ -77,13 +92,25 @@ class ProviderTasks:
     def get(self,identity,reference=None):
         return {'items':[self.snapshot(identity,job) for job in self.records(identity,reference)]}
 
-    def resume(self,identity,reference,operation):
+    def resume(self,identity,reference,operation,confirmation_ref=None):
+        with self.lock:return self._resume(identity,reference,operation,confirmation_ref)
+
+    def _resume(self,identity,reference,operation,confirmation_ref):
         job=self.records(identity,reference)[0]
         receipt=self.runtime.scheduler.resumption(identity.agent_id,operation,reference)
         if receipt is None:
-            allowed,reason,proof=self.eligible(identity,job)
-            if not allowed:raise RuntimeFault('unknown_result','Original task cannot be resumed safely: '+reason,'reconcile_original')
-            continuation={'kind':'provider.verifier','proof':proof}
+            if job['handler']=='provider.production':
+                candidate=self.production.candidate(identity,job)
+                pending=self.production.approve(identity,job,operation,candidate,confirmation_ref)
+                if pending:return pending
+                current=self.production.candidate(identity,job)
+                if current!=candidate:raise RuntimeFault('id_conflict','Original production state changed before continuation')
+                continuation={'kind':'provider.production','previewDigest':candidate['previewDigest'],'mode':candidate['mode']}
+            else:
+                if confirmation_ref is not None:raise RuntimeFault('id_conflict','This quote uses its original runtime evidence')
+                allowed,reason,proof=self.eligible(identity,job)
+                if not allowed:raise RuntimeFault('unknown_result','Original task cannot be resumed safely: '+reason,'reconcile_original')
+                continuation={'kind':'provider.verifier','proof':proof}
             receipt=self.runtime.scheduler.requeue(reference,operation,continuation)
         current=self.records(identity,reference)[0]
         return {'status':'accepted','data':{'resumeReceipt':receipt,'currentTask':self.snapshot(identity,current),

@@ -2,9 +2,9 @@
 
 ## 本机管理中的任务核对
 
-本机用户要求查看或继续自己的任务时，用provider.tasks.get，参数profile，可选原taskRef；未指定时返回该服务最近至多100项。只有canResume=true且用户明确要继续时，才用provider.task.resume，参数profile、taskRef。SDK自动关联原任务，不让用户抄UUID。accepted只表示原作业已入队；用provider.tasks.get查询当前结果。相同恢复参数文件重传只返回原resumeReceipt，不再次入队。若新一轮再次unknown，先核对；确有新的恢复要求时使用新的管理操作，业务taskRef保持原值。
+本机用户要求查看或继续自己的任务时，用provider.tasks.get，参数profile，可选原taskRef；未指定时返回该服务最近至多100项。用户明确要继续且canResume=true时，用provider.task.resume，参数profile、taskRef。requiresConfirmation=true且recoveryMode=owner_review只表示可申请本机审阅，不能直接执行；调用同一resume入口取得waiting后按calling.md打开真实确认页，所有者实际核对原轮结束及原生效果后决定，再沿原参数文件接续，可带该次confirmationRef。SDK自动关联原任务，不让用户抄UUID。accepted只表示原作业已入队；用provider.tasks.get查询当前结果。相同恢复参数文件重传只返回原resumeReceipt，不再次入队。若新一轮再次unknown，先核对；确有新的恢复要求时使用新的管理操作，业务taskRef保持原值。
 
-恢复仅限已明确结束的模型轮次在验收器准备上中断，其他unknown保持待核对。新轮次开始前旧证明失效；不使用operations.resume强制重跑模型。待批准、生产或已返回决定不能通过此入口重拟。以下本单工具属于后台受限执行入口，不授予来信任务查询所有任务或管理恢复的能力。
+拟约恢复仅限已明确结束的模型轮次在验收器准备上中断。生产恢复须核原合同期次尚未交付、原权限及环节仍允许、全部本单业务效果已核实，并区分runtime_verified与所有者审阅声明；原生工具效果未决时不能批准。未知交付、签署、付款或外部效果不因页面同意变为已知。新轮次开始前旧证明和批准失效；不使用operations.resume强制重跑模型，不重拟已确认合同，不改已签判据或扩大工具权限。以下本单工具属于后台受限执行入口，不授予来信任务查询所有任务或管理恢复的能力。
 
 ## 后台本单执行
 

@@ -115,6 +115,7 @@ class HostResult:
     session_id: str|None
     usage: dict
     error: dict|None=None
+    request_id: str|None=None
 
 
 class AgentHost(Protocol):

@@ -96,6 +96,7 @@ class Production:
         template=provider.template(card['templateDigest']);definition=provider.policy.definition(template);workspace=self.workspace(identity,relation)
         definition_hash=definition_digest(definition)
         if relation['details'].get('definitionDigest')!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original production agent definition')
+        self.execution.tasks.production.require_continuation(identity,job)
         business=self.execution.business_tools(identity.profile,provider.policy.config.get('businessTools',[]))
         state={'outcome':None,'toolError':None}
         def session(value):
@@ -167,9 +168,11 @@ class Production:
             return result
         prompt=encode({'phase':'production','card':card,'period':job['payload']['period'],'artifactDirectory':str(workspace/'artifacts'),'materials':{name:base64.b64encode(data).decode() for name,data in provider.materials(cd).items()},'steps':provider.store.get('cards',cd).get('steps',[]),
                        'instruction':'按合同和已配置业务能力生产。需要用户批准的环节先调用provider.task.request_step并结束本轮；交付前可selftest，deliver取得回执后结束本轮。不得把文字当交付或自行批准环节。'})
+        round_record=self.execution.tasks.production.begin(identity,job,relation,definition_hash)
         self.execution.active.add(job['id'])
         try:result=self.execution.host.run(HostTurn(job['id'],identity.agent_id,relation['id'],definition,prompt,str(workspace),300,relation['session'],session,lambda value:native_answer(self.runtime,identity.agent_id,job['id'],value,self.execution.stop),invoke,allow_native_tools=True))
         finally:self.execution.active.discard(job['id'])
+        self.execution.tasks.production.finish(identity,job,round_record,result)
         if state['toolError']:
             return JobOutcome('unknown',{'cardDigest':cd,'period':job['payload']['period'],'error':state['toolError']},relation['session'])
         if provider.store.get('cards',cd).get('state')=='terminated' and result.status in ('completed','failed'):

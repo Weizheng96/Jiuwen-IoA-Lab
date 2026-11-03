@@ -196,12 +196,12 @@ class ProcessHost:
                     if not self._running[turn.operation_id]:self._running.pop(turn.operation_id)
         try:
             result=asyncio.run(execute())
-            outcome=HostResult(result.get('status','unknown'),observed_session[0],result.get('usage') or {},result.get('error'))
+            outcome=HostResult(result.get('status','unknown'),observed_session[0],result.get('usage') or {},result.get('error'),request_id)
             private_json(path,{**record,'state':outcome.status,'sessionId':outcome.session_id,'usage':outcome.usage,'error':outcome.error})
             return outcome
         except Exception as exc:
             private_json(path,{**record,'state':'unknown','sessionId':observed_session[0],'errorType':type(exc).__name__})
-            return HostResult('unknown',observed_session[0],{}, {'code':'host_unknown','type':type(exc).__name__})
+            return HostResult('unknown',observed_session[0],{}, {'code':'host_unknown','type':type(exc).__name__},request_id)
 
     def cancel(self,operation_id):
         with self._lock:running=list(self._running.get(operation_id,()))
