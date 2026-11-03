@@ -39,11 +39,24 @@ var roleCapture = await nativeCapture.startCapture({
 nodeRepl.write(nativeCapture.captureSummary(roleCapture));
 ```
 
-下一次工具调用完整 await 一个窗口，再返回模型处理业务操作；每个窗口至多 25000ms，不创建跨工具返回仍运行的 Promise。需要继续时仍传同一显式 handle；多角色各自持有不同 handle，不能复用闭包变量：
+静态观察时完整 await 一个窗口；需要录到输入或点击时，在同一次 CUA 调用内启动采集窗口、执行正常页面操作，并在返回前 await 采集结束。先采完再操作只能留下前后状态，不能证明录到了动作。每个窗口至多 25000ms，不创建跨工具返回仍运行的 Promise。需要继续时仍传同一显式 handle；多角色各自持有不同 handle，不能复用闭包变量：
 
 ```javascript
 nodeRepl.write(await nativeCapture.captureWindow(roleCapture, 20000));
 ```
+
+操作窗口采用下面的生命周期，`performObservedPageAction` 表示调用者依当前页面及 CUA 文档执行的实际动作，不是采集模块提供的 API：
+
+```javascript
+var actionWindow = nativeCapture.captureWindow(roleCapture, 10000);
+try {
+  await performObservedPageAction();
+} finally {
+  nodeRepl.write(await actionWindow);
+}
+```
+
+两侧同时采集时分别持有 handle，在同一次调用中 await 两个窗口，保留各自时间戳；静态页未出新帧不自动判为失败，先用无业务副作用的可见输入验证实际变化能被采到。正式业务前确认关键操作所需的页面也能采集，不能只试工作台首页。网页原帧不含浏览器工具栏、系统文件选择器或原生弹层；只采到网页时如实标注范围，不把该方案替代用户指定的整屏实录要求，范围变更沿用用户已有选择或先取得确认。
 
 只有返回的 `firstFrame` 非空才表示真实首帧已保存，其中像素来自 JPEG 本体；Visibility 事件、start 成功或零帧窗口都不是就绪证据。默认最多 15 分钟／5000 帧，到限自动结束自己的流。首次 start 未获得成功回执时状态为 `start_unknown`，不能盲目 stop；交回当前所有者核实。
 
