@@ -240,8 +240,17 @@ def render_native_shot(ff, folder, shot, destination, *, review_candidate, prepa
     if shot.get("waitingCuts"):
         banners.append("同源等待片段已剪短")
     banners.extend(dict.fromkeys(notes))
-    filters.append("[screen]" + label_filter("\n".join(banners), "banner", y=76, size=26,
-                                           color="0xffdc91" if review_candidate else "white") + "[v]")
+    if shot.get("compactReviewBanner"):
+        require(review_candidate, "Compact review banner is only for explicitly incomplete review videos")
+        # Keep the review state visible above the page body instead of covering
+        # the actual request, notification or owner confirmation being reviewed.
+        filters.append("[screen]" + label_filter("初版审阅 · 改约结果待核对（非成功教程）", "banner",
+                                               y=53, size=20, color="0xffdc91") + "[review]")
+        note = "等待片段已剪短" if shot.get("waitingCuts") else "真实页面实录 · 说明叠层"
+        filters.append("[review]" + label_filter(note, "edit-note", x=1400, y=53, size=20) + "[v]")
+    else:
+        filters.append("[screen]" + label_filter("\n".join(banners), "banner", y=76, size=26,
+                                               color="0xffdc91" if review_candidate else "white") + "[v]")
     subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-y", *inputs,
                     "-filter_complex_threads", "2", "-filter_complex", ";".join(filters),
                     "-map", "[v]", "-t", str(length), "-an", "-c:v", "libx264",

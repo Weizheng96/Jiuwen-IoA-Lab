@@ -429,6 +429,24 @@ def test_native_render_uses_full_accelerated_interval_and_rejects_crop_outside_p
     assert len(commands) == 1, "Invalid crop must fail before encoder side effects"
 
 
+def test_compact_review_banner_keeps_unknown_explicit_without_covering_page_body(native_inputs, monkeypatch):
+    from types import SimpleNamespace
+    inputs = native_inputs
+    shot = {"layout": "single", "duration": 2, "panels": [inputs["segments"][0]["panels"][0]],
+            "pendingReasons": ["Original external result unknown"], "waitingCuts": [], "compactReviewBanner": True}
+    commands = []
+    monkeypatch.setattr(edit_cases, "_media_seconds", lambda *_: 1000)
+    monkeypatch.setattr(edit_cases.subprocess, "run", lambda args, **kwargs: commands.append(args) or SimpleNamespace(returncode=0))
+    destination = inputs["folder"] / "compact.mp4"
+    edit_cases.render_native_shot("ffmpeg", inputs["folder"], shot, destination, review_candidate=True)
+    assert "改约结果待核对（非成功教程）" in destination.with_name("compact-banner.txt").read_text(encoding="utf-8")
+    filters = commands[-1][commands[-1].index("-filter_complex") + 1]
+    assert "y=53:fontsize=20" in filters
+    with pytest.raises(ValueError, match="(?i)incomplete review"):
+        edit_cases.render_native_shot("ffmpeg", inputs["folder"], shot, destination, review_candidate=False)
+    assert len(commands) == 1
+
+
 @pytest.mark.parametrize("mutation", [
     "same-message", "different-interaction", "overwritten-conflict", "stale-result-digest",
     "accepted-recipient", "unmatched-external-event", "hidden-notification", "scripted-reschedule",
