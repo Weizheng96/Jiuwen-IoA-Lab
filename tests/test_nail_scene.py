@@ -55,6 +55,10 @@ def test_native_scene_build_is_deterministic_and_uses_exact_owned_source(tmp_pat
     execution = json.loads((tmp_path / 'first/execution-fields.json').read_text(encoding='utf-8'))
     assert execution['skills'] == ['nail-miniapp'] and execution['native_tools'] == {'write_file': 'allow'}
     assert not {'sample', 'sample_spec', 'engineSource', 'resources'} & execution.keys()
+    upload = json.loads((tmp_path / 'first/verifier-publish-input.json').read_text(encoding='utf-8'))
+    assert upload == module.verifier_input(module.definition(), 'miniapp')
+    assert upload['source'] == owned['verifier']['source']
+    assert report['verifierPreparation'] == 'task_upload' and report['verifierReference'] is None
 
 
 @pytest.mark.parametrize('fault', ['profile', 'criteria', 'criterion_names', 'source', 'syntax', 'deliverable', 'schema', 'quote'])
@@ -159,6 +163,54 @@ def test_three_proposals_keep_distinct_business_skills_and_original_verifiers(tm
     assert 'acceptance' not in request['terms']
     assert json.loads((tmp_path / service_id / 'execution-fields.json').read_text(encoding='utf-8'))['skills'] == [skill]
     assert json.loads((tmp_path / service_id / 'publication-fields.json').read_text(encoding='utf-8'))['name'] == value['name']
+
+
+@pytest.mark.parametrize('service_id', ['nail-mashangfei', 'nail-kuaida', 'nail-lingxi'])
+def test_proposals_reuse_real_upload_reference_without_fixing_template_acceptance(tmp_path, service_id):
+    module = builder()
+    value = module.definition(service_id)
+    _, reference = fixture_package(value)
+    original = deepcopy(reference)
+    output = tmp_path / service_id
+    report = module.build(output, service_id=service_id, profile='owned', verifier_reference=reference)
+    expected = deepcopy(reference)
+    if value['verifier'].get('kind') == 'skill':
+        expected['disputeModels'] = value['verifier']['disputeModels']
+    assert reference == original  # The real upload receipt remains unchanged.
+    assert report['verifierReference'] == expected and report['verifierPreparation'] == 'reuse_published'
+    assert report['templateStatus'] == 'draft_ready'
+    draft = json.loads((output / 'template-draft-input.json').read_text(encoding='utf-8'))
+    assert draft['terms']['formation'] == 'proposal' and 'acceptance' not in draft['terms']
+    upload = json.loads((output / 'verifier-publish-input.json').read_text(encoding='utf-8'))
+    assert upload == module.verifier_input(value, 'owned') and upload['source'] == value['verifier']['source']
+    with zipfile.ZipFile(output / (report['skill'] + '.zip')) as archive:
+        document = archive.read(report['skill'] + '/references/acceptance.md').decode('utf-8')
+        encoded = document.split('```json\n', 1)[1].split('\n```', 1)[0]
+        assert json.loads(encoded) == expected
+        assert '不逐单重新转抄' in document and '不调用 provider.task.verifier.publish' in document
+        assert '```python\n' + value['verifier']['source'].rstrip() + '\n```' in document
+        assert all(item in document for item in value['notCovered'])
+    execution = json.loads((output / 'execution-fields.json').read_text(encoding='utf-8'))
+    assert '复用其中的真实预发布引用' in execution['instructions']
+    assert '不逐单转抄或重新上传' in execution['instructions']
+
+
+@pytest.mark.parametrize('fault', ['id', 'digest', 'uri', 'missing', 'script_models', 'skill_models', 'extra', 'source'])
+def test_proposal_reuse_rejects_invalid_reference_or_source_before_writing(tmp_path, fault):
+    module = builder()
+    value = module.definition('nail-lingxi' if fault == 'skill_models' else 'nail-mashangfei')
+    _, reference = fixture_package(value)
+    if fault == 'id': reference['id'] = 'another_service@1.0.0'
+    elif fault == 'digest': reference['digest'] = 'invalid'
+    elif fault == 'uri': reference['uri'] = 'ioalab://pkg/sha256:' + '0' * 64
+    elif fault == 'missing': reference.pop('digest')
+    elif fault == 'script_models': reference['disputeModels'] = ['qwen-plus']
+    elif fault == 'skill_models': reference['disputeModels'] = ['another-model']
+    elif fault == 'extra': reference['source'] = 'def verify(ctx): return True'
+    else: value['verifier']['source'] = 'def verify(: invalid'
+    with pytest.raises(ValueError):
+        module.build(tmp_path / 'invalid', source=value, verifier_reference=reference)
+    assert not (tmp_path / 'invalid').exists()
 
 
 @pytest.mark.parametrize('service_id,amount', [('nail-weiye', 180), ('nail-jisu', 199),

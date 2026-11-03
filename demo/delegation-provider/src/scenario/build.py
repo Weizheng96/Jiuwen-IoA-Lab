@@ -13,7 +13,7 @@ ROOT = HERE.parents[3]
 sys.path.insert(0, str(ROOT / 'src/official/services'))
 sys.path.insert(0, str(HERE))
 from scene import (DEFAULT_SERVICE, SKILL, SKILLS, acceptance_document, definition, execution_input,
-                   production_document, skill_name, template_input, validate, verifier_input)
+                   production_document, published_verifier_reference, skill_name, template_input, validate, verifier_input)
 
 
 def utf8(text):
@@ -25,19 +25,23 @@ def build(output, *, profile='miniapp', service_id=DEFAULT_SERVICE, source=None,
     if source is not None and service_id != DEFAULT_SERVICE and value['id'] != service_id:
         raise ValueError('The selected service and supplied scene definition differ')
     skill = skill_name(value)
+    reference = (published_verifier_reference(value, verifier_reference)
+                 if verifier_reference is not None else None)
     needs_reference = value['formation'] == 'countersign' and verifier_reference is None
-    draft = None if needs_reference else template_input(value, profile, verifier_reference=verifier_reference)
-    execution = execution_input(value)
+    draft = None if needs_reference else template_input(value, profile, verifier_reference=reference)
+    execution = execution_input(value, verifier_reference=reference)
     documents = {}
     source_root = HERE / 'skills' / SKILL
     replacements = {
         '__SCENE_SKILL__': skill,
         '__SCENE_NAME__': value['name'],
         '__SCENE_CAPABILITY__': value['deliverable']['description'],
-        '__SCENE_PREPARATION__': ('quote 阶段先读报价与验收依据，用本单回调准备验收器并取得实际引用后报价'
+        '__SCENE_PREPARATION__': ('quote 阶段先读报价与验收依据，优先复用文档中的真实预发布验收引用，不逐单转抄源码'
+                                  if value['formation'] == 'proposal' and reference is not None else
+                                  'quote 阶段先读报价与验收依据，优先复用已配置引用；缺少时用本单回调准备验收器并取得实际引用后报价'
                                   if value['formation'] == 'proposal' else
                                   'decision 阶段审查原合同与全部必需材料；不能报价或替换模板验收器'),
-        '__SCENE_ACCEPTANCE__': acceptance_document(value),
+        '__SCENE_ACCEPTANCE__': acceptance_document(value, verifier_reference=reference),
         '__SCENE_PRODUCTION__': production_document(value),
     }
     for relative in ('SKILL.md', 'references/production.md', 'references/acceptance.md'):
@@ -72,8 +76,7 @@ def build(output, *, profile='miniapp', service_id=DEFAULT_SERVICE, source=None,
                'publication-fields.json': {'profile': profile, **{key: value[key] for key in ('name', 'description', 'tags')}}}
     if draft is not None:
         outputs['template-draft-input.json'] = draft
-    if value['formation'] == 'countersign':
-        outputs['verifier-publish-input.json'] = verifier_input(value, profile)
+    outputs['verifier-publish-input.json'] = verifier_input(value, profile)
     for name, data in outputs.items():
         (output / name).write_bytes(utf8(json.dumps(data, ensure_ascii=False, indent=2) + '\n'))
     report = {'serviceId': value['id'], 'profile': profile, 'skill': skill, 'package': package.name,
@@ -86,9 +89,11 @@ def build(output, *, profile='miniapp', service_id=DEFAULT_SERVICE, source=None,
               'documents': {name: hashlib.sha256(data).hexdigest() for name, data in sorted(documents.items())},
               'verifierId': value['verifier']['id'],
               'verifierSourceSha256': hashlib.sha256(utf8(value['verifier']['source'])).hexdigest(),
+              'verifierReference': reference,
+              'verifierPreparation': ('reuse_published' if reference is not None else
+                                      'task_upload' if value['formation'] == 'proposal' else 'management_upload_required'),
               'criteria': value['verifier']['criteria'],
-              'operations': (['provider.verifier.publish'] if value['formation'] == 'countersign' else []) +
-                            ['provider.template.draft', 'provider.preview', 'provider.publish'],
+              'operations': ['provider.verifier.publish', 'provider.template.draft', 'provider.preview', 'provider.publish'],
               'limits': ['Build only; no installation, configuration edit, publication or business execution',
                          'Existing templates and cards remain unchanged; new terms require actual confirmation']}
     (output / 'build-report.json').write_bytes(utf8(json.dumps(report, ensure_ascii=False, indent=2) + '\n'))

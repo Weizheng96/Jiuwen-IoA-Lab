@@ -111,6 +111,28 @@ def verifier_input(value, profile):
             'reads': deepcopy(verifier['reads']), 'source': verifier['source']}
 
 
+def published_verifier_reference(value, reference):
+    """Validate a real upload reference without fetching or inventing its digest."""
+    if not isinstance(reference, dict) or reference.get('id') != value['verifier']['id']:
+        raise ValueError('Use the actual management verifier upload reference for this service')
+    from a2c.template import check_verifiers
+    from a2c.errors import A2CError
+    result = deepcopy(reference)
+    if result.get('uri') != 'ioalab://pkg/' + str(result.get('digest')):
+        raise ValueError('Use the exact package URI and digest returned by the management upload')
+    kind = value['verifier'].get('kind', 'script')
+    if kind == 'skill':
+        models = value['verifier']['disputeModels']
+        if 'disputeModels' in result and result['disputeModels'] != models:
+            raise ValueError('Keep the owned verifier dispute models unchanged')
+        result['disputeModels'] = deepcopy(models)
+    try:
+        check_verifiers({kind: result}, 'scene.acceptance')
+    except A2CError as exc:
+        raise ValueError(exc.message) from exc
+    return result
+
+
 def template_input(value, profile, *, verifier_reference=None):
     """Business terms only; original A2C validates actual uploaded references."""
     validate(value, profile)
@@ -129,28 +151,19 @@ def template_input(value, profile, *, verifier_reference=None):
         terms['deadlines']['authorizeWithin'] = deadlines.get('authorizeWithin', 'PT15M')
     if value['formation'] == 'proposal':
         if verifier_reference is not None:
-            raise ValueError('Proposal acceptance belongs to the actual quote task')
+            # A prepublished business resource does not fix proposal-card acceptance.
+            published_verifier_reference(value, verifier_reference)
         terms['pricing']['proposalFee'] = value['pricing']['proposalFee']
     else:
-        if not isinstance(verifier_reference, dict) or verifier_reference.get('id') != value['verifier']['id']:
-            raise ValueError('Use the actual management verifier upload reference for this service')
-        from a2c.template import check_verifiers
-        from a2c.errors import A2CError
-        reference = deepcopy(verifier_reference)
-        if reference.get('uri') != 'ioalab://pkg/' + str(reference.get('digest')):
-            raise ValueError('Use the exact package URI and digest returned by the management upload')
+        reference = published_verifier_reference(value, verifier_reference)
         kind = value['verifier'].get('kind', 'script')
-        try:
-            check_verifiers({kind: reference}, 'scene.acceptance')
-        except A2CError as exc:
-            raise ValueError(exc.message) from exc
         terms['deadlines']['acceptWithin'] = {'booking': deadlines['acceptWithin']}
         terms['pricing'].update(priceFactors={'booking': {}}, priceFormula={'booking': str(value['pricing']['price'])})
         terms['acceptance'] = {'booking': {'verifiers': {kind: reference}, 'notCovered': deepcopy(value['notCovered'])}}
     return {'profile': profile, 'terms': terms}
 
 
-def acceptance_document(value):
+def acceptance_document(value, *, verifier_reference=None):
     validate(value, 'miniapp')
     verifier = value['verifier']
     kind = verifier.get('kind', 'script')
@@ -158,14 +171,28 @@ def acceptance_document(value):
     reads = json.dumps(verifier['reads'], ensure_ascii=False)
     if value['formation'] == 'proposal':
         amount = value['pricing']['range'][0]
-        route = f'''仅用于 quote 阶段；读取本单模板、规格和全部实际必需材料。
-本场景报价为 {amount} 虚拟币；拟卡费是模板中的另一笔费用，不能作为交付总价。
-先用 provider.task.verifier.publish 上传下方完整源码：verifierId 为 {verifier['id']}，kind 为 {kind}，
+        if verifier_reference is not None:
+            reference = published_verifier_reference(value, verifier_reference)
+            preparation = f'''本场景已通过所有者的 provider.verifier.publish 预发布验收器。
+直接复用以下实际上传回执，填入 provider.task.quote 的 acceptance.booking.verifiers.{kind}：
+
+```json
+{json.dumps(reference, ensure_ascii=False, indent=2)}
+```
+
+先核本单模板、规格与该验收器仍匹配；匹配时不逐单重新转抄下方源码，不调用 provider.task.verifier.publish。
+原包不可用或本单判据需变化时停止并说明，不能猜引用、以同名包替代或修改已签判据。'''
+        else:
+            preparation = f'''优先复用所有者已配置且适合本单的真实验收引用；当前文档尚未绑定预发布回执。
+若无可复用引用，先用 provider.task.verifier.publish 上传下方完整源码：verifierId 为 {verifier['id']}，kind 为 {kind}，
 reads 为 {reads}。该回调绑定当前任务，不传 profile、UUID 或 Session。
 只使用实际成功回执的 id、uri、digest 填入 provider.task.quote 的 acceptance.booking.verifiers.{kind}。
-lineItems.booking 为 {amount}，acceptWithin.booking 为 {value['deadlines']['acceptWithin']}。
-acceptance.booking.notCovered 必须逐项列出下文未覆盖范围。
 未知上传结果停止本轮并保留原任务，不能编造引用或换源码。'''
+        route = f'''仅用于 quote 阶段；读取本单模板、规格和全部实际必需材料。
+本场景报价为 {amount} 虚拟币；拟卡费是模板中的另一笔费用，不能作为交付总价。
+{preparation}
+lineItems.booking 为 {amount}，acceptWithin.booking 为 {value['deadlines']['acceptWithin']}。
+acceptance.booking.notCovered 必须逐项列出下文未覆盖范围。'''
     else:
         route = f'''待批准合同固定价为 {value['pricing']['price']} 虚拟币，不收取提案拟卡费。
 发布前由所有者通过 provider.verifier.publish 上传下方源码，使用实际回执生成模板 acceptance.booking.verifiers.{kind}。
@@ -191,7 +218,7 @@ skill 引用另外配置 disputeModels 为 ''' + json.dumps(verifier['disputeMod
 
 {criteria}
 
-## 待打包的完整源码
+## 验收器完整源码
 
 ```python
 {verifier['source'].rstrip()}
@@ -258,12 +285,17 @@ reserve(request, slot) 成功返回含 id、slot 的字典，满额时返回 Non
 '''
 
 
-def execution_input(value):
+def execution_input(value, *, verifier_reference=None):
     validate(value, 'miniapp')
     skill = skill_name(value)
-    preparation = ('quote 阶段读取 acceptance.md 的完整源码，用本单回调取得实际引用后报价；'
-                   if value['formation'] == 'proposal' else
-                   'decision 阶段仅审查原合同和全部必需材料，不上传验收器、不重新报价；')
+    if value['formation'] == 'proposal':
+        if verifier_reference is not None:
+            published_verifier_reference(value, verifier_reference)
+            preparation = 'quote 阶段读取 acceptance.md 并复用其中的真实预发布引用，不逐单转抄或重新上传验收源码；'
+        else:
+            preparation = 'quote 阶段优先复用本服务适合本单的已配置真实验收引用；没有时读取 acceptance.md 的完整源码，用本单回调取得实际引用后报价；'
+    else:
+        preparation = 'decision 阶段仅审查原合同和全部必需材料，不上传验收器、不重新报价；'
     return {'instructions': f'按本单阶段读取 {skill} 主文档和对应业务页。' + preparation +
             'production 阶段按合同和 production.md 生成新的实际成果。不能使用样件替代生产。',
             'skills': [skill], 'native_tools': {'write_file': 'allow'}}
