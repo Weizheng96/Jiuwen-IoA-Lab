@@ -1,0 +1,42 @@
+{
+  "status": "verified_live_push",
+  "observedDate": "2026-11-04",
+  "changeCommit": "37b35ae",
+  "behavior": "浅取当前提交，仅补取实际比较基线，固定解析后的SHA供范围选择和执行共用；缺失或不明确基线失败退出，不换成HEAD。",
+  "localValidation": {"level": "B", "passed": 65, "exitCode": 0, "checkWallSeconds": 51.899},
+  "live": {
+    "commit": "4c9b2fe53c8058fa697149ef77edb4b5e270acf3",
+    "comparisonBase": "63c8cb7d26a9e99c358321bf7fa78376905407e6",
+    "runUrl": "https://github.com/Weizheng96/Jiuwen-IoA-Lab/actions/runs/41697896489",
+    "runId": 41697896489,
+    "jobId": 126133163504,
+    "attempt": 1,
+    "conclusion": "success",
+    "workflowSeconds": 180,
+    "checkoutSeconds": 96,
+    "fetchComparisonBaseSeconds": 14,
+    "acquisitionSeconds": 110,
+    "checkStepSeconds": 38,
+    "pytestPhaseSeconds": 36.701,
+    "pytestConsoleSeconds": 35.62,
+    "selectedTestFiles": 10,
+    "passed": 130,
+    "skipped": 1,
+    "failed": 0,
+    "canonicalBasePrintedAndRetainedAcrossSteps": true,
+    "checkedOutHeadMatchesRunCommit": true,
+    "postFetchHeadExplicitlyPrinted": false
+  },
+  "previousMeasuredRun": {
+    "commit": "e7b1318a88b15b3bc3dc61fb6b26a20c5500e3ed",
+    "runUrl": "https://github.com/Weizheng96/Jiuwen-IoA-Lab/actions/runs/41691624418",
+    "checkoutSeconds": 257,
+    "fetchObservedGapSeconds": 255.435,
+    "selectedTestFiles": 29,
+    "passed": 188,
+    "skipped": 8
+  },
+  "comparisonBoundary": "两次实际获取阶段分别257秒和110秒；网络及本次提交范围不同，不把总耗时或测试数变化归因于相同输入的提速。范围规划器、协议断言及完整验证入口未缩减。",
+  "notProven": ["未来每次固定耗时", "当前源码完整C", "原生业务或完整视频"],
+  "evidence": "实际GitHub终态API、作业日志及逐节点结果；本地临时浅克隆覆盖多提交push、PR合并checkout、明确分支和注释标签、已有对象、非法及缺失基线。"
+}
