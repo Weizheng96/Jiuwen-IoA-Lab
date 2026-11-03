@@ -91,6 +91,32 @@
     "frameObtained": false,
     "newBusinessEffects": false,
     "fullRecordingClaim": false,
-    "nextStep": "保持原状态，等待实际桌面唤醒解锁或正常权限恢复后再核采集，不绕过系统拒绝。"
+    "nextStep": "保持原状态，等待实际桌面唤醒解锁或正常权限恢复后再核采集，不绕过系统拒绝。",
+    "laterBindingClarification": "原命令用lavfi输入图；源码核实该图未接收filter_hw_device，故当时不能认定实际已绑定外接显卡。原拒绝记录保留。",
+    "originalRequestedDeviceBindingVerified": false
+  },
+  "correctedDeviceBindingRecheck": {
+    "observedDate": "2026-11-04",
+    "normalInputDesktopReadable": true,
+    "normalInputDesktopName": "Default",
+    "displayTopologyUnchanged": true,
+    "method": "同一DDA过滤器改用CLI filter_complex图，使显式硬件设备上下文传入采集源",
+    "requestedAdapter": 1,
+    "requestedOutput": 0,
+    "providedDeviceContextObserved": true,
+    "internalDefaultContextObserved": false,
+    "actualFrameDimensionsObserved": false,
+    "captureExitCode": 4294967295,
+    "error": "Desktop duplication access denied; Operation not permitted",
+    "frameObtained": false,
+    "lockscreenRootCauseConfirmed": false,
+    "permissionOrSecuritySettingChanged": false,
+    "newBusinessEffects": false,
+    "nextStep": "停止采集，等待本机正常桌面采集权限或会话状态恢复后再验证。",
+    "implementationSources": [
+      "https://github.com/FFmpeg/FFmpeg/blob/n7.1/libavdevice/lavfi.c",
+      "https://github.com/FFmpeg/FFmpeg/blob/n7.1/fftools/ffmpeg_filter.c",
+      "https://github.com/FFmpeg/FFmpeg/blob/n7.1/libavfilter/vsrc_ddagrab.c"
+    ]
   }
 }

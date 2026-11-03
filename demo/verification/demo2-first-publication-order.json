@@ -108,5 +108,30 @@
     "连续物理录屏",
     "旁白人工听感和最终MP4声画QA"
   ],
-  "evidence": "只读首次接入审计、原B及定向补验report/XML、实际五类索引重排报告、逐句摘要和独立新序预览解码结果；私人运行数据不公开。"
+  "evidence": "只读首次接入审计、原B及定向补验report/XML、实际五类索引重排报告、逐句摘要和独立新序预览解码结果；私人运行数据不公开。",
+  "remoteCi": {
+    "commit": "93a9fd3a505b06e8e4daf94072e5fe5cb379ddd8",
+    "base": "3354f4c69787dc03bb9905cc6c31a50ba548332b",
+    "runId": 41717883880,
+    "url": "https://github.com/Weizheng96/Jiuwen-IoA-Lab/actions/runs/41717883880",
+    "conclusion": "success",
+    "pytest": {
+      "collected": 72,
+      "passed": 72,
+      "skipped": 0,
+      "failed": 0,
+      "errors": 0,
+      "elapsedSeconds": 9.03,
+      "testStageSeconds": 10.487,
+      "realExitCode": 0,
+      "exitLog": "2026-11-03T21:07:08.9807835Z Passed: Tests (exit 0, 10.487s)"
+    },
+    "runSeconds": 368,
+    "checkoutSeconds": 311,
+    "baseFetchSeconds": 4,
+    "fetchDepth": 1,
+    "fetchObservedGapSeconds": 310.244,
+    "scope": "Ubuntu快速路径选择的72项，与本地144项复用范围及完整C分别计。",
+    "slowBoundary": "日志只定位到浅取单提交的git fetch；网络或服务器原因未确证，未降低测试覆盖或重跑任务。"
+  }
 }

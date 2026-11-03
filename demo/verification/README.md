@@ -1,8 +1,12 @@
 # 验证与制作进展
 
+`93a9fd3`的[原push CI](https://github.com/Weizheng96/Jiuwen-IoA-Lab/actions/runs/41717883880)已成功：Ubuntu快速范围72项全部通过，pytest 9.03秒、测试阶段10.487秒。总368秒中checkout占311秒，日志定位为depth=1精确单提交fetch等待，尚不能判定具体网络原因；没有重跑或削减覆盖。明细并入[首次发布顺序记录](demo2-first-publication-order.json)，与本地144项复用及原完整C分别计。
+
+最新[旁白自动音频审查](demo23-narration-audio-review.json)：两次真实阿里云音频请求均有非零音频输入用量。服务方新序试听被评为清晰；个人助手按剪辑器每镜最低留白复评后，节奏被评为偏快但清晰连贯，仍有一处“拟卡费”的minor听辨疑点待复听。模型猜出的“拟花费”不符合原批准术语，近似定位也与实际单句区间不符，未据此改词或裁片。原音频和文字保留，人工听感及最终MP4声画仍待核。
+
 最新[Demo2首次发布顺序修正](demo2-first-publication-order.json)：保留原批准源、摘要和全部旁白文字，只派生`publish→ready`录制顺序；SDK仍在access收尾先启动并暂停，发布后核就绪并启用接单，不再要求无模板的新服务提前resume。14句现有配音的五类索引已按ID重排，17个独立音频实际核摘要和媒体头时长，单句字节、旧预览及Demo3／4资产不变，无TTS调用；[新序试听](../delegation-provider/assets/voice/approved-narration-preview-publish-first.mp3)103.18秒，拼接与完整解码通过，人工听感仍待核。相关144项范围通过原结果及定向补验覆盖，原失败记录保留；索引固定UTF-8／LF并核暂存blob，不计新注册、发布或影片通过。
 
-当前整屏录制阻塞：后续只读显示拓扑核到外接屏为3840×2160、第二显卡输出0，与旧2560×1440配置不同；对准确目标作3秒有界ddagrab预检时系统返回`Desktop duplication access denied / Operation not permitted`，无原帧、无新业务效果，停止后续采集。完整错误边界见[当前包与录制预检](native-current-release-upgrade.json)；等待实际桌面唤醒解锁或正常权限恢复后再验，不将文字授权、网页可读或模型就绪当作整屏录制通过。
+当前整屏录制阻塞：外接屏为3840×2160、第二显卡输出0。后续源码核实原lavfi输入图未接收外部硬件绑定，故原先“准确目标”的判断过早；原失败日志保留。当前输入桌面可读为Default；修正为同一DDA源的filter_complex图后，日志确认使用指定设备上下文，仍返回`Desktop duplication access denied / Operation not permitted`，未取得原帧或实际画幅，无新业务效果。详见[当前包与录制预检](native-current-release-upgrade.json)；锁屏根因未确认，等待本机正常桌面采集权限或会话状态恢复后再验。
 
 最新[阶段检查及失败修正补验](native-stage-v122-followup.json)：原完整C为1466通过、3失败、42跳过，耗时53分49秒，原selfcheck未执行。仅修正测试中的实例补丁遮蔽及异步结清快照同步，保留付款并发恢复和复核409／403／200断言；两函数全部6参数定向B通过，随后独立selfcheck通过（49.640秒）。未变范围复用后去重为1469通过、42跳过，另5子测试通过；这是分范围证据合并，不是重跑全量，也不改写原C失败结果。生产代码和既有部署WIP未改，后续说明另做A；此记录不证明新原生交易、物理录屏或Linux部署。
 

@@ -1,0 +1,47 @@
+{
+  "status": "ai_review_completed_assistant_minor_listening_issue_pending",
+  "observedDate": "2026-11-04",
+  "sourceCommit": "93a9fd3a505b06e8e4daf94072e5fe5cb379ddd8",
+  "scope": "已批准合成旁白的自动音频审查及按剪辑器留白生成的本地试听；原单句音频、批准文字与业务状态均未改。",
+  "model": "qwen3.8-omni-flash",
+  "officialInterfaceReference": "https://help.aliyun.com/en/model-studio/qwen-omni",
+  "authorization": "用户已允许调用阿里云API；本次只发送已批准的合成配音和审查提示，凭据由既有helper本地加载。",
+  "providerCalls": 2,
+  "initialReview": {
+    "requestId": "chatcmpl-bf363518-159b-922b-b2b6-bfa626d910ad",
+    "seconds": 11.844,
+    "audioInputTokens": 1390,
+    "totalTokens": 1777,
+    "providerPreviewSha256": "975dc95aaae2c653a3f2aee701ae333802e9e00e8ac805753bc66404c8b71293",
+    "assistantPreviewSha256": "b258b7f9a43f934ff1342d55b2e9703a0e94eeb6cb4a5ef94520ec0427633fe9",
+    "provider": {"quality": "clear", "pace": "偏快但均匀清晰", "issues": []},
+    "assistant": {"quality": "needs_review", "pace": "偏快", "issue": "拟卡费限额的听辨被模型质疑；模型另猜拟花费，不符合原批准术语。"}
+  },
+  "assistantWithEditGaps": {
+    "requestId": "chatcmpl-fc4212a4-d70a-9a09-aa1e-fc00be20aaa3",
+    "seconds": 9.828,
+    "audioInputTokens": 723,
+    "totalTokens": 979,
+    "gapSecondsPerShot": 0.55,
+    "derivedLocalAuditionSeconds": 103.11,
+    "derivedLocalAuditionSha256": "81135786839919ed3a1ff468839492ee2ecc5c95574a415a2a936664a3e223ce",
+    "rendering": "按build_native_plan当前每句音长加0.55秒的最低镜头时长排列；公开原句MP3未改变，派生WAV保留本机。",
+    "quality": "needs_review",
+    "pace": "偏快，但吐字清晰，整体节奏连贯",
+    "remainingIssue": "模型对卡字的发音仍给出minor、medium-confidence疑点。",
+    "modelApproxSecond": 18.5,
+    "actualAuthorizationClipRange": [35.65, 42.56],
+    "modelTimestampUsableForEditing": false
+  },
+  "operatorAssessment": {
+    "approvedTerm": "拟卡费",
+    "approvedNarrationUnchanged": true,
+    "automaticWordReplacementAllowed": false,
+    "confirmedMissingWordOrAudioDefect": false,
+    "nextCheck": "以实际单句索引复听authorization镜头中的拟卡费限额；不凭模型猜词重写旁白，不按模型近似时间直接裁片。"
+  },
+  "humanListening": "pending",
+  "finalMovieQa": "not_performed",
+  "recorded": false,
+  "privateEvidence": "原API结果、输入摘要及派生试听留本机；本记录仅投影必要元数据，不公开请求体、凭据或私人运行配置。"
+}
