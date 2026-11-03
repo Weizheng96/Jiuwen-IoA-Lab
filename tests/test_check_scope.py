@@ -2,6 +2,7 @@
 import ast
 import fnmatch
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -303,14 +304,15 @@ def test_ci_uses_local_entrypoint_and_separates_explicit_validation():
     assert set(ci['on']) == {'push', 'pull_request', 'workflow_dispatch'}
     assert ci['on']['push']['branches'] == ['main']
     assert ci['on']['workflow_dispatch']['inputs'] == {
-        'base': {'description': 'Committed base revision for the quick scope', 'type': 'string', 'required': 'true'}}
+        'base': {'description': 'Full commit SHA or explicit refs/heads/... or refs/tags/... on origin',
+                 'type': 'string', 'required': 'true'}}
     assert set(ci['jobs']) == {'check'}
     assert ci['jobs']['check']['env']['CHECK_BASE'] == (
         '${{ inputs.base || github.event.pull_request.base.sha || github.event.before }}')
     steps = ci['jobs']['check']['steps']
     commands = [step.get('run', '') for step in steps]
-    assert steps[0]['with']['fetch-depth'] == '0'
-    assert commands[2] == 'python tools/check_scope.py --base "$CHECK_BASE" --github-output "$GITHUB_OUTPUT"'
+    assert steps[0]['with']['fetch-depth'] == '1'
+    assert commands[3] == 'python tools/check_scope.py --base "$CHECK_BASE" --github-output "$GITHUB_OUTPUT"'
     assert sum('pip install' in command for command in commands) == 1
     assert any('scripts/check.py --changed-from' in command for command in commands)
     assert not any('--full' in command or 'verify_deployment' in command for command in commands)
@@ -327,3 +329,117 @@ def test_ci_uses_local_entrypoint_and_separates_explicit_validation():
     full = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'full_steps')
     assert 'test_step(["tests"])' in ast.unparse(full) or "test_step(['tests'])" in ast.unparse(full)
     assert 'tools/selfcheck.py' in ast.unparse(full)
+
+
+def ci_comparison_base(checkout, base, output):
+    ci = yaml.load((ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
+    step = next(value for value in ci['jobs']['check']['steps'] if value.get('name') == 'Fetch comparison base')
+    lines = step['run'].splitlines()
+    assert lines[0] == "python - <<'PY'" and lines[-1] == 'PY'
+    return subprocess.run([sys.executable, '-c', '\n'.join(lines[1:-1])], cwd=checkout,
+                          env={**os.environ, 'CHECK_BASE': base, 'GITHUB_ENV': str(output)},
+                          capture_output=True, text=True, encoding='utf-8', timeout=15)
+
+
+@pytest.fixture
+def ci_remote(git_repo):
+    source, git, base = git_repo
+    git('branch', '-M', 'main')
+    git('branch', 'comparison-base', base)
+    git('tag', '-a', 'comparison-tag', '-m', 'annotated base', base)
+    (source / 'tests/test_middle.py').write_text('def test_middle(): pass\n')
+    git('add', '.'); git('commit', '-m', 'first pushed change')
+    middle = git('rev-parse', 'HEAD')
+    git('tag', 'unrelated-tag', middle)
+    (source / 'tests/test_head.py').write_text('def test_head(): pass\n')
+    git('add', '.'); git('commit', '-m', 'second pushed change')
+    head = git('rev-parse', 'HEAD')
+
+    def clone(branch='main'):
+        checkout = source / 'checkout'
+        git('clone', '--depth=1', '--single-branch', '--no-tags', '--branch', branch,
+            source.as_uri(), str(checkout))
+
+        def local(*args):
+            return subprocess.check_output(['git', *args], cwd=checkout, stderr=subprocess.PIPE,
+                                           timeout=15).decode().strip()
+        assert local('rev-parse', '--is-shallow-repository') == 'true'
+        return checkout, local
+    return source, git, base, middle, head, clone
+
+
+@pytest.mark.parametrize('kind', ['sha', 'branch', 'annotated-tag'])
+def test_ci_shallow_fetch_only_exact_base_keeps_all_pushed_changes(ci_remote, kind):
+    source, git, base, middle, head, clone = ci_remote
+    checkout, local = clone()
+    assert subprocess.run(['git', 'cat-file', '-e', base], cwd=checkout, capture_output=True).returncode
+    # A stale local branch must not silently replace the explicitly requested origin ref.
+    local('branch', 'comparison-base', head)
+    requested = {'sha': base, 'branch': 'refs/heads/comparison-base',
+                 'annotated-tag': 'refs/tags/comparison-tag'}[kind]
+    output = checkout / 'github-env'
+    result = ci_comparison_base(checkout, requested, output)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert output.read_text().strip() == 'CHECK_BASE=' + base
+    assert local('rev-parse', 'HEAD') == head
+    assert local('rev-parse', '--is-shallow-repository') == 'true'
+    assert changed_paths(base, checkout) == ['tests/test_head.py', 'tests/test_middle.py']
+    assert select_tests(changed_paths(base, checkout), checkout, base=base)['tests'] == [
+        'tests/test_head.py', 'tests/test_middle.py']
+    assert local('for-each-ref', '--format=%(refname)', 'refs/tags') == ''
+    assert subprocess.run(['git', 'cat-file', '-e', middle], cwd=checkout, capture_output=True).returncode
+
+
+def test_ci_already_present_commit_never_fetches(ci_remote):
+    source, git, base, middle, head, clone = ci_remote
+    checkout, local = clone()
+    local('remote', 'remove', 'origin')
+    output = checkout / 'github-env'
+    result = ci_comparison_base(checkout, head, output)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert output.read_text().strip() == 'CHECK_BASE=' + head
+    assert local('rev-parse', 'HEAD') == head and changed_paths(head, checkout) == []
+
+
+def test_ci_pr_compares_exact_target_with_original_merge_checkout(ci_remote):
+    source, git, base, middle, target, clone = ci_remote
+    git('checkout', '-b', 'topic', base)
+    for name in ('first', 'second'):
+        (source / f'tests/test_pr_{name}.py').write_text(f'def test_pr_{name}(): pass\n')
+        git('add', '.'); git('commit', '-m', 'PR ' + name)
+    git('checkout', '-b', 'pr-merge', target)
+    git('merge', '--no-ff', 'topic', '-m', 'simulated GitHub merge checkout')
+    merge = git('rev-parse', 'HEAD')
+    checkout, local = clone('pr-merge')
+    output = checkout / 'github-env'
+    result = ci_comparison_base(checkout, target, output)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert output.read_text().strip() == 'CHECK_BASE=' + target
+    assert local('rev-parse', 'HEAD') == merge
+    assert changed_paths(target, checkout) == ['tests/test_pr_first.py', 'tests/test_pr_second.py']
+    assert select_tests(changed_paths(target, checkout), checkout, base=target)['tests'] == [
+        'tests/test_pr_first.py', 'tests/test_pr_second.py']
+
+
+@pytest.mark.parametrize('base', ['', 'HEAD', 'main', '--all', 'HEAD~1', 'refs/heads/bad..name',
+                                 'refs/tags/tag\nCHECK_BASE=HEAD'])
+def test_ci_ambiguous_or_relative_manual_base_fails_without_emitting_success(tmp_path, base):
+    output = tmp_path / 'github-env'
+    output.write_text('EXISTING=preserved\n')
+    result = ci_comparison_base(tmp_path, base, output)
+    assert result.returncode != 0 and 'CHECK_BASE must be' in result.stderr
+    assert output.read_text() == 'EXISTING=preserved\n'
+    assert 'Committed comparison base:' not in result.stdout
+
+
+@pytest.mark.parametrize('base', ['f' * 40, 'refs/heads/missing', 'refs/tags/missing'])
+def test_ci_missing_base_never_falls_back_to_head(ci_remote, base):
+    source, git, original_base, middle, head, clone = ci_remote
+    checkout, local = clone()
+    output = checkout / 'github-env'
+    output.write_text('EXISTING=preserved\n')
+    result = ci_comparison_base(checkout, base, output)
+    assert result.returncode != 0
+    assert output.read_text() == 'EXISTING=preserved\n'
+    assert 'Committed comparison base:' not in result.stdout
+    assert local('rev-parse', 'HEAD') == head
