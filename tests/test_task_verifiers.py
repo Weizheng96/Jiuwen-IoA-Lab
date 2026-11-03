@@ -2,6 +2,7 @@
 import copy
 import json
 import os
+from types import SimpleNamespace
 import uuid
 
 import httpx
@@ -61,6 +62,83 @@ def test_invalid_task_source_has_no_upload_or_pending_side_effect(author,monkeyp
     assert error.value.code=='invalid_input' and not publisher.prepared(identity,'invalid-job')
 
 
+@pytest.mark.parametrize('entry',['publish','task'])
+@pytest.mark.parametrize('broken',[
+    "book=engine();first=reserve(book,'lost-response');again=reserve(book('lost-response')",
+    "test(7,first==again and len(book.list())=1)",
+])
+def test_invalid_python_is_rejected_before_checkpoint_and_same_operation_can_be_corrected(author,monkeypatch,entry,broken):
+    publisher=author.modules[0].verifiers;identity=author.identities[1];api=author.account.api;uploads=[]
+    key='syntax-operation';namespace='provider:'+identity.agent_id
+    def counted(*args,**kwargs):
+        if args[:2]==('POST','/provider/packages'):uploads.append(copy.deepcopy(args[2]))
+        return api(*args,**kwargs)
+    monkeypatch.setattr(author.account,'api',counted)
+    with pytest.raises(RuntimeFault) as error:
+        getattr(publisher,entry)(identity,key,{**body(),'source':'def verify(ctx):\n    '+broken+'\n'})
+    assert error.value.code=='invalid_input' and error.value.recovery=='correct_input'
+    assert 'line 2, column ' in str(error.value) and broken not in str(error.value)
+    assert not uploads
+    assert author.store.checkpoint(namespace,'verifier:'+key) is None
+    assert author.store.checkpoint(namespace,'verifier-job:'+key) is None
+    repaired=getattr(publisher,entry)(identity,key,body())
+    assert repaired['id']==body()['verifierId'] and len(uploads)==1
+    assert getattr(publisher,entry)(identity,key,body())==repaired and len(uploads)==1
+
+
+def test_target_python_313_syntax_is_compiled_without_running_top_level_code(author,tmp_path):
+    publisher=author.modules[0].verifiers;identity=author.identities[1]
+    marker=tmp_path/'must-not-be-created'
+    source=(f'from pathlib import Path\nPath({str(marker)!r}).write_text("must never run")\n'
+            'raise RuntimeError("must never execute")\n'
+            'type Items[T] = list[T]\n'
+            'def verify(ctx):\n    return {"status":"pass","checks":[]}\n')
+    reference=publisher.task(identity,'compile-only',{**body(),'source':source})
+    package=load(author.account.fetch_package(reference['uri']),reference,'script')
+    assert (package.dir/'verify.py').read_text(encoding='utf-8')==source
+    assert not marker.exists()
+
+
+def test_successful_syntax_is_cached_but_schema_size_and_manifest_are_always_checked(monkeypatch):
+    import ioalab_sdk.provider.verifiers as module
+    actual=module.Sandbox.get('cpython-3.13-wasi');calls=[]
+    def run(*args,**kwargs):calls.append((args,kwargs));return actual.run(*args,**kwargs)
+    monkeypatch.setattr(module,'Sandbox',SimpleNamespace(get=lambda _:SimpleNamespace(run=run)))
+    value={**body(),'source':VERIFIER+'\n# '+uuid.uuid4().hex}
+    module.VerifierPublisher.validate(value,65536)
+    module.VerifierPublisher.validate(value,65536)
+    assert len(calls)==1 and calls[0][0][2]=={}  # No host directory is exposed to compilation.
+    for changed,limit in (({**value,'profile':'other'},65536),
+                          (value,len(value['source'].encode('utf-8'))-1),
+                          ({**value,'reads':['result']},65536)):
+        with pytest.raises(RuntimeFault) as error:module.VerifierPublisher.validate(changed,limit)
+        assert error.value.code=='invalid_input'
+    assert len(calls)==1
+
+
+@pytest.mark.parametrize('failure',['unavailable','trap','exit','invalid_json','invalid_result'])
+def test_failed_syntax_sandbox_is_not_an_invalid_source_or_a_cached_success(author,monkeypatch,failure):
+    import ioalab_sdk.provider.verifiers as module
+    calls=[];result=SimpleNamespace(stdout=b'{"ok":true}',exit_code=0,trap=None)
+    def run(*args,**kwargs):
+        calls.append(True)
+        if len(calls)==1:
+            if failure=='unavailable':raise OSError('Unavailable local runtime')
+            if failure=='trap':return SimpleNamespace(stdout=b'',exit_code=0,trap='fuel exhausted')
+            if failure=='exit':return SimpleNamespace(stdout=b'',exit_code=1,trap=None)
+            return SimpleNamespace(stdout=b'not JSON' if failure=='invalid_json' else b'[]',exit_code=0,trap=None)
+        return result
+    monkeypatch.setattr(module,'Sandbox',SimpleNamespace(get=lambda _:SimpleNamespace(run=run)))
+    identity=author.identities[1];publisher=author.modules[0].verifiers
+    value={**body(),'source':VERIFIER+'\n# '+uuid.uuid4().hex};namespace='provider:'+identity.agent_id
+    with pytest.raises(RuntimeFault) as error:publisher.task(identity,'unavailable-syntax',value)
+    assert error.value.code=='not_ready' and error.value.recovery=='inspect_runtime'
+    assert author.store.checkpoint(namespace,'verifier-job:unavailable-syntax') is None
+    module.VerifierPublisher.validate(value,65536)
+    module.VerifierPublisher.validate(value,65536)
+    assert len(calls)==2
+
+
 def test_lost_upload_reply_survives_restart_and_recovers_the_same_body(author,platform,monkeypatch):
     identity=author.identities[1];publisher=author.modules[0].verifiers;api=author.account.api;actual=[]
     before=set(platform.packages.root.glob('*.zip'));value={**body(),'verifierId':'recover_'+uuid.uuid4().hex+'@1.0'}
@@ -72,6 +150,11 @@ def test_lost_upload_reply_survives_restart_and_recovers_the_same_body(author,pl
     monkeypatch.setattr(author.account,'api',lose)
     with pytest.raises(RuntimeFault) as error:publisher.task(identity,'recoverable-job',value)
     assert error.value.code=='unknown_result' and len(actual)==1
+    checkpoint=copy.deepcopy(author.store.checkpoint('provider:'+identity.agent_id,'verifier-job:recoverable-job'))
+    with pytest.raises(RuntimeFault) as error:
+        publisher.task(identity,'recoverable-job',{**value,'source':'def verify(: invalid'})
+    assert error.value.code=='invalid_input' and len(actual)==1
+    assert author.store.checkpoint('provider:'+identity.agent_id,'verifier-job:recoverable-job')==checkpoint
     with pytest.raises(RuntimeFault) as error:publisher.task(identity,'recoverable-job',{**value,'source':VERIFIER+'\n# different'})
     assert error.value.code=='unknown_result' and len(actual)==1
     config=author.config;author.close();role=ProviderRole();fresh=ResidentRuntime(config,modules=(role,)).start()
