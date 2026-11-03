@@ -1,0 +1,139 @@
+{
+  "status": "native_business_closed_recording_incomplete",
+  "observedDate": "2026-11-04",
+  "scope": "新隔离个人助手经原生Skill完成三家提案、成约、环节纠正、交付、十项WASM、验收付款及结清；连续录屏提前异常结束，不是完整教程或首次自主通过。",
+  "firstAttemptAutonomous": false,
+  "identityAndVersion": {
+    "assistantActor": "urn:ioalab:assistant:8eace0eb-2cab-4641-9c17-d85526a9a6c2",
+    "assistantRuntimeId": "c3bb0284-5d30-45ce-a4cf-247e05ac200e",
+    "serviceAgentId": "svc-774e19ad-4aa0-4412-91bc-d3a127bb6745",
+    "taskRef": "dae54723-19c9-5573-9a00-1e93ff098556",
+    "contractRef": "sha256:87f805348a48583f04918aae57520509efbee41a876f51e265682963a841aaad",
+    "interactionId": "ade94c58-8fcc-48d0-a525-adea38d807c4",
+    "admissionId": "614f5305-cbba-5279-a3d7-282b40eb957a",
+    "assistantSourceCommit": "8ef6b8f",
+    "installedReleaseId": "a987ba4217c6e69706052a1f151a17f1ce1cc701fb4611c7dcf924e33bf94a59",
+    "assistantPackageSha256": "f41533bbd0a99facc9ff40d1ee8585ec61ae70d54404902fe2597dd7e34019e0",
+    "providerNativeSkillInstructionReleaseR2": {
+      "sourceCommit": "2c5c24a",
+      "preparedPackageSha256": "f7cf8434b4c7195585cb75e61827e10cb7168ad9ae232079f00b3cbff2ab87b6",
+      "nativeInstructionGenerationObservedByRoot": "R2",
+      "wholePackageNativeByteEquality": "not_verified_by_this_record",
+      "sharedRuntimeReleaseId": "a987ba4217c6e69706052a1f151a17f1ce1cc701fb4611c7dcf924e33bf94a59"
+    },
+    "preparedR3ProviderPackage": {
+      "sourceCommit": "8ef6b8f",
+      "sha256": "ca2dcaf664446f430538521c03da418d47dffcacfe4fee84f6bfb6968f696509",
+      "usedForThisNativeRun": false
+    },
+    "nativeAssistantImport": {"files": 19, "allFilesByteEqual": true},
+    "subsequentFix": {
+      "commit": "d61de4c",
+      "scope": "封闭确认选项提交前校验的后续实现及定向B；不是本次原生执行使用的发行",
+      "nativeDesign121Acceptance": "not_proven_by_this_run"
+    }
+  },
+  "nativeBusiness": {
+    "newAssistantAndDelegation": true,
+    "oldAssistantContractResumed": false,
+    "naturalBusinessInput": true,
+    "predeterminedProviderInInitialInput": false,
+    "quotes": [
+      {"name": "码上飞", "serviceAgentId": "svc-774e19ad-4aa0-4412-91bc-d3a127bb6745", "quoteRef": "04b9526a-7a2c-589f-bcc8-85619263ec9f", "total": 299, "signature2Present": true, "signature3Present": true},
+      {"name": "快搭建站", "serviceAgentId": "svc-fd679735-3213-4951-a3e6-fbc773b45b3a", "quoteRef": "5d5be73a-ce26-5af1-a9c4-27babb5ff38d", "total": 259, "signature2Present": true, "signature3Present": true},
+      {"name": "灵犀小程序", "serviceAgentId": "svc-939d203b-2831-4376-9984-e3bd64ab147a", "quoteRef": "4aa36c1b-88c9-5b60-ad49-c71b074dcc86", "total": 239, "signature2Present": true, "signature3Present": true}
+    ],
+    "selectedQuoteRef": "04b9526a-7a2c-589f-bcc8-85619263ec9f",
+    "formed": true,
+    "started": true,
+    "availablePeriods": 1,
+    "acceptedPeriods": 1,
+    "payment": "paid",
+    "paymentNotifiedPeriods": [1],
+    "closed": true,
+    "signaturePresence": {"1": true, "2": true, "3": true, "4": [true], "5": [true], "6": [true], "7": [true]},
+    "finalSavedSdkObservationUtc": "2026-11-03T16:30:29.968834+00:00"
+  },
+  "confirmationAndRecovery": {
+    "method": "Codex按持续隔离仿真授权操作真实本机owner页面；不冒称真人批准",
+    "separateStages": ["authorization", "contract", "registration", "acceptance"],
+    "originalStepOperationId": "2787bd40-7cf6-42f5-9da1-966800228e38",
+    "originalStepOutcome": "页面接收allow及补充说明后，严格SDK消费者拒绝非空补充内容；不是用户未点击",
+    "recoveryStepOperationId": "00cb026a-9307-47ce-a648-f21d514b65d8",
+    "recoveryConfirmationRef": "321f1fa4-7d2b-5e44-b93f-fd5bed99c523",
+    "stepRequestDigest": "sha256:d5651b0e0f2f5ca014e777d09268cac4a718c75b16487756e14ed9d64c6b9014",
+    "recovery": "核对原效果后，经新操作申请同一原环节的真实确认，仅选allow、补充文本为空，再由原生流程继续",
+    "oldAnswerModified": false,
+    "backendBusinessSubstitution": false,
+    "evidenceLimit": "旧环节及纠正环节的独立结果JSON在离线索引时缺失；纠正过程依据当时操作者观察和事件，后续原SDK交付、验收及结清另有已保存回执，不能反推缺失的原答复记录。"
+  },
+  "deliveryAndWasm": {
+    "file": {"name": "booking.json", "digest": "sha256:04b44aedb85047a761c144dd1ef44d8db92cb1e669cb645d968dfbfd75830d14", "bytes": 6767},
+    "fetchOperationId": "975d87c6-e6ae-4c6a-a769-561776b7aefb",
+    "verifyOperationId": "fc37aa18-d8f7-403e-9a24-32d186a8ef72",
+    "acceptOperationId": "05631add-659c-4918-821b-8c76cfbe9a1a",
+    "acceptConfirmationRef": "b7752a81-22cc-5ec8-948a-901e29ab8065",
+    "verifier": {"id": "nail_mashangfei@1.0.2", "digest": "sha256:62326c904cc28683b18d606a9ec589a807b32a5bc61007e0acf0a4d96c3e409b"},
+    "reportStatus": "pass",
+    "checkCount": 10,
+    "passedCount": 10,
+    "checks": ["预约配置逐项符合合同", "可以预约并查询", "满额后拒绝新增预约", "取消后释放名额", "小程序源码结构与预约配置齐全", "重复提交不重复占位", "连续竞争请求不超容量", "相同请求重试返回原预约", "不同时段独立计数", "重复取消不误减名额"],
+    "errorCount": 0,
+    "documentationTaskReexecutedWasm": false
+  },
+  "paymentAndProvider": {
+    "unit": "虚拟币",
+    "contractAmount": 299,
+    "proposalFeesAcrossThreeCandidates": 3,
+    "assistantTotalExpense": 302,
+    "installmentPaymentId": "pay-45373d6eb5fb4bf8a39d8d73a816d7d7",
+    "sameContractProviderIncome": {"installment": 299, "proposalFee": 1, "total": 300},
+    "providerWorkbenchCompletedCount": 1,
+    "providerNativeReputationCompleted": 1,
+    "reputationSource": "原生服务方只读查询的市场信誉结果及本人工作台已完成1；本次文档整理不重新运行SDK或额外验签",
+    "aggregateIncomeBoundary": "服务方界面的累计收入还包含历史拟卡费，不作为本单收入或本助手本轮总支出。"
+  },
+  "localTool": {
+    "runner": "examples/booking_app.py",
+    "inputMatchesDeliveredDigest": true,
+    "deliveryByteExtraction": "开发侧以只读、query_only方式定位已取件缓存中本合同的单一字节字段，并核6767字节及原fetch摘要；不是产品公开导出能力",
+    "mode": "可信本地runner读取实际交付配置，不在宿主执行generated engineSource或验收器源码",
+    "sequenceObserved": ["两笔预约成功", "满额后第三笔拒绝", "取消第一笔", "第三笔再次预约成功、名额恢复"],
+    "finalActive": 2,
+    "finalCancelled": 1,
+    "wechatRegistrationDeploymentOrClientAcceptance": false
+  },
+  "recording": {
+    "take": "demo23-native-r5",
+    "privateRawRetained": true,
+    "rawBrowserChromeOverlaysDetected": true,
+    "privacyReview": "not_passed",
+    "rawNeverPublished": true,
+    "pixelReviewScope": "仅有界样本；root实看末PTS附近单帧发现浏览器原生弹层及无关私人账号信息，不证明此前整段像素或隐私合格。原私人信息不复制到本记录。",
+    "dimensions": "2560x1440",
+    "reportedFps": 15,
+    "frames": 53520,
+    "dropFrames": 5,
+    "dupFrames": 0,
+    "lastProgressSeconds": 3568.866667,
+    "earlierPixelValidity": "not_established_for_all_intervals; last PTS is not proof of valid captured pixels",
+    "lastProgress": "end",
+    "reportedProcessExitCode": 0,
+    "stderrCaptureFailureReportedByRoot": ["gdigrab Failed capture image (error 5)", "I/O error"],
+    "fileEndLocalTimeApprox": "2026-11-04 00:13 Asia/Shanghai; file timing only, not continuous pixel validity",
+    "continuousComplete": false,
+    "importantLaterStagesWithoutContinuousFootage": ["合同环节答复与纠正", "实际交付及WASM", "验收确认", "付款结清", "服务方同单回看", "本地预约取消工具"],
+    "laterScreenshotsAndSdkEvidenceAvailable": true,
+    "laterReviewMayReplaceOriginalConfirmationClicks": false,
+    "newDemo2OrDemo3Published": false,
+    "mediaSourceHashedOrDecodedByThisDocumentationTask": false
+  },
+  "remainingAcceptance": {
+    "continuousNativeTutorialFootage": "incomplete",
+    "modelAccountConfigurationBodyAccessIsolation": "not_specifically_audited",
+    "nativeDesign121Fix": "not_proven_by_R3_run",
+    "finalVideoEditingAndQa": "not_completed",
+    "stageFullCheck": "separate_from_this_record; no completion claim"
+  },
+  "evidenceBoundary": "本记录只投影已保存原生业务回执、包核对、本人工作台与本地工具的脱敏元数据；不发布原始私人消息、账号配置、私库记录、完整合同或凭据。录屏失败和原生业务闭环分别判定，旧失败历史保持。"
+}
