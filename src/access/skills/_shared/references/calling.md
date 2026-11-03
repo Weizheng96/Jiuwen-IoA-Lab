@@ -14,6 +14,8 @@ python "<skill_directory>/scripts/ioalab.py" <operation> --config "<原外置配
 
 小型手写参数可用 write_file；已有非秘密业务素材或 SDK 真实回执，可用本机 Python UTF-8 脚本读取原 JSON，按流程页指定字段确定性组合，并用 json.dump 写入新文件。不必逐字重抄大段 JSON。SDK 的 stdout 可由 Python subprocess 直接保存为结果文件；先核真实返回结构，再提取原件，不用模型重写模板、协议字段或签名。原素材、回执及已调用参数文件均保留；新参数文件用独占创建模式（open(..., 'x', encoding='utf-8')），不能覆盖原参数。此方法不读取账号配置正文、SDK 私钥或运行数据库。
 
+Windows原生工具名为bash不保证实际使用POSIX shell，不使用`python - <<'PY'`、POSIX `for`或`$变量`等隐含shell写法。复杂组合用write_file创建UTF-8 `.py`文件，再执行`python "绝对脚本路径"`；脚本内以subprocess参数列表调用SDK并保存stdout，避免重复试错shell语法或重做业务。
+
 完整stdout保存一次后，终端先只输出外层status、error和本步所需的真实引用；不把整份JWS、模板或合同反复读入对话。结构不明时先输出字段名，再按实际字段提取业务内容。不得用字符串`[:N]`截断JSON代替提取，不能把截断、缺字段或尚未读取的源码解释为已审查。签名原件留在原回执，显示提要不替代SDK验签，也不把提要写回协议调用。
 
 参数 JSON 只含流程页列明的业务字段，不放 operation、arguments 或整份配置；operation 已是命令位置参数。空输入用 {}。SDK 自动保存 operationId，恢复原动作使用原文件，不覆盖它或删除标识。不同动作或修正明确拒绝的输入，使用新的独立文件，不把前一动作的 operationId 复制给新动作。不要用 echo > 或终端重定向写 JSON：Windows 终端可能产生不支持的编码。需要读取时只读本次非秘密业务素材、回执或参数文件，保留原操作标识；始终禁止读取账号配置正文。JSON语法错误按SDK报告的行列修正，按上述方法创建新文件；不是编码错误，不用PowerShell、echo或终端字符串重写中文。产品JSON可能以\u转义显示中文，值与原文相同，不据此改写合同或输入。
