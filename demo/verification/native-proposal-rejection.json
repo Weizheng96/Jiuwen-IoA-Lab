@@ -150,15 +150,28 @@
     "meaning": "299与259是原正式提案，存储结果保持completed，但原选择窗口已过；239只是被拒绝的报价决定。未凑成三份有效提案，未成约或重签延长期限。"
   },
   "coreModelBoundary": {
-    "disputeModelRegistry": {},
-    "evidence": "Core的IOALAB_ARBITRATION_MODELS未设置，默认空注册；宿主所选模型不等于Core已支持的争议模型。",
-    "reviewedUpdateScriptSha256": "243dbcb512d2fb1c4f693a07694c10860074807d2679d5aef6142eaa6f1cb0b7",
-    "updateStatus": "auto_review_rejected_before_process_creation",
-    "reason": "当前授权未明确覆盖从既有Core进程环境提取并复用凭据，已发限定授权申请；未改换来源绕过。",
-    "coreStopped": false,
-    "coreConfigurationChanged": false,
-    "newModelApiObservation": false,
-    "qwenPlusReady": "not_verified"
+    "historical": {
+      "disputeModelRegistry": {},
+      "evidence": "Core的IOALAB_ARBITRATION_MODELS未设置，默认空注册；宿主所选模型不等于Core已支持的争议模型。",
+      "reviewedUpdateScriptSha256": "243dbcb512d2fb1c4f693a07694c10860074807d2679d5aef6142eaa6f1cb0b7",
+      "updateStatus": "auto_review_rejected_before_process_creation",
+      "reason": "当前授权未明确覆盖从既有Core进程环境提取并复用凭据，已发限定授权申请；未改换来源绕过。",
+      "coreStopped": false,
+      "coreConfigurationChanged": false,
+      "newModelApiObservation": false,
+      "qwenPlusReady": "not_verified"
+    },
+    "current": {
+      "record": "native-core-model-readiness.json",
+      "status": "configured_and_observed",
+      "authorization": "用户随后明确批准两项源读取，已执行审阅r2；先前拒绝及未执行事实保留",
+      "qwenPlusReady": "synthetic_model_observation_passed",
+      "observationSeconds": 1.875,
+      "coreStoppedAndRestarted": true,
+      "sourceRuntimeChange": "重启同时加载既有设计118平台源码，不是config-only",
+      "originalRejectionOverturned": false,
+      "sourceReportSha256": "a5d0ad5ec90bcd3df08f60ad1b7af8e829b5588a2ddf4320a0cd2327f9537562"
+    }
   },
   "ci": {
     "commit": "a69835c10c37cd95137ecc89e3357960095a9e9d",
@@ -172,7 +185,7 @@
   },
   "limits": [
     "没有三份当前有效提案、新合同或完整比选通过",
-    "本记录没有证明Core争议模型或新外部模型调用可用",
+    "原拒绝时Core注册为空；后续仅独立合成模型观察通过，没有重判原提案或恢复过期窗口",
     "原生修复接续不等于首次自主教程；没有新版Demo 2—4成片",
     "原始DOM、私人审计、凭据与脚本正文不公开，只绑定本机原证据摘要"
   ],
