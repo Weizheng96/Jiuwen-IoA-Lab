@@ -1,5 +1,7 @@
 """Execute real workbench renderers with an explicit in-memory DOM driver."""
 from pathlib import Path
+from html.parser import HTMLParser
+import json
 import shutil
 import subprocess
 
@@ -62,3 +64,62 @@ assert(node('journey-evidence').innerHTML.includes('合同总额'));
 '''
     result=subprocess.run([shutil.which('node'),'-e',script,str(static)],capture_output=True,text=True,encoding='utf-8',timeout=10)
     assert result.returncode==0,result.stdout+result.stderr
+
+
+@pytest.mark.skipif(not shutil.which('node'),reason='Node is required for supplementary JavaScript rendering checks')
+def test_message_peers_render_with_assistants_not_professional_services():
+    static=Path(__file__).resolve().parents[1]/'src/platform/ioalab/web/static'
+    script=r'''
+const fs=require('fs'),vm=require('vm');
+const nodes=new Map();
+function node(id){
+  if(!nodes.has(id))nodes.set(id,{
+    id,innerHTML:'',textContent:'',dataset:{},children:[],
+    classList:{toggle(){}},querySelector(s){return node(id+'/'+s);},querySelectorAll(){return [];},
+    replaceChildren(){this.children=[];},append(child){this.children.push(child);},addEventListener(){},
+  });
+  return nodes.get(id);
+}
+const context={document:{getElementById:node,querySelectorAll(){return [];},createElement:()=>node('peer-'+nodes.size)},
+  requestAnimationFrame(){},NetworkMap:{components:[],subs:[],random:()=>()=>.5,mount(){}}};
+context.window=context;vm.createContext(context);
+vm.runInContext(fs.readFileSync(process.argv[1]+'/network.js','utf8'),context);
+const data={account:{id:'owner',username:'本人'},identities:[],orders:[],intents:[],publicServices:[],
+  interfaces:[],events:[],messages:[{id:'out',sender:'owner',receiver:'peer1',receiverDisplayName:'王经理',state:'completed'},
+    {id:'in',sender:'peer2',receiver:'owner',senderDisplayName:'赵专员',state:'completed'}]};
+context.IoaNetwork.render(data);
+const before=node('accountPeers').children.map(n=>n.textContent);
+// Refresh after a conversation disappears: stale peers must not remain on either side.
+data.messages=data.messages.slice(1);context.IoaNetwork.render(data);
+console.log(JSON.stringify({html:node('network-map').innerHTML,before,after:node('accountPeers').children.map(n=>n.textContent)}));
+'''
+    result=subprocess.run([shutil.which('node'),'-e',script,str(static)],capture_output=True,text=True,encoding='utf-8',timeout=10)
+    assert result.returncode==0,result.stdout+result.stderr
+    rendered=json.loads(result.stdout)
+
+    class Columns(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.stack=[]
+            self.ancestors={}
+
+        def handle_starttag(self,tag,attrs):
+            attrs=dict(attrs)
+            if attrs.get('id'):
+                self.ancestors[attrs['id']]=[entry[1].get('class','') for entry in self.stack]
+            self.stack.append((tag,attrs))
+
+        def handle_endtag(self,tag):
+            assert self.stack[-1][0]==tag
+            self.stack.pop()
+
+    columns=Columns()
+    columns.feed(rendered['html'])
+    for actor in ('ownAssistant','accountPeers'):
+        assert 'account-left' in columns.ancestors[actor]
+        assert 'account-right' not in columns.ancestors[actor]
+    for service in ('ownService','public-network-services'):
+        assert 'account-right' in columns.ancestors[service]
+        assert 'account-left' not in columns.ancestors[service]
+    assert rendered['before']==['王经理的个人助手','赵专员的个人助手']
+    assert rendered['after']==['赵专员的个人助手']
