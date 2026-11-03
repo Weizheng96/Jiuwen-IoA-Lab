@@ -1,0 +1,98 @@
+{
+  "status": "targeted_tests_passed_native_acceptance_separate",
+  "observedDate": "2026-11-04",
+  "validationLevel": "B",
+  "sourceCommit": "e7b1318",
+  "designBasis": "v0.0.122",
+  "scope": "交付文件导出的确定性测试、真实Windows文件边界及resident集成；不代表原生安装、用户导出或录像通过。",
+  "result": {
+    "uniquePassed": 46,
+    "uniqueSkipped": 1,
+    "uniqueFailed": 0,
+    "uniqueErrors": 0,
+    "deduplication": "按JUnit classname+name去重；names-r1对files-r2已有18项名称测试的重跑不重复计数，另增3项。",
+    "priorStageCIncludesThisImplementation": false
+  },
+  "runs": [
+    {
+      "report": "delivery-export-files-r2",
+      "testScope": "tests/test_delivery_files.py",
+      "passed": 29,
+      "skipped": 1,
+      "exitCode": 0,
+      "junitSuiteSeconds": 9.364,
+      "pytestConsoleSeconds": 9.36,
+      "checkPhaseSeconds": 10.5
+    },
+    {
+      "report": "delivery-export-names-r1",
+      "testScope": "test_unsafe_protocol_names_fail_before_creating_output",
+      "passed": 21,
+      "skipped": 0,
+      "exitCode": 0,
+      "junitSuiteSeconds": 2.215,
+      "pytestConsoleSeconds": 2.22,
+      "checkPhaseSeconds": 3.219
+    },
+    {
+      "report": "delivery-export-notification-r1",
+      "testScope": "tests/test_delivery_export_outcome.py",
+      "passed": 13,
+      "skipped": 0,
+      "exitCode": 0,
+      "junitSuiteSeconds": 3.155,
+      "pytestConsoleSeconds": 3.15,
+      "checkPhaseSeconds": 4.234
+    },
+    {
+      "report": "delivery-export-resident-r2",
+      "testScope": "test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_reputation[False-proposal]",
+      "passed": 1,
+      "skipped": 0,
+      "exitCode": 0,
+      "junitSuiteSeconds": 26.275,
+      "pytestConsoleSeconds": 26.27,
+      "checkPhaseSeconds": 27.531
+    }
+  ],
+  "verifiedBoundaries": {
+    "windowsFilesystem": [
+      "真实二进制字节、摘要与可复用目标文件，原home重启及导出后resident重启",
+      "路径穿越、绝对/驱动路径、流名、保留设备名、控制字符、非法结尾及大小写冲突在写入前拒绝",
+      "全部已有目标先预检；提交时目标突现不覆盖；多硬链接及符号链接或junction不跟随、不读取或覆盖目标",
+      "用户私有权限设置失败不落交付字节；中断保留已完成文件并可从缓存补齐"
+    ],
+    "residentAndOutcome": [
+      "首次取件、已存缓存及unknown恢复遵守同一已核验文件返回契约",
+      "身份、回执、签名、缓存、编码、文件摘要及重复清单异常在导出前拒绝",
+      "本地文件冲突保留原签收和缓存，正常恢复不重复取得或签收交付",
+      "导出从已取得的原字节恢复，不再次调用Client.fetch_delivery，不改旧操作已保存回执",
+      "通知unknown且缺少对应缓存检查点时不伪报completed；通知执行错误与后续独立操作分别处理",
+      "resident提案路径覆盖独立环节、交付、WASM、付款、结清与信誉，并核首取/缓存导出"
+    ],
+    "realNativeSwarmUsedByTheseTests": false
+  },
+  "skip": {
+    "test": "test_renamed_directory_does_not_return_a_false_success_path",
+    "reason": "Windows directory handles deny rename while exporting",
+    "posixActualRun": false,
+    "countAsPassed": false
+  },
+  "earlierFailure": {
+    "report": "delivery-export-resident-r1",
+    "status": "failed",
+    "exitCode": 1,
+    "observedFailure": "预期completed却取得含NameError的unknown结果，原断言失败保留",
+    "pytestConsoleSeconds": 21.03,
+    "checkPhaseSeconds": 22.265,
+    "finalCorrectionVerifiedBy": "delivery-export-resident-r2",
+    "originalFailureRewrittenAsPassed": false
+  },
+  "notProven": [
+    "POSIX真实文件系统或Linux部署专项",
+    "本轮新包原生安装、原生Skill导出及真实用户可见结果",
+    "连续录屏、隐私与最终视频验收",
+    "后续源码变化或当前整仓完整C"
+  ],
+  "evidenceBoundary": "只读四组原检查报告、JUnit及测试日志；内部pytest时长与检查器阶段时长分别保存，不合并为一次全量命令。无真实业务重放，不公开账号、私人消息或机器路径。"
+}
