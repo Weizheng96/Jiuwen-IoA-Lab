@@ -164,17 +164,19 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         lifecycle=assistant.modules[0].fulfillment
         protocol,contract=lifecycle.client(ref)
         signed_receipt=copy.deepcopy(protocol.store.get('cards',ref)['card']['signatures']['6'])
-        original_finish=lifecycle.finish
+        fetch_original_finish=type(lifecycle).finish
         lost=[]
-        def lose_local_completion(operation_id,record,result,**kwargs):
-            if record['name']=='fetch' and not lost:
+        def lose_local_completion(owner,operation_id,record,result,**kwargs):
+            if owner is lifecycle and record['name']=='fetch' and not lost:
                 lost.append(operation_id)
                 from ioalab_sdk.runtime.protocol import RuntimeFault
                 raise RuntimeFault('unknown_result','test crash after atomic local output, before completion')
-            return original_finish(operation_id,record,result,**kwargs)
+            return fetch_original_finish(owner,operation_id,record,result,**kwargs)
         with monkeypatch.context() as patch:
             patch.setattr(type(protocol),'fetch_delivery',lambda *_a,**_k:pytest.fail('Cached file export must not refetch or sign slot 6'))
-            patch.setattr(lifecycle,'finish',lose_local_completion)
+            # Preserve descriptor ownership so the later class-level payment
+            # hook cannot be shadowed by an instance-bound method after undo.
+            patch.setattr(type(lifecycle),'finish',lose_local_completion)
             cached_key,_=invoke(assistant,ref,'fetch',period=1)
             wait_for(lambda:(operation(assistant,ref,cached_key) or {}).get('status')=='completed')
             assert operation(assistant,ref,cached_key)['status']=='completed',operation(assistant,ref,cached_key)

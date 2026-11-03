@@ -135,7 +135,10 @@ def test_review_sees_later_original_payment_and_preserves_a_prior_legal_conclusi
         with client.transport.operation(uid()):voucher=pay('installment',client.template(card['templateDigest']),card=card,period=1)
         if normal_close:
             with client.transport.operation(uid()):client.transport.send(card['provider'],'payment.notify',{'voucher':voucher})
-            wait_for(lambda:platform.market.market.store.get('ledger',ref))
+            # Normal close precedes the original work.start terminal reply;
+            # both facts belong to the evidence snapshot reviewed below.
+            wait_for(lambda:platform.market.market.store.get('ledger',ref) and platform.db.one(
+                "SELECT message FROM delegation_protocol_calls WHERE admission=? AND op='work.start' AND state='completed'",admission))
             ledger=platform.market.market.store.get('ledger',ref)
             assert ledger['outcome']=='completed'
             reputation=platform.market.reputation(p.identities[0].protocol_id)

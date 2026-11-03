@@ -1,0 +1,85 @@
+{
+  "observedDate": "2026-11-04",
+  "validationLevel": "D",
+  "scope": "当前R3双角色原生技能导入、服务方安全切换到已安装SDK发行及owner入口只读连通性预检；不证明新交易、完整重录或新阶段C通过。",
+  "firstAttemptWithoutToolFailure": false,
+  "nativeSkillImport": {
+    "sourceCommit": "4c9b2fe53c8058fa697149ef77edb4b5e270acf3",
+    "entry": "实际下载ZIP后，经原版Edge技能上传与覆盖确认",
+    "assistant": {
+      "sha256": "db5f3ec3047e11ee0386a0ee3a4af949326a86d74802e0d0528ea2756cd510ae",
+      "nativeFileCount": 19,
+      "allNativeFilesByteEqual": true
+    },
+    "provider": {
+      "sha256": "5109a984588c3bb1168b2dc145a3ea1738eef9567005cbd329b416b6fee3dc61",
+      "nativeFileCount": 20,
+      "allNativeFilesByteEqual": true
+    },
+    "sharedRuntimeManifestSha256": "ddf9b1a9f597f9078c066dd4739bbaa66d9e6cbf54addcf1034e4a9ee8fb30fa",
+    "importDoesNotByItselfProveRuntimeSwitchOrBusiness": true
+  },
+  "providerRuntimeUpgrade": {
+    "method": "原生正常停止旧实例并启动已安装新发行，独立只读前后状态核对",
+    "beforeReleaseId": "a987ba4217c6e69706052a1f151a17f1ce1cc701fb4611c7dcf924e33bf94a59",
+    "afterReleaseId": "ddf9b1a9f597f9078c066dd4739bbaa66d9e6cbf54addcf1034e4a9ee8fb30fa",
+    "sameRuntimeId": "a06c6603-b32f-4181-b114-83cbdfb3e724",
+    "sameConfigurationDigest": "sha256:dd54cafa126242f7444f1f67d0b0c9c4beb3930893afe1062a7fe5b22c2b1f1f",
+    "sameIdentityCount": 7,
+    "same7IdentitiesPoliciesAndPublicationBindings": true,
+    "all7PolicyRevisionsBeforeAndAfter": 2,
+    "all7PublicationRevisionsBeforeAndAfter": 2,
+    "sameRecentMiniappTaskRecords": 5,
+    "oldAdmissionOccupancyPreserved": 1,
+    "oldAdmissionCancelledOrStartedByThisUpgrade": false,
+    "schedulerBeforeAndAfter": {
+      "active": 0,
+      "completed": 44,
+      "waitingForUser": 0
+    },
+    "newProductionOrPublication": false,
+    "ipcAndPlatformConnectedAfter": true
+  },
+  "nativeGuideObservation": {
+    "sessionId": "web_1a1a2db557f_4dc0d1068367",
+    "actualCurrentSharedRuntimeShortObservationRuleSeen": true,
+    "ruleSha256": "ff427cfae09a2816a79b6e745b90f1d06561cf2c5d86ffc678091b599081c958",
+    "shortWaitCommand": {
+      "requestedSeconds": 5,
+      "outcome": "PowerShell组合命令失败，真实exit1保留",
+      "laterDirectStatusQueryRecovered": true
+    },
+    "overallUpgradeIndependentlyVerified": true,
+    "zeroErrorFirstAttemptClaim": false,
+    "observedConfigurationBodyReadCalls": 0,
+    "observedConfigurationBodyWriteCalls": 0,
+    "osEnforcedConfigurationAccessIsolationProven": false,
+    "scope": "公开原生调用元数据与具体短命令核阅；不将未匹配配置访问模式当强制隔离证明"
+  },
+  "ownerUiPreflight": {
+    "sdkOpenUiUsedConfiguredEdge": true,
+    "localUserPageAccessible": true,
+    "bodyServiceActorSetMatchesOriginalSeven": true,
+    "historicalExpiredItems": 14,
+    "decisionButtons": 0,
+    "decisionSubmitted": false,
+    "onlyThisPreflightNewPageClosed": true,
+    "scope": "本机入口连通性与身份集合核对；没有新待确认对象，不证明新真实授权"
+  },
+  "visibleEvidence": {
+    "fullNativeUpgradeResultPngActuallyReviewedByRoot": true,
+    "laterDetailScreenshotTimedOut": true,
+    "timeoutInvalidatesExistingPngOrUpgradeEvidence": false,
+    "rawImagesAndHistoriesRemainPrivate": true
+  },
+  "notProven": [
+    "新合同或完整新单履约",
+    "新真实owner授权",
+    "完整物理连续录屏及成片隐私QA",
+    "模型配置访问强制隔离",
+    "重新执行的完整阶段C通过"
+  ],
+  "evidenceBoundary": "由保存的双角色原生导入、公开SDK升级前后快照、真实原生工具记录及owner页检查投影脱敏元数据；不公开配置、私人正文、原图或机器路径。",
+  "status": "native_import_and_provider_runtime_upgrade_verified",
+  "stageValidation": "原全量失败及定向补验另见native-stage-v122-followup.json，不在本D合并为通过"
+}
