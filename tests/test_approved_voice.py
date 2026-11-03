@@ -10,6 +10,13 @@ import pytest
 
 from demo import approved_voice, build_voice
 from demo.review_story import DRAFTS
+import hashlib
+
+
+def test_saved_asset_bytes_are_utf8_lf_for_published_digest(tmp_path):
+    target=tmp_path/'asset.json'
+    approved_voice.save(target,{'voice':'已批准旁白','recorded':False})
+    assert target.read_bytes()==b'{\n  "voice": "'+ '已批准旁白'.encode('utf-8')+b'",\n  "recorded": false\n}\n'
 
 
 @pytest.mark.parametrize('field,value',[
@@ -31,12 +38,13 @@ def test_approved_cache_binds_every_synthesis_and_encoding_input(field,value):
 
 def test_voice_plan_contains_only_exact_approved_narration_without_movie_data(tmp_path, monkeypatch):
     monkeypatch.setattr(approved_voice, 'DEMO', tmp_path)
-    for case, scene in DRAFTS.items():
+    for case, scene in approved_voice.approved_content().items():
         path = approved_voice.prepare(case)
         approved_voice.prepare(case, check=True)
         plan = json.loads(path.read_text(encoding='utf-8'))
         assert plan['recorded'] is False
         assert [clip['voice'] for clip in plan['clips']] == [shot['voice'] for shot in scene['shots']]
+        assert {clip['id']:clip['voice'] for clip in plan['clips']} == {shot['id']:shot['voice'] for shot in DRAFTS[case]['shots']}
         assert not any('[' in clip['voice'] for clip in plan['clips'])
     plan['clips'][0]['voice'] = 'unapproved model reply'
     with pytest.raises(ValueError, match='differs from approved'):
@@ -118,6 +126,85 @@ def test_legacy_lab_cache_keys_remain_reusable():
     folder = Path(__file__).resolve().parents[1] / 'demo/assets/voice/delegation'
     entry = json.loads((folder / 'voice.json').read_text(encoding='utf-8'))[0]
     assert build_voice.cache_name(entry['voice'], entry['speechRate'], entry['tempo']) == entry['file']
+
+
+@pytest.mark.parametrize('defect',[None,'missing','audio','settings','duplicate','text','approval','index',
+                                  'duration','paced-duration','aggregate','probe-timeout'])
+def test_cached_reindex_preserves_audio_and_refuses_inconsistent_inputs_before_writing(tmp_path,monkeypatch,defect):
+    monkeypatch.setattr(approved_voice,'DEMO',tmp_path)
+    plan=approved_voice.voice_plan('delegation-provider')
+    old=copy.deepcopy(plan);old.pop('recordingAdjustment')
+    by_id={clip['id']:clip for clip in old['clips']}
+    old['clips']=[by_id[shot['id']] for shot in DRAFTS['delegation-provider']['shots']]
+    at=0
+    for clip in old['clips']:
+        clip['at']=at;at+=clip['plannedSeconds']
+    folder=tmp_path/'delegation-provider/assets/voice';folder.mkdir(parents=True)
+    settings={'model':'qwen3-tts-flash-realtime','voice':'Elias','style':build_voice.NARRATION_STYLE,
+              'speechRate':1.6,'tempo':1.12,'format':'mp3'}
+    clips=[];measured={}
+    for spec in old['clips']:
+        data=spec['voice'].encode('utf-8');name=approved_voice.cache_name(spec['voice'],settings)
+        (folder/name).write_bytes(data)
+        clips.append({**spec,'file':name,'duration':len(spec['voice'])/6,'audioSha256':hashlib.sha256(data).hexdigest()})
+        measured[name]=len(spec['voice'])/6
+    raw={'scene':plan['scene'],'approvalSha256':plan['approvalSha256'],'status':'ready','settings':settings,'clips':clips}
+    fitted=[{**clip,'rawFile':clip['file'],'rawAudioSha256':clip['audioSha256'],'paceFactor':1.0} for clip in clips]
+    paced={'scene':plan['scene'],'approvalSha256':plan['approvalSha256'],'status':'paced','clips':fitted}
+    raw['audioTotalSeconds']=paced['audioTotalSeconds']=round(sum(c['duration'] for c in clips),3)
+    preview=folder/'approved-narration-preview.mp3';preview.write_bytes(b'old-order-preview')
+    if defect=='missing':(folder/clips[0]['file']).unlink()
+    elif defect=='audio':(folder/clips[0]['file']).write_bytes(b'changed audio')
+    elif defect=='settings':settings['model']='other-model'
+    elif defect=='duplicate':old['clips'][1]['id']=old['clips'][0]['id']
+    elif defect=='text':clips[0]['voice']='different approved text'
+    elif defect=='approval':raw['approvalSha256']='another-approval'
+    elif defect=='duration':
+        clips[0]['duration']=9999
+        raw['audioTotalSeconds']=round(sum(c['duration'] for c in clips),3)
+    elif defect=='paced-duration':
+        fitted[0]['duration']=9999
+        paced['audioTotalSeconds']=round(sum(c['duration'] for c in fitted),3)
+    elif defect=='aggregate':raw['audioTotalSeconds']=9999
+    for name,value in (('voiceplan.json',old),('narration.json',raw),('voice.json',clips),
+                       ('pace-review.json',paced),('voice-paced.json',fitted[:-1] if defect=='index' else fitted)):
+        approved_voice.save(folder/name,value)
+    before={p:p.read_bytes() for p in folder.iterdir()}
+    def forbidden(*_a,**_k):raise AssertionError('Reindex must not load credentials, call TTS or encode audio')
+    monkeypatch.setattr(approved_voice,'operator_client',forbidden)
+    monkeypatch.setattr(build_voice,'render_clip',forbidden)
+    monkeypatch.setattr(approved_voice.subprocess,'run',forbidden)
+    def probe(path,**kwargs):
+        assert kwargs=={'timeout':5}
+        if defect=='probe-timeout':raise subprocess.TimeoutExpired('bounded-probe',5)
+        return measured[path.name]
+    monkeypatch.setattr(build_voice,'audio_duration',probe)
+    if defect:
+        with pytest.raises(ValueError):approved_voice.reindex_cached(folder/'voiceplan.json')
+        assert {p:p.read_bytes() for p in folder.iterdir()}==before
+    else:
+        report=approved_voice.reindex_cached(folder/'voiceplan.json')
+        assert report['providerCalls']==0 and report['previewNeedsRebuild']
+        assert json.loads((folder/'voiceplan.json').read_text(encoding='utf-8'))==plan
+        for name in ('voice.json','voice-paced.json'):
+            actual=json.loads((folder/name).read_text(encoding='utf-8'))
+            assert [c['id'] for c in actual]==[c['id'] for c in plan['clips']]
+            assert [c['at'] for c in actual]==[c['at'] for c in plan['clips']]
+        assert all(p.read_bytes()==data for p,data in before.items() if p.suffix=='.mp3')
+        once={p:p.read_bytes() for p in folder.iterdir()}
+        approved_voice.reindex_cached(folder/'voiceplan.json')
+        assert {p:p.read_bytes() for p in folder.iterdir()}==once
+
+
+@pytest.mark.parametrize('bounded',[False,True])
+def test_audio_duration_forwards_optional_probe_timeout(monkeypatch,bounded):
+    monkeypatch.setitem(sys.modules,'imageio_ffmpeg',SimpleNamespace(get_ffmpeg_exe=lambda:'ffmpeg'))
+    def probe(argv,**kwargs):
+        assert argv==['ffmpeg','-hide_banner','-i','clip.mp3']
+        assert (kwargs.get('timeout')==5) if bounded else ('timeout' not in kwargs)
+        return SimpleNamespace(stderr='Duration: 00:00:02.50')
+    monkeypatch.setattr(build_voice.subprocess,'run',probe)
+    assert build_voice.audio_duration('clip.mp3',**({'timeout':5} if bounded else {}))==2.5
 
 
 def test_local_pace_fit_preserves_original_and_never_calls_provider(tmp_path, monkeypatch):

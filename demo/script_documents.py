@@ -292,6 +292,11 @@ def render_draft(case):
         '| 镜头 | 计划时间 | 画面与操作 | 短字幕 | 完整旁白 | 用户业务话语 | 证据条件 |',
         '|---|---|---|---|---|---|---|',
     ]
+    adjustment = scene.get('recordingAdjustment')
+    if adjustment:
+        note = ('录制顺序调整：' + adjustment['reason'] + adjustment['startup'] +
+                '原批准摘要保留；配音仅按镜头ID重排，不重新合成。')
+        lines[lines.index('## 分镜与完整旁白'):lines.index('## 分镜与完整旁白')] = [note, '']
     elapsed = 0
     for shot in scene_shots:
         end = elapsed + shot['seconds']

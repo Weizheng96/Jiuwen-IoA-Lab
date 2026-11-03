@@ -9,9 +9,10 @@ def cache_name(spoken,speech_rate,tempo):
     return hashlib.sha256((f'clear-fast-v3|{speech_rate}|{tempo}|'+spoken).encode()).hexdigest()[:16]+'.mp3'
 
 
-def audio_duration(path):
+def audio_duration(path,*,timeout=None):
     import imageio_ffmpeg
-    result=subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-hide_banner','-i',str(path)],capture_output=True,text=True,encoding='utf-8',errors='replace')
+    options={'timeout':timeout} if timeout is not None else {}
+    result=subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-hide_banner','-i',str(path)],capture_output=True,text=True,encoding='utf-8',errors='replace',**options)
     match=re.search(r'Duration: (\d+):(\d+):([\d.]+)',result.stderr)
     if not match:raise RuntimeError('Audio duration unavailable')
     return int(match[1])*3600+int(match[2])*60+float(match[3])

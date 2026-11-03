@@ -35,18 +35,18 @@
       "plannedSeconds": 13
     },
     {
-      "id": "ready",
-      "text": "启动接入，核对就绪与接单",
-      "voice": "启动本地接入组件，核对身份、连接和就绪状态，再启用接单。接单数量与模型并发，按服务方自己的能力设置。",
-      "at": 44,
-      "plannedSeconds": 10
-    },
-    {
       "id": "publish",
       "text": "确认模板，再发布“码上飞”",
       "voice": "把服务命名为码上飞，核对公开介绍、价格、交付范围和验收判据。所有者确认后，模板才向市场公开。",
-      "at": 54,
+      "at": 44,
       "plannedSeconds": 13
+    },
+    {
+      "id": "ready",
+      "text": "启动接入，核对就绪与接单",
+      "voice": "启动本地接入组件，核对身份、连接和就绪状态，再启用接单。接单数量与模型并发，按服务方自己的能力设置。",
+      "at": 57,
+      "plannedSeconds": 10
     },
     {
       "id": "category",
@@ -104,5 +104,20 @@
       "at": 148,
       "plannedSeconds": 12
     }
-  ]
+  ],
+  "recordingAdjustment": {
+    "source": "user",
+    "sourceApprovalSha256": "30ef813cf3adee14528433274554d04e975691057c522bb7c616b2dbbd00bd4a",
+    "basis": "可以接受一定的流程变化，只要主要流程体现出来就没问题",
+    "reason": "首次服务须先公示有效模板，才能执行就绪并启用接单；仅交换publish与ready镜头，旁白和镜头范围不变。",
+    "startup": "SDK首次启动在access收尾、publish之前完成，核身份和连接并保持暂停；发布后ready镜头核就绪并启用接单，不重启组件。",
+    "originalPair": [
+      "ready",
+      "publish"
+    ],
+    "recordingPair": [
+      "publish",
+      "ready"
+    ]
+  }
 }

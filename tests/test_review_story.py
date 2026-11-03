@@ -40,6 +40,21 @@ def test_approved_script_content_change_cannot_reuse_user_approval(monkeypatch):
         script_documents.render_draft('messaging')
 
 
+def test_provider_first_publication_order_preserves_approved_words_and_other_films():
+    original=copy.deepcopy(DRAFTS)
+    current=review_story.approved_content()
+    provider=current['delegation-provider']
+    ids=[shot['id'] for shot in provider['shots']]
+    assert ids.index('publish')<ids.index('ready')
+    assert {shot['id']:shot for shot in provider['shots']}=={shot['id']:shot for shot in original['delegation-provider']['shots']}
+    assert provider['recordingAdjustment']['sourceApprovalSha256']==review_story.APPROVAL['contentSha256']
+    assert current['delegation-assistant']==original['delegation-assistant']
+    assert current['messaging']==original['messaging']
+    assert DRAFTS==original
+    rendered=script_documents.render_draft('delegation-provider')
+    assert rendered.index('| publish |')<rendered.index('| ready |')
+
+
 def test_missing_or_edited_draft_fails_check_instead_of_repairing_it(tmp_path, monkeypatch):
     monkeypatch.setattr(script_documents, 'DEMO', tmp_path)
     case = next(iter(DRAFTS))

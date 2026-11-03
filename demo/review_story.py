@@ -5,6 +5,7 @@ replace case_story.py or the three existing published screenplays.
 """
 import hashlib
 import json
+import copy
 
 
 APPROVAL = {
@@ -20,7 +21,26 @@ def approved_content():
                                       separators=(',', ':')).encode('utf-8')).hexdigest()
     if APPROVAL['status'] != 'approved' or digest != APPROVAL['contentSha256']:
         raise ValueError('Approved screenplay content changed; obtain a new user approval')
-    return DRAFTS
+    scenes = copy.deepcopy(DRAFTS)
+    provider = scenes['delegation-provider']
+    shots = provider['shots']
+    original = [item['id'] for item in shots]
+    index = original.index('ready')
+    if original[index:index + 2] != ['ready', 'publish']:
+        raise ValueError('Recheck the provider first-publication recording order')
+    # The user permits natural flow changes while retaining the main journey.
+    # Preserve every approved shot and the original global approval binding;
+    # only this scene's presentation order follows actual first-time readiness.
+    shots[index:index + 2] = reversed(shots[index:index + 2])
+    provider['recordingAdjustment'] = {
+        'source': 'user', 'sourceApprovalSha256': APPROVAL['contentSha256'],
+        'basis': '可以接受一定的流程变化，只要主要流程体现出来就没问题',
+        'reason': '首次服务须先公示有效模板，才能执行就绪并启用接单；仅交换publish与ready镜头，旁白和镜头范围不变。',
+        'startup': 'SDK首次启动在access收尾、publish之前完成，核身份和连接并保持暂停；发布后ready镜头核就绪并启用接单，不重启组件。',
+        'originalPair': ['ready', 'publish'],
+        'recordingPair': ['publish', 'ready'],
+    }
+    return scenes
 
 
 def shot(key, seconds, caption, voice, action, evidence, user=''):
