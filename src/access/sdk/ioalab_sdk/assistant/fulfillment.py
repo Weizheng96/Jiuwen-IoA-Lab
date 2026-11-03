@@ -84,7 +84,8 @@ class Fulfillment:
     def confirmation(self,operation,record):
         name=record['name']
         binding={'actor':self.identity.agent_id,'operationId':operation,'subject':record['args'],'stage':'delegation.'+name,'action':name,'preview':record['preview']}
-        question=[{'question':'是否授权本次合同环节？','options':[{'value':'allow','label':'同意'},{'value':'deny','label':'拒绝'}]}]
+        question=[{'question':'是否授权本次合同环节？','allow_custom_input':False,
+                   'options':[{'value':'allow','label':'同意'},{'value':'deny','label':'拒绝'}]}]
         return binding,self.runtime.confirmations.ensure(binding,kind='question' if name=='answer_step' else 'approval',questions=question if name=='answer_step' else None)
 
     def schedule(self,operation,record,contract):
@@ -134,7 +135,8 @@ class Fulfillment:
                 if name=='answer_step':
                     answer=self.runtime.confirmations.native_answer(decision['reference'])
                     if answer is None:return {'status':'waiting','data':{'operationId':operation,'confirmationRef':decision['reference']}}
-                    if len(answer)!=1 or answer[0].get('custom_input') or answer[0].get('selected_options') not in (['allow'],['deny']):raise RuntimeFault('forbidden','Choose the actual allow or deny option')
+                    if len(answer)!=1 or answer[0].get('custom_input') or answer[0].get('selected_options') not in (['allow'],['deny']):
+                        raise RuntimeFault('forbidden','The saved step answer is not a closed allow or deny decision; preserve it and inspect the original confirmation','inspect_confirmation')
                     record['granted']=answer[0]['selected_options']==['allow']
                 else:
                     if decision['status']!='approved':

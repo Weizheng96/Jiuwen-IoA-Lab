@@ -38,6 +38,17 @@ class Confirmations:
             raise RuntimeFault('invalid_input','Invalid confirmation kind or deadline')
         questions=[] if questions is None else questions
         if not isinstance(questions,list) or (kind=='question' and not questions):raise RuntimeFault('invalid_input','Native questions are required')
+        for question in questions:
+            if not isinstance(question,dict) or type(question.get('allow_custom_input',True)) is not bool:
+                raise RuntimeFault('invalid_input','Question allow_custom_input must be a boolean')
+            if question.get('allow_custom_input') is False:
+                options=question.get('options')
+                if (not isinstance(options,list) or not options or
+                    any(not isinstance(option,dict) or not isinstance(option.get('value'),str) or
+                        not option['value'].strip() for option in options)):
+                    raise RuntimeFault('invalid_input','A closed question requires displayed option objects with nonempty string values')
+                if len({option['value'] for option in options})!=len(options):
+                    raise RuntimeFault('invalid_input','Closed question option values must not repeat')
         payload={'binding':binding,'questions':questions,'ttl':ttl}
         serialized=encode(payload)
         if len(serialized.encode())>96*1024:raise RuntimeFault('invalid_input','Confirmation preview is too large')
@@ -107,6 +118,8 @@ class Confirmations:
                         raise RuntimeFault('invalid_input','Choose the allowed number of displayed options')
                     if not isinstance(item.get('custom_input',''),str) or len(item.get('custom_input',''))>8000:
                         raise RuntimeFault('invalid_input','Invalid native custom answer')
+                    if question.get('allow_custom_input') is False and item.get('custom_input',''):
+                        raise RuntimeFault('invalid_input','This question only accepts displayed options; remove supplemental text')
                     if not selected and not item.get('custom_input','').strip():raise RuntimeFault('invalid_input','A real nonempty user answer is required')
                     if 'question' in item and item['question']!=question.get('question'):
                         raise RuntimeFault('id_conflict','Answer must refer to the displayed native question')

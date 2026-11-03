@@ -16,9 +16,9 @@ async function api(path,body){
 }
 function capture(record){
   if(record.item.kind!=='question'||record.item.status!=='pending')return;
-  const answers=[...record.node.querySelectorAll('[data-text]')].map(input=>{
-    const choice=record.node.querySelector(`[data-answer="${input.dataset.text}"]`);
-    return {selected_options:choice?[...choice.selectedOptions].map(option=>option.value).filter(Boolean):[],custom_input:input.value};
+  const answers=record.item.questions.map((question,index)=>{
+    const input=record.node.querySelector(`[data-text="${index}"]`),choice=record.node.querySelector(`[data-answer="${index}"]`);
+    return {selected_options:choice?[...choice.selectedOptions].map(option=>option.value).filter(Boolean):[],custom_input:input?.value||''};
   });
   drafts.set(record.key,answers);
   return answers;
@@ -32,13 +32,13 @@ function draw(record){
   const item=record.item,b=item.binding,signature=JSON.stringify(item);
   if(record.signature!==signature){
     let fields='';
-    if(item.kind==='question')fields=item.questions.map((q,index)=>`<label>${esc(q.question||q.title||q.text||'问题 '+(index+1))}${q.options?.length?`<select data-answer="${index}"${q.multi_select?' multiple':''}><option value="">请选择</option>${q.options.map(o=>`<option value="${esc(o.value)}">${esc(o.label||o.text||o.value)}</option>`).join('')}</select>`:''}<textarea data-text="${index}" rows="2" placeholder="您的补充答复"></textarea></label>`).join('');
+    if(item.kind==='question'&&item.status==='pending')fields=item.questions.map((q,index)=>`<label>${esc(q.question||q.title||q.text||'问题 '+(index+1))}${q.options?.length?`<select data-answer="${index}"${q.multi_select?' multiple':''}><option value="">请选择</option>${q.options.map(o=>`<option value="${esc(o.value)}">${esc(o.label||o.text||o.value)}</option>`).join('')}</select>`:''}${q.allow_custom_input===false?'':`<textarea data-text="${index}" rows="2" placeholder="您的补充答复"></textarea>`}</label>`).join('');
     record.node.innerHTML=`<header><b>${esc(b.preview.title||b.action)}</b><span class="state">${esc(labels[item.status]||item.status)}</span></header><p>智能体：${esc(item.agentId)}<br>阶段：${esc(item.stage)} · 动作：${esc(item.action)}</p><pre>${esc(JSON.stringify(b.preview,null,2))}</pre>${fields}${item.status==='pending'?item.kind==='approval'?'<button data-decision="approve">允许此操作</button><button class="reject" data-decision="reject">拒绝</button>':'<button data-decision="answer">提交答复</button>':''}<p class="decision-error" data-decision-error role="alert"></p><p><small>有效至 ${esc(new Date(item.expiresAt).toLocaleString())}</small></p>`;
     record.signature=signature;
-    if(item.status==='pending')for(const input of record.node.querySelectorAll('[data-text]')){
-      const answer=drafts.get(record.key)?.[Number(input.dataset.text)];
-      input.value=answer?.custom_input||'';
-      const choice=record.node.querySelector(`[data-answer="${input.dataset.text}"]`);
+    if(item.status==='pending')for(const [index] of item.questions.entries()){
+      const answer=drafts.get(record.key)?.[index],input=record.node.querySelector(`[data-text="${index}"]`);
+      if(input)input.value=answer?.custom_input||'';
+      const choice=record.node.querySelector(`[data-answer="${index}"]`);
       if(choice&&answer)for(const option of choice.options)option.selected=answer.selected_options.includes(option.value);
     }
   }

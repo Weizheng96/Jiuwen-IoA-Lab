@@ -104,6 +104,37 @@ function assertPost(h,item,decision='answer'){
   return request;
 }
 const scenarios={
+  async closed(){
+    const item={...question(),questions:[
+      {question:'是否同意',allow_custom_input:false,options:[{value:'allow',label:'同意'},{value:'deny',label:'拒绝'}]},
+      {question:'普通文本'}]};
+    const h=await setup([item]),card=h.card(item.reference);
+    assert.equal(card.querySelector('[data-text="0"]'),null);
+    assert(card.querySelector('[data-answer="0"]'));assert(card.querySelector('[data-text="1"]'));
+    card.querySelector('[data-text="1"]').value='普通问题仍可填';
+    await h.click(card);
+    const empty=h.pending('/user/decision')[0];
+    assert.deepEqual(JSON.parse(empty.options.body).answers,[
+      {selected_options:[],custom_input:''},{selected_options:[],custom_input:'普通问题仍可填'}]);
+    await h.reply(empty,{error:{message:'请选择一个有效选项'}},400);
+    await h.reply(h.pending('/user/api')[0],{csrf:'browser-csrf',confirmations:[item]});
+    assert.equal(card.querySelector('[data-decision]').disabled,false);
+    const choice=card.querySelector('[data-answer="0"]');
+    for(const option of choice.options)option.selected=option.value==='allow';
+    await h.event('change',choice);
+    await h.poll([{...item,serverRevision:2}]);
+    assert.equal(card.querySelector('[data-text="0"]'),null);
+    assert.deepEqual(card.querySelector('[data-answer="0"]').selectedOptions.map(o=>o.value),['allow']);
+    assert.equal(card.querySelector('[data-text="1"]').value,'普通问题仍可填');
+    assert.equal(card.querySelector('[data-decision-error]').textContent,'请选择一个有效选项');
+    await h.click(card);
+    const corrected=h.pending('/user/decision')[0];
+    assert.deepEqual(JSON.parse(corrected.options.body).answers,[
+      {selected_options:['allow'],custom_input:''},{selected_options:[],custom_input:'普通问题仍可填'}]);
+    await h.reply(corrected,result(item));
+    assert(card.innerHTML.includes('已答复'));assert.equal(card.querySelector('[data-decision]'),null);
+    assert.equal(card.querySelectorAll('select,textarea').length,0);
+  },
   async drafts(){
     const item=question(),h=await setup([item]),card=h.card(item.reference);edit(h,card);
     const text=card.querySelector('[data-text="2"]'),renderCount=card.renderCount;
@@ -129,7 +160,7 @@ const scenarios={
     assert(card.innerHTML.includes('已答复'));assert.equal(card.querySelector('[data-decision]'),null);
     const followup=h.pending('/user/api')[0];assert(followup);
     await h.reply(followup,{csrf:'browser-csrf',confirmations:[item]});
-    assert(card.innerHTML.includes('已答复'));assert.deepEqual(answers(card).map(answer=>answer.custom_input),['','','']);
+    assert(card.innerHTML.includes('已答复'));assert.equal(card.querySelectorAll('select,textarea').length,0);
     assert.equal(h.requests.filter(request=>request.path==='/user/decision').length,1);
     const other=approval();await h.poll([other]);await h.click(h.card(other.reference),'approve');
     await h.reply(assertPost(h,other,'approve'),result(other,'approved'));
@@ -164,7 +195,7 @@ const scenarios={
     const fresh=h.card(item.reference);assert.notEqual(fresh,old);
     assert.deepEqual(answers(fresh),[0,1,2].map(()=>({selected_options:[],custom_input:''})));
     edit(h,fresh);await h.poll([result(changed,'expired')]);
-    assert.equal(fresh.querySelector('[data-decision]'),null);assert.deepEqual(answers(fresh).map(answer=>answer.custom_input),['','','']);
+    assert.equal(fresh.querySelector('[data-decision]'),null);assert.equal(fresh.querySelectorAll('select,textarea').length,0);
     await h.poll([changed]);assert(fresh.innerHTML.includes('已过期'));assert.equal(fresh.querySelector('[data-decision]'),null);
     await h.poll([]);assert.equal(h.cards.children.length,1);assert.equal(h.cards.children[0].textContent,'当前没有待确认操作。');
   },
