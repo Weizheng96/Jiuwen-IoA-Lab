@@ -20,7 +20,7 @@ python "<实际技能目录>/scripts/ioalab.py" assistant.delegation.prepare --c
 | 具体合同 | assistant.delegation.confirm：quoteRef | 展示实际合同及材料发送阶段，取得独立用户确认后重发同一操作；保存 contractRef，status 查询 data.formed 为 true 后才开工 |
 | 开工 | assistant.delegation.start：contractRef | SDK 复用原合同及实际定金/开工回执；status.data.started 为 true 才表示已开工。新候选失效不等于旧合同失效，仍遵守原合同窗口 |
 | 合同环节 | assistant.delegation.status：contractRef，再 assistant.delegation.answer_step：contractRef、stepRequestDigest | 读取 status.data.stepRequest 及同一回执的 data.stepRequestDigest，不用合同摘要，不自行计算或猜测；两字段为空则无当前可答环节。answer_step 取得 waiting 和 confirmationRef 后才打开确认页；用户实际同意/拒绝后重发原操作，不传 granted/confirmed |
-| 交付与取件 | assistant.delegation.status：contractRef；assistant.delegation.fetch：contractRef、period | availablePeriods 及实际签名证明交付，取件保存原文件与签收；不是模型文字“完成” |
+| 交付与取件 | assistant.delegation.status：contractRef；assistant.delegation.fetch：contractRef、period | availablePeriods 及实际签名证明交付；fetch完成后用实际data.files中各项path向用户提供原件，核digest/size，不扫描内部缓存。已取件后的本地输出失败不等于未签收；按实际错误排除冲突后用新的正常fetch从缓存重建，不改原完成回执 |
 | 验收与付款 | assistant.delegation.verify：contractRef、period；assistant.delegation.accept：contractRef、period | 异步作业先返回引用；accept取得通过报告后进入waiting，展示真实预览和应付款额。取得本期独立确认后用同一operationId重发accept，原Client.accept复验、通知及AP2，分别查实际验收与付款结果 |
 | 解除报价 | assistant.delegation.termination_quote：contractRef | 异步取得原签名报价及 terminationQuoteRef，不代表已解除或已付款 |
 | 解除决定 | assistant.delegation.terminate：contractRef、mode（agreed/unilateral），agreed另含terminationQuoteRef；可选reason | 展示实际合同进展、定金及补款/退款，取得本次独立确认后重发同一操作；status分别核通知、资金和closed，不能把合同解除当作全部结束 |

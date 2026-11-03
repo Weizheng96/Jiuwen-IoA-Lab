@@ -6,10 +6,10 @@ import httpx
 from urllib.parse import urlencode
 
 from a2c import objects
-from a2c.card import card_digest
+from a2c.card import card_digest,validate_card
 from a2c.codec import digest,digest_bytes
 from a2c.errors import A2CError
-from a2c.slots import verify_card
+from a2c.slots import verify_card,period_manifest
 from a2c.jws import header_of
 from a2c.payment import PaymentRejected,verify_voucher
 from ..runtime.protocol import RuntimeFault
@@ -17,6 +17,7 @@ from ..runtime.scheduling import JobOutcome
 from ..runtime.ipc import public_error
 from ..adapters.transport import stable
 from ..adapters.reports import report
+from .delivery_files import save_delivery
 
 
 class Fulfillment:
@@ -153,7 +154,7 @@ class Fulfillment:
         return JobOutcome(state,result)
 
     def run(self,job):
-        operation=job['payload']['operationId'];record=self.record(operation);args=record['args'];ref=args['contractRef'];client,_=self.client(ref)
+        operation=job['payload']['operationId'];record=self.record(operation);args=record['args'];ref=args['contractRef'];client,contract=self.client(ref)
         if record.get('result') is not None:return JobOutcome(record['status'],record['result'])
         if record['name']=='accept' and 'preview' not in record:
             self.runtime.require_execution()
@@ -182,15 +183,20 @@ class Fulfillment:
             elif name=='answer_step':result={'stepAuthorization':client.answer_step(ref,record['granted'])}
             elif name=='fetch':
                 try:
-                    cached=client.store.get('cards',ref).get('deliveries',{}).get(str(args['period']))
-                    files={name:base64.b64decode(data) for name,data in cached.items()} if cached is not None else client.fetch_delivery(ref,args['period'])
+                    original=client.store.get('cards',ref)
+                    cached=original.get('deliveries',{}).get(str(args['period']))
+                    if cached is not None:record=self.save(operation,record,fetchFromCache=True)
+                    if cached is None:
+                        if len(original['card']['signatures']['6'])>=args['period']:
+                            return self.fetch_outcome(operation,record,client,contract)
+                        client.fetch_delivery(ref,args['period'])
                 except httpx.TransportError:
                     actual=client.store.get('cards',ref)
                     if str(args['period']) not in actual.get('deliveries',{}) and len(actual['card']['signatures']['6'])<args['period']:
                         error=RuntimeFault('not_ready','Delivery bytes unavailable before receipt signing; request a new read','retry_read')
                         return self.finish(operation,record,{'period':args['period'],'error':public_error(error)},state='failed')
                     raise
-                result={'period':args['period'],'files':{name:{'digest':digest_bytes(data),'size':len(data)} for name,data in files.items()}}
+                return self.fetch_outcome(operation,record,client,contract)
             elif name=='verify':
                 try:result={'period':args['period'],'report':report(client.verify(ref,args['period']))}
                 except RuntimeFault as exc:return self.finish(operation,record,{'period':args['period'],'error':public_error(exc)},state='failed')
@@ -217,6 +223,32 @@ class Fulfillment:
                         return self.finish(operation,record,result,state='rejected')
             else:raise RuntimeFault('not_ready','Unknown fulfillment method')
         return self.finish(operation,record,result)
+
+    def fetch_outcome(self,operation,record,client,contract):
+        """Normal and unknown recovery share verification and local output."""
+        ref=record['args']['contractRef'];period=record['args']['period']
+        try:
+            original=client.store.get('cards',ref);card=original['card']
+            validate_card(contract['template'],card)
+            if card_digest(card)!=ref or card['client']['id']!=self.identity.agent_id:
+                raise ValueError('Cached card does not belong to this contract and assistant')
+            chain=verify_card(contract['template'],card,client.keys)
+            if chain.period_ts(6,period) is None:raise ValueError('Original receipt signature is unavailable')
+            manifest=period_manifest(card,period)
+            objects.check(manifest)
+            cached=original.get('deliveries',{}).get(str(period))
+            if not isinstance(cached,dict):raise ValueError('Original delivery cache is unavailable')
+            files={name:base64.b64decode(blob,validate=True) for name,blob in cached.items()}
+            if {name:digest_bytes(blob) for name,blob in files.items()}!={item['name']:item['digest'] for item in manifest['files']}:
+                raise ValueError('Cached delivery bytes do not match the signed manifest')
+        except (A2CError,RuntimeFault,httpx.HTTPError,ValueError,TypeError,KeyError) as exc:
+            error=RuntimeFault('protocol_error','Cannot verify the original receipt and cached delivery: '+str(exc),'inspect_original')
+            return self.finish(operation,record,{'period':period,'error':public_error(error)},state='failed')
+        try:metadata=save_delivery(self.runtime.config.home,ref,period,files)
+        except (OSError,RuntimeFault,ValueError) as exc:
+            error=RuntimeFault('local_export_failed','Original delivery and receipt signature were verified; local file saving failed: '+str(exc),'new_fetch_from_cache')
+            return self.finish(operation,record,{'period':period,'error':public_error(error)},state='failed')
+        return self.finish(operation,record,{'period':period,'files':metadata})
 
     @staticmethod
     def rejection_error(rejected):
@@ -274,7 +306,7 @@ class Fulfillment:
             if job['status']!='unknown':continue
             if record.get('result') is not None:
                 self.runtime.scheduler.resolve(reference,JobOutcome(record['status'],record['result']));continue
-            client,_=self.client(record['args']['contractRef']);ref=record['args']['contractRef'];original=client.store.get('cards',ref)
+            client,contract=self.client(record['args']['contractRef']);ref=record['args']['contractRef'];original=client.store.get('cards',ref)
             with client.transport.operation(operation):
                 if record['name']=='start' and original.get('state')!='started':
                     received=client.transport.received('work.start')
@@ -297,8 +329,8 @@ class Fulfillment:
                         continue
                 if record['name']=='fetch':
                     received=client.transport.received('acceptance.notify');cached=original.get('deliveries',{}).get(str(record['args']['period']))
-                    if received and received['result']['reply']['body'].get('ok') is True and cached is not None:
-                        self.runtime.scheduler.resolve(reference,self.finish(operation,record,{'period':record['args']['period'],'files':{name:{'digest':digest_bytes(base64.b64decode(data)),'size':len(base64.b64decode(data))} for name,data in cached.items()}}))
+                    if cached is not None and (record.get('fetchFromCache') or self.positive_notification(received)):
+                        self.runtime.scheduler.resolve(reference,self.fetch_outcome(operation,record,client,contract))
                         continue
             if record['name']=='start' and original.get('state')=='started':
                 self.runtime.scheduler.resolve(reference,self.finish(operation,record,{'receipt':original['card']['fulfillment']['receipt']}))

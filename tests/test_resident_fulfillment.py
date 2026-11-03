@@ -158,6 +158,41 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         except AssertionError:raise AssertionError({'hostFailure':getattr(host,'failure',None),'executionErrors':provider.modules[0].execution.errors,'roleError':provider.modules[0].error})
         key,_=invoke(assistant,ref,'fetch',period=1)
         wait_for(lambda:operation(assistant,ref,key));assert operation(assistant,ref,key)['status']=='completed',operation(assistant,ref,key)
+        fetched=operation(assistant,ref,key)['data'];saved=Path(fetched['files']['result.json']['path'])
+        assert saved.read_bytes()==b'{"delivered":"actual file bytes"}'
+        assert not fetched['files']['result.json']['alreadyPresent']
+        lifecycle=assistant.modules[0].fulfillment
+        protocol,contract=lifecycle.client(ref)
+        signed_receipt=copy.deepcopy(protocol.store.get('cards',ref)['card']['signatures']['6'])
+        original_finish=lifecycle.finish
+        lost=[]
+        def lose_local_completion(operation_id,record,result,**kwargs):
+            if record['name']=='fetch' and not lost:
+                lost.append(operation_id)
+                from ioalab_sdk.runtime.protocol import RuntimeFault
+                raise RuntimeFault('unknown_result','test crash after atomic local output, before completion')
+            return original_finish(operation_id,record,result,**kwargs)
+        with monkeypatch.context() as patch:
+            patch.setattr(type(protocol),'fetch_delivery',lambda *_a,**_k:pytest.fail('Cached file export must not refetch or sign slot 6'))
+            patch.setattr(lifecycle,'finish',lose_local_completion)
+            cached_key,_=invoke(assistant,ref,'fetch',period=1)
+            wait_for(lambda:(operation(assistant,ref,cached_key) or {}).get('status')=='completed')
+            assert operation(assistant,ref,cached_key)['status']=='completed',operation(assistant,ref,cached_key)
+            assert lost==[cached_key]
+            recovered=operation(assistant,ref,cached_key)['data']
+            assert recovered['files']['result.json']['alreadyPresent'] and saved.read_bytes()==b'{"delivered":"actual file bytes"}'
+            assert protocol.store.get('cards',ref)['card']['signatures']['6']==signed_receipt
+            # Completed replay must neither rewrite the receipt nor recreate a
+            # file the owner subsequently removed; only a new fetch may do so.
+            saved.unlink()
+            assert client.call('assistant.delegation.fetch',{'contractRef':ref,'period':1},operation_id=cached_key)['data']==recovered
+            assert not saved.exists()
+            rebuilt_key,_=invoke(assistant,ref,'fetch',period=1)
+            wait_for(lambda:operation(assistant,ref,rebuilt_key))
+            assert operation(assistant,ref,rebuilt_key)['status']=='completed'
+            assert not operation(assistant,ref,rebuilt_key)['data']['files']['result.json']['alreadyPresent']
+            assert saved.read_bytes()==b'{"delivered":"actual file bytes"}'
+            assert protocol.store.get('cards',ref)['card']['signatures']['6']==signed_receipt
         key,_=invoke(assistant,ref,'verify',period=1)
         wait_for(lambda:operation(assistant,ref,key));assert operation(assistant,ref,key)['data']['report']['status']=='pass',operation(assistant,ref,key)
         assert not status(assistant,ref)['data']['card']['signatures']['7']
