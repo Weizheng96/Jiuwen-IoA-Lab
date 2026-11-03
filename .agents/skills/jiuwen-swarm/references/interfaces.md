@@ -23,9 +23,11 @@
 
 Web调用要区分确认帧与最终结果：已核对版本的history.get通过history.message事件流给出记录，accepted仅表示收到，须等done；该版本分页从1开始。
 
+页面导航或刷新后，先等历史加载完成、输入框恢复，再选择技能并发送下一条请求。暂存队列不等于已发送；核对用户消息实际进入会话及原执行元数据。队列在恢复时消失，只有确认原请求未开始后才重新提交，不能因界面暂时空白重做业务。
+
 原生问答残留时，用公开`session.get_metadata`仅传目标`session_id`核实际执行与待控制项；`runtime_resume`会订阅并重放保留帧，重放的旧问题不能独自证明仍在等待。已核对版本的正常停止方法为`chat.interrupt`及`intent=cancel`，沿用真实会话的mode/work_mode/project_id，等待`chat.interrupt_result`再查询执行终态；收件accepted不代表已取消。该公开入口按会话停止，不提供按execution_id精准取消；先核其中全部非终态执行都属于本任务，不为清理问答重启宿主或SDK。
 
-原生终端回显不能替代SDK原数据。先区分JSON语法、UTF-8文件、宿主代码页和业务值损坏；跨终端的结构化输出可用ASCII转义JSON保留中文，不能因回显乱码重写合同。异步调用保存完整引用对象，并分别核查询和原作业终态，未取得源码不宣称已核验收覆盖。
+原生终端回显不能替代SDK原数据。先区分JSON语法、UTF-8文件、宿主代码页和业务值损坏；跨终端的结构化输出可用ASCII转义JSON保留中文，不能因回显乱码重写合同。大段既有非秘密素材及真实SDK回执，按产品共用calling.md的方法用本机UTF-8脚本提取组合，不要求模型逐字重抄。异步调用保存完整引用对象，并分别核查询和原作业终态，未取得源码不宣称已核验收覆盖。
 
 本机公开历史审计用`python .agents/skills/jiuwen-swarm/scripts/read_web_history.py --ws-url <已观察的本机WebChannel地址及user_id> --session-id <实际会话ID> --out <本机私有新文件>`。脚本按页等done、按tool_call_id去重，只向stdout汇报调用元数据；不扫会话库或上传正文。已核对版本会向原网页广播历史事件，在模型终态后审计，恢复最新页面再继续，录制期间不回放历史。
 

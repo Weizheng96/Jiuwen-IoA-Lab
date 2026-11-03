@@ -18,7 +18,7 @@
 
 ## 参数归属
 
-预览参数外层只有service；service只含profile、name、description、tags、templates及可选categoryId。不添加resources、acceptance或容量字段。下面用Python变量示意构造，draft是SDK起草的真实回执，其他值来自当前用户业务，完成后写入JSON参数文件：
+预览参数外层只有service；service只含profile、name、description、tags、templates及可选categoryId。不添加resources、acceptance或容量字段。按 calling.md 的本机 UTF-8 脚本方法组合即可，不必手工重抄模板或完整 service。下面用Python变量示意构造，draft是SDK起草的真实回执，其他值来自当前用户业务，完成后写入新的JSON参数文件：
 
 ```python
 service = {
@@ -31,6 +31,6 @@ publication_args = {key: preview_result["data"][key]
                     for key in ("service", "contentDigest", "expectedRevision")}
 ```
 
-需要后续复用的起草回执可将脚本stdout保存为结果JSON，按字段提取原件，不重新拼写。待批准acceptance在原模板中；提案acceptance由实际本单quote给出，后台可复用预置引用或先用本单准备回调取得真实引用；本地业务资源属于外置配置provider.services.<profile>.resources，不属于公开service。
+需要后续复用的起草、预览回执可将脚本stdout直接保存为结果JSON，保留原件并按上述字段提取；异步预览先按 calling.md 取得原作业完成后的业务结果，再提取该结果的完整 service、contentDigest、expectedRevision，不复制查询或前一动作的 operationId。发布已返回 waiting 时，恢复必须重用原发布参数文件，不重新生成。待批准acceptance在原模板中；提案acceptance由实际本单quote给出，后台可复用预置引用或先用本单准备回调取得真实引用；本地业务资源属于外置配置provider.services.<profile>.resources，不属于公开service。
 
 接单配置存于本机共享配置文件。需要改变当前配置时安全停止/重启，并核平台及本机实际状态；不要调用没有配置的操作并宣称成功。已承接合同继续使用原冻结模板、权限与会话。
