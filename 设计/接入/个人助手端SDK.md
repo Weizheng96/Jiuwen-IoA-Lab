@@ -27,7 +27,7 @@ prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 ca
 | `assistant.delegation.confirm` | 选定具体卡、可信确认引用 | 提案模式在有效窗口内签1采纳；待批准模式取得真实预留后签1并发 card.countersign，服务方签2后即成约；合同改变须重新确认 |
 | `assistant.delegation.start` | 已满足开工条件的合同引用 | 独立 work.start 结果；与观察订阅、验收通知分开 |
 | `assistant.delegation.answer_step` | contractRef、合同status返回的原 stepRequestDigest；通过可信用户通道取得本次答复 | 核对卡载环节、请求摘要、当前阶段与期限，复用 A2C Client.answer_step 返回签名同意或拒绝；不复用先前委托授权 |
-| `assistant.delegation.fetch` | contractRef、期次 | 复用原取件与清单校验并签6；恢复已保存文件，不重复签收 |
+| `assistant.delegation.fetch` | contractRef、期次 | 复用原取件与清单校验并签6；按下述受控文件保存规则返回原字节的实际本地路径，缓存恢复不重复取件或签收 |
 | `assistant.delegation.verify` | 合同、里程碑及交付引用 | 本地运行卡载验收器取得报告；不签署接受 |
 | `assistant.delegation.accept` | 交付、验收阶段的可信确认引用 | 复用原 Client.accept 复验、签7、通知及通过后的分期付款；各项分别返回，失败或不明确时不伪造通过 |
 | `assistant.delegation.pay` | contractRef、原期次；可选原confirmationRef | 新增付款先预览原卡已验收期的金额及实际付款状态，独立确认后调用原Client.pay；已核成功只恢复凭证与通知，不再次请求付款确认；旧无付款批准的只读作业不取得新效果权限 |
@@ -36,6 +36,20 @@ prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 ca
 | `assistant.delegation.terminate` | contractRef、mode（agreed/unilateral），协商时含 terminationQuoteRef；可选原因及原 confirmationRef | 预览实际解除依据并独立确认，沿原操作执行 A2C 解除；分别返回通知、结算及结清状态，不将全部视为完成 |
 | `assistant.delegation.dispute` | contractRef或quoteRef二选一、ground、必要period、材料引用；可选原confirmationRef | SDK先取原依据并独立请求用户确认，申请与真实受理分别返回；恢复原caseRef，不执行裁定付款 |
 | `assistant.delegation.dispute_status` | caseRef | 读取并验签原案件/裁定、执行收敛和实际付款，明确区分各状态 |
+
+### 取件文件保存
+
+fetch 不增加参数或独立导出操作。SDK 以原合同摘要及正整数期次派生唯一目录 `home/deliveries/<cardDigestHex>/<period>/`；cardDigestHex 为已核合同摘要去除 `sha256:` 后的十六进制部分，home 为当前 SDK 的专用数据目录。目录及临时文件、输出文件均仅本机所属用户可读写，不接受模型指定目的路径，不输出或覆盖设置、身份密钥及其他 SDK 数据，不执行交付内容。
+
+首次取件复用原 A2C 清单及字节核验、签6和缓存。已有本期缓存及有效原签6时，fetch 只读取该合同、期次的原字节，复核完整文件集合、每份摘要及签名清单后保存本地副本，不再次网络取件或签6。签6、缓存或清单无法核实、缺失或互相矛盾时明确失败并保留原证据，不以重新取件覆盖未知结果，不扫描其他合同或读取账号凭据。
+
+成功结果的 `files` 仍以原文件名为键，每项恰含 digest、size、path、alreadyPresent：digest 为已核原字节摘要，size 为实际字节数，path 为已成功保存的绝对本机路径；alreadyPresent 为布尔值，仅在本次输出前已有同名、同字节的安全普通文件时为 true。原操作完成结果不得改写；重复调用返回原结果，不能把新的磁盘状态填回旧回执。路径不保证永久存在；用户需要重建已删除或移动的本地副本时，使用新的正常 fetch 操作，从原缓存恢复而不产生新的网络取件或签6。状态查询只读，不暗中重建文件。
+
+本机输出仅接受安全单层原文件名：名称必须是非空字符串，不能是 `.` 或 `..`，不含 NUL、控制字符、正反斜杠、盘符、冒号或 Windows 禁用字符，不得为绝对路径、Windows 设备保留名或以点/空格结尾。整个清单还须拒绝按目标文件系统规则会碰撞的名称。非法名称明确拒绝本地输出，不自动取 basename、改名或建立子目录；这些规则只限制本机保存，不改变 A2C manifest 的文件名规则。
+
+任何字节输出前，先核完整清单、字节及目标路径元数据。固定目录的每一级与目标文件必须位于本 SDK home 内；目录或文件的软链接、Windows reparse/junction、目标文件的多重硬链接、非普通文件目标或名称碰撞均拒绝。已有安全普通文件须核完整字节：一致则复用，不一致则失败且不覆盖、删除或改名原数据。保存使用同一受控目录内的私有临时文件，写完并同步后原子且不覆盖地提交；最终目标在竞争中已经出现时重新核实际对象，同内容可复用，其他情况拒绝。实现不得因跟随链接或目标替换而读写 home 外的数据。
+
+所有文件成功保存并再次核实后，才报告本次 fetch 输出完成。中断可留下已原子提交的文件及未完成临时文件；恢复沿原操作和缓存补齐，同内容文件复用，临时文件不当作交付原件，不声称多文件同时提交。若协议取件、签6和缓存已完成而本地保存失败，错误须明确这是已取件后的本地输出失败，包含原合同、期次及失败原因，保留已有签6、缓存和安全输出，不误报为尚未取件或给出再次网络读取的恢复建议。原未知操作先按共用规则核对；明确的本地失败保留原失败结果，排除本机冲突后可用新的正常 fetch 从原缓存恢复。
 
 ### 候选比较依据
 

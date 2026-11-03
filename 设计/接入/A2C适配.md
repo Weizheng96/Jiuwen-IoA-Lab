@@ -24,7 +24,7 @@
 | 环节请求 | Provider.request_step → 原交付任务进展 | 仅合同声明的环节；保存原 stepRequest 并推送 auth-required，不由模型声称已授权 |
 | 环节答复 | Client.answer_step → step.authorize | 当前 stepRequest 摘要、卡载用户密钥与独立真实答复；保持原交付 taskId，同意或拒绝均按原协议记录 |
 | 交付 | Provider.deliver → Market delivery.anchor | 真实字节与签4清单，取得原签5后才报告已存证；同一期不得改换已经认证的清单 |
-| 取件 | Client.fetch_delivery → delivery.fetch、acceptance.notify | 核原清单及字节，保存原签6和本地文件；已取件恢复原缓存，不重复签收 |
+| 取件 | Client.fetch_delivery → delivery.fetch、acceptance.notify | 复用原清单及字节核验、签6和缓存；本机文件保存、路径回执及输出失败边界见[个人助手端 SDK](个人助手端SDK.md#取件文件保存) |
 | 预览验收 | Client.verify | 本地 WASM 验收器报告；不签7、不付款 |
 | 确认验收 | Client.accept → acceptance.notify、AP2、payment.notify | 独立验收确认后复验；通过才签7，原 SDK 随后请求相应分期付款；验收及付款各自报告 |
 | 付款恢复 | Client.pay → 原 AP2 及 payment.notify | 核原签5/7、用途和期次，沿原付款尝试恢复；明确拒绝后的新尝试须先核实并独立确认，不重验收、重签7或重复过账 |
