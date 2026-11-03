@@ -40,6 +40,8 @@ with Path("new-request-args.json").open("x", encoding="utf-8") as stream:
 
 operations.get外层status=completed只表示查询完成。继续检查data.status：queued/running继续查询原引用；completed后从data.data取得原业务结果。比较结果的candidates和verifierPackages位于该原业务结果中；按reviewRef读取已提供的真实源码，不能去本地目录寻找ioalab://资源。查询被拒绝或内容缺失时明确未核对，不能自行概括覆盖、签约或重做征集。
 
+只读查询使用短且有界的观察窗口，建议单个查询脚本不超过30秒；不启动持续数分钟的Bash后台轮询占住网页会话。未完成时保存原引用、报告当前阶段并结束本轮，下一次正常聊天再查询原作业；长期业务由SDK常驻组件继续处理。观察超时不等于原任务失败，不为等待换ID或重做安装、征集、签约、付款等原写动作。
+
 ## 依回执继续
 
 | status | 动作 |
