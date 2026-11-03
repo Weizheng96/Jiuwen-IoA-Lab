@@ -327,6 +327,108 @@ def test_complete_message_evidence_and_quad_mapping_build_a_formal_plan(complete
     assert plan["proof"] == before == inputs["proof"]
 
 
+def _use_native_pair(inputs):
+    inputs["proof"]["presentationOverride"] = {"layout": "native-pair", "source": "user",
+        "reason": "Show Wang and Zhao native browsers; include Wang's local confirmation page."}
+    for shot in inputs["segments"]:
+        original = shot["panels"][0]
+        shot["layout"] = "native-pair"
+        shot["panels"] = [{**original, "role": role, "label": role} for role in ("wang-native", "zhao-native")]
+    _save(inputs["folder"] / "evidence.json", inputs["proof"])
+    _save(inputs["folder"] / "segments.json", inputs["segments"])
+
+
+def test_explicit_user_native_pair_preserves_business_and_confirmation_gates(complete_messaging):
+    inputs = complete_messaging
+    _use_native_pair(inputs)
+    inputs["segments"][4]["panels"][0]["label"] = "王经理·本机确认"
+    _save(inputs["folder"] / "segments.json", inputs["segments"])
+    plan = _plan(inputs, review=False)
+    assert not plan["pending"]
+    assert all({p["role"] for p in s["panels"]} == {"wang-native", "zhao-native"} for s in plan["shots"])
+    inputs["proof"]["business"]["rules"][0].pop("confirmation")
+    _save(inputs["folder"] / "evidence.json", inputs["proof"])
+    with pytest.raises(ValueError, match="(?i)approval"):
+        _plan(inputs, review=False)
+
+
+@pytest.mark.parametrize("override", [None, {}, {"layout": "native-pair", "source": "agent", "reason": "assumed"}])
+def test_native_pair_does_not_silently_replace_approved_layout(complete_messaging, override):
+    inputs = complete_messaging
+    _use_native_pair(inputs)
+    inputs["proof"]["presentationOverride"] = override
+    _save(inputs["folder"] / "evidence.json", inputs["proof"])
+    with pytest.raises(ValueError, match="(?i)(override|instruction)"):
+        _plan(inputs)
+
+
+def test_native_pair_rejects_platform_role_substitution(complete_messaging):
+    inputs = complete_messaging
+    _use_native_pair(inputs)
+    inputs["segments"][0]["panels"][0]["role"] = "wang-platform"
+    _save(inputs["folder"] / "segments.json", inputs["segments"])
+    with pytest.raises(ValueError, match="(?i)role"):
+        _plan(inputs)
+
+
+@pytest.mark.parametrize("speed", [0, -1, 33, float("nan"), True])
+def test_invalid_continuous_source_speed_is_rejected(native_inputs, speed):
+    native_inputs["segments"][0]["panels"][0]["speed"] = speed
+    _save(native_inputs["folder"] / "segments.json", native_inputs["segments"])
+    with pytest.raises(ValueError):
+        _plan(native_inputs)
+
+
+@pytest.mark.parametrize("crop", [{"x": -1, "y": 0, "width": 100, "height": 100},
+    {"x": 0, "y": 0, "width": 0, "height": 100},
+    {"x": 0, "y": 0, "width": True, "height": 100}, {"x": 0}])
+def test_invalid_continuous_source_crop_is_rejected(native_inputs, crop):
+    native_inputs["segments"][0]["panels"][0]["crop"] = crop
+    _save(native_inputs["folder"] / "segments.json", native_inputs["segments"])
+    with pytest.raises(ValueError, match="(?i)crop"):
+        _plan(native_inputs)
+
+
+def test_speed_consumes_original_time_and_cannot_hide_short_footage(native_inputs):
+    inputs = native_inputs
+    first = inputs["segments"][0]
+    first["duration"] = 3
+    first["panels"][0].update(duration=12, speed=4, crop={"x": 0, "y": 0, "width": 1280, "height": 1440})
+    inputs["segments"][1]["panels"][0]["start"] = 12
+    _save(inputs["folder"] / "segments.json", inputs["segments"])
+    plan = _plan(inputs)
+    assert plan["shots"][0]["duration"] == 3
+    assert plan["shots"][1]["waitingCuts"] == []
+    first["panels"][0]["duration"] = 4
+    _save(inputs["folder"] / "segments.json", inputs["segments"])
+    with pytest.raises(ValueError, match="(?i)short"):
+        _plan(inputs)
+
+
+def test_native_render_uses_full_accelerated_interval_and_rejects_crop_outside_pixels(native_inputs, monkeypatch):
+    from types import SimpleNamespace
+    inputs = native_inputs
+    panel = {**inputs["segments"][0]["panels"][0], "role": "wang-native", "duration": 12,
+             "speed": 4, "crop": {"x": 0, "y": 0, "width": 1280, "height": 1440}}
+    shot = {"layout": "native-pair", "duration": 3, "panels": [panel, {**panel, "role": "zhao-native"}],
+            "pendingReasons": [], "waitingCuts": []}
+    commands = []
+    monkeypatch.setattr(edit_cases, "_media_seconds", lambda *_: 1000)
+    monkeypatch.setattr(edit_cases, "_media_dimensions", lambda *_: (2560, 1440))
+    monkeypatch.setattr(edit_cases.subprocess, "run", lambda args, **kwargs: commands.append(args) or SimpleNamespace(returncode=0))
+    dest = inputs["folder"] / "shot.mp4"
+    edit_cases.render_native_shot("ffmpeg", inputs["folder"], shot, dest, review_candidate=False)
+    command = commands[-1]
+    filters = command[command.index("-filter_complex") + 1]
+    assert "crop=1280:1440:0:0,setpts=(PTS-STARTPTS)/4" in filters
+    assert "hstack=inputs=2" in filters
+    assert command[command.index("-t") + 1] == "12"
+    panel["crop"]["x"] = 2000
+    with pytest.raises(ValueError, match="(?i)crop exceeds"):
+        edit_cases.render_native_shot("ffmpeg", inputs["folder"], shot, dest, review_candidate=False)
+    assert len(commands) == 1, "Invalid crop must fail before encoder side effects"
+
+
 @pytest.mark.parametrize("mutation", [
     "same-message", "different-interaction", "overwritten-conflict", "stale-result-digest",
     "accepted-recipient", "unmatched-external-event", "hidden-notification", "scripted-reschedule",

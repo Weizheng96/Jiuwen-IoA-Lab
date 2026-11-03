@@ -32,11 +32,29 @@ def _number(value, *, positive=False):
     return value
 
 
+def _panel_roles(layout):
+    return {"single": [None], "dual": ["native", "platform"],
+            "native-pair": ["wang-native", "zhao-native"],
+            "quad": ["wang-platform", "zhao-platform", "wang-native", "zhao-native"]}[layout]
+
+
+def _native_pair_requested(proof):
+    override = proof.get("presentationOverride")
+    if override is None:
+        return False
+    require(isinstance(override, dict) and proof.get("scene") == "messaging" and
+            override.get("layout") == "native-pair" and override.get("source") == "user" and
+            isinstance(override.get("reason"), str) and bool(override["reason"].strip()),
+            "Native-pair presentation requires the user's explicit layout instruction")
+    return True
+
+
 def build_native_plan(folder, scene, voice_timing, *, review_candidate=False):
     """Read and hash approved inputs; planning never decodes media or changes files."""
     folder, voice_timing = Path(folder).resolve(), Path(voice_timing).resolve()
     proof = read_json(folder / "evidence.json")
     require(proof.get("scene") == scene, "Evidence scene does not match the requested scene")
+    native_pair = _native_pair_requested(proof)
     pending = validate_native_demo(proof, require_complete=False)
     validate_native_files(folder, proof)
     approved = voice_plan(scene)
@@ -61,10 +79,15 @@ def build_native_plan(folder, scene, voice_timing, *, review_candidate=False):
         require(audio.is_file() and media_digest(audio) == voice.get("audioSha256"),
                 "Approved audio SHA256 mismatch: " + key)
         entry = raw.get(key)
+        if entry and "duration" in entry:
+            requested = _number(entry["duration"], positive=True)
+            require(requested >= duration, "Shot duration cannot truncate approved narration: " + key)
+            duration = requested
         reasons, panels = [], []
         layout = entry.get("layout", "single") if entry else "single"
-        require(layout in ("single", "dual", "quad"), "Unknown panel layout: " + key)
-        expected = {"single": 1, "dual": 2, "quad": 4}[layout]
+        require(layout in ("single", "dual", "quad", "native-pair"), "Unknown panel layout: " + key)
+        require(layout != "native-pair" or native_pair, "Native-pair layout lacks user presentation override")
+        expected = len(_panel_roles(layout))
         if not entry:
             reasons.append("镜头尚未映射")
         else:
@@ -75,7 +98,7 @@ def build_native_plan(folder, scene, voice_timing, *, review_candidate=False):
             require(isinstance(entries, list) and len(entries) <= expected, "Too many panels: " + key)
             require(len({p.get("role") for p in entries}) == len(entries), "Duplicate panel role: " + key)
             if layout != "single":
-                roles = {"native", "platform"} if layout == "dual" else {"wang-platform", "zhao-platform", "wang-native", "zhao-native"}
+                roles = set(_panel_roles(layout))
                 require(all(p.get("role") in roles for p in entries), "Panel role does not match the declared layout")
             if len(entries) != expected:
                 reasons.append("面板素材尚未齐全")
@@ -84,6 +107,14 @@ def build_native_plan(folder, scene, voice_timing, *, review_candidate=False):
                         isinstance(panel.get("label"), str), "Panel role and label are required")
                 start = _number(panel.get("start"))
                 available = _number(panel.get("duration"), positive=True)
+                speed = _number(panel.get("speed", 1), positive=True)
+                require(1 <= speed <= 32, "Playback speed must be between 1 and 32")
+                crop = panel.get("crop")
+                if crop is not None:
+                    require(isinstance(crop, dict) and set(crop) == {"x", "y", "width", "height"} and
+                            all(type(v) is int for v in crop.values()) and
+                            crop["x"] >= 0 and crop["y"] >= 0 and crop["width"] > 0 and crop["height"] > 0,
+                            "Crop must contain nonnegative integer origin and positive dimensions")
                 source = inside(folder, panel["source"])
                 require(re.fullmatch(r"[0-9a-f]{64}", str(panel.get("sha256", ""))) is not None,
                         "Panel source SHA256 is required")
@@ -93,7 +124,7 @@ def build_native_plan(folder, scene, voice_timing, *, review_candidate=False):
                     item["missing"] = True
                 else:
                     require(media_digest(source) == panel["sha256"], "Source SHA256 mismatch: " + key)
-                    if duration > available:
+                    if duration > available / speed:
                         require(panel.get("holdLastFrame") is True and isinstance(panel.get("holdReason"), str)
                                 and bool(panel["holdReason"].strip()),
                                 "Raw interval is too short; an explicit labelled frame hold is required: " + key)
@@ -103,7 +134,7 @@ def build_native_plan(folder, scene, voice_timing, *, review_candidate=False):
             prior = previous_panels.get(panel["role"])
             if prior and waiting_was_cut(prior, panel):
                 waiting_cuts.append(panel["role"])
-            previous_panels[panel["role"]] = {**panel, "duration": min(panel["duration"], duration)}
+            previous_panels[panel["role"]] = {**panel, "duration": min(panel["duration"], duration * panel.get("speed", 1))}
         if reasons:
             pending.extend(key + ": " + reason for reason in reasons)
         shots.append({"id": key, "duration": duration, "finalStart": round(at, 3), "layout": layout,
@@ -115,10 +146,11 @@ def build_native_plan(folder, scene, voice_timing, *, review_candidate=False):
     if not review_candidate:
         require(not pending, "Native edit requires complete evidence and footage: " + "; ".join(pending))
         validate_native_demo(proof)
-        roles = {"wang-platform", "zhao-platform", "wang-native", "zhao-native"} if scene == "messaging" else {"native", "platform"}
-        require(any(s["layout"] == ("quad" if scene == "messaging" else "dual") and
+        required_layout = ("native-pair" if native_pair else "quad") if scene == "messaging" else "dual"
+        roles = set(_panel_roles(required_layout))
+        require(any(s["layout"] == required_layout and
                     {p["role"] for p in s["panels"]} == roles for s in shots),
-                "Approved multi-panel platform and native footage is missing")
+                "Approved multi-panel footage is missing")
     return {"scene": scene, "shots": shots, "voices": voices, "captions": captions,
             "proof": copy.deepcopy(proof), "pending": pending, "duration": round(at, 3),
             "reviewCandidate": bool(review_candidate), "voiceTimingSha256": media_digest(voice_timing),
@@ -133,11 +165,22 @@ def _media_seconds(ff, source):
     return int(match[1]) * 3600 + int(match[2]) * 60 + float(match[3])
 
 
+def _media_dimensions(ff, source):
+    result = subprocess.run([ff, "-hide_banner", "-i", str(source)], capture_output=True,
+                            text=True, encoding="utf-8", errors="replace")
+    for line in result.stderr.splitlines():
+        if "Video:" in line:
+            match = re.search(r"\b(\d{2,5})x(\d{2,5})\b", line)
+            if match:
+                return tuple(map(int, match.groups()))
+    raise ValueError("Cannot establish actual source dimensions")
+
+
 def render_native_shot(ff, folder, shot, destination, *, review_candidate, preparation_label=""):
     """Precompose undistorted panels; missing footage remains visibly missing."""
     folder, destination = Path(folder), Path(destination)
     layout, length = shot["layout"], shot["duration"]
-    count = {"single": 1, "dual": 2, "quad": 4}[layout]
+    count = len(_panel_roles(layout))
     width, height = (1920, 1080) if count == 1 else ((960, 1080) if count == 2 else (960, 540))
     inputs, filters, notes = [], [], []
     font = ffpath(Path("C:/Windows/Fonts/msyh.ttc"))
@@ -148,8 +191,7 @@ def render_native_shot(ff, folder, shot, destination, *, review_candidate, prepa
         return (f"drawtext=fontfile='{font}':textfile='{ffpath(path)}':expansion=none:"
                 f"x={x}:y={y}:fontsize={size}:fontcolor={color}:box=1:boxcolor=0x08111ee6:boxborderw=8")
 
-    roles = ([None] if count == 1 else (["native", "platform"] if count == 2 else
-             ["wang-platform", "zhao-platform", "wang-native", "zhao-native"]))
+    roles = _panel_roles(layout)
     for index in range(count):
         panel = (shot["panels"][0] if shot["panels"] else None) if count == 1 else next(
             (p for p in shot["panels"] if p["role"] == roles[index]), None)
@@ -158,11 +200,22 @@ def render_native_shot(ff, folder, shot, destination, *, review_candidate, prepa
             require(media_digest(source) == panel["sha256"], "Source SHA256 changed before encoding")
             require(panel["start"] + panel["duration"] <= _media_seconds(ff, source) + .06,
                     "Declared trim extends beyond actual source duration")
-            inputs += ["-ss", str(panel["start"]), "-t", str(min(panel["duration"], length)), "-i", str(source)]
-            chain = f"[{index}:v]setpts=PTS-STARTPTS,scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=25"
-            if panel["duration"] < length:
-                chain += f",tpad=stop_mode=clone:stop_duration={length-panel['duration']:.3f}"
+            speed = panel.get("speed", 1)
+            inputs += ["-ss", str(panel["start"]), "-t", str(min(panel["duration"], length * speed)), "-i", str(source)]
+            crop_filter = ""
+            if panel.get("crop"):
+                crop = panel["crop"]
+                source_width, source_height = _media_dimensions(ff, source)
+                require(crop["x"] + crop["width"] <= source_width and crop["y"] + crop["height"] <= source_height,
+                        "Crop exceeds actual source dimensions")
+                crop_filter = f"crop={crop['width']}:{crop['height']}:{crop['x']}:{crop['y']},"
+            chain = f"[{index}:v]{crop_filter}setpts=(PTS-STARTPTS)/{speed},scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=25"
+            displayed_seconds = panel["duration"] / speed
+            if displayed_seconds < length:
+                chain += f",tpad=stop_mode=clone:stop_duration={length-displayed_seconds:.3f}"
                 notes.append("定格讲解：" + panel["holdReason"])
+            if speed > 1:
+                notes.append(f"实录加速 ×{speed:g}")
             label = panel["label"]
             if panel.get("captureKind") == "later-review":
                 label += " · 事后回看原记录"
@@ -186,7 +239,7 @@ def render_native_shot(ff, folder, shot, destination, *, review_candidate, prepa
         banners.append("本镜头待补：" + "；".join(shot["pendingReasons"]))
     if shot.get("waitingCuts"):
         banners.append("同源等待片段已剪短")
-    banners.extend(notes)
+    banners.extend(dict.fromkeys(notes))
     filters.append("[screen]" + label_filter("\n".join(banners), "banner", y=76, size=26,
                                            color="0xffdc91" if review_candidate else "white") + "[v]")
     subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-y", *inputs,

@@ -116,6 +116,7 @@ def publish_native(folder, scene, approved_video_sha256=None):
         "movie": "out/" + movie, "sha256": digest, "bytes": target.stat().st_size,
         "acceptancePresentation": proof.get("acceptancePresentation", "recorded"),
         "presentationScope": proof.get("presentationScope"), "outlookFootageIncluded": proof.get("outlookFootageIncluded", False),
+        "presentationOverride": _only(proof.get("presentationOverride", {}), ("layout", "source")),
         "preparation": _only(proof.get("preparation", {}), ("label", "guided", "firstAttemptAutonomous")),
         "evidenceSha256": {key: value["sha256"] for key, value in proof["evidence"].items()},
         "business": public_business,
