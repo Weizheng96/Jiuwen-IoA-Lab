@@ -29,6 +29,6 @@ Web调用要区分确认帧与最终结果：已核对版本的history.get通过
 
 原生终端回显不能替代SDK原数据。先区分JSON语法、UTF-8文件、宿主代码页和业务值损坏；跨终端的结构化输出可用ASCII转义JSON保留中文，不能因回显乱码重写合同。大段既有非秘密素材及真实SDK回执，按产品共用calling.md的方法用本机UTF-8脚本提取组合，不要求模型逐字重抄。异步调用保存完整引用对象，并分别核查询和原作业终态，未取得源码不宣称已核验收覆盖。
 
-本机公开历史审计用`python .agents/skills/jiuwen-swarm/scripts/read_web_history.py --ws-url <已观察的本机WebChannel地址及user_id> --session-id <实际会话ID> --out <本机私有新文件>`。脚本按页等done、按tool_call_id去重，只向stdout汇报调用元数据；不扫会话库或上传正文。已核对版本会向原网页广播历史事件，在模型终态后审计，恢复最新页面再继续，录制期间不回放历史。
+本机公开历史审计用`python .agents/skills/jiuwen-swarm/scripts/read_web_history.py --ws-url <已观察的本机WebChannel地址及user_id> --session-id <实际会话ID> --out <本机私有新文件> --configuration-path <本轮实际配置路径>`；多个配置重复该选项，只比较元数据，不打开配置。脚本按页等done、按tool_call_id去重，只向stdout汇报调用元数据；不扫会话库或上传正文。变量转交等静态分析无法确定的调用须另核代码，未匹配不能当作访问隔离证明。已核对版本会向原网页广播历史事件，在模型终态后审计，恢复最新页面再继续，录制期间不回放历史。
 
 网页通知可采用原生ApplicationPluginExtension及受控公开历史接口。历史持久化不自动建立列表所需的用户/渠道归属；先用原生会话创建接口取得真实ID并保存映射，不自己拼接web会话ID。固定目标用户、独立鉴权、稳定通知ID、输入摘要和持久回执；传入正文只作数据，不暴露任意RPC。响应丢失先查原回执，库重建不能被当作从未发送。后台会话、网页持久化、页面实际可见、用户已读是不同证据，不直接写九问私有历史数据库补齐。
