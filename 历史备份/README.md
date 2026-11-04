@@ -4,6 +4,7 @@
 
 | 归档文件 | 原位置 | 替代入口 |
 |---|---|---|
+| [私人交互初版](私人交互初版/README.md) | demo/out/私人交互流程.mp4、04-messaging-draft.srt、demo/messaging/初版播放.html | [私人交互演示](../demo/out/私人交互演示.mp4)；影片与字幕原字节保留，旧播放页及证据中的文件引用已同步 |
 | [旧官方服务目录读取](旧官方服务目录/catalog.py) | official-services/catalog.py | [官方资源包](../src/official/README.md)，所有当前调用已改为包资源 |
 | [旧消息发送示例](旧消息发送示例/README.md) | examples/messaging.py | [个人助手技能通信流程](../src/access/skills/assistant/references/messaging.md)；共用常驻组件 |
 | [重构前本机构建残留](本机构建残留/README.md) | sdk/、ioalab.egg-info/ | [SDK](../src/access/sdk/README.md)及[平台](../src/platform/README.md)；生成残留仅本机保留 |

@@ -115,8 +115,8 @@
   "draftVideo": {
     "status": "initial_review_not_successful_tutorial",
     "title": "私人交互流程",
-    "file": "out/私人交互流程.mp4",
-    "player": "messaging/初版播放.html",
+    "file": "../历史备份/私人交互初版/私人交互流程.mp4",
+    "player": "../历史备份/私人交互初版/初版播放.html",
     "sha256": "214da468bba52322f5674a1a41b73f41d382a10f30731e2bdafb1c6a2dbd050e",
     "bytes": 6533043,
     "durationSeconds": 146.5,
