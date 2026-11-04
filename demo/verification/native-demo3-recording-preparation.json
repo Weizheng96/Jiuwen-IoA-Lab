@@ -1,0 +1,46 @@
+{
+  "observedDate": "2026-11-04",
+  "validationLevel": "D",
+  "status": "ready_for_assistant_login_and_native_onboarding_recording",
+  "assistantAccount": {
+    "username": "xiaomei.video1104",
+    "registeredBeforeRecordingByExplicitUserInstruction": true,
+    "actualPreparedVirtualCredit": "500.00",
+    "creditSource": "Normal platform registration login gift",
+    "delegationBudget": "500",
+    "configurationValidated": true,
+    "sdkStarted": false
+  },
+  "serviceCount": 7,
+  "categoryCount": 9,
+  "taxonomy": "available",
+  "serviceModel": "qwen3.8-max#2",
+  "sevenPublicTemplatesVerifiedAndPreparedTermsMatched": true,
+  "browserLogoutTest": {
+    "browserLoggedOutThroughActualUi": true,
+    "sameActor": "svc-ad8dc15a-df91-409e-997b-82f89db5bd43",
+    "platformConnected": true,
+    "published": true,
+    "executionReady": true,
+    "accepting": true,
+    "deletedOrRepublished": false,
+    "activeTemplateDigests": [
+      "sha256:ac6083dbb1afbf1deb328aa486e406980b6fcd98f00dc37523e72190b81a6460"
+    ]
+  },
+  "coreRestartForLoginCredit": {
+    "loginCredit": "500",
+    "sameDataDirectory": true,
+    "sameSevenSdkInstances": true,
+    "exactSignedPublicTemplatesUnchanged": 7,
+    "initialObservationSawTransientSdkDisconnected": true,
+    "originalFailurePreserved": true,
+    "laterSameInstancesVerified": true,
+    "secondCoreStartAttempted": false
+  },
+  "notProven": [
+    "本轮个人助手原生接入、发现、比选及新委托履约",
+    "完整新版Demo2、3影片"
+  ],
+  "privateEvidencePublished": false
+}

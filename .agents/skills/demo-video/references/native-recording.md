@@ -112,6 +112,8 @@ node --test .agents/skills/demo-video/scripts/capture_frames.test.mjs
 
 ## 时间轴与补录
 
+用户原片的文件名可能是保存或结束时刻，先以媒体creation_time、实际首帧与已发生的日志事件校准源零点。粗间隔抽帧仅用于定位，不能据此宣称短暂的注册、上传或确认动作缺失；须细查对应操作窗口。实际未录到的步骤不由相近页面或旁白补成已发生，部分流程剪辑明确其范围，并保留未覆盖镜头清单。
+
 原片、接续和尾段各保留独立文件与时间原点；每段写清 `source`、原始起点、时长及关联证据。新版在 `segments.json` 按批准镜头 ID 指定 `layout` 和 `panels`，各面板绑定真实源文件 SHA-256、`start`、`duration`、`role` 与标签。双格按 `native/platform`、四格按 `wang-platform/zhao-platform/wang-native/zhao-native` 归位，先保比例合成为 1920×1080，再叠字幕与旁白。编辑决策表把原片区间映射到成片，跨源不能直接比较绝对时间戳。现有 [artifacts.py](../../../../demo/artifacts.py) 的 `waiting_was_cut` 仅比较同源区间，应保留这个边界。
 
 可压缩真实等待并标记“等待片段已剪短”，保留操作、请求和实际结果的先后。不能通过换源删除关键追问、拒绝或失败，将后来恢复剪成首次自主成功。事后只读回看设 `captureKind: later-review`；原片不够长时可用 `holdLastFrame` 和 `holdReason` 明确标注定格讲解，也可延长可用实录区间或重排剪辑，不补造未录操作。
