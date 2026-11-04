@@ -1,0 +1,456 @@
+{
+  "observedDate": "2026-11-04",
+  "validationLevel": "D",
+  "status": "engineering_and_codex_visual_review_pass",
+  "title": "发起委托演示",
+  "video": "demo/out/发起委托演示.mp4",
+  "videoSha256": "d866edb3791bf4781ac48cbf1120611ddb32fa44d4cfc6b5c65a649601e69a3e",
+  "bytes": 50117183,
+  "seconds": 349.53,
+  "picture": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "audio": "AAC stereo 48000Hz",
+  "sourceSha256": "4279900755a191ac38d8e3fa3591307b05811f91744554f5b30eebb889ac0657",
+  "sourceSeconds": 2620.37,
+  "sourceCreationUtc": "2026-11-04T05:44:33Z",
+  "sourcePrivateAndPreserved": true,
+  "sourceTimeCalibration": {
+    "sourceZeroLocal": "2026-11-04 13:44:33",
+    "sourceEndLocal": "2026-11-04 14:28:13",
+    "method": "MP4 creation_time and exact duration; filename is save time"
+  },
+  "scope": "个人助手登录与接入、自然语言发起、委托授权、服务发现与三家提案比较、具体合同确认、开工、独立实名授权演练、交付与WASM验收、用户验收付款、结清",
+  "preparationOffscreenByUserInstruction": [
+    "账号提前注册",
+    "本机账号配置提前保存"
+  ],
+  "notRecorded": [
+    "账号注册与外置配置填写（用户批准拍前准备）",
+    "ZIP上传及导入步骤"
+  ],
+  "approvedNarrationSubset": [
+    "cover",
+    "need",
+    "authorization",
+    "discover",
+    "compare",
+    "contract",
+    "step",
+    "production",
+    "verify",
+    "accept",
+    "close"
+  ],
+  "newTtsRequests": 0,
+  "originalRawAudioUsed": false,
+  "humanUserOperatedRealConfirmation": true,
+  "realConfirmationWindows": [
+    {
+      "sourceStart": 368,
+      "sourceEnd": 375,
+      "stage": "delegation.authorize"
+    },
+    {
+      "sourceStart": 1258,
+      "sourceEnd": 1267,
+      "stage": "card.confirm"
+    },
+    {
+      "sourceStart": 1658,
+      "sourceEnd": 1678,
+      "stage": "owner_step"
+    },
+    {
+      "sourceStart": 2466,
+      "sourceEnd": 2478,
+      "stage": "accept"
+    }
+  ],
+  "finalFullDecodeExit": 0,
+  "finalShotCount": 27,
+  "finalNarrationWindows": [
+    {
+      "id": "cover",
+      "meanDb": -24.4,
+      "peakDb": -6.3,
+      "decodeExit": 0
+    },
+    {
+      "id": "need",
+      "meanDb": -26.5,
+      "peakDb": -5.1,
+      "decodeExit": 0
+    },
+    {
+      "id": "authorization",
+      "meanDb": -28.1,
+      "peakDb": -6.3,
+      "decodeExit": 0
+    },
+    {
+      "id": "discovery",
+      "meanDb": -27.2,
+      "peakDb": -6.2,
+      "decodeExit": 0
+    },
+    {
+      "id": "compare",
+      "meanDb": -28.3,
+      "peakDb": -6.2,
+      "decodeExit": 0
+    },
+    {
+      "id": "contract",
+      "meanDb": -27.6,
+      "peakDb": -5.8,
+      "decodeExit": 0
+    },
+    {
+      "id": "step",
+      "meanDb": -28.4,
+      "peakDb": -5.7,
+      "decodeExit": 0
+    },
+    {
+      "id": "production",
+      "meanDb": -24.6,
+      "peakDb": -5.2,
+      "decodeExit": 0
+    },
+    {
+      "id": "verify",
+      "meanDb": -22.9,
+      "peakDb": -5.6,
+      "decodeExit": 0
+    },
+    {
+      "id": "accept",
+      "meanDb": -23.0,
+      "peakDb": -5.6,
+      "decodeExit": 0
+    },
+    {
+      "id": "close",
+      "meanDb": -25.3,
+      "peakDb": -5.8,
+      "decodeExit": 0
+    }
+  ],
+  "codexFinalContactSheetAndKeyFrameVisualReview": true,
+  "humanListeningPerformed": false,
+  "privacyReview": {
+    "passwordManagerPopupCut": true,
+    "passwordInputMasked": true,
+    "noSettingsFileBodyUsed": true,
+    "noClearCredentialsInReviewedFrames": true
+  },
+  "contractRef": "sha256:43d9b600443b9b72e3d65b549935ca14e77c7ea408e931d847a184e36c06b326",
+  "actualCosts": {
+    "contract": 299,
+    "proposalFeesAcrossThreeCandidates": 3,
+    "taskTotalSpent": 302,
+    "budget": 500,
+    "currency": "simulated virtual coins"
+  },
+  "independentBusinessReadOnlyVerification": {
+    "normalPublicSdkUsedByRoot": true,
+    "formed": true,
+    "started": true,
+    "availablePeriods": 1,
+    "acceptedPeriods": 1,
+    "payment": "paid",
+    "closed": true,
+    "signedContractChainOneThroughSevenVerified": true,
+    "installmentPaymentReceiptAmount": 299,
+    "providerReputation": "verified; completed=1; successRate=1.0",
+    "scope": "当前原单只读状态及验签独立于画面核查，不代替录像中的点击",
+    "originalCompletedVerifierOperation": {
+      "status": "pass",
+      "errors": [],
+      "allTenChecksOk": true,
+      "rerun": false
+    }
+  },
+  "footageCaveats": [
+    "具体合同确认时右侧仍残留239候选投影；成片该镜只展示真实本机合同页，后段实际299合同与结清回执单独展示。",
+    "模型结尾300小计遗漏另外两家拟卡费；成片结尾以公开SDK实际任务scope核对的总302标注，没有修改原生页面。",
+    "本机验收页先展示绑定报告并由用户确认，后续10项模型表作为回看汇总；成片保持实际源时序。",
+    "本地源包交付与沙箱验收不等于微信注册、审核或上线。"
+  ],
+  "shots": [
+    {
+      "id": "cover",
+      "sourceStart": null,
+      "sourceDuration": null,
+      "speed": 1,
+      "outputStart": 0,
+      "outputDuration": 8,
+      "caption": "从一句需求，到交付、验收与付款",
+      "voiceId": "cover"
+    },
+    {
+      "id": "login",
+      "sourceStart": 0,
+      "sourceDuration": 10,
+      "speed": 1.25,
+      "outputStart": 8,
+      "outputDuration": 8.0,
+      "caption": "登录已提前注册的个人助手账号",
+      "voiceId": null
+    },
+    {
+      "id": "skill",
+      "sourceStart": 26,
+      "sourceDuration": 8,
+      "speed": 1,
+      "outputStart": 16.0,
+      "outputDuration": 8.0,
+      "caption": "选择已安装的个人助手技能",
+      "voiceId": null
+    },
+    {
+      "id": "connect",
+      "sourceStart": 50,
+      "sourceDuration": 165,
+      "speed": 16.5,
+      "outputStart": 24.0,
+      "outputDuration": 10.0,
+      "caption": "使用预先保存的配置接入平台",
+      "voiceId": null
+    },
+    {
+      "id": "ready",
+      "sourceStart": 215,
+      "sourceDuration": 20,
+      "speed": 2,
+      "outputStart": 34.0,
+      "outputDuration": 10.0,
+      "caption": "核对当前身份与接入就绪状态",
+      "voiceId": null
+    },
+    {
+      "id": "need",
+      "sourceStart": 235,
+      "sourceDuration": 20,
+      "speed": 1,
+      "outputStart": 44.0,
+      "outputDuration": 20.0,
+      "caption": "只说业务需求：预约小程序，预算上限500",
+      "voiceId": "need"
+    },
+    {
+      "id": "prepare",
+      "sourceStart": 330,
+      "sourceDuration": 24,
+      "speed": 4,
+      "outputStart": 64.0,
+      "outputDuration": 6.0,
+      "caption": "准备本次委托的授权范围",
+      "voiceId": null
+    },
+    {
+      "id": "authorization",
+      "sourceStart": 354,
+      "sourceDuration": 24,
+      "speed": 1,
+      "outputStart": 70.0,
+      "outputDuration": 24.0,
+      "caption": "在本机确认页批准这一次委托授权",
+      "voiceId": "authorization"
+    },
+    {
+      "id": "discovery",
+      "sourceStart": 400,
+      "sourceDuration": 60,
+      "speed": 4,
+      "outputStart": 94.0,
+      "outputDuration": 15.0,
+      "caption": "发现服务，核对范围、资格与所需材料",
+      "voiceId": "discover"
+    },
+    {
+      "id": "clarification",
+      "sourceStart": 460,
+      "sourceDuration": 45,
+      "speed": 3,
+      "outputStart": 109.0,
+      "outputDuration": 15.0,
+      "caption": "按真实追问说明材料与合理默认设置",
+      "voiceId": null
+    },
+    {
+      "id": "proposals",
+      "sourceStart": 780,
+      "sourceDuration": 330,
+      "speed": 33,
+      "outputStart": 124.0,
+      "outputDuration": 10.0,
+      "caption": "等待候选服务返回本轮正式提案",
+      "voiceId": null
+    },
+    {
+      "id": "compare",
+      "sourceStart": 1125,
+      "sourceDuration": 80,
+      "speed": 4,
+      "outputStart": 134.0,
+      "outputDuration": 20.0,
+      "caption": "比较三份真实提案，说明推荐依据",
+      "voiceId": "compare"
+    },
+    {
+      "id": "choose",
+      "sourceStart": 1205,
+      "sourceDuration": 45,
+      "speed": 3,
+      "outputStart": 154.0,
+      "outputDuration": 15.0,
+      "caption": "选择码上飞，等待具体合同确认",
+      "voiceId": null
+    },
+    {
+      "id": "contract",
+      "sourceStart": 1250,
+      "sourceDuration": 25,
+      "speed": 1,
+      "outputStart": 169.0,
+      "outputDuration": 25.0,
+      "caption": "确认本次码上飞合同；本机页为准",
+      "voiceId": "contract"
+    },
+    {
+      "id": "formation",
+      "sourceStart": 1275,
+      "sourceDuration": 75,
+      "speed": 7.5,
+      "outputStart": 194.0,
+      "outputDuration": 10.0,
+      "caption": "恢复同一请求，完成签约与开工",
+      "voiceId": null
+    },
+    {
+      "id": "formed",
+      "sourceStart": 1405,
+      "sourceDuration": 35,
+      "speed": 3.5,
+      "outputStart": 204.0,
+      "outputDuration": 10.0,
+      "caption": "核对已成立的合同与开工状态",
+      "voiceId": null
+    },
+    {
+      "id": "step",
+      "sourceStart": 1658,
+      "sourceDuration": 20,
+      "speed": 1,
+      "outputStart": 214.0,
+      "outputDuration": 20.0,
+      "caption": "用户在本机页独立同意实名授权演练",
+      "voiceId": "step"
+    },
+    {
+      "id": "step-result",
+      "sourceStart": 1725,
+      "sourceDuration": 70,
+      "speed": 3.5,
+      "outputStart": 234.0,
+      "outputDuration": 20.0,
+      "caption": "确认后恢复原环节；本片保留对话回执",
+      "voiceId": null
+    },
+    {
+      "id": "production",
+      "sourceStart": 1800,
+      "sourceDuration": 160,
+      "speed": 16,
+      "outputStart": 254.0,
+      "outputDuration": 10.0,
+      "caption": "按合同生产，等待本轮实际交付",
+      "voiceId": "production"
+    },
+    {
+      "id": "waiting",
+      "sourceStart": 1960,
+      "sourceDuration": 480,
+      "speed": 48,
+      "outputStart": 264.0,
+      "outputDuration": 10.0,
+      "caption": "继续等待交付；较长静止等待已压缩",
+      "voiceId": null
+    },
+    {
+      "id": "delivery",
+      "sourceStart": 2450,
+      "sourceDuration": 16,
+      "speed": 2,
+      "outputStart": 274.0,
+      "outputDuration": 8.0,
+      "caption": "取回交付件，执行验收并准备确认",
+      "voiceId": null
+    },
+    {
+      "id": "verify",
+      "sourceStart": 2466,
+      "sourceDuration": 6,
+      "speed": 0.75,
+      "outputStart": 282.0,
+      "outputDuration": 8.0,
+      "caption": "核对本机确认页绑定的验收报告",
+      "voiceId": "verify"
+    },
+    {
+      "id": "accept",
+      "sourceStart": 2472,
+      "sourceDuration": 6,
+      "speed": 0.6666666666666666,
+      "outputStart": 290.0,
+      "outputDuration": 9.0,
+      "caption": "用户在本机页确认本期验收与付款",
+      "voiceId": "accept"
+    },
+    {
+      "id": "report-review",
+      "sourceStart": 2488,
+      "sourceDuration": 22,
+      "speed": 1,
+      "outputStart": 299.0,
+      "outputDuration": 22,
+      "caption": "回看本期10项验收结果与299合同款",
+      "voiceId": null
+    },
+    {
+      "id": "payment",
+      "sourceStart": 2533,
+      "sourceDuration": 37,
+      "speed": 3.7,
+      "outputStart": 321.0,
+      "outputDuration": 10.0,
+      "caption": "核对同一合同的实际付款与结清",
+      "voiceId": null
+    },
+    {
+      "id": "close",
+      "sourceStart": 2590,
+      "sourceDuration": 29,
+      "speed": 2,
+      "outputStart": 331.0,
+      "outputDuration": 14.5,
+      "caption": "合同299；三家拟卡费共3；本轮总支出302",
+      "voiceId": "close"
+    },
+    {
+      "id": "end",
+      "sourceStart": null,
+      "sourceDuration": null,
+      "speed": 1,
+      "outputStart": 345.5,
+      "outputDuration": 4,
+      "caption": "本地交付完成；不等于微信已上线",
+      "voiceId": null
+    }
+  ],
+  "independentBusinessRecord": "demo/verification/native-assistant-delegation-recording.json"
+}
