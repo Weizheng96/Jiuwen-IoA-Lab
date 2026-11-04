@@ -35,7 +35,7 @@ def uid():return str(uuid.uuid4())
 @contextmanager
 def online(client,local,service,*,runtimes=(None,None)):
     account,identity=service
-    a=Peer(client,{'actor':local.signer.id,'token':local.token},runtime=runtimes[0])
+    a=Peer(client,{'actor':local.identities[0].signer.id,'token':local.account.token},runtime=runtimes[0])
     b=Peer(client,{'actor':identity.agent_id,'token':account.token},runtime=runtimes[1])
     try:yield a,b
     finally:b.close();a.close()
@@ -51,7 +51,7 @@ def intent(platform,client,local,service,template,*,fees='3.00',scope=None):
     _,identity=service
     if scope is None:
         response=register(client,local,authorization(local,fees=fees));response.raise_for_status();scope=response.json()['scopeDigest']
-    request=build_request(template,request_id=uid(),version=1,client={'id':local.signer.id,'jwk':local.signer.jwk},
+    request=build_request(template,request_id=uid(),version=1,client={'id':local.identities[0].signer.id,'jwk':local.identities[0].signer.jwk},
                           signers={'slot1':'client','slot7':'client'},spec={'result':{}},inputs={},
                           delegation_scope_digest=scope,payment_provider=platform.payment_provider)
     body={'formation':'proposal','templateDigest':template['templateDigest'],'scopeDigest':scope,
@@ -75,8 +75,8 @@ def fee_body(local,identity,template,value):
     amount=template['pricing']['proposalFee']
     token=checkout(payee,identity.payment,purpose='proposal-fee',digest_ref={'requestDigest':request_digest(request)},
                    period=None,amount=amount,currency='CNY',now=now)
-    return {'checkoutMandate':checkout_mandate(token,local.payer,now),
-            'paymentMandate':payment_mandate(token,local.payer,payee=payee,amount=amount,currency='CNY',instrument={'id':'test','type':'wallet'},now=now),
+    return {'checkoutMandate':checkout_mandate(token,local.identities[0].payment,now),
+            'paymentMandate':payment_mandate(token,local.identities[0].payment,payee=payee,amount=amount,currency='CNY',instrument={'id':'test','type':'wallet'},now=now),
             'template':template,'request':request}
 
 
@@ -90,11 +90,11 @@ def frame(peer,kind,payload,operation=None):
 
 def invoke(platform,peer,kind,payload,operation=None):
     owner=platform.identities.agent(peer.actor)['owner_id']
-    return platform.messaging.delivery.control(owner,peer.ready['connectionId'],{peer.actor:peer.generation},frame(peer,kind,payload,operation))
+    return platform.delivery.control(owner,peer.ready['connectionId'],{peer.actor:peer.generation},frame(peer,kind,payload,operation))
 
 
-def test_ws_intent_opens_receivers_uuid_and_returns_actual_reservation_before_fee(platform,client,local_client,service):
-    local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
+def test_ws_intent_opens_receivers_uuid_and_returns_actual_reservation_before_fee(platform,client,protocol_participant,service):
+    local=protocol_participant;template=offer(platform,service);value=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
         configure(receiver)
         binding=opened(sender,receiver,value)
@@ -105,15 +105,15 @@ def test_ws_intent_opens_receivers_uuid_and_returns_actual_reservation_before_fe
                 'inReplyTo':value['messageId'],'expiresAt':at(600),'body':{'outcome':'reserved',**{k:reserved[k] for k in ('admissionId','bindingDigest','holdUntil')}}}
         receiver.call('message.send',result)
         assert sender.delivery(result['messageId'])['message']['body']==result['body']
-        relation=client.get('/api/v1/interactions',headers={'Authorization':'Bearer '+local.token},params={'agentId':sender.actor,'originMessageId':value['messageId']}).json()
+        relation=client.get('/api/v1/interactions',headers={'Authorization':'Bearer '+local.account.token},params={'agentId':sender.actor,'originMessageId':value['messageId']}).json()
         assert relation['interactionId']==binding['interactionId'] and relation['bindingDigest']==value['body']['bindingDigest']
         assert receiver.call('admission.status',{})['active']==1
         assert platform.db.rows('SELECT * FROM transfers WHERE ref=?',value['body']['bindingDigest'])==[]
 
 
-def test_offline_intent_queues_without_charging_then_delivers_after_connection(platform,client,local_client,service):
-    local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
-    sender=Peer(client,{'actor':local.signer.id,'token':local.token})
+def test_offline_intent_queues_without_charging_then_delivers_after_connection(platform,client,protocol_participant,service):
+    local=protocol_participant;template=offer(platform,service);value=intent(platform,client,local,service,template)
+    sender=Peer(client,{'actor':local.identities[0].signer.id,'token':local.account.token})
     try:
         sender.call('message.send',value)
         assert platform.db.rows('SELECT * FROM delegation_admissions WHERE origin=?',value['messageId'])==[]
@@ -125,8 +125,8 @@ def test_offline_intent_queues_without_charging_then_delivers_after_connection(p
     finally:sender.close()
 
 
-def test_last_capacity_slot_is_atomic_and_fresh_operations_do_not_extend_original_hold(platform,client,local_client,service):
-    local=local_client;template=offer(platform,service)
+def test_last_capacity_slot_is_atomic_and_fresh_operations_do_not_extend_original_hold(platform,client,protocol_participant,service):
+    local=protocol_participant;template=offer(platform,service)
     values=[intent(platform,client,local,service,template) for _ in range(2)]
     with online(client,local,service) as (sender,receiver):
         configure(receiver)
@@ -143,8 +143,8 @@ def test_last_capacity_slot_is_atomic_and_fresh_operations_do_not_extend_origina
         assert platform.db.rows('SELECT * FROM transfers WHERE ref IN (?,?)',*[v['body']['bindingDigest'] for v in values])==[]
 
 
-def test_real_ap2_scope_and_admission_commit_together_and_restore_original_after_revocation(platform,client,local_client,service):
-    local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
+def test_real_ap2_scope_and_admission_commit_together_and_restore_original_after_revocation(platform,client,protocol_participant,service):
+    local=protocol_participant;template=offer(platform,service);value=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
         configure(receiver);binding=opened(sender,receiver,value);reserved=receiver.call('admission.reserve',binding)
         body=fee_body(local,service[1],template,value);payload={'admissionId':reserved['admissionId'],'ap2':body};operation=uid()
@@ -152,7 +152,7 @@ def test_real_ap2_scope_and_admission_commit_together_and_restore_original_after
         assert receipt['op']=='ap2.pay' and receipt['voucher']['purpose']=='proposal-fee'
         assert receiver.call('admission.status',{'admissionId':reserved['admissionId']})['state']=='committed'
         assert len(platform.db.rows('SELECT * FROM transfers WHERE ref=?',value['body']['bindingDigest']))==1
-        state=client.get('/api/v1/scopes/'+value['body']['scopeDigest'],params={'actor':sender.actor},headers={'Authorization':'Bearer '+local.token}).json()
+        state=client.get('/api/v1/scopes/'+value['body']['scopeDigest'],params={'actor':sender.actor},headers={'Authorization':'Bearer '+local.account.token}).json()
         assert state['proposalFeesPaid']=='1.00'
         sender.call('scope.close',{'scopeDigest':value['body']['scopeDigest']})
         assert sender.call('ap2.pay',payload,operation)==receipt
@@ -161,17 +161,17 @@ def test_real_ap2_scope_and_admission_commit_together_and_restore_original_after
         assert receiver.call('admission.status',{})['active']==1
         changed=copy.deepcopy(payload);changed['admissionId']=uid()
         assert sender.call('ap2.pay',changed,operation,ok=False)['code']=='id_conflict'
-        assert client.get('/api/v1/operations/'+operation,params={'agentId':sender.actor,'operation':'ap2.pay'},headers={'Authorization':'Bearer '+local.token}).json()==receipt
+        assert client.get('/api/v1/operations/'+operation,params={'agentId':sender.actor,'operation':'ap2.pay'},headers={'Authorization':'Bearer '+local.account.token}).json()==receipt
 
 
-def test_budget_write_failure_rolls_back_fee_and_capacity_and_public_ap2_cannot_bypass_it(platform,client,local_client,service):
-    local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
+def test_budget_write_failure_rolls_back_fee_and_capacity_and_public_ap2_cannot_bypass_it(platform,client,protocol_participant,service):
+    local=protocol_participant;template=offer(platform,service);value=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
         configure(receiver);binding=opened(sender,receiver,value);reserved=receiver.call('admission.reserve',binding)
         body=fee_body(local,service[1],template,value)
         reply=platform.psp.handle('ap2.pay',body)
         assert reply.body['error']['code']=='out-of-order'
-        owner=local.account['id'];payload={'admissionId':reserved['admissionId'],'ap2':body};operation=uid()
+        owner=local.account.account['id'];payload={'admissionId':reserved['admissionId'],'ap2':body};operation=uid()
         prepared=platform.payment_operations.prepare(owner,sender.actor,operation,payload)
         original=platform.scopes.record_payment_in
         def fail_after_write(*args):original(*args);raise RuntimeError('test scope receipt failure')
@@ -186,8 +186,8 @@ def test_budget_write_failure_rolls_back_fee_and_capacity_and_public_ap2_cannot_
         assert sender.call('ap2.pay',payload,operation)['op']=='ap2.pay'
 
 
-def test_expiry_and_close_prevent_fee_after_admission(platform,client,local_client,service,monkeypatch):
-    local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
+def test_expiry_and_close_prevent_fee_after_admission(platform,client,protocol_participant,service,monkeypatch):
+    local=protocol_participant;template=offer(platform,service);value=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
         configure(receiver);binding=opened(sender,receiver,value);reserved=receiver.call('admission.reserve',binding)
         payload={'admissionId':reserved['admissionId'],'ap2':fee_body(local,service[1],template,value)}
@@ -199,8 +199,8 @@ def test_expiry_and_close_prevent_fee_after_admission(platform,client,local_clie
         assert sender.call('interaction.close',{'interactionId':binding['interactionId']})['state']=='closed'
 
 
-def test_started_intent_and_original_binding_are_required_and_two_uuids_cannot_replace_it(platform,client,local_client,service):
-    local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
+def test_started_intent_and_original_binding_are_required_and_two_uuids_cannot_replace_it(platform,client,protocol_participant,service):
+    local=protocol_participant;template=offer(platform,service);value=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
         configure(receiver);binding=opened(sender,receiver,value,start=False)
         assert receiver.call('admission.reserve',binding,ok=False)['code']=='forbidden'
@@ -212,8 +212,8 @@ def test_started_intent_and_original_binding_are_required_and_two_uuids_cannot_r
         assert receiver.call('message.send',opened_again,ok=False)['code']=='id_conflict'
 
 
-def test_zero_fee_requires_committed_capacity_before_any_valid_proposal(platform,client,local_client,service):
-    local=local_client;account,identity=service
+def test_zero_fee_requires_committed_capacity_before_any_valid_proposal(platform,client,protocol_participant,service):
+    local=protocol_participant;account,identity=service
     raw=template_from_definition({'formation':'proposal','deliverable':{'name':'result'},'pricing':{'proposalFee':0}},packages=None,payment_provider=platform.payment_provider)
     signed=sign_template({**raw,'provider':identity.protocol_id},identity.signer,'provider',utcnow())
     response=submit(account,identity,publication(platform,identity,template=signed));response.raise_for_status();template=response.json()['templates'][0]
@@ -225,8 +225,8 @@ def test_zero_fee_requires_committed_capacity_before_any_valid_proposal(platform
         assert platform.db.rows('SELECT * FROM transfers WHERE ref=?',value['body']['bindingDigest'])==[]
 
 
-def test_countersign_intent_needs_selected_card_and_commit_needs_fresh_original_slot_one(platform,client,local_client,service):
-    local=local_client;account,identity=service
+def test_countersign_intent_needs_selected_card_and_commit_needs_fresh_original_slot_one(platform,client,protocol_participant,service):
+    local=protocol_participant;account,identity=service
     def upload(**args):return account.api('POST','/provider/packages',{'verifierId':args['verifier_id'],'source':args['source'],'reads':args.get('reads',[])})
     raw=template_from_definition({'formation':'countersign','deliverable':{'name':'result'},'pricing':{'price':'9'},
                                  'verifier':{'id':'admission_test@1.0','source':"def verify(ctx):\n    return {'pass': True}\n"}},
@@ -234,24 +234,24 @@ def test_countersign_intent_needs_selected_card_and_commit_needs_fresh_original_
     signed=sign_template({**raw,'provider':identity.protocol_id},identity.signer,'provider',utcnow())
     response=submit(account,identity,publication(platform,identity,template=signed));response.raise_for_status();template=response.json()['templates'][0]
     response=register(client,local,authorization(local));response.raise_for_status();scope=response.json()['scopeDigest']
-    card=build_card(template,card_id=uid(),client={'id':local.signer.id,'jwk':local.signer.jwk},signers={'slot1':'client','slot7':'client'},
+    card=build_card(template,card_id=uid(),client={'id':local.identities[0].signer.id,'jwk':local.identities[0].signer.jwk},signers={'slot1':'client','slot7':'client'},
                     spec={'result':{}},inputs={},delegation_scope_digest=scope,payment_provider=platform.payment_provider)
     value={'messageId':uid(),'kind':'delegation.intent','recipient':identity.agent_id,'expiresAt':at(600),
            'body':{'formation':'countersign','templateDigest':template['templateDigest'],'scopeDigest':scope,'bindingDigest':card_digest(card),'card':card}}
     with online(client,local,service) as (sender,receiver):
         configure(receiver)
         assert sender.call('message.send',value,ok=False)['code']=='forbidden'
-        proof=sign(digest({'scopeDigest':scope,'cardDigest':card_digest(card)}),local.user,'ioa-contract-selection',utcnow())
+        proof=sign(digest({'scopeDigest':scope,'cardDigest':card_digest(card)}),local.identities[0].user,'ioa-contract-selection',utcnow())
         sender.call('scope.select',{'scopeDigest':scope,'card':card,'proof':proof})
         binding=opened(sender,receiver,value);held=receiver.call('admission.reserve',binding)
         assert receiver.call('admission.commit',{'admissionId':held['admissionId'],'card':card},ok=False)['code']=='invalid_input'
-        signed_card=sign_slot(card,1,local.signer,utcnow())
+        signed_card=sign_slot(card,1,local.identities[0].signer,utcnow())
         assert receiver.call('admission.commit',{'admissionId':held['admissionId'],'card':signed_card})['state']=='committed'
         assert platform.db.rows('SELECT * FROM transfers WHERE ref=?',card_digest(card))==[]
 
 
-def test_parallel_fees_cannot_both_spend_the_last_authorized_fee_budget(platform,client,local_client,service):
-    local=local_client;template=offer(platform,service)
+def test_parallel_fees_cannot_both_spend_the_last_authorized_fee_budget(platform,client,protocol_participant,service):
+    local=protocol_participant;template=offer(platform,service)
     first=intent(platform,client,local,service,template,fees='1.00')
     second=intent(platform,client,local,service,template,scope=first['body']['scopeDigest'])
     with online(client,local,service) as (sender,receiver):
@@ -314,9 +314,9 @@ def test_sdk_intent_and_both_local_uuid_mappings_recover_without_reopening(platf
     finally:runtime.close()
 
 
-def test_connection_takeover_during_payment_prepare_fences_the_old_generation(platform,client,local_client,service,monkeypatch):
+def test_connection_takeover_during_payment_prepare_fences_the_old_generation(platform,client,protocol_participant,service,monkeypatch):
     import threading
-    local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
+    local=protocol_participant;template=offer(platform,service);value=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
         configure(receiver);binding=opened(sender,receiver,value);held=receiver.call('admission.reserve',binding)
         payload={'admissionId':held['admissionId'],'ap2':fee_body(local,service[1],template,value)}
@@ -334,7 +334,7 @@ def test_connection_takeover_during_payment_prepare_fences_the_old_generation(pl
             worker=threading.Thread(target=pay);worker.start()
             try:
                 assert ready.wait(5)
-                replacement=Peer(client,{'actor':local.signer.id,'token':local.token},runtime=sender.runtime)
+                replacement=Peer(client,{'actor':local.identities[0].signer.id,'token':local.account.token},runtime=sender.runtime)
                 assert replacement.generation>sender.generation
             finally:release.set();worker.join(10)
         try:
@@ -346,8 +346,8 @@ def test_connection_takeover_during_payment_prepare_fences_the_old_generation(pl
             if replacement:replacement.close()
 
 
-def test_committed_admission_and_relation_survive_ordinary_message_retention(platform,client,local_client,service,monkeypatch):
-    local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
+def test_committed_admission_and_relation_survive_ordinary_message_retention(platform,client,protocol_participant,service,monkeypatch):
+    local=protocol_participant;template=offer(platform,service);value=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
         configure(receiver);binding=opened(sender,receiver,value);held=receiver.call('admission.reserve',binding)
         sender.call('ap2.pay',{'admissionId':held['admissionId'],'ap2':fee_body(local,service[1],template,value)})
@@ -355,21 +355,21 @@ def test_committed_admission_and_relation_survive_ordinary_message_retention(pla
     # worker validates leases also (correctly) expires that connection, so test
     # recovery on a fresh connection rather than racing a temporary clock jump.
     with monkeypatch.context() as patch:
-        patch.setattr(platform.messaging.delivery,'clock',lambda:time.time()+90*86400)
-        platform.messaging.delivery.cleanup()
+        patch.setattr(platform.delivery,'clock',lambda:time.time()+90*86400)
+        platform.delivery.cleanup()
     previous=(sender,receiver)
     # Ordinary reconnect keeps the durable runtime IDs; inventing new IDs here
     # races server-side close cleanup and correctly trips the competing-instance fence.
     with online(client,local,service,runtimes=tuple(peer.runtime for peer in previous)) as (sender,receiver):
         assert sender.generation>previous[0].generation and receiver.generation>previous[1].generation
         assert receiver.call('admission.status',{'admissionId':held['admissionId']})['state']=='committed'
-        relation=client.get('/api/v1/interactions',headers={'Authorization':'Bearer '+local.token},params={'agentId':sender.actor,'originMessageId':value['messageId']}).json()
+        relation=client.get('/api/v1/interactions',headers={'Authorization':'Bearer '+local.account.token},params={'agentId':sender.actor,'originMessageId':value['messageId']}).json()
         assert relation['state']=='open' and relation['interactionId']==binding['interactionId']
         assert platform.db.one('SELECT envelope FROM delivery_messages WHERE id=?',value['messageId'])['envelope']
 
 
-def test_pending_reclassification_cannot_use_the_old_category_to_accept_new_work(platform,client,local_client,service,monkeypatch):
-    local=local_client;account,identity=service;template=offer(platform,service)
+def test_pending_reclassification_cannot_use_the_old_category_to_accept_new_work(platform,client,protocol_participant,service,monkeypatch):
+    local=protocol_participant;account,identity=service;template=offer(platform,service)
     categories=platform.discovery.categories();allowed=categories[0]['id'];next_category=categories[1]['id']
     payload=authorization(local);payload['context']['categoryIds']=[allowed]
     payload=authorization(local,context=payload['context'])

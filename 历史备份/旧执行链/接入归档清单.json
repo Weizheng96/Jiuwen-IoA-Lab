@@ -1,0 +1,488 @@
+{
+  "schema": "ioalab.archive-manifest/1",
+  "scope": "Retired SDK, connector, participant runners and deployment helpers; not current runtime inputs",
+  "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+  "files": [
+    {
+      "originalPath": "connector/README.md",
+      "archivePath": "历史备份/旧执行链/connector/README.md",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "0e0e975694eb4cb7a2995eb4c10426751358f79053d63256441d04548eeff0f6",
+      "archiveSha256": "62b4e50e695056294f95eda537d6b1c28be08a140a9f90772bd19397f14c3c0d",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/VERSION",
+      "archivePath": "历史备份/旧执行链/connector/VERSION",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "8982f56043340699eaf7ea1d7f633fa15d7088248a3b0b7225ec79afccd0450c",
+      "archiveSha256": "0c15835b864a0b3f8d04edeb9e8671d03a2f9e67395c20b40f7065f9e45c4f0d",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/icon.png",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/icon.png",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "782cf5591b7338e3ffa3e1820c2508b53d4d0f9e14c230da1570cc8466c940a4",
+      "archiveSha256": "782cf5591b7338e3ffa3e1820c2508b53d4d0f9e14c230da1570cc8466c940a4",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/manifest.json",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/manifest.json",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "8af1c2191f342dcdb2a2ff95c08de1362daf690227d43a6f7b95ea7b5472d293",
+      "archiveSha256": "e79ff427c72606ba602e22321782c6d600e8315a722e111bcbddbee9e42a1050",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/skills/ioalab-delegate/SKILL.md",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/skills/ioalab-delegate/SKILL.md",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "8fb080764c78aa0fa349ba1a8863a82db430591af586d14f9984d5e898416a43",
+      "archiveSha256": "7d038fabe7405d814fa7c937eb362f0b1ece2ccb15ff5dc6695c2d43be1fd240",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/skills/ioalab-delegate/references/contract-primitives.md",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/skills/ioalab-delegate/references/contract-primitives.md",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "c3f7972f7c123a01034ca10a499e19be4382e69f6300c024ef50e6a3cf183b53",
+      "archiveSha256": "6413b52afdd7c1595e06892d35cd60b84507faaf51bda70444eaf5d724b458fe",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/skills/ioalab-delegate/references/delegation.md",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/skills/ioalab-delegate/references/delegation.md",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "1d50188a27692b9c87b7ec3835ed5da66593f5877aef629ffebaa1ed630bdc83",
+      "archiveSha256": "a2f7875859779329b21d2b8ea80286ecfdaa89a21cb87a9823324d6ddfdb3a21",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/skills/ioalab-delegate/references/private-interaction.md",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/skills/ioalab-delegate/references/private-interaction.md",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "bbe65de2083ecbec3328474ade7eaa37ea7f1680056493f416a8a63dfb99b70e",
+      "archiveSha256": "cea9f8bb6c48b3aa6fccfa151edd22ac5b8ef5ffc3f69743137fc96ed3691041",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/skills/ioalab-delegate/references/schedule.md",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/skills/ioalab-delegate/references/schedule.md",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "31ba68e9b1916cb6ceb04a16ec597614c3da96f277507334a398222c23917f05",
+      "archiveSha256": "9281332dbfa0191aa073bdf0a9e1d6ab249363cd0ea8b7fadbe85a25180dcfbb",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/skills/ioalab-delegate/scripts/ioalab.py",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/skills/ioalab-delegate/scripts/ioalab.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "ecc8cc85dd62e72ad281f611e9f11bf2bc991bd8cc17003eb318752cf951a554",
+      "archiveSha256": "451b0a9babac7f75a85d7e1da1847dc19f1b5899db8b499194dda29fa65385e2",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/skills/ioalab-delegate/settings.example.json",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/skills/ioalab-delegate/settings.example.json",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "30902cbce57ed65818674da5d14016a4e7d933769bd10b94f84590e46caadf40",
+      "archiveSha256": "12b8cdb2052ee555615f3ee0c944932de989250a845563ac12171de0098798b4",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/ioalab-client/token-schema.json",
+      "archivePath": "历史备份/旧执行链/connector/ioalab-client/token-schema.json",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "91304155323af4a95a04c23da6e9a6294e87df28bb2802c18c8c689268aa82fb",
+      "archiveSha256": "d974ca323a4a2b0375542a38bfbfb9b2337c6bd27dfd52b4222881f3a0fbded5",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "connector/verification/skill-routing.json",
+      "archivePath": "历史备份/旧执行链/connector/verification/skill-routing.json",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "b5913a34652a291dc9dc4d5525791bd4b3befe6ce6bde735ca1c41de15587e4f",
+      "archiveSha256": "acc2c963d51fca91b8c1d43ba47e4958dd42b7afb99b43c58018dcfd9da24285",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "deploy/configure_assistant.py",
+      "archivePath": "历史备份/旧执行链/deploy/configure_assistant.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "c9413f6031f0a1a031e287ed64636ffc9c58f61eb4a39cbc6d4bf24fb6e55ac6",
+      "archiveSha256": "765faf4f735c5e2b6cb5c3885782742cfe9d613c3b813bb84243082add6f1a63",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "deploy/configure_paths.sh",
+      "archivePath": "历史备份/旧执行链/deploy/configure_paths.sh",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "205c92a0c77cb22345fadc2a56127cecc122bdf515d3a7b1f67d2d21df7df766",
+      "archiveSha256": "205c92a0c77cb22345fadc2a56127cecc122bdf515d3a7b1f67d2d21df7df766",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "deploy/ioalab-assistant.service",
+      "archivePath": "历史备份/旧执行链/deploy/ioalab-assistant.service",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "9130c394dde4e32cf34508efe2200851d9f6477e46ca348c562c7b239824f945",
+      "archiveSha256": "9130c394dde4e32cf34508efe2200851d9f6477e46ca348c562c7b239824f945",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "deploy/ioalab-providers.service",
+      "archivePath": "历史备份/旧执行链/deploy/ioalab-providers.service",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "8e2d2982b67e8364f9117f7a5243e7af8d6a5168fb511d3e13c5254a5a0b3a4e",
+      "archiveSha256": "8e2d2982b67e8364f9117f7a5243e7af8d6a5168fb511d3e13c5254a5a0b3a4e",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "deploy/ioalab-swarm.service",
+      "archivePath": "历史备份/旧执行链/deploy/ioalab-swarm.service",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "efa1807a8b675ba84e7c8710637e1dcca2974ddd765190c9529afcf931cabc95",
+      "archiveSha256": "efa1807a8b675ba84e7c8710637e1dcca2974ddd765190c9529afcf931cabc95",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "deploy/ioalab.service",
+      "archivePath": "历史备份/旧执行链/deploy/ioalab.service",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "04188c3ef8761466a10ddebf9df451257e1a02fa3f61133e1000322801a96e5b",
+      "archiveSha256": "04188c3ef8761466a10ddebf9df451257e1a02fa3f61133e1000322801a96e5b",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "deploy/personal-assistant.env.example",
+      "archivePath": "历史备份/旧执行链/deploy/personal-assistant.env.example",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "b809b80ed6101c7855b9581ddfdb5a92504926ac2232d21fdfda26e836f5c0bc",
+      "archiveSha256": "7155e74be529623e0c828e975a2d1deb3dfe80ee15896c77b697a48852082427",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "deploy/providers.env.example",
+      "archivePath": "历史备份/旧执行链/deploy/providers.env.example",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "919a4f9ddab3bc2a17c9fdc393cb59d323da7e09b9db2eeedb42b40bc67c874c",
+      "archiveSha256": "2bb66912fc26b8bb29394aa78584123ff17a5672e4185c97e5ec891c182da478",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "deploy/restore_swarm_overrides.py",
+      "archivePath": "历史备份/旧执行链/deploy/restore_swarm_overrides.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "d445400bcc7cb28d1c6b15c428e56800f75976caf48b6d9bb2b2f93fe54b33a7",
+      "archiveSha256": "d43669849bf691a444f8e87ab962567c24b030e9084b6fcec31a6523080c98b2",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "official-services/README.md",
+      "archivePath": "历史备份/旧执行链/official-services/README.md",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "d4345be737f180492ebb54b66fbe5e338a8ae02a77c501616460cb9754b557e0",
+      "archiveSha256": "d4345be737f180492ebb54b66fbe5e338a8ae02a77c501616460cb9754b557e0",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "official-services/VERSION",
+      "archivePath": "历史备份/旧执行链/official-services/VERSION",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "3a7b5f0f4f6964e06c2d7c13c177abe65b10a9fc0611f2452536cc4784027f9a",
+      "archiveSha256": "673f0b18f85f0991b01667586dfffafa2f496c54aee12c9a1f709c4a84cc4019",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "official-services/serve.py",
+      "archivePath": "历史备份/旧执行链/official-services/serve.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "50e8204b8be2ae260d1a2d17446bdf1853eff8fc46c6960b8216fbd75c315940",
+      "archiveSha256": "50e8204b8be2ae260d1a2d17446bdf1853eff8fc46c6960b8216fbd75c315940",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": true
+    },
+    {
+      "originalPath": "official-services/skills/ioalab-provider/SKILL.md",
+      "archivePath": "历史备份/旧执行链/official-services/skills/ioalab-provider/SKILL.md",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "6925ca5911cf817b9795ccc0d9d4fa1fd62fa46d526d840827a3ea33266a64c4",
+      "archiveSha256": "6a7723ff754db6dccf7a5279c0204e468a758fcad077a27190594f09daac7fd6",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "official-services/swarm.py",
+      "archivePath": "历史备份/旧执行链/official-services/swarm.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "7375beae9b35de1848a043905ac477ee55c1c2a4f491e0a0ecb781db228c97df",
+      "archiveSha256": "bbb5cbc61005299240fc40ab285dbd999a897c4b282a0114133511798253bd57",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "personal-assistant/README.md",
+      "archivePath": "历史备份/旧执行链/personal-assistant/README.md",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "13366d8a19871efcbd8b02ffb71bbae197e824456bc146ed1155a9eadd506c25",
+      "archiveSha256": "13366d8a19871efcbd8b02ffb71bbae197e824456bc146ed1155a9eadd506c25",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": true
+    },
+    {
+      "originalPath": "personal-assistant/VERSION",
+      "archivePath": "历史备份/旧执行链/personal-assistant/VERSION",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "36d6ee36d0df32c1221d75a0107c4968b166f9949b55bd81da3bedeb98f110ae",
+      "archiveSha256": "b1f9fd971d2726eca7354ac69d646954d94fdac886e8507e3e7d7e9ae2493df3",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "personal-assistant/assistant.py",
+      "archivePath": "历史备份/旧执行链/personal-assistant/assistant.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "1db213dfcc320fda7dd583a687be11263828e36f844e6195ea5520659e9b771b",
+      "archiveSha256": "1db213dfcc320fda7dd583a687be11263828e36f844e6195ea5520659e9b771b",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "personal-assistant/extensions/ioa-notifications/extension.py",
+      "archivePath": "历史备份/旧执行链/personal-assistant/extensions/ioa-notifications/extension.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "9e1e4d33564cc6828d39d4845e98de5433c236ca3f0b3fbe1f43907517d41652",
+      "archiveSha256": "9e1e4d33564cc6828d39d4845e98de5433c236ca3f0b3fbe1f43907517d41652",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "personal-assistant/extensions/ioa-notifications/extension.yaml",
+      "archivePath": "历史备份/旧执行链/personal-assistant/extensions/ioa-notifications/extension.yaml",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "53f01cd17f3b0f43bf4977b3ca7c351bddc53a16774c61acae66f75727406306",
+      "archiveSha256": "a3841ed17884924f2a0b520276bd9a87025fdbd02cd4808837f934d77bb85885",
+      "sameBytesAsGitObject": false,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/cli.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/cli.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "3bf01eab06b775534824ebb493cfad8ad7fd1feaff28bd25eb051132b268ff1d",
+      "archiveSha256": "3bf01eab06b775534824ebb493cfad8ad7fd1feaff28bd25eb051132b268ff1d",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/client.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/client.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "d31a973cc2ee5f1c128f3ef45bc29a42e748f72eda5358e4cccee6c5f4a1aea5",
+      "archiveSha256": "d31a973cc2ee5f1c128f3ef45bc29a42e748f72eda5358e4cccee6c5f4a1aea5",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": true
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/message_cli.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/message_cli.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "0cfc696de5728fc57a6182cbefa3a6982200fe88fe05c296470b5c8684ab85ef",
+      "archiveSha256": "0cfc696de5728fc57a6182cbefa3a6982200fe88fe05c296470b5c8684ab85ef",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/messaging.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/messaging.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "7ecfaa7fbdd05f86f961287b061847c4f637772205b594cf9eb23807f9591311",
+      "archiveSha256": "7ecfaa7fbdd05f86f961287b061847c4f637772205b594cf9eb23807f9591311",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": true
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/observation.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/observation.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "4209d2ab102e86f2e4f5f66d3e56e60f12b3c517352eae860adf8093c56ce425",
+      "archiveSha256": "4209d2ab102e86f2e4f5f66d3e56e60f12b3c517352eae860adf8093c56ce425",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/provider/agent.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/provider/agent.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "16b9bf61c1a2fdb7a60e4f078cf1da2b8bc6ba71fdebd60ee286e493f18b2a4b",
+      "archiveSha256": "16b9bf61c1a2fdb7a60e4f078cf1da2b8bc6ba71fdebd60ee286e493f18b2a4b",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": true
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/provider_app.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/provider_app.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "961addcb187004d0aee23acadac0c74891ce4ae26c62f4e0631c0792d40ca9ed",
+      "archiveSha256": "961addcb187004d0aee23acadac0c74891ce4ae26c62f4e0631c0792d40ca9ed",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/provider_capability.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/provider_capability.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "4a519fac5f77834ceb549615b91240f11098fbccd9495cebcb91bb02919ee34b",
+      "archiveSha256": "4a519fac5f77834ceb549615b91240f11098fbccd9495cebcb91bb02919ee34b",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/provider_cli.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/provider_cli.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "5cd4d0afa96b277b35ef3b9ca5d129774ef82a5c8514cf2d2af94f67b36dc65c",
+      "archiveSha256": "5cd4d0afa96b277b35ef3b9ca5d129774ef82a5c8514cf2d2af94f67b36dc65c",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/scope.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/scope.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "dbc36b3e291a6f817790732c86d2f5878d50c953121cb62dd2953fd567341960",
+      "archiveSha256": "dbc36b3e291a6f817790732c86d2f5878d50c953121cb62dd2953fd567341960",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/swarm_web.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/swarm_web.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "5d521a16783c80e0fbd6b677c5679287f6eeacb9f2598cc07c3e5f184f41b4a3",
+      "archiveSha256": "5d521a16783c80e0fbd6b677c5679287f6eeacb9f2598cc07c3e5f184f41b4a3",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/transport.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/transport.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "5f4460719326b3aacc54e4fb34eeec932804225d482224deaa3dc38e6be16e90",
+      "archiveSha256": "5f4460719326b3aacc54e4fb34eeec932804225d482224deaa3dc38e6be16e90",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/access/sdk/ioalab_sdk/workflow.py",
+      "archivePath": "历史备份/旧执行链/sdk/ioalab_sdk/workflow.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "6707742e1b8429fae8b66f8ced365c2109330ad37650e7f6131ddd8d31d0bb99",
+      "archiveSha256": "6707742e1b8429fae8b66f8ced365c2109330ad37650e7f6131ddd8d31d0bb99",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    },
+    {
+      "originalPath": "src/official/tools/ioalab_tools/handlers.py",
+      "archivePath": "历史备份/旧执行链/official/tools/handlers.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "7c3e6aabbb9d11590a2cf1e0b5cc97f9664ae83dee082aaa7fa3fba4b911fb61",
+      "archiveSha256": "7c3e6aabbb9d11590a2cf1e0b5cc97f9664ae83dee082aaa7fa3fba4b911fb61",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": true
+    },
+    {
+      "originalPath": "tools/build_connector.py",
+      "archivePath": "历史备份/旧执行链/tools/build_connector.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "5f9ddb45ce99541677eb52f9cef071439d25a0d457853c662224621d94c75bf7",
+      "archiveSha256": "5f9ddb45ce99541677eb52f9cef071439d25a0d457853c662224621d94c75bf7",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": true
+    },
+    {
+      "originalPath": "tools/rehearsal.py",
+      "archivePath": "历史备份/旧执行链/tools/rehearsal.py",
+      "sourceCommit": "aae225315dc196583525e9eea75d06b263c58306",
+      "sourceGitSha256": "efeba6ee754f3010b65699f24bf85224e8c757c5e09adfa367298b3a95430282",
+      "archiveSha256": "efeba6ee754f3010b65699f24bf85224e8c757c5e09adfa367298b3a95430282",
+      "sameBytesAsGitObject": true,
+      "sameContentIgnoringCrLf": true,
+      "restoredFromCheckpoint": false
+    }
+  ],
+  "lineEndings": "Git source blobs may use LF while the original Windows checkout uses CRLF. Per-file byte comparisons are recorded explicitly; content equality ignoring CRLF is verified. Seven intermediate edits were restored from checkpoint Git blobs before archiving."
+}

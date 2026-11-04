@@ -172,7 +172,7 @@ class ContractAuthority:
         elif op=='step.authorize':self.answer_in(conn,row,facts,payload)
         elif op=='delivery.fetch':
             if body.get('cardDigest')!=facts['digest'] or payload.get('taskId')!=facts['task'] or not facts['task']:denied('Fetch on the original card and delivery task')
-            card=self.market.market.store.get('cards',facts['digest'])
+            card=self.market.card(facts['digest'])
             if type(body.get('period')) is not int or not card or not 1<=body['period']<=len(card['signatures']['5']):denied('This period has not actually been anchored')
         elif op=='acceptance.notify':self.anchored_prefix(facts,body['card'])
         elif op=='payment.notify':
@@ -215,7 +215,7 @@ class ContractAuthority:
         except (A2CError,KeyError,TypeError,ValueError):denied('Step answer needs the bound original user, request and delivery task')
 
     def anchored_prefix(self,facts,card,*,allow_empty=False):
-        original=self.market.market.store.get('cards',facts['digest']);count=len(card['signatures']['5'])
+        original=self.market.card(facts['digest']);count=len(card['signatures']['5'])
         if allow_empty and not count and not card['signatures']['4'] and not card['fulfillment'].get('periods') and (not original or not original['signatures']['5']):return
         if not original or not count or len(card['signatures']['4'])!=count or any(card['signatures'][key]!=original['signatures'][key][:count] for key in ('4','5')) or [p.get('manifest') for p in card['fulfillment'].get('periods',[])]!=[p.get('manifest') for p in original['fulfillment'].get('periods',[])[:count]]:
             denied('Use the actual immutable anchored delivery chain')
@@ -283,7 +283,7 @@ class ContractAuthority:
         if row['state']!='committed':raise LabError('not_ready','The original contract admission is not active',status=409)
         if payload['op']=='delivery.anchor':
             if facts['permit'] is None or current['fulfillment'].get('termination'):raise LabError('closed','This contract cannot begin new delivery',status=409)
-            previous=self.market.market.store.get('cards',facts['digest']);count=len(previous['signatures']['5']) if previous else 0
+            previous=self.market.card(facts['digest']);count=len(previous['signatures']['5']) if previous else 0
             if len(card['signatures']['5'])!=count or len(card['signatures']['4'])!=count+1 or previous and any(card['signatures'][key][:count]!=previous['signatures'][key] for key in ('4','5')):
                 raise LabError('id_conflict','Recover the existing original anchor instead of replacing its period',status=409)
         elif payload['op']=='card.close':
@@ -299,7 +299,7 @@ class ContractAuthority:
         try:
             validate_card(template,card);verify_card(template,card,self.keys(row))
             previous=current_card(facts)
-            if self.market.market.store.get("rulings",facts["digest"]):
+            if self.market.ruling_for(facts["digest"]):
                 if evidence_extends(card,previous):return facts
                 raise ValueError()
             if not evidence_extends(previous,card):

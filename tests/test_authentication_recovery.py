@@ -11,7 +11,7 @@ import httpx
 import pytest
 
 from conftest import wait_for
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.runtime.authentication import login
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json,read_json
@@ -307,7 +307,7 @@ def test_competing_explicit_login_cannot_acquire_the_live_account_writer(platfor
 
 def test_sdk_credential_check_rejects_browser_sessions_without_breaking_web_me(platform,tmp_path):
     config,user=configuration(platform,tmp_path,service=False);login(config)
-    browser=platform.login(user['username'],PASSWORD,operation_id=str(uuid.uuid4()),audience='browser')
+    browser=platform.accounts.login(user['username'],PASSWORD,operation_id=str(uuid.uuid4()),audience='browser')
     account=session_at(config)
     try:
         sdk=account.account['token']

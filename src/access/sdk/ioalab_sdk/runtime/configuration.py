@@ -3,7 +3,7 @@ import copy
 import re
 from pathlib import Path
 
-from ..lease import Lease
+from .lease import Lease
 from .config import RuntimeConfig,read_configuration
 from .files import private_json,prepare_home,read_arguments
 from .protocol import RuntimeFault,encode

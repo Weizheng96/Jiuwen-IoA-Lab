@@ -23,7 +23,7 @@ def builder():
 
 
 def test_native_scene_build_is_deterministic_and_uses_exact_owned_source(tmp_path):
-    from scenario import nail_services
+    from _nail_scene import nail_services
     owned = next(value for _, value in nail_services() if value['id'] == 'nail-mashangfei')
     module = builder()
     report = module.build(tmp_path / 'first')
@@ -136,7 +136,7 @@ def fixture_package(value):
     ('nail-mashangfei', 299, 'script', 10, 'nail-miniapp'),
 ])
 def test_three_proposals_keep_distinct_business_skills_and_original_verifiers(tmp_path, service_id, amount, kind, count, skill):
-    from scenario import nail_services
+    from _nail_scene import nail_services
     owned = next(value for _, value in nail_services() if value['id'] == service_id)
     module = builder()
     value = module.definition(service_id)
@@ -336,7 +336,7 @@ def test_cli_service_selection_and_reference_failures_preserve_existing_data(tmp
 @pytest.mark.parametrize('service_id', ['nail-weiye', 'nail-jisu'])
 def test_limited_scope_verifier_runs_true_behaviors_and_rejects_false_flags_in_wasm(service_id):
     """Explicit fixtures only; no generated production, platform or model is started."""
-    from scenario import nail_services
+    from _nail_scene import nail_services
     from a2c.verifier.runner import run
     module = builder()
     value = module.definition(service_id)
@@ -377,7 +377,7 @@ def test_limited_scope_verifier_runs_true_behaviors_and_rejects_false_flags_in_w
 
 
 def test_three_verifier_kinds_keep_real_difference_in_coverage_in_wasm():
-    from scenario import nail_services
+    from _nail_scene import nail_services
     from a2c.verifier.runner import run
     module = builder()
     fixture = deepcopy(next(value for _, value in nail_services() if value['id'] == 'nail-mashangfei'))

@@ -2,15 +2,52 @@
 import logging
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from a2c.codec import digest
 
 from a2c.errors import A2CError
 from .identity.sessions import AccountSessions
 from .identity.keys import thumbprint
 from .errors import LabError
+from .payments import money
 
 
 log=logging.getLogger(__name__)
+
+
+class LedgerOperations:
+    """Explicit administrator adjustments and payer-initiated plain transfers."""
+    def __init__(self,wallets,emit):
+        self.wallets,self.emit=wallets,emit
+
+    def adjust(self,user_id,delta,*,by,note,kind='grant'):
+        balance=self.wallets.adjust(user_id,money(delta),by=by,note=note,kind=kind)
+        self.emit('platform','wallet.adjust',sender=by,receiver=user_id,amount=str(delta),outcome=kind,detail={'note':note})
+        return str(balance)
+
+    def transfer(self,payer_id,payee_id,amount,*,purpose,ref):
+        from a2c.errors import CARD_INVALID,fail
+        if purpose.split(':')[0] not in ('ruling','refund','fee'):
+            fail(CARD_INVALID,'普通转账的用途只能是 ruling / refund / fee')
+        self.wallets.transfer(payer_id,payee_id,money(amount),purpose=purpose,ref=ref,by=payer_id)
+        self.emit('platform','transfer.plain',sender=payer_id,receiver=payee_id,amount=str(money(amount)),
+                  outcome=purpose,detail={'ref':ref})
+
+
+class DiscoveryOperations:
+    """Read the directory and public availability; audit without reserving work."""
+    def __init__(self,discovery,services,emit,market_id):
+        self.discovery,self.services,self.emit,self.market_id=discovery,services,emit,market_id
+
+    def search(self,query,top_k,*,by=''):
+        hits=self.discovery.search(query,top_k)
+        observed=datetime.now(timezone.utc).isoformat().replace('+00:00','Z')
+        states={row['id']:row for row in self.services.list()}
+        hits=[{**hit,'availability':({'observedAt':observed,**{key:states[hit['id']][key] for key in
+              ('status','activeDelegations','maxActiveDelegations')}} if hit['id'] in states else None)} for hit in hits]
+        self.emit('platform','discovery.search',sender=by,receiver=self.market_id,outcome=self.discovery.last_mode,
+                  detail={'query':query[:200],'hits':[hit['name'] for hit in hits],'ids':[hit['id'] for hit in hits]})
+        return hits
 
 PAYMENT_OPERATIONS_SCHEMA='''CREATE TABLE IF NOT EXISTS delegation_payment_operations(
  owner TEXT NOT NULL,actor TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
@@ -227,6 +264,14 @@ class AccountOperations:
     def __init__(self,db,auth,wallets,settings,emit):
         self.db,self.auth,self.wallets,self.settings,self.emit=db,auth,wallets,settings,emit
         self.sessions=AccountSessions(db,auth)
+
+    def create_account(self,username,password='',*,kind='external',display_name='',note='',invite='',ip=''):
+        """Provision a seed/admin account; ordinary browser registration uses register."""
+        user=self.auth.register(username,password,kind=kind,display_name=display_name,note=note,invite=invite,ip=ip)
+        self.wallets.ensure(user['id'])
+        self.emit('platform','user.register',sender=user['id'],outcome=kind,
+                  detail={'username':username,'displayName':user['display_name']})
+        return user
 
     def bind_identity(self,registry,owner,body):
         with self.db.tx() as conn:

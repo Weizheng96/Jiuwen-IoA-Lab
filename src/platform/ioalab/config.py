@@ -146,7 +146,7 @@ class Settings:
         if self.registration not in ("open", "invite", "closed"):
             problems.append(f"IOALAB_REGISTRATION 只能是 open / invite / closed：{self.registration!r}")
         if self.traffic != "off":
-            problems.append(f"背景流量须通过 experiments/traffic.py 独立运行；IOALAB_TRAFFIC 只能是 off：{self.traffic!r}")
+            problems.append(f"平台核心不运行参与方，当前未提供背景流量驱动；IOALAB_TRAFFIC 只能是 off：{self.traffic!r}")
         if self.autoseed:
             from .seed.domains import load_domains
             try:

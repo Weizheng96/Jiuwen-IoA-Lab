@@ -38,7 +38,7 @@ def _ensure(platform, username: str, password: str, kind: str, display_name: str
     row = platform.db.one("SELECT id FROM users WHERE username=?", username)
     if row:
         return row["id"]
-    return platform.register_user(username, password, kind=kind, display_name=display_name, note="部署自带")["id"]
+    return platform.accounts.create_account(username, password, kind=kind, display_name=display_name, note="部署自带")["id"]
 
 
 __all__ = ["ensure_accounts"]

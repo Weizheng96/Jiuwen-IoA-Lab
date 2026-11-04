@@ -35,10 +35,18 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path):
         assert 'ioalab_sdk/assistant.py' not in archive.namelist()
         assert 'ioalab_sdk/provider.py' not in archive.namelist()
         assert 'ioalab_sdk/provider/publication.py' in archive.namelist()
+        retired={'client.py','messaging.py','cli.py','message_cli.py','workflow.py','scope.py',
+                 'transport.py','observation.py','swarm_web.py','provider_app.py','provider_capability.py','provider_cli.py'}
+        assert not {'ioalab_sdk/'+name for name in retired}.intersection(archive.namelist())
+        assert 'ioalab_sdk/provider/agent.py' not in archive.namelist()
+        entries=archive.read(next(name for name in archive.namelist() if name.endswith('.dist-info/entry_points.txt'))).decode()
+        assert 'ioalab-access = ioalab_sdk.runtime.__main__:main' in entries
+        assert 'ioalab-client' not in entries
         assert not any(name.startswith('ioalab_tools/') for name in archive.namelist())
         assert not {'ioalab_sdk/calendar.py','ioalab_sdk/agentmail.py','ioalab_sdk/schedule.py','ioalab_sdk/schedule_cli.py'}.intersection(archive.namelist())
     with zipfile.ZipFile(next(wheels.glob('ioalab_official-*.whl'))) as archive:
-        assert {'ioalab_tools/handlers.py','ioalab_tools/appointments.py','ioalab_tools/calendar.py','ioalab_tools/agentmail.py','ioalab_tools/schedule_cli.py'}.issubset(archive.namelist())
+        assert {'ioalab_tools/agentmail_setup.py','ioalab_tools/appointments.py','ioalab_tools/calendar.py','ioalab_tools/agentmail.py','ioalab_tools/schedule_cli.py'}.issubset(archive.namelist())
+        assert 'ioalab_tools/handlers.py' not in archive.namelist()
         assert 'ioalab_services/catalog.py' in archive.namelist()
         assert 'ioalab_services/profiles.py' in archive.namelist()
         assert 'ioalab_admin_assistant/preparation.py' in archive.namelist()

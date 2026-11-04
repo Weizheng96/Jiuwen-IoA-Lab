@@ -1,7 +1,7 @@
 """Authorized browser views; reading never consumes participant messages or signs a card."""
 from fastapi import APIRouter,Depends,HTTPException
 
-from ..store import jload
+from ..storage import jload
 from ..observation import event_view
 
 
@@ -38,7 +38,7 @@ def build_router(platform,current_user,require_admin,require_auditor):
             'orders':[row for row in contracts if row['owner_id']==uid],
             'intents':[row for row in intents if row['owner_id']==uid],'services':services,'events':safe,
             'categories':platform.discovery.categories(),'messages':platform.message_views.list(uid),
-            'interfaces':platform.messaging.interfaces(uid,uid)}
+            'interfaces':platform.interface_directory.interfaces(uid,uid)}
 
     @router.get('/api/catalog')
     def catalog(uid=Depends(current_user)):return platform.service_views.list()

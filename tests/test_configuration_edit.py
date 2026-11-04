@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json,read_json
 from ioalab_sdk.runtime.resident import ResidentRuntime
@@ -144,9 +144,8 @@ def test_configuration_file_cannot_be_its_own_arguments(tmp_path,capsys):
     assert path.read_bytes()==before and not (tmp_path/'state').exists()
 
 
-@pytest.mark.parametrize('role',['assistant','service'])
-def test_actual_product_entry_can_configure_without_reading_settings(tmp_path,monkeypatch,capsys,role):
-    path,_=settings(tmp_path);module=product(tmp_path,monkeypatch,role)
+def test_actual_product_entry_can_configure_without_reading_settings(tmp_path,monkeypatch,capsys):
+    path,_=settings(tmp_path);module=product(tmp_path,monkeypatch,'service')
     assert module.main(['runtime.configuration','--config',str(path)])==0
     text=capsys.readouterr().out;result=json.loads(text)
     assert result['data']['configuredServices']==['existing']

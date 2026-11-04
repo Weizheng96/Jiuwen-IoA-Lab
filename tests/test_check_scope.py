@@ -28,6 +28,39 @@ def test_maintenance_scope_does_not_pull_in_business_or_installation_tests():
         'tests/test_check_scope.py', 'tests/test_check_workflow.py']
 
 
+def test_archived_code_never_reenters_current_test_scope():
+    result=select_tests(['历史备份/旧执行链/sdk/client.py','历史备份/旧执行链/tests/test_workflow.py'])
+    assert result['tests']==[] and result['warnings']==[]
+
+
+def test_archiving_deleted_sdk_source_keeps_current_owner_and_critical_checks():
+    result=select_tests(['src/access/sdk/ioalab_sdk/client.py','历史备份/旧执行链/sdk/client.py'])
+    assert 'tests/test_resident_input_boundaries.py' in result['tests']
+    assert all(has_target(result['tests'],target) for target in CRITICAL)
+    assert not any(name.startswith('历史备份/') for name in result['tests'])
+
+
+def test_archiving_deleted_unmapped_builder_preserves_explicit_coverage_warning():
+    result=select_tests(['tools/build_connector.py','历史备份/旧执行链/tools/build_connector.py'])
+    assert all(has_target(result['tests'],target) for target in CRITICAL)
+    assert any('tools/build_connector.py: unmapped executable' in warning for warning in result['warnings'])
+    assert not any(name.startswith('历史备份/') for name in result['tests'])
+
+
+@pytest.mark.parametrize('path,expected',[
+    ('src/access/examples/provider.py','tests/test_external_provider.py'),
+    ('src/access/sdk/ioalab_sdk/runtime/lease.py','tests/test_lease.py'),
+    ('src/access/sdk/ioalab_sdk/runtime/account_store.py','tests/test_account_enrollment.py'),
+    ('src/official/tools/ioalab_tools/agentmail_setup.py','tests/test_agentmail_setup.py'),
+    ('src/official/tools/ioalab_tools/schedule_cli.py','tests/test_local_schedule.py'),
+])
+def test_migrated_owners_select_current_consumers_and_never_archived_wrappers(path,expected):
+    selected=select_tests([path])['tests']
+    assert expected in selected
+    assert not any(name.startswith('历史备份/') for name in selected)
+    assert all((ROOT/name.split('::')[0]).is_file() for name in selected)
+
+
 @pytest.mark.parametrize('path', ['demo/script_documents.py', 'demo/review_story.py'])
 def test_review_draft_sources_select_generation_and_evidence_checks_only(path):
     assert select_tests([path])['tests'] == ['tests/test_demo_artifacts.py', 'tests/test_review_story.py']
@@ -58,7 +91,7 @@ def test_shared_inputs_cannot_be_filtered_as_prose_or_test_helpers(path):
     ('src/access/sdk/ioalab_sdk/provider/production.py', 'tests/test_provider_task_recovery.py'),
     ('src/platform/ioalab/payments/ledger.py', 'tests/test_payment_atomicity.py'),
     ('deploy/deployment.json.example', 'tests/test_vendor_deployment.py'),
-    ('src/access/skills/assistant/SKILL.md', 'tests/test_skill_flows.py'),
+    ('src/access/skills/assistant/SKILL.md', 'tests/test_access_products.py'),
 ])
 def test_runtime_scope_keeps_related_and_critical_boundaries(path, expected):
     selected = select_tests([path])['tests']
@@ -85,13 +118,13 @@ def test_payment_owners_add_recovery_boundaries_without_removing_existing_covera
             ('fulfillment_status', 'resident_fulfillment', 'resident_multiperiod', 'user_confirmations', 'payment_atomicity'),
             ('fulfillment_payment_guards', 'resident_payment_recovery')),
         'src/access/sdk/ioalab_sdk/assistant/trading.py': (
-            ('assistant_role', 'sdk_inputs', 'resident_contracts'), ('payment_transport_recovery',)),
+            ('assistant_role', 'resident_input_boundaries', 'resident_contracts'), ('payment_transport_recovery',)),
         'src/platform/ioalab/operations.py': (
             ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission'), ('payment_rejection',)),
     }
     for name in ('adapters/payments.py', 'adapters/transport.py', 'runtime/store.py'):
         owners['src/access/sdk/ioalab_sdk/' + name] = (
-            ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs'), ('payment_transport_recovery',))
+            ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries'), ('payment_transport_recovery',))
     for path, (original, additions) in owners.items():
         selected = set(select_tests([path])['tests'])
         with monkeypatch.context() as previous:

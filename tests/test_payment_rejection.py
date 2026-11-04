@@ -10,8 +10,8 @@ from test_service_publication import service
 
 
 @pytest.fixture
-def held_payment(platform, client, local_client, service, monkeypatch):
-    local=local_client
+def held_payment(platform, client, protocol_participant, service, monkeypatch):
+    local=protocol_participant
     template=offer(platform,service)
     invitation=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
@@ -32,7 +32,7 @@ def held_payment(platform, client, local_client, service, monkeypatch):
 
         monkeypatch.setattr(platform.admissions,'payment_in',observe_admission)
         yield SimpleNamespace(sender=sender,receiver=receiver,payload=payload,admission=held['admissionId'],
-            owner=local.account['id'],payee=service[0].account['id'],scope=invitation['body']['scopeDigest'],
+            owner=local.account.account['id'],payee=service[0].account['id'],scope=invitation['body']['scopeDigest'],
             ref=invitation['body']['bindingDigest'],observed=observed)
 
 

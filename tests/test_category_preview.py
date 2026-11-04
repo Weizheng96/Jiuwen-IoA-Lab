@@ -8,9 +8,9 @@ import httpx
 import pytest
 from a2c.codec import digest
 from ioalab.errors import LabError
-from ioalab.market import taxonomy
+from ioalab.registry import taxonomy
 from ioalab.registry.categories import CategoryPreview
-from ioalab.runtime.llm import LLM
+from ioalab.registry.models import DiscoveryModels
 from ioalab_sdk.provider import ProviderRole
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.resident import ResidentRuntime
@@ -73,7 +73,7 @@ def test_platform_model_adapter_uses_configured_discovery_model_and_json(monkeyp
         calls.append((url,kw))
         return httpx.Response(200,json={'choices':[{'message':{'content':'{"categoryId":"code","reason":"提供编程能力"}'}}]},request=httpx.Request('POST',url))
     monkeypatch.setattr(httpx,'post',post)
-    model=LLM(SimpleNamespace(llm={'api_key':'explicit-test-key','api_base':'https://example.test/v1'},stub=False,a2x_model='configured-discovery-model'))
+    model=DiscoveryModels(SimpleNamespace(llm={'api_key':'explicit-test-key','api_base':'https://example.test/v1'},stub=False,a2x_model='configured-discovery-model'))
     assert model.classify_category(PUBLIC,[])['categoryId']=='code'
     url,request=calls[0]
     assert url.endswith('/chat/completions') and request['json']['model']=='configured-discovery-model'
@@ -86,7 +86,7 @@ def test_http_preview_authentication_validation_and_no_publication_effects(platf
     account,identity=service;calls=[]
     def choose(value,categories):
         calls.append(value);return {'categoryId':'cat_dev','reason':'公开说明提供软件开发能力'}
-    monkeypatch.setattr(platform.llm,'classify_category',choose)
+    monkeypatch.setattr(platform.discovery_models,'classify_category',choose)
     counts=lambda:{name:platform.db.one('SELECT COUNT(*) AS n FROM '+name)['n'] for name in ('registry_publications','registry_publication_operations','registry_projection')}
     before=counts();entries=platform.discovery.entries()
     result=account.api('POST','/services/category-preview',PUBLIC)
@@ -105,7 +105,7 @@ def test_resident_automatic_preview_is_async_frozen_and_publish_uses_real_user_c
     def choose(value,categories):
         calls.append(value);entered.set();assert release.wait(10)
         return {'categoryId':'cat_dev','reason':'公开说明提供软件开发能力'}
-    monkeypatch.setattr(platform.llm,'classify_category',choose)
+    monkeypatch.setattr(platform.discovery_models,'classify_category',choose)
     service={**PUBLIC,'profile':'service','templates':[draft(platform)]};operation=uid()
     runtime=ResidentRuntime(settings,modules=(ProviderRole(),)).start()
     try:
@@ -127,7 +127,7 @@ def test_resident_automatic_preview_is_async_frozen_and_publish_uses_real_user_c
     finally:
         release.set();runtime.close()
     # Restart resumes the exact preview, without a second model decision.
-    monkeypatch.setattr(platform.llm,'classify_category',lambda *a:(_ for _ in ()).throw(AssertionError('Do not reclassify confirmed content')))
+    monkeypatch.setattr(platform.discovery_models,'classify_category',lambda *a:(_ for _ in ()).throw(AssertionError('Do not reclassify confirmed content')))
     runtime=ResidentRuntime(settings,modules=(ProviderRole(),)).start()
     try:
         wait_for(lambda:runtime.connection.connected);client=LocalClient(settings.home)
@@ -199,7 +199,7 @@ def test_real_configured_platform_model_classifies_public_capability_via_http(pl
     key=os.environ['IOALAB_REAL_CATEGORY_API_KEY']
     base=os.environ['IOALAB_REAL_CATEGORY_BASE_URL'].rstrip('/')
     model_name=os.environ['IOALAB_REAL_CATEGORY_MODEL']
-    model=LLM(SimpleNamespace(llm={'api_key':key,'api_base':base},stub=False,a2x_model=model_name))
+    model=DiscoveryModels(SimpleNamespace(llm={'api_key':key,'api_base':base},stub=False,a2x_model=model_name))
     decisions=[]
     def choose(public,categories):
         try:value=model.classify_category(public,categories)
@@ -208,7 +208,7 @@ def test_real_configured_platform_model_classifies_public_capability_via_http(pl
             raise
         decisions.append(value)
         return value
-    monkeypatch.setattr(platform.llm,'classify_category',choose)
+    monkeypatch.setattr(platform.discovery_models,'classify_category',choose)
     account,_=service
     before=platform.db.one('SELECT COUNT(*) AS n FROM registry_publications')['n']
     result=account.api('POST','/services/category-preview',{**PUBLIC,'name':'码上飞'})
@@ -217,12 +217,12 @@ def test_real_configured_platform_model_classifies_public_capability_via_http(pl
     assert platform.db.one('SELECT COUNT(*) AS n FROM registry_publications')['n']==before
     if os.environ.get('IOALAB_REAL_CATEGORY_REPORT'):
         from ioalab.registry import categories
-        from ioalab.runtime import llm
+        from ioalab.registry import models
         from ioalab_sdk.provider import publication
         sources={label:digest_bytes(Path(module.__file__).read_bytes()) for label,module in (
             ('src/platform/ioalab/registry/categories.py',categories),
-            ('src/platform/ioalab/market/taxonomy.py',taxonomy),
-            ('src/platform/ioalab/runtime/llm.py',llm),
+            ('src/platform/ioalab/registry/taxonomy.py',taxonomy),
+            ('src/platform/ioalab/registry/models.py',models),
             ('src/access/sdk/ioalab_sdk/provider/publication.py',publication))}
         Path(os.environ['IOALAB_REAL_CATEGORY_REPORT']).write_text(json.dumps({
             'scope':'Actual platform HTTP category preview with configured model and actual A2X tree; not native Jiuwen onboarding or film',

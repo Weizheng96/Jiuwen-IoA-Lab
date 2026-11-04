@@ -20,7 +20,7 @@ from collections import defaultdict, deque
 from a2c.errors import CARD_INVALID, fail
 
 from ..config import Settings
-from ..store import DB, now
+from ..storage import DB, now
 
 USERNAME = re.compile(r"^[A-Za-z0-9_.@+-]{3,128}$")
 KINDS = ("isp", "isc", "external", "virtual")

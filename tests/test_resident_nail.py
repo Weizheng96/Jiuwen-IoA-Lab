@@ -20,7 +20,7 @@ from test_resident_fulfillment import invoke, operation, accept_preview
 @pytest.mark.skipif(not os.environ.get('IOALAB_REAL_JIUWEN_COMMAND'),reason='Opt-in original Jiuwen/model nail production')
 def test_original_model_produces_nail_source_and_completes_signed_contract(platform,tmp_path):
     from ioalab_jiuwen.process import ProcessHost
-    from scenario import nail_services
+    from _nail_scene import nail_services
     definition=next(d for _,d in nail_services() if d['id']=='nail-mashangfei')
     host=ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'))
     assert host.probe()['available'],host.capabilities()
@@ -53,7 +53,7 @@ def test_original_model_produces_nail_source_and_completes_signed_contract(platf
         '只有全部通过才以同一文件调用provider.task.deliver。失败先修生产内容，不能修改已签验收器。等待授权或交付后结束本轮。'}
     with participants(platform,tmp_path,agent_host=host,verifier_source=definition['verifier']['source'],
             verifier_reads=definition['verifier']['reads'],quote_amount=299,business=business,template_terms=terms) as (provider,assistant,host,template,task):
-        platform.grant(assistant.account.account['id'],1000,by='admin',note='explicit isolated nail production virtual credit')
+        platform.ledger_operations.adjust(assistant.account.account['id'],1000,by='admin',note='explicit isolated nail production virtual credit')
         started,_=request(assistant,provider,template,task,spec={'booking':definition['sample_spec']})
         quote_ref=started['data']['quoteRef']
         wait_for(lambda:terminal(assistant,quote_ref),timeout=180)

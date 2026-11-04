@@ -4,9 +4,9 @@
 
 ## 常驻接入入口
 
-共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。默认装配已提供助手收信设置、消息、服务公示及候选提案；没有宿主时不执行入站业务。可选[九问适配](../../hosts/jiuwen/README.md)装配助手入站处理与服务方提案/审查。完整履约主路径尚未切换，差距见[开发计划](../../../docs/开发计划.md)。
+共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。默认装配已提供助手收信设置、消息、服务公示及候选提案；没有宿主时不执行入站业务。可选[九问适配](../../hosts/jiuwen/README.md)装配助手入站处理与服务方提案/审查。合同与履约由同一常驻运行时处理，未覆盖能力与验证差距见[开发计划](../../../设计/工程/实施资料/开发计划.md)。
 
-复制[配置模板](../../../deploy/access-runtime.json.example)，填写平台和账号，并在本机设置模板引用的密码环境变量；服务方可将 identities 改为 service profile，服务绑定不创建个人助手。数据目录相对配置文件定位，作为 SDK 专用目录；配置及调用参数文件放在其外。每个 profile 的稳定身份及私钥保存在该目录，不能删除重建。旧直接客户端目录须先迁移，不与常驻进程争用。
+复制[配置模板](../../../deploy/access-runtime.json.example)，填写平台和账号，并在本机设置模板引用的密码环境变量；服务方可将 identities 改为 service profile，服务绑定不创建个人助手。数据目录相对配置文件定位，作为 SDK 专用目录；配置及调用参数文件放在其外。每个 profile 的稳定身份及私钥保存在该目录，不能删除重建。既有直接客户端数据不自动导入；保留原身份和业务记录，不能将其目录作为新的常驻数据目录。
 
 ```text
 python -m ioalab_sdk.runtime start --config <本机配置文件>
@@ -94,19 +94,3 @@ materials 以模板材料名为键，每项提供 text 或 bytesBase64，可选 
 服务方执行还需在本机配置 provider.services，以 service profile 为键，声明 instructions、skills、max_active_delegations、accepting；resources 保存真实验收器引用等业务数据，native_tools 只列用户明确配置的原生工具及权限。skills 对应的明确本机源目录由可选[九问适配](../../hosts/jiuwen/README.md)配置并冻结，文档不是授权。重启常驻实例后读取配置，原身份与业务数据保留。只有公示、宿主和配置均就绪才接新意向；容量限制承接数量，max_model_runs 单独限制模型。正常生产、环节授权、WASM验收、原AP2付款及结清已开放；进一步故障矩阵与官方业务切换见开发计划。
 
 每个交互使用原 Provider、独立协议命名空间和实际九问 Session。报价工具根据本单模板生成字段 Schema，复用原校验并核验验收器包种类后才保存决定；错误由同一模型轮次修正。签3响应丢失从原操作恢复，不再次执行模型或收拟卡费。
-
-## 迁移中的原业务入口
-
-普通用户使用[两种产品技能](../skills/README.md)及常驻入口。下列直接客户端继续支撑尚未迁移的旧官方运行路径和在途记录，不作为新技能入口；迁移差距见开发计划。
-
-个人助手使用 `ioalab-client <command> --args '<JSON>'`；命令清单见 `python -m ioalab_sdk.cli --help`。配置 `IOALAB_BASE_URL`、`IOALAB_USERNAME`、`IOALAB_PASSWORD`；身份与合同存入本地 `IOALAB_HOME`。需确认的命令显式传 `--confirmed`，技能必须先取得用户同意。
-
-`LabClient` 封装发现、身份绑定、观察上报，并直接使用 A2C Client 执行合同。验收在调用进程的 WASM 沙箱中完成。付款发送结果不明时报告 requires-reconciliation，不自动再次付款。未发送观察在本地 outbox 保存，下次调用重发。
-
-服务方使用 `ProviderAgent` 管理 Provider SDK 和本地持久状态；独立Swarm经四个结构化host工具进入本单`ProviderJob`能力，模型不接触宿主令牌；人工诊断保留`python -m ioalab_sdk.provider_cli`入口。详见[接入设计](../../../设计/接入/SDK共用机制.md)与[官方服务](../../../official-services/README.md)。
-
-主skill按需读取委托交易/私人交互通用流程，再逐项调用SDK原语。`delegate`只保留给旧受管理任务恢复和显式外部计划；受管理合同仍从原taskId继续，不绕过既有确认保护。任务、授权与卡分别持久化；重复取件核已签清单并恢复缓存，不重复签收。完整边界见[接入设计](../../../设计/接入/SDK共用机制.md)，美甲计划单独放在[示例](../../../examples/nail-booking/README.md)，不随通用skill分发。
-
-服务发现回执的hits[].id是注册中心标识，templates/reputation的provider参数须使用hits[].card.url；SDK会在向服务端点发请求前给出明确的URL参数诊断。可选[官方工具包](../../official/README.md)中的 AssistantHandlers 要求调用者显式配置会议收件人，缺少收件人不会发送邀请；该业务处理器已移出 SDK。它仍使用旧 MailboxClient 收件，不代表新宿主已自动配置会议工具。
-
-可选`IOALAB_MIN_QUOTES`是账号的最低比选数量（默认1，范围1—8），授权scope固化本次策略。`request/draft`返回`quoteProgress`，`quote-progress {scope_id}`可恢复进度；未达下限或拟卡费结果不明时不允许选定合同。同一服务端点多张卡只计一次，旧scope保持原策略；这不是A2C协议字段，也不会代替模型做业务推荐。技能配置可加入该项，示例账号的三份偏好独立放在examples中。

@@ -12,8 +12,8 @@ import time
 import pytest
 
 from ioalab.config import Settings
-from ioalab.platform import Platform
-from ioalab.store import DB, DataInUse, DataOwner
+from ioalab.app import Platform
+from ioalab.storage import DB, DataInUse, DataOwner
 
 
 def settings(path):
@@ -50,8 +50,8 @@ def test_other_process_rejects_the_same_core_data_before_any_mutation(tmp_path):
         before=files(tmp_path)
         script='''from pathlib import Path
 from ioalab.config import Settings
-from ioalab.platform import Platform
-from ioalab.store import DataInUse
+from ioalab.app import Platform
+from ioalab.storage import DataInUse
 import sys
 try: Platform(Settings(data=Path(sys.argv[1]),autoseed=False,public_url_env='http://other.invalid'))
 except DataInUse: print('original-core-still-owns-data')
@@ -68,7 +68,7 @@ def test_actual_os_lock_is_released_when_its_process_is_terminated(tmp_path):
     ready=tmp_path/'ready'
     directory=tmp_path/'core'
     script='''from pathlib import Path
-from ioalab.store import DataOwner
+from ioalab.storage import DataOwner
 import os,sys,time
 owner=DataOwner(Path(sys.argv[1]))
 Path(sys.argv[2]).write_text(str(os.getpid()))
@@ -107,16 +107,16 @@ def test_failed_construction_releases_the_real_owner_and_resources(tmp_path,monk
 
 
 def test_failed_db_initialization_closes_its_partial_connection(tmp_path,monkeypatch):
-    from ioalab import store
-    opened=[];connect=store.sqlite3.connect
+    from ioalab import storage
+    opened=[];connect=storage.sqlite3.connect
     def track(*args,**kwargs):
         result=connect(*args,**kwargs);opened.append(result);return result
     def fail(*_):raise ValueError('injected-migration')
     with monkeypatch.context() as patch:
-        patch.setattr(store.sqlite3,'connect',track);patch.setattr(DB,'_migrate',fail)
+        patch.setattr(storage.sqlite3,'connect',track);patch.setattr(DB,'_migrate',fail)
         with pytest.raises(ValueError,match='injected-migration'):Platform(settings(tmp_path))
     assert len(opened)==1
-    with pytest.raises(store.sqlite3.ProgrammingError,match='closed'):opened[0].execute('SELECT 1')
+    with pytest.raises(storage.sqlite3.ProgrammingError,match='closed'):opened[0].execute('SELECT 1')
     core=Platform(settings(tmp_path));core.close()
 
 
@@ -190,7 +190,7 @@ def test_web_lifespan_failure_still_closes_the_original_core(tmp_path):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('command',[['init','--no-seed'],['serve'],['reset'],['reset','--keep-accounts'],['backup']])
+@pytest.mark.parametrize('command',[['init','--no-seed'],['serve'],['reset'],['backup']])
 def test_every_cli_write_entry_rejects_active_data_without_modification(tmp_path,monkeypatch,command):
     from ioalab.cli import main
     core=Platform(settings(tmp_path));before=files(tmp_path)
@@ -215,3 +215,14 @@ def test_cli_init_returns_with_closed_data_and_backup_does_not_restore_lock_stat
         assert 'data/public_url' in package.getnames()
         assert 'data/.core.lock' not in package.getnames()
     with DataOwner(tmp_path/'core'):pass
+
+
+
+def test_removed_partial_reset_flag_rejects_before_any_data_mutation(tmp_path,monkeypatch):
+    from ioalab.cli import main
+    core=Platform(settings(tmp_path));before=files(tmp_path)
+    monkeypatch.setenv('IOALAB_DATA',str(tmp_path))
+    try:
+        with pytest.raises(SystemExit) as rejected:main(['reset','--keep-accounts'])
+        assert rejected.value.code==2 and files(tmp_path)==before
+    finally:core.close()

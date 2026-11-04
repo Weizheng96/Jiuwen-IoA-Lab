@@ -264,7 +264,7 @@ def test_sdk_cached_success_repairs_latest_projection_without_resigning_or_rolli
 def test_all_official_terms_match_core_and_expiry_is_the_only_renewable_business_field(tmp_path):
     from ioalab_services import prepare
     from ioalab_services.catalog import definitions
-    from ioalab.runtime.packages import PackageStore
+    from ioalab.delegation.packages import PackageStore
     packages=PackageStore(tmp_path/'packages')
     pay={'id':'https://lab.example/pay','jwksUri':'https://lab.example/pay/.well-known/jwks.json'}
     for definition in definitions():

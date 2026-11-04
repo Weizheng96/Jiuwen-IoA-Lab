@@ -139,7 +139,7 @@ def test_two_roles_share_process_identity_login_and_cli_never_opens_sqlite(platf
     assert not (tmp_path/'state/runtime.json').exists()
 
 
-def test_local_rpc_origin_host_auth_and_size_are_enforced(platform,tmp_path):
+def test_local_rpc_security_and_cli_operation_persistence(platform,tmp_path):
     config,_=configuration(platform,tmp_path,service=False)
     with process(config) as (_,client,status):
         descriptor=read_json(tmp_path/'state/runtime.json')
@@ -156,11 +156,6 @@ def test_local_rpc_origin_host_auth_and_size_are_enforced(platform,tmp_path):
         assert rejected['status']=='rejected' and rejected['error']['code']=='invalid_input'
         assert client.call('runtime.stop',{'bootId':uid()})['status']=='rejected'
         assert query(client)['bootId']==status['bootId']
-
-
-def test_cli_persists_original_operation_without_direct_role_fallback(platform,tmp_path):
-    config,_=configuration(platform,tmp_path,service=False)
-    with process(config):
         args=tmp_path/'args.json'
         private_json(args,{'confirmed':True})
         command=[sys.executable,'-m','ioalab_sdk.runtime','call','assistant.delegation.confirm','--config',str(config),'--args-file',str(args)]

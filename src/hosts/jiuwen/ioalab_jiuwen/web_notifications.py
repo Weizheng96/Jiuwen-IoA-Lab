@@ -9,7 +9,7 @@ import time
 import uuid
 
 from dotenv import dotenv_values
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.runtime.files import private_json, read_json, restrict
 from ioalab_sdk.runtime.host import BusinessTools, ToolBinding
 from ioalab_sdk.runtime.protocol import RuntimeFault, encode

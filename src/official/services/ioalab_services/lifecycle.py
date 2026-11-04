@@ -5,7 +5,7 @@ import threading
 import time
 import uuid
 
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.runtime.config import data_directory
 from ioalab_sdk.runtime.ipc import LocalClient,public_error
 from ioalab_sdk.runtime.protocol import RuntimeFault

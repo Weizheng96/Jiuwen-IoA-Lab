@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from a2c.codec import digest_bytes
-from ioalab.store import DB
+from ioalab.storage import DB
 from ioalab.delegation.relay import ProtocolRelay
 from ioalab_sdk.adapters.transport import SessionTransport,stable
 from ioalab_sdk.runtime import RuntimeStore,RuntimeFault

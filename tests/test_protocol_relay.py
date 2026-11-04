@@ -37,8 +37,8 @@ def template_for(platform,service,*,formation='countersign',revision=1):
 
 def setup_counter(platform,client,local,service,template,ref):
     grant=register(client,local,authorization(local));grant.raise_for_status();scope=grant.json()['scopeDigest']
-    card=build_card(template,card_id=uid(),client={'id':local.signer.id,'jwk':local.signer.jwk},
-                    user={'id':local.user.id,'jwk':local.user.jwk},signers={'slot1':'user','slot7':'user'},spec={'result':{}},
+    card=build_card(template,card_id=uid(),client={'id':local.identities[0].signer.id,'jwk':local.identities[0].signer.jwk},
+                    user={'id':local.identities[0].user.id,'jwk':local.identities[0].user.jwk},signers={'slot1':'user','slot7':'user'},spec={'result':{}},
                     inputs={'brief':{'digest':ref['digest']}},delegation_scope_digest=scope,payment_provider=platform.payment_provider)
     intent={'messageId':uid(),'kind':'delegation.intent','recipient':service[1].agent_id,'expiresAt':at(600),
             'body':{'formation':'countersign','templateDigest':template['templateDigest'],'scopeDigest':scope,'bindingDigest':card_digest(card),'card':card}}
@@ -47,10 +47,10 @@ def setup_counter(platform,client,local,service,template,ref):
 
 def request_for(platform,local,service,template,ref,scope,card,intent,sender,receiver,*,commit=True):
     configure(receiver)
-    proof=sign(digest({'scopeDigest':scope,'cardDigest':card_digest(card)}),local.user,'ioa-contract-selection',utcnow())
+    proof=sign(digest({'scopeDigest':scope,'cardDigest':card_digest(card)}),local.identities[0].user,'ioa-contract-selection',utcnow())
     sender.call('scope.select',{'scopeDigest':scope,'card':card,'proof':proof})
     binding=opened(sender,receiver,intent);held=receiver.call('admission.reserve',binding)
-    signed=sign_slot(card,1,local.user,utcnow())
+    signed=sign_slot(card,1,local.identities[0].user,utcnow())
     if commit:receiver.call('admission.commit',{'admissionId':held['admissionId'],'card':signed})
     request={'messageId':uid(),'kind':'a2c.request','recipient':receiver.actor,'interactionId':binding['interactionId'],'expiresAt':at(300),
              'body':{'op':'card.countersign','admissionId':held['admissionId'],'body':{'card':signed},'files':{'brief':ref}}}
@@ -58,9 +58,9 @@ def request_for(platform,local,service,template,ref,scope,card,intent,sender,rec
 
 
 @pytest.mark.parametrize('expire',[False,True])
-def test_countersign_delivers_slot_one_before_review_and_commits_before_slot_two(platform,client,local_client,service,monkeypatch,expire):
-    local=local_client;account,identity=service;template,_=template_for(platform,service)
-    data=uid().encode();ref=PrivateFiles(local.session,local.signer.id).put('brief',data,uid())
+def test_countersign_delivers_slot_one_before_review_and_commits_before_slot_two(platform,client,protocol_participant,service,monkeypatch,expire,public_transport):
+    local=protocol_participant;account,identity=service;template,_=template_for(platform,service)
+    data=uid().encode();ref=PrivateFiles(local.account,local.identities[0].signer.id).put('brief',data,uid())
     scope,card,intent=setup_counter(platform,client,local,service,template,ref)
     with online(client,local,service) as (sender,receiver):
         request,binding=request_for(platform,local,service,template,ref,scope,card,intent,sender,receiver,commit=False)
@@ -89,7 +89,7 @@ def test_countersign_delivers_slot_one_before_review_and_commits_before_slot_two
                 assert reply['state']=='committed'
                 return None
         keys=Directory();keys.add(identity.protocol_id,{'keys':[identity.signer.jwk]});keys.add(platform.market_id,{'keys':[platform.market_signer.jwk]})
-        provider=Provider(identity.signer,market=platform.market_id,keys=keys,transport=local.transport,fetch=account.fetch_package,store=Store(),policy=Policy())
+        provider=Provider(identity.signer,market=platform.market_id,keys=keys,transport=public_transport,fetch=account.fetch_package,store=Store(),policy=Policy())
         provider.store.put('templates',template['templateDigest'],template)
         reply=provider.handle('card.countersign',inbound,{'brief':data})
         if expire:
@@ -105,13 +105,13 @@ def test_countersign_delivers_slot_one_before_review_and_commits_before_slot_two
 
 
 def material_authorization(local,card):
-    return objects.signed(objects.new('information-authorization',inputs=['brief'],jwk=local.user.inline_jwk,
-                                      cardDigest=card_digest(card)),local.user,utcnow())
+    return objects.signed(objects.new('information-authorization',inputs=['brief'],jwk=local.identities[0].user.inline_jwk,
+                                      cardDigest=card_digest(card)),local.identities[0].user,utcnow())
 
 
-def test_real_countersign_preserves_protocol_and_reads_only_explicitly_authorized_material(platform,client,local_client,service):
-    local=local_client;account,identity=service;template,_=template_for(platform,service)
-    sender_files=PrivateFiles(local.session,local.signer.id);receiver_files=PrivateFiles(account,identity.agent_id)
+def test_real_countersign_preserves_protocol_and_reads_only_explicitly_authorized_material(platform,client,protocol_participant,service,public_transport):
+    local=protocol_participant;account,identity=service;template,_=template_for(platform,service)
+    sender_files=PrivateFiles(local.account,local.identities[0].signer.id);receiver_files=PrivateFiles(account,identity.agent_id)
     data=b'private brief '+uid().encode();ref=sender_files.put('brief',data,uid())
     scope,card,intent=setup_counter(platform,client,local,service,template,ref)
     with online(client,local,service) as (sender,receiver):
@@ -124,7 +124,7 @@ def test_real_countersign_preserves_protocol_and_reads_only_explicitly_authorize
         receiver.call('request.start',{'messageId':request['messageId'],'interactionId':binding['interactionId']})
         assert receiver_files.get(received['body']['files']['brief'])==data
         keys=Directory();keys.add(identity.protocol_id,{'keys':[identity.signer.jwk]});keys.add(platform.market_id,{'keys':[platform.market_signer.jwk]})
-        provider=Provider(identity.signer,market=platform.market_id,keys=keys,transport=local.transport,fetch=account.fetch_package,store=Store())
+        provider=Provider(identity.signer,market=platform.market_id,keys=keys,transport=public_transport,fetch=account.fetch_package,store=Store())
         provider.store.put('templates',template['templateDigest'],template)
         reply=provider.handle('card.countersign',received['body']['body'],{'brief':data})
         assert 'card' in reply.body,reply.body
@@ -138,9 +138,9 @@ def test_real_countersign_preserves_protocol_and_reads_only_explicitly_authorize
         assert receiver.call('message.send',result)['messageId']==result['messageId']
 
 
-def test_original_protocol_progress_and_taskless_reply_keep_their_states(platform,client,local_client,service):
-    local=local_client;account,identity=service;template,_=template_for(platform,service)
-    data=uid().encode();ref=PrivateFiles(local.session,local.signer.id).put('brief',data,uid())
+def test_original_protocol_progress_and_taskless_reply_keep_their_states(platform,client,protocol_participant,service,public_transport):
+    local=protocol_participant;account,identity=service;template,_=template_for(platform,service)
+    data=uid().encode();ref=PrivateFiles(local.account,local.identities[0].signer.id).put('brief',data,uid())
     scope,card,intent=setup_counter(platform,client,local,service,template,ref)
     with online(client,local,service) as (sender,receiver):
         request,binding=request_for(platform,local,service,template,ref,scope,card,intent,sender,receiver)
@@ -148,7 +148,7 @@ def test_original_protocol_progress_and_taskless_reply_keep_their_states(platfor
         sender.call('message.send',request);receiver.delivery(request['messageId'])
         receiver.call('request.start',{'messageId':request['messageId'],'interactionId':binding['interactionId']})
         keys=Directory();keys.add(identity.protocol_id,{'keys':[identity.signer.jwk]});keys.add(platform.market_id,{'keys':[platform.market_signer.jwk]})
-        provider=Provider(identity.signer,market=platform.market_id,keys=keys,transport=local.transport,fetch=account.fetch_package,store=Store())
+        provider=Provider(identity.signer,market=platform.market_id,keys=keys,transport=public_transport,fetch=account.fetch_package,store=Store())
         provider.store.put('templates',template['templateDigest'],template)
         first=provider.handle('card.countersign',request['body']['body'],{'brief':data},defer=True)
         def respond(reply):
@@ -177,7 +177,7 @@ def test_original_protocol_progress_and_taskless_reply_keep_their_states(platfor
     from a2c.card import request_digest
     # A new scope is needed because the counter scope has already selected its card.
     grant=register(client,local,authorization(local));grant.raise_for_status();scope2=grant.json()['scopeDigest']
-    request=build_request(proposal,request_id=uid(),version=1,client={'id':local.signer.id,'jwk':local.signer.jwk},
+    request=build_request(proposal,request_id=uid(),version=1,client={'id':local.identities[0].signer.id,'jwk':local.identities[0].signer.jwk},
                           signers={'slot1':'client','slot7':'client'},spec={'result':{}},inputs={'brief':{'digest':ref['digest']}},
                           delegation_scope_digest=scope2,payment_provider=platform.payment_provider)
     intent={'messageId':uid(),'kind':'delegation.intent','recipient':identity.agent_id,'expiresAt':at(600),
@@ -194,12 +194,12 @@ def test_original_protocol_progress_and_taskless_reply_keep_their_states(platfor
                 'inReplyTo':checkout['messageId'],'expiresAt':at(300),'body':{'reply':{'body':raw.body,'taskId':raw.task_id,'state':raw.state},'files':{}}}
         receiver.call('message.send',result)
         assert sender.delivery(result['messageId'])['message']['body']['reply']['state'] is None
-        assert platform.messaging.delivery.message(local.account['id'],sender.actor,checkout['messageId'])['requestState']=='completed'
+        assert platform.delivery.message(local.account.account['id'],sender.actor,checkout['messageId'])['requestState']=='completed'
 
 
-def test_failed_message_commit_does_not_leak_a_material_read_grant(platform,client,local_client,service):
-    local=local_client;account,identity=service;template,_=template_for(platform,service)
-    ref=PrivateFiles(local.session,local.signer.id).put('brief',uid().encode(),uid())
+def test_failed_message_commit_does_not_leak_a_material_read_grant(platform,client,protocol_participant,service,public_transport):
+    local=protocol_participant;account,identity=service;template,_=template_for(platform,service)
+    ref=PrivateFiles(local.account,local.identities[0].signer.id).put('brief',uid().encode(),uid())
     scope,card,intent=setup_counter(platform,client,local,service,template,ref)
     with online(client,local,service) as (sender,receiver):
         request,binding=request_for(platform,local,service,template,ref,scope,card,intent,sender,receiver)
@@ -214,12 +214,12 @@ def test_failed_message_commit_does_not_leak_a_material_read_grant(platform,clie
         assert PrivateFiles(account,identity.agent_id).get(ref)
 
 
-def test_task_file_grants_rollback_together_with_reply_and_message(platform,client,local_client,service):
+def test_task_file_grants_rollback_together_with_reply_and_message(platform,client,protocol_participant,service,public_transport):
     from dataclasses import asdict
-    local=local_client;account,identity=service;template,_=template_for(platform,service)
-    brief=PrivateFiles(local.session,local.signer.id).put('brief',uid().encode(),uid())
+    local=protocol_participant;account,identity=service;template,_=template_for(platform,service)
+    brief=PrivateFiles(local.account,local.identities[0].signer.id).put('brief',uid().encode(),uid())
     scope,card,intent=setup_counter(platform,client,local,service,template,brief)
-    receiver_files=PrivateFiles(account,identity.agent_id);sender_files=PrivateFiles(local.session,local.signer.id)
+    receiver_files=PrivateFiles(account,identity.agent_id);sender_files=PrivateFiles(local.account,local.identities[0].signer.id)
     reply_file=receiver_files.put('evidence.bin',b'reply evidence',uid());task_file=receiver_files.put('evidence.bin',b'task evidence',uid())
     with online(client,local,service) as (sender,receiver):
         request,binding=request_for(platform,local,service,template,brief,scope,card,intent,sender,receiver)
@@ -227,7 +227,7 @@ def test_task_file_grants_rollback_together_with_reply_and_message(platform,clie
         sender.call('message.send',request);receiver.delivery(request['messageId'])
         receiver.call('request.start',{'messageId':request['messageId'],'interactionId':binding['interactionId']})
         keys=Directory();keys.add(identity.protocol_id,{'keys':[identity.signer.jwk]});keys.add(platform.market_id,{'keys':[platform.market_signer.jwk]})
-        provider=Provider(identity.signer,market=platform.market_id,keys=keys,transport=local.transport,fetch=account.fetch_package,store=Store())
+        provider=Provider(identity.signer,market=platform.market_id,keys=keys,transport=public_transport,fetch=account.fetch_package,store=Store())
         provider.store.put('templates',template['templateDigest'],template)
         reply=provider.handle('card.countersign',request['body']['body'],{'brief':sender_files.get(brief)})
         task=asdict(provider.tasks[reply.task_id]);task.pop('files')
@@ -245,10 +245,10 @@ def test_task_file_grants_rollback_together_with_reply_and_message(platform,clie
         assert sender_files.get(received['taskFiles']['evidence.bin'])==b'task evidence'
 
 
-def test_new_service_cannot_bypass_admission_using_public_market_slot_three(platform,client,local_client,service):
-    local=local_client;account,identity=service;template,verifier=template_for(platform,service,formation='proposal')
+def test_new_service_cannot_bypass_admission_using_public_market_slot_three(platform,client,protocol_participant,service,public_transport):
+    local=protocol_participant;account,identity=service;template,verifier=template_for(platform,service,formation='proposal')
     grant=register(client,local,authorization(local));grant.raise_for_status();scope=grant.json()['scopeDigest']
-    request=build_request(template,request_id=uid(),version=1,client={'id':local.signer.id,'jwk':local.signer.jwk},
+    request=build_request(template,request_id=uid(),version=1,client={'id':local.identities[0].signer.id,'jwk':local.identities[0].signer.jwk},
                           signers={'slot1':'client','slot7':'client'},spec={'result':{}},inputs={'brief':{'digest':digest_bytes(b'input')}},
                           delegation_scope_digest=scope,payment_provider=platform.payment_provider)
     card=build_proposal_card(template,request,card_id=uid(),acceptance={'result':{'verifiers':{'script':verifier},'notCovered':[]}},

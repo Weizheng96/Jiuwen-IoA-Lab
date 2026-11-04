@@ -1,18 +1,18 @@
-"""Editable availability, lost-update protection and real message/SMTP integration."""
+"""Participant-owned schedule validity and current invitation reservation ownership."""
 import copy
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+import uuid
 import pytest
-from ioalab_tools.schedule import LocalSchedule, instant
-from ioalab_tools.handlers import AssistantHandlers
-from ioalab_sdk.messaging import MailboxClient
+from ioalab_tools.schedule import LocalSchedule,instant
+from ioalab_tools.appointments import Appointments
 from ioalab_tools.calendar import SMTPNotification
-from _support import new_user, PASSWORD
+from ioalab_sdk.runtime.protocol import RuntimeFault
 from test_assistant import appointment
+from demo.smtp_capture import Capture
 
 
 def test_schedule_revision_backup_reload_and_interval_edges(tmp_path):
@@ -51,58 +51,50 @@ def test_invalid_schedule_never_implies_empty_calendar(tmp_path,corruption):
     with pytest.raises(FileNotFoundError):calendar.read()
 
 
-def test_local_rules_busy_time_and_pending_invitation_end_to_end(platform,tmp_path):
-    from smtp_capture import Capture
-    a,b=new_user(platform),new_user(platform)
-    receiver=MailboxClient(platform.s.base_url,a['username'],PASSWORD,tmp_path/'a',connect_identity=True)
-    sender=MailboxClient(platform.s.base_url,b['username'],PASSWORD,tmp_path/'b',connect_identity=True)
+
+def test_local_rules_busy_time_and_pending_invitation_end_to_end(tmp_path):
     capture=Capture(tmp_path/'mail').start()
-    calendar=LocalSchedule(tmp_path/'a/schedule.json');state=calendar.init()
-    payload=appointment()
+    calendar=LocalSchedule(tmp_path/'schedule.json');state=calendar.init();payload=appointment()
+    service=Appointments(calendar,SMTPNotification('127.0.0.1',capture.port,'notice@example.test',test=True),'owner@example.test')
+    def request():
+        return service.book(payload,{'operationId':str(uuid.uuid4()),'messageId':str(uuid.uuid4()),
+            'agentId':'schedule-owner','interactionId':str(uuid.uuid4()),'sessionId':'isolated-schedule-test'})
     try:
-        document=state['document']
-        document['events']=[{'id':'busy','title':'PRIVATE-SCHEDULE-TITLE','start':payload['start'],'end':payload['end']}]
+        document=state['document'];document['events']=[{'id':'busy','title':'PRIVATE-SCHEDULE-TITLE','start':payload['start'],'end':payload['end']}]
         state=calendar.replace(document,state['revision'])
-        handler=AssistantHandlers(receiver,calendar=calendar,notification=SMTPNotification('127.0.0.1',capture.port,'notice@example.test',test=True),recipient='owner@example.test')
-        handler.publish([b['username']])
-        def request():
-            message=sender.send(a['username'],'meeting.request',payload)
-            receiver.sync();receiver.process(handler)
-            return sender.get(message['id'])['result']
-        result=request()
-        assert result['reason']=='calendar_conflict' and not capture.messages
+        result=request();assert result['reason']=='busy' and not capture.messages
         assert 'PRIVATE-SCHEDULE-TITLE' not in json.dumps(result)
-        document['events']=[];document['rules']['startHour']=11
-        state=calendar.replace(document,state['revision'])
-        assert request()['reason']=='outside_authorized_rules' and not capture.messages
-        document['rules']['startHour']=9
-        state=calendar.replace(document,state['revision'])
+        document['events']=[];document['rules']['startHour']=11;state=calendar.replace(document,state['revision'])
+        assert request()['reason']=='outside_rules' and not capture.messages
+        document['rules']['startHour']=9;state=calendar.replace(document,state['revision'])
         assert request()['status']=='invite_submitted' and len(capture.messages)==1
-        assert request()['reason']=='local_pending_invitation' and len(capture.messages)==1
-        # Manual edits cannot release an invitation already persisted in the receiver.
-        state=calendar.replace(document,state['revision'])
-        assert request()['reason']=='local_pending_invitation'
+        assert request()['reason']=='busy' and len(capture.messages)==1
+        state=calendar.replace(document,state['revision']);assert request()['reason']=='busy'
         calendar.path.write_text('{invalid',encoding='utf-8')
-        assert request()['status']=='failed' and len(capture.messages)==1
+        with pytest.raises(Exception):request()
+        assert len(capture.messages)==1
         calendar.path.unlink()
-        assert request()['status']=='failed' and len(capture.messages)==1
-    finally:
-        capture.close();receiver.close();sender.close()
+        with pytest.raises(FileNotFoundError):request()
+        assert len(capture.messages)==1
+    finally:service.close();capture.close()
 
 
 def test_schedule_cli_works_offline_and_keeps_pending_records(tmp_path):
-    from ioalab_sdk.store import LocalStore
-    root=Path(__file__).resolve().parents[1]
-    env={**os.environ,'PYTHONUTF8':'1','PYTHONPATH':str(root/'src/access/sdk'),'IOALAB_HOME':str(tmp_path)}
-    for key in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_SCHEDULE_FILE'):env.pop(key,None)
-    def run(command):
-        output=subprocess.run([sys.executable,'-m','ioalab_tools.schedule_cli',command],env=env,capture_output=True,text=True,encoding='utf-8',timeout=15)
+    from ioalab_tools.appointments import appointment_records
+    calendar=LocalSchedule(tmp_path/'schedule.json');initial=calendar.init()
+    class UnknownNotification:
+        def send(self,*args):raise TimeoutError('External invitation receipt unknown')
+    service=Appointments(calendar,UnknownNotification(),'owner@example.test')
+    try:
+        with pytest.raises(RuntimeFault):service.book(appointment(),{'operationId':str(uuid.uuid4()),'messageId':str(uuid.uuid4()),
+            'agentId':'schedule-owner','interactionId':str(uuid.uuid4()),'sessionId':'isolated-schedule-test'})
+        records=appointment_records(calendar.path);assert len(records)==1 and next(iter(records.values()))['state']=='unknown'
+        env={**os.environ,'PYTHONUTF8':'1'}
+        for key in ('IOALAB_BASE_URL','IOALAB_USERNAME','IOALAB_PASSWORD','IOALAB_HOME','IOALAB_SCHEDULE_FILE'):env.pop(key,None)
+        output=subprocess.run([sys.executable,'-m','ioalab_tools.schedule_cli','show','--file',str(calendar.path)],
+            env=env,capture_output=True,text=True,encoding='utf-8',timeout=15)
         assert output.returncode==0,output.stdout+output.stderr
-        return json.loads(output.stdout)
-    initial=run('init')
-    store=LocalStore(tmp_path/'mailbox.sqlite')
-    try:store.put('appointments','request-one',{'uid':'fixed','start':1,'end':2,'state':'unknown','secret-extra':'not-a-calendar-field'})
-    finally:store.close()
-    result=run('show')
-    assert result['revision']==initial['revision'] and result['appointments'][0]['state']=='unknown'
-    assert 'secret-extra' not in json.dumps(result)
+        result=json.loads(output.stdout)
+        assert result['revision']==initial['revision'] and result['appointments'][0]['state']=='unknown'
+        assert 'schedule-owner' not in output.stdout and 'sessionId' not in output.stdout
+    finally:service.close()

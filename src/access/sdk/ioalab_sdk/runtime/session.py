@@ -11,12 +11,12 @@ import uuid
 
 import httpx
 from a2c.codec import digest_bytes
-from ..store import LocalStore
+from .account_store import LocalStore
 from .protocol import RuntimeFault,instant
 
 
 class AccountSession:
-    def __init__(self,base,username,password,home,*,legacy=None,connect=True,allow_offline=False):
+    def __init__(self,base,username,password,home,*,connect=True,allow_offline=False):
         parsed=urlsplit(base)
         if parsed.scheme not in ('http','https') or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError('A platform HTTP(S) address without embedded credentials is required')
@@ -35,8 +35,6 @@ class AccountSession:
                 if old and old!=binding:
                     raise RuntimeFault('identity_conflict','Account directory belongs to another platform or user')
                 self.cache.put('meta','binding',binding)
-                if legacy and not self.cache.get('session','current'):
-                    self.cache.put('session','current',legacy)
             try:
                 self.config=self.http.get(self.base+'/api/config',timeout=10).raise_for_status().json()
                 self.cache.put('meta','public_config',self.config)

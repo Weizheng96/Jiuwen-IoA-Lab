@@ -9,7 +9,7 @@ import tomllib
 import zipfile
 from packaging.requirements import Requirement
 
-from build_connector import constraints
+from build_requirements import constraints
 from build_packages import build_wheel
 
 

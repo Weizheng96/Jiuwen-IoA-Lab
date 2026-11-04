@@ -3,7 +3,7 @@
     ioalab check-config            # 核对环境变量（trial 模式的必填项），打印生效配置
     ioalab init [--no-seed]        # 幂等：建目录 · 建表 · 会话密钥 · A2X 凭据文件 · 记下 PUBLIC_URL · 创建空闲内部账号与分类
     ioalab serve                   # 起平台（单进程单 worker；禁 --reload）；首次启动若未注入种子且 IOALAB_AUTOSEED=1，自动注入
-    ioalab reset [--keep-keys] [--keep-accounts]   # 停服后清 data/
+    ioalab reset [--keep-keys]   # 停服后清 data/
     python tools/smoke.py                   # 核心、官方服务、本地SDK三进程闭环（显式桩，不调模型）
     ioalab backup [--out 目录]     # 停服后把 data/ 打成 tar.gz
 """
@@ -63,7 +63,6 @@ def main(argv: list[str] | None = None) -> None:
     sv.add_argument("--port", type=int)
     rs = sub.add_parser("reset")
     rs.add_argument("--keep-keys", action="store_true")
-    rs.add_argument("--keep-accounts", action="store_true", help="保留账号、钱包与服务注册，只清交易数据（需求 · 订单 · 事件 · 交付件）")
     bk = sub.add_parser("backup")
     bk.add_argument("--out")
     args = ap.parse_args(argv)
@@ -83,7 +82,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.cmd == "init":
         _require_ok(s)
-        from .platform import Platform
+        from .app import Platform
         pf = Platform(s)                       # 建表 · 校验并记下 PUBLIC_URL · 管理员口令
         _print_config(s)
         if args.no_seed:
@@ -104,7 +103,7 @@ def main(argv: list[str] | None = None) -> None:
             s.port = args.port
         _require_ok(s)
         import uvicorn
-        from .platform import Platform
+        from .app import Platform
         from .web.app import create_app
         pf = Platform(s)
         try:
@@ -121,16 +120,7 @@ def main(argv: list[str] | None = None) -> None:
         if not s.data.exists():
             print(f"[ioalab] {s.data} 不存在")
             return
-        if args.keep_accounts:
-            from .platform import Platform
-            pf = Platform(s)
-            try:
-                pf.reset_transactions()
-            finally:
-                pf.close()
-            print(f"[ioalab] 已清交易数据，保留账号 · 钱包 · 服务注册：{s.data}")
-            return
-        from .store import DataOwner
+        from .storage import DataOwner
         with DataOwner(s.data) as owner:
             keep = {s.data / "keys"} if args.keep_keys else set()
             for p in s.data.iterdir():
@@ -142,7 +132,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.cmd == "backup":
         out = Path(args.out) if args.out else s.data.parent / "backups"
-        from .store import DataOwner
+        from .storage import DataOwner
         with DataOwner(s.data):
             out.mkdir(parents=True, exist_ok=True)
             dst = out / f"ioalab-data-{time.strftime('%Y%m%d-%H%M%S')}.tar.gz"

@@ -6,7 +6,9 @@ import uuid
 import pytest
 from websockets.sync.client import connect
 
-from ioalab_sdk import LabClient
+from ioalab_sdk.runtime.config import RuntimeConfig
+from ioalab_sdk.runtime.files import private_json
+from ioalab_sdk.runtime.resident import ResidentRuntime
 from _support import new_user, PASSWORD
 
 
@@ -30,8 +32,10 @@ def people(platform, tmp_path):
     result = []
     for i in range(3):
         user = new_user(platform)
-        local = LabClient(platform.s.base_url, user['username'], PASSWORD, tmp_path/str(i))
-        result.append({**user, 'actor':local.signer.id, 'token':local.token})
+        config=tmp_path/str(i)/'participant.json'
+        private_json(config,{'platform_url':platform.s.base_url,'username':user['username'],'password':PASSWORD,'data_dir':'./state','identities':[{'key':'personal','role':'assistant','name':'协议测试参与方'}]})
+        local=ResidentRuntime(RuntimeConfig.load(config))
+        result.append({**user,'actor':local.identities[0].agent_id,'token':local.account.token})
         local.close()
     return result
 
@@ -326,11 +330,11 @@ def test_retention_protects_unknown_work_and_old_ids_cannot_be_reused(platform, 
     sender.call('interaction.close',{'interactionId':iid})
     old = time.time()-100*86400
     platform.db.run('UPDATE delivery_messages SET created=?,retain_until=? WHERE interaction=?',old,old,iid)
-    platform.messaging.delivery.cleanup()
+    platform.delivery.cleanup()
     assert platform.db.one('SELECT envelope FROM delivery_messages WHERE id=?',value['messageId'])['envelope']
     receiver.call('message.send',result(b['actor'],value['messageId'],iid,output={'status':'reserved'}))
     platform.db.run('UPDATE delivery_messages SET created=?,retain_until=? WHERE interaction=?',old,old,iid)
-    platform.messaging.delivery.cleanup()
+    platform.delivery.cleanup()
     assert platform.db.one('SELECT 1 FROM delivery_messages WHERE id=?',value['messageId']) is None
     assert sender.call('message.send',value,ok=False)['code']=='id_conflict'
 
@@ -350,7 +354,7 @@ def test_reconnect_replays_saved_messages_and_history_gap_is_not_hidden(platform
     repeated.close()
     old = time.time()-100*86400
     platform.db.run("UPDATE delivery_messages SET created=?,retain_until=?,expires=?,request_state='expired' WHERE id=?",old,old,old,value['messageId'])
-    platform.messaging.delivery.cleanup()
+    platform.delivery.cleanup()
     with pytest.raises(AssertionError,match='history_gap'):
         Peer(client,a,runtime=receiver.runtime,cursor=0)
 
@@ -382,7 +386,7 @@ def test_cleanup_cannot_leave_an_interior_sequence_gap(platform, client, people,
     sender.call('interaction.close',{'originMessageId':second['messageId']})
     old = time.time()-100*86400
     platform.db.run('UPDATE delivery_messages SET created=?,retain_until=?,expires=? WHERE id IN (?,?)',old,old,old,first['messageId'],second['messageId'])
-    platform.messaging.delivery.cleanup()
+    platform.delivery.cleanup()
     kept = platform.db.one('SELECT envelope FROM delivery_messages WHERE id=?',second['messageId'])
     assert kept is not None and kept['envelope'] is None
     receiver.close()

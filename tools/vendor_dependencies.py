@@ -85,7 +85,7 @@ def main():
             archive.write_bytes(gzip.compress(raw,mtime=0))
             item['archive']=archive.relative_to(VENDOR).as_posix();item['archiveSha256']=digest(archive.read_bytes());item['sourceTarSha256']=digest(raw)
         if item.get('frontend'):
-            expected=json.loads((ROOT/'personal-assistant/swarm.lock.json').read_text('utf-8'))['sourceArchiveSha256']
+            expected=json.loads((ROOT/'vendor/jiuwen/swarm.lock.json').read_text('utf-8'))['sourceArchiveSha256']
             if digest(raw)!=expected:raise ValueError('Pinned Jiuwen source archive changed')
             frontend=stage/'jiuwenswarm/channels/web/frontend'
             npm=shutil.which('npm.cmd' if os.name=='nt' else 'npm')
@@ -104,7 +104,7 @@ def main():
         if item.get('wheel'):item['wheelInfo']=wheel_info(VENDOR/item['wheel'])
         save(data);print('Prepared:',name,flush=True)
     if not args.only:
-        lock=ROOT/'personal-assistant/requirements-swarm.lock';lines=lock.read_text('utf-8').splitlines()
+        lock=ROOT/'vendor/jiuwen/requirements-swarm.lock';lines=lock.read_text('utf-8').splitlines()
         wheels={i['wheelInfo']['package'].lower().replace('_','-'):i['wheel'] for i in data['components'] if 'wheelInfo' in i}
         resolved=[]
         for line in lines:
@@ -114,7 +114,7 @@ def main():
                 line='./vendor/'+wheels[name]
             resolved.append(line)
         lock.write_text('\n'.join(resolved)+'\n',encoding='utf-8',newline='\n')
-        spec=ROOT/'personal-assistant/swarm.lock.json';swarm=json.loads(spec.read_text('utf-8'))
+        spec=ROOT/'vendor/jiuwen/swarm.lock.json';swarm=json.loads(spec.read_text('utf-8'))
         swarm['requirementsSha256']=digest(lock.read_bytes());swarm['frontend']='Original prebuilt web UI included in the local workswarm wheel; deployment requires no Node/npm'
         swarm['manifest']='vendor/SOURCES.json';spec.write_text(json.dumps(swarm,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     print('Pinned sources and prepared wheels are local; review vendor/SOURCES.json before committing.')

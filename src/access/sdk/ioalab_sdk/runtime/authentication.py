@@ -1,6 +1,6 @@
 """Short SDK account controller; never loads role identities, business state or a host."""
 import httpx
-from ..lease import Lease
+from .lease import Lease
 from .config import RuntimeConfig
 from .files import prepare_home
 from .protocol import RuntimeFault

@@ -107,26 +107,8 @@ def test_upload_checks_bound_identity_signature_category_and_ordinary_template_p
     assert service_status(account,identity)['revision']==0
 
 
-def test_old_operation_recovers_immutable_receipt_without_reverting_new_source_or_index(platform,service):
-    account,identity=service;first=publication(platform,identity)
-    receipt=submit(account,identity,first).json()
-    second=publication(platform,identity,revision=2,name='更新后的真实服务名')
-    assert submit(account,identity,second).status_code==200
-    assert submit(account,identity,first).json()==receipt
-    assert service_status(account,identity)['revision']==service_status(account,identity)['indexedRevision']==2
-    assert platform.discovery.get_card(identity.agent_id)['name']==second['declaration']['name']
-    assert account.api('GET','/operations/'+first['operationId']+'?'+urlencode({'agentId':identity.agent_id,'operation':'service.publish'}))==receipt
-    changed={**first,'declaration':{**first['declaration'],'name':'改变旧操作'}}
-    assert submit(account,identity,changed).status_code==409
-    old_template=receipt['templates'][0]
-    transport=A2ATransport(http=lambda:httpx.AsyncClient(timeout=15,trust_env=False))
-    try:assert transport.send(identity.protocol_id,'template.get',{'templateDigest':old_template['templateDigest']}).body['templates']==[old_template]
-    finally:transport.close()
-
-
 def test_index_failure_commits_original_once_and_replay_repairs_current_projection(platform,service,monkeypatch):
     account,identity=service;body=publication(platform,identity)
-    original=platform.discovery.register_one
     with monkeypatch.context() as patch:
         patch.setattr(platform.discovery,'register_one',lambda *a,**kw:(_ for _ in ()).throw(OSError('test index outage')))
         response=submit(account,identity,body)
@@ -137,6 +119,20 @@ def test_index_failure_commits_original_once_and_replay_repairs_current_projecti
     assert service_status(account,identity)['indexReady']
     assert len(platform.db.rows('SELECT * FROM registry_publications WHERE actor=?',identity.agent_id))==1
     assert platform.discovery.get_card(identity.agent_id)['url']==identity.protocol_id
+    # Once revision one is repaired, an older operation must keep its original
+    # receipt and templates while revision two remains the current projection.
+    second=publication(platform,identity,revision=2,name='更新后的真实服务名')
+    assert submit(account,identity,second).status_code==200
+    assert submit(account,identity,body).json()==receipt
+    assert service_status(account,identity)['revision']==service_status(account,identity)['indexedRevision']==2
+    assert platform.discovery.get_card(identity.agent_id)['name']==second['declaration']['name']
+    assert account.api('GET','/operations/'+body['operationId']+'?'+urlencode({'agentId':identity.agent_id,'operation':'service.publish'}))==receipt
+    changed={**body,'declaration':{**body['declaration'],'name':'改变旧操作'}}
+    assert submit(account,identity,changed).status_code==409
+    old_template=receipt['templates'][0]
+    transport=A2ATransport(http=lambda:httpx.AsyncClient(timeout=15,trust_env=False))
+    try:assert transport.send(identity.protocol_id,'template.get',{'templateDigest':old_template['templateDigest']}).body['templates']==[old_template]
+    finally:transport.close()
 
 
 def test_endorsement_result_loss_recovers_original_signature_without_reendorsing(platform,service,monkeypatch):

@@ -19,7 +19,7 @@ def windows(template,card):
 
 def answered(platform,quote):
     with platform.db.tx() as conn:
-        return platform.messaging.delivery.protocol.proposal_finished_in(conn,quote['admissionId'],platform.messaging.delivery.protocol_history_in)
+        return platform.delivery.protocol.proposal_finished_in(conn,quote['admissionId'],platform.delivery.protocol_history_in)
 
 
 def selection(platform,assistant,card,at,monkeypatch):
@@ -38,7 +38,7 @@ def notices(platform,quote):
 def test_expired_unselected_proposal_releases_atomically_preserving_fee_and_originals(platform,client,tmp_path,monkeypatch):
     with participants(platform,tmp_path,fee=1) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task);wait_for(lambda:answered(platform,quote))
-        response,end=windows(template,quote['card']);broker=platform.messaging.delivery
+        response,end=windows(template,quote['card']);broker=platform.delivery
         fees=platform.db.rows('SELECT * FROM transfers WHERE ref=?',platform.db.one('SELECT binding FROM delegation_admissions WHERE id=?',quote['admissionId'])['binding'])
         assert len(fees)==1 and not notices(platform,quote)
         with platform.db.lock:
@@ -101,7 +101,7 @@ def test_exact_response_deadline_selection_and_its_original_receipt_prevent_expi
             assert receipt['selectedCardDigest']==card_digest(quote['card'])
             monkeypatch.setattr(platform.scopes,'clock',lambda:end+1)
             monkeypatch.setattr(platform.admissions,'clock',lambda:end+1)
-            platform.messaging.delivery.cleanup()
+            platform.delivery.cleanup()
             assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',quote['admissionId'])['state']=='committed'
             with platform.db.tx() as conn:
                 recovered=platform.scopes.prepare(assistant.account.account['id'],assistant.identities[0].agent_id,'scope.select',json.loads(prepared.payload))
@@ -113,7 +113,7 @@ def test_unknown_or_missing_original_evidence_never_releases_a_proposal(platform
     with participants(platform,tmp_path,fee=0) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task);wait_for(lambda:answered(platform,quote))
         other=candidate(assistant,provider,template,task);wait_for(lambda:answered(platform,other))
-        _,end=windows(template,quote['card']);aid=quote['admissionId'];broker=platform.messaging.delivery
+        _,end=windows(template,quote['card']);aid=quote['admissionId'];broker=platform.delivery
         _,other_end=windows(template,other['card'])
         with platform.db.lock:
             monkeypatch.setattr(platform.admissions,'clock',lambda:max(end,other_end)+1)

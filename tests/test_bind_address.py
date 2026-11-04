@@ -8,7 +8,7 @@ import uvicorn
 
 from conftest import wait_for
 from ioalab.config import Settings
-from ioalab.platform import Platform
+from ioalab.app import Platform
 from ioalab.web.app import create_app
 
 

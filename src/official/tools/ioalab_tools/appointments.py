@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from a2c.codec import digest
 from dotenv import dotenv_values
 from jsonschema import Draft202012Validator,FormatChecker
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.runtime.files import private_json,restrict
 from ioalab_sdk.runtime.host import BusinessTools,ToolBinding
 from ioalab_sdk.runtime.protocol import RuntimeFault

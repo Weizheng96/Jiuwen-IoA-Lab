@@ -27,9 +27,9 @@ CRITICAL = (
     case('payment_atomicity', 'test_expired_and_mismatched_signed_checkout_are_rejected'),
     case('payment_rules', 'test_insufficient_then_pay_installment'),
     case('protocol_relay', 'test_countersign_delivers_slot_one_before_review_and_commits_before_slot_two'),
-    case('messaging', 'test_offline_cursor_ack_and_effect_once'),
+    case('agent_delivery', 'test_offline_open_uuid_recovery_conflict_then_retry_same_interaction'),
     case('lease', 'test_fresh_lease_serializes_actual_independent_processes'),
-    case('recovery', 'test_directory_lease_released_after_close'),
+    case('resident_runtime', 'test_control_remains_responsive_and_stop_drains_actual_running_work'),
     'tests/test_user_confirmations.py',
     case('termination_control', 'test_original_termination_before_work_uses_actual_deposit_and_closes_without_fake_anchor[zero-proposal-False]'),
 )
@@ -66,13 +66,13 @@ FILE_RULES = {
     'tools/check_frontend.cjs': ('frontend',),
     'tools/stamp_static.py': ('frontend',),
     'src/access/sdk/ioalab_sdk/assistant/fulfillment.py': ('fulfillment_status', 'resident_fulfillment', 'resident_multiperiod', 'user_confirmations', 'payment_atomicity', 'fulfillment_payment_guards', 'resident_payment_recovery'),
-    'src/access/sdk/ioalab_sdk/assistant/trading.py': ('assistant_role', 'sdk_inputs', 'resident_contracts', 'payment_transport_recovery'),
-    'src/access/sdk/ioalab_sdk/adapters/payments.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs', 'payment_transport_recovery'),
-    'src/access/sdk/ioalab_sdk/adapters/transport.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs', 'payment_transport_recovery'),
-    'src/access/sdk/ioalab_sdk/runtime/store.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs', 'payment_transport_recovery'),
+    'src/access/sdk/ioalab_sdk/assistant/trading.py': ('assistant_role', 'resident_input_boundaries', 'resident_contracts', 'payment_transport_recovery'),
+    'src/access/sdk/ioalab_sdk/adapters/payments.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries', 'payment_transport_recovery'),
+    'src/access/sdk/ioalab_sdk/adapters/transport.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries', 'payment_transport_recovery'),
+    'src/access/sdk/ioalab_sdk/runtime/store.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries', 'payment_transport_recovery'),
     'src/platform/ioalab/operations.py': ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission', 'payment_rejection'),
     'src/access/sdk/ioalab_sdk/assistant/contracts.py': ('resident_contracts', 'contract_binding', 'delegation_scopes'),
-    'src/access/sdk/ioalab_sdk/assistant/candidates.py': ('candidate_evidence', 'sdk_compare'),
+    'src/access/sdk/ioalab_sdk/assistant/candidates.py': ('candidate_evidence',),
     'src/access/sdk/ioalab_sdk/assistant/delegation.py': ('resident_delegation', 'delegation_admission', 'delegation_scopes'),
     'src/access/sdk/ioalab_sdk/assistant/rules.py': ('inbox_rules', 'user_confirmations'),
     'src/access/sdk/ioalab_sdk/assistant/termination.py': ('resident_termination', 'termination_control'),
@@ -88,8 +88,14 @@ FILE_RULES = {
     'src/access/sdk/ioalab_sdk/runtime/configuration.py': ('configuration_boundary', 'configuration_edit', 'installation_identity'),
     'src/access/sdk/ioalab_sdk/runtime/installation.py': ('installation_identity', 'access_products'),
     'src/access/sdk/ioalab_sdk/runtime/__main__.py': ('configuration_boundary', 'cli_encoding', 'fulfillment_status'),
-    'src/access/skills/assistant/references/delegation.md': ('business_skills', 'cli_script', 'skill_flows'),
-    'src/access/skills/_shared/references/calling.md': ('access_products', 'business_skills', 'cli_script', 'cli_encoding'),
+    'src/access/skills/assistant/references/delegation.md': ('business_skills', 'access_products', 'resident_delegation'),
+    'src/access/skills/_shared/references/calling.md': ('access_products', 'business_skills', 'cli_encoding'),
+    'src/access/sdk/ioalab_sdk/templates.py': ('template_renewal', 'service_publication', 'provider_authoring'),
+    'src/access/sdk/ioalab_sdk/runtime/lease.py': ('lease', 'resident_runtime', 'runtime_signals'),
+    'src/access/sdk/ioalab_sdk/runtime/account_store.py': ('account_enrollment', 'authentication_recovery'),
+    'src/official/tools/ioalab_tools/agentmail_setup.py': ('agentmail_setup', 'business_tools'),
+    'src/official/tools/ioalab_tools/schedule_cli.py': ('local_schedule', 'appointment_source'),
+    'tools/build_requirements.py': ('access_products', 'package_installation', 'package_manifest_boundary'),
     'demo/script_documents.py': ('review_story', 'demo_artifacts'),
     'demo/review_story.py': ('review_story', 'demo_artifacts'),
     'demo/build_voice.py': ('approved_voice', 'demo_artifacts'),
@@ -98,20 +104,23 @@ FILE_RULES = {
 RULES = (
     (('.agents/', '.github/', 'tools/check_scope.py'), ('check_workflow', 'check_scope')),
     (('tests/js/user_confirmation_view.cjs',), ('user_confirmation_view',)),
-    (('src/access/skills/', 'connector/'), ('access_products', 'business_skills', 'skill_*', 'cli_*', 'private_files')),
-    (('src/access/sdk/ioalab_sdk/assistant/',), ('assistant_role', 'sdk_inputs', 'resident_contracts')),
+    (('src/access/examples/',), ('external_provider', 'resident_runtime', 'configuration_boundary')),
+    (('src/access/skills/',), ('access_products', 'business_skills', 'skill_*', 'cli_encoding', 'private_files')),
+    (('src/access/sdk/ioalab_sdk/assistant/',), ('assistant_role', 'resident_input_boundaries', 'resident_contracts')),
     (('src/access/sdk/ioalab_sdk/provider/',), ('provider_*', 'service_publication', 'publication_authorizations', 'task_*', 'resident_fulfillment')),
-    (('src/access/sdk/',), ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs')),
+    (('src/access/sdk/',), ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries')),
     (('src/hosts/',), ('jiuwen_host', 'host_tool_names', 'native_*', 'web_*', 'runtime_delivery')),
-    (('src/platform/ioalab/web/',), ('api_v1', 'admin_api', 'workbench_*', 'user_browser', 'frontend')),
+    (('src/platform/ioalab/web/',), ('admin_api', 'observation_views', 'protocol_operations', 'workbench_*', 'user_browser', 'frontend')),
+    (('src/platform/ioalab/registry/',), ('category_preview', 'search_availability', 'service_publication', 'publication_authorizations')),
+    (('src/platform/ioalab/delegation/',), ('delegation_*', 'protocol_relay', 'provider_admission', 'arbitration*', 'payment_rejection')),
     (('src/platform/ioalab/payments/',), ('payment_*', 'delegation_scopes')),
-    (('src/platform/ioalab/messaging/',), ('messaging', 'protocol_relay', 'runtime_delivery')),
+    (('src/platform/ioalab/messaging/',), ('agent_delivery', 'message_boundaries', 'protocol_relay', 'runtime_delivery')),
     (('src/platform/ioalab/identity/',), ('auth', 'authentication_recovery')),
     (('src/platform/ioalab/',), ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission')),
-    (('src/official/', 'official-services/'), ('official_*', 'service_tools', 'business_tools')),
-    (('deploy/', 'personal-assistant/', 'vendor/'), ('deployment*', 'vendor_deployment', 'owned_workspace', 'production_release', 'sync_a2c')),
+    (('src/official/',), ('official_*', 'business_tools', 'appointment_source', 'agentmail_*')),
+    (('deploy/', 'vendor/'), ('deployment*', 'vendor_deployment', 'owned_workspace', 'production_release', 'sync_a2c')),
     (('demo/verification/',), ('demo_artifacts',)),
-    (('demo/', 'examples/', 'experiments/'), ('demo_artifacts', 'booking_demo', 'appointment_source', 'seed_manifest')),
+    (('demo/', 'experiments/'), ('demo_artifacts', 'booking_demo', 'appointment_source', 'seed_manifest')),
 )
 CODE = ('.py', '.sh', '.cjs', '.js', '.html', '.toml', '.lock', '.whl', '.json', '.yml', '.yaml', '.example')
 SHARED_INPUTS = ('requirements.txt', 'pyproject.toml', 'tests/conftest.py', 'tests/_support.py')
@@ -237,6 +246,8 @@ def select_tests(paths, root=ROOT, *, base=None):
                                     if isinstance(node, ast.ClassDef) and node.name.startswith('Test'))
 
     for path in paths:
+        if path.startswith('历史备份/'):
+            continue
         code = path.endswith(CODE)
         shared = path in SHARED_INPUTS
         # Shared inputs must be handled before extension/prose early returns:
@@ -248,7 +259,7 @@ def select_tests(paths, root=ROOT, *, base=None):
         if path in available:
             add((available[path],)); reasons.append(path + ': changed test (quick integration matrix where declared)')
             continue
-        if not code and not path.startswith(('src/access/skills/', 'connector/')):
+        if not code and not path.startswith('src/access/skills/'):
             continue
         if path in FILE_RULES:
             add(FILE_RULES[path]); reasons.append(path + ': exact owner and adjacent invariants')
@@ -258,7 +269,7 @@ def select_tests(paths, root=ROOT, *, base=None):
                 add(match); reasons.append(path + ': most-specific directory scope')
             elif not path.startswith('tests/') and not shared:
                 add(CRITICAL); warnings.append(path + ': unmapped executable; representative critical checks only, review affected coverage')
-        if code and path.startswith(('src/', 'vendor/', 'deploy/', 'personal-assistant/', 'official-services/')):
+        if code and path.startswith(('src/', 'vendor/', 'deploy/')):
             add(CRITICAL)
     changed_tests = [p for p in paths if p.startswith('tests/') and p.endswith('.py')]
     for path in tuple(changed_tests):

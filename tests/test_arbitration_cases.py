@@ -1,11 +1,12 @@
 """Real case control/query boundaries; host and user actions are explicit doubles."""
 from urllib.parse import urlencode
+from datetime import timedelta
 import threading
 
 import httpx
 import pytest
 
-from a2c.codec import digest_bytes,parse_time
+from a2c.codec import digest_bytes,parse_time,utcnow
 from ioalab.errors import LabError
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from test_arbitration_evidence import preview,formed,DeliverHost,delivered
@@ -41,6 +42,26 @@ def test_real_ws_admission_and_both_parties_restore_one_case_without_adjudicatin
     with participants(platform,tmp_path,formation=formation,fee=0) as (p,a,host,t,task):
         ref,admission=formed(a,candidate(a,p,t,task))
         first=preview(a,admission,'start-overdue')
+        assert not first['eligible'] and first['reason']=='not_due'
+        assert first['subject']=={'kind':'contract','digest':ref}
+        assert first['evidence']['card']['fulfillment']=={} and not first['evidence']['steps']
+        deadline=parse_time(first['deadline']).timestamp()
+        with monkeypatch.context() as patch:
+            patch.setattr(platform.arbitration_evidence,'clock',lambda:deadline)
+            exact=preview(a,admission,'start-overdue');assert not exact['eligible']
+            patch.setattr(platform.arbitration_evidence,'clock',lambda:deadline+1)
+            after=preview(a,admission,'start-overdue');assert after['eligible']
+            assert after['basisDigest']==first['basisDigest']
+            assert platform.market.market.store.get('ledger',ref) is None
+            with platform.db.lock:
+                count=platform.db.conn.total_changes
+                platform.arbitration_evidence.preview(owner(a),
+                    {'agentId':actor(a),'admissionId':admission,'ground':'start-overdue'})
+                assert platform.db.conn.total_changes==count
+            turns=len(host.turns)
+            patch.setattr(platform.arbitration_evidence,'clock',lambda:(utcnow()+timedelta(days=40)).timestamp())
+            assert preview(a,admission,'start-overdue')['eligible']
+            assert len(host.turns)==turns and not platform.db.rows('SELECT * FROM payment_records WHERE ref=?',ref)
         payload={'admissionId':admission,'ground':'start-overdue','basisDigest':first['basisDigest']}
         assert read(a,'/arbitrations',agentId=actor(a),admissionId=admission) is None
         with pytest.raises(RuntimeFault) as early:submit(a,payload)
@@ -133,7 +154,7 @@ def test_current_lease_is_rechecked_after_evidence_preparation(platform,tmp_path
         def disconnect(*args,**kwargs):
             result=prepare(*args,**kwargs)
             connection=platform.db.one('SELECT connection FROM delivery_leases WHERE actor=?',actor(a))['connection']
-            platform.messaging.delivery.disconnect(connection)
+            platform.delivery.disconnect(connection)
             return result
         monkeypatch.setattr(platform.arbitration_cases,'prepare',disconnect)
         with pytest.raises(RuntimeFault) as stale:submit(a,payload)

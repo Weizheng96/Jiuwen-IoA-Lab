@@ -9,8 +9,6 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from a2c.jws import Signer
 from a2c.payment.ap2 import EcKey
-from ioalab_sdk import LabClient
-from ioalab_sdk.messaging import MailboxClient
 from ioalab_sdk.runtime.session import AccountSession
 from ioalab_sdk.runtime.identity import IdentityClient
 from ioalab_sdk.runtime import AgentConnection,RuntimeStore,RuntimeFault
@@ -80,10 +78,13 @@ def test_changed_parameters_and_credentials_cannot_reuse_login(platform,client):
 def test_shared_roles_and_refresh_do_not_log_in_again(platform,tmp_path):
     user=new_user(platform)
     home=tmp_path/'shared'
-    first=LabClient(platform.s.base_url,user['username'],PASSWORD,home)
-    first.close()
-    box=MailboxClient(platform.s.base_url,user['username'],PASSWORD,home)
-    box.close()
+    from ioalab_sdk.runtime.identities import load_identity
+    first=AccountSession(platform.s.base_url,user['username'],PASSWORD,home)
+    try:
+        assistant=load_identity(first,home,{'key':'personal','role':'assistant','name':'共享账号助手'})
+        service=load_identity(first,home,{'key':'service','role':'service','name':'共享账号服务'})
+        assert assistant.agent_id!=service.agent_id
+    finally:first.close()
     session=AccountSession(platform.s.base_url,user['username'],PASSWORD,home)
     try:
         before=platform.wallets.balance(user['id'])

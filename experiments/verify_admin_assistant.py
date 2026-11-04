@@ -70,7 +70,7 @@ def main():
         assert [x['name'] for x in current]==['meeting.request','message.forward']
         assert [x['enabled'] for x in current]==[False,True]
     finally:account.close()
-    from ioalab_sdk.lease import Lease
+    from ioalab_sdk.runtime.lease import Lease
     with Lease(config.home/'client.lock',timeout=0):pass
     recipe.chmod(0o666)
     try:assert call('prepare',success=False)['error']['code']=='forbidden'

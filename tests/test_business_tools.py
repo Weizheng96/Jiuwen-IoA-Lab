@@ -14,7 +14,7 @@ from ioalab_sdk.runtime.protocol import RuntimeFault
 from test_assistant import appointment
 from test_assistant_role import runtime_at,user_decision,send_and_read
 from conftest import wait_for
-from smtp_capture import Capture
+from demo.smtp_capture import Capture
 
 
 def uid():return str(uuid.uuid4())

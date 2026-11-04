@@ -1,0 +1,554 @@
+"""IoA infrastructure only. Contract clients and service workers live outside this process."""
+from __future__ import annotations
+import asyncio
+import hashlib
+import json
+import logging
+import time
+from datetime import datetime, timezone
+from importlib.metadata import version
+from pathlib import Path
+from typing import Any, Mapping
+import httpx
+from starlette.responses import JSONResponse
+from a2c.binding import A2C_EXTENSION, AP2_EXTENSION, A2ATransport, build_app
+from a2c.common import Directory
+from a2c.errors import CARD_INVALID, fail
+from a2c.jws import header_of
+from .config import Settings
+from .events import EventBus, TracingTransport, trace_endpoint
+from .keys import KeyStore
+from .registry.discovery import Discovery
+from .delegation.service import MarketService
+from .payments import SimPaymentProvider, Wallets, money
+from .identity.keys import thumbprint
+from .identity.auth import Auth
+from .registry.models import DiscoveryModels
+from .delegation.models import ArbitrationModels
+from .delegation.packages import PackageStore
+from .store import DB, DataOwner, SqliteStore, jdump, jload, now
+log = logging.getLogger("ioalab.platform")
+
+class LoopbackTransport(httpx.AsyncHTTPTransport):
+    """发往本平台 PUBLIC_URL 的请求改走回环地址（Host 头保留对外地址）：部署在 Nginx 后面时进程内互调不绕圈、不依赖域名解析。"""
+
+    def __init__(self, public: str, local: str) -> None:
+        super().__init__()
+        self.public, self.local = httpx.URL(public), httpx.URL(local)
+
+    @staticmethod
+    def _port(u: httpx.URL) -> int:
+        return u.port or (443 if u.scheme == "https" else 80)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        u = request.url
+        if self.public != self.local and u.scheme == self.public.scheme and u.host == self.public.host and self._port(u) == self._port(self.public):
+            request.url = u.copy_with(scheme=self.local.scheme, host=self.local.host, port=self._port(self.local))
+        return await super().handle_async_request(request)
+
+
+class A2ARouter:
+    """ASGI：/a2a/<name>/… 分发到按名字登记的 A2A 应用（服务方可运行期增加）。"""
+
+    def __init__(self, serve) -> None:
+        self.serve = serve
+        self.apps: dict[str, Any] = {}
+        self.local_only: set[str] = set()
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await send({"type": "http.response.start", "status": 404, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+            return
+        from starlette.routing import get_route_path
+        path = get_route_path(scope)                 # 相对本挂载点（/a2a）的路径；scope["path"] 保持完整
+        parts = path.strip("/").split("/", 2) if path.strip("/") else []
+        # /providers/<id>/... 或 /market/... 或 /pay/...
+        if parts and parts[0] == "providers" and len(parts) >= 2:
+            name = "providers/" + parts[1]
+        elif parts:
+            name = parts[0]
+        else:
+            name = ""
+        app = self.apps.get(name)
+        if app is None:
+            resp = JSONResponse({"error": "no such A2A endpoint"}, status_code=404)
+            await resp(scope, receive, send)
+            return
+        if name in self.local_only:
+            host = (scope.get("client") or ("", 0))[0]
+            if host not in ("127.0.0.1", "::1", "localhost"):
+                resp = JSONResponse({"error": "providers are reachable only from the platform host"}, status_code=403)
+                await resp(scope, receive, send)
+                return
+        sub = dict(scope)
+        sub["root_path"] = scope.get("root_path", "") + "/" + name    # 子应用按 root_path 之后的部分匹配路由
+        await self.serve(app, sub, receive, send)
+
+
+class Platform:
+    def __init__(self, settings: Settings):
+        self.s = settings
+        self._owner = DataOwner(settings.data)
+        self._closed = False
+        self._closing = False
+        self._workers = set()
+        self._shutdown_task = None
+        self.started = False
+        self.background = []
+        self.transports = []
+        try:
+            self._initialize()
+        except BaseException:
+            self.close()
+            raise
+
+    def _initialize(self):
+        settings = self.s
+        settings.dirs()
+        self._pin_public_url()
+        settings.write_a2x_key()
+        self.db = DB(settings.data / "ioalab.sqlite")
+        self.bus = EventBus(self.db, settings.data / "runs")
+        self.wallets, self.auth = Wallets(self.db), Auth(self.db, settings)
+        from .operations import AccountOperations
+        self.accounts=AccountOperations(self.db,self.auth,self.wallets,settings,self.bus.emit)
+        from .identity import IdentityDirectory
+        self.identities=IdentityDirectory(self.db,self.auth,settings)
+        from .registry import RegistryView
+        self.registry=RegistryView(self.db)
+        self.packages = PackageStore(settings.data / "packages")
+        self.discovery_models = DiscoveryModels(settings)
+        self.arbitration_models = ArbitrationModels(settings)
+        self.router = A2ARouter(self._serve_owned)
+        self.transports=[]
+        self.keys = Directory(fetch=self._transport("directory").jwks)
+        self.keystore = KeyStore(settings.data / "keys")
+        self.market_id, self.pay_id = settings.base_url + "/a2a/market", settings.base_url + "/a2a/pay"
+        self.payment_provider = {"id": self.pay_id, "jwksUri": self.pay_id + "/.well-known/jwks.json"}
+        self.market_signer = self.keystore.ed25519(self.market_id, name="market", kid="m1")
+        self.pay_signer = self.keystore.ed25519(self.pay_id, name="pay", kid="pay1")
+        self.pay_ec = self.keystore.ec("pay")
+        self.keys.add_signer(self.market_signer)
+        self.keys.add_signer(self.pay_signer)
+        self.discovery = Discovery(settings.data / "a2x", a2x_home=settings.a2x_home,
+                                   llm_configured=settings.a2x_configured(), embed_fn=self.discovery_models.embed if self.discovery_models.enabled else None)
+        self.market = MarketService(self.market_signer, keys=self.keys, fetch=self.packages.fetch,
+                                    store=SqliteStore(self.db, "market"), db=self.db, models=self.arbitration_models.ports())
+        from .payments.scopes import ScopeLedger
+        self.scopes=ScopeLedger(self.db,self.identities,settings.base_url,keys=self.keys,
+                                template=self.market.template,category=self.registry.category_in)
+        from .identity.enrollment import EnrollmentRegistry
+        saved_keys,protocol_owners=self.identities.saved_keys()
+        certificates=[(protocol_owners[record['subject']],record['jwkThumbprint']) for record in self.market.certificates()
+                      if record.get('subject') in protocol_owners]
+        self.identities.enrollment=EnrollmentRegistry(self.db,settings,legacy_keys=saved_keys,legacy_certificates=certificates)
+        from .web.identity import public_identity_app
+        from .registry.publication import ServicePublications
+        from .registry.categories import CategoryPreview
+        from .operations import ServiceOperations
+        self.category_preview=CategoryPreview(self.discovery.categories,lambda service,categories:self.discovery_models.classify_category(service,categories))
+        from .registry.authorizations import PublicationAuthorizations
+        self.publication_authorizations=PublicationAuthorizations(self.db,self.identities,self.auth)
+        self.publications=ServicePublications(self.db,self.identities,self.discovery.categories,authorizations=self.publication_authorizations)
+        from .files import PrivateFiles
+        self.files=PrivateFiles(self.db,self.identities,settings.data/'private-files')
+        self.service_operations=ServiceOperations(self.db,self.publications,self.market,self.discovery,self.payment_provider)
+        self.router.apps['agents']=public_identity_app(self.identities.enrollment,self.publications)
+        trace_endpoint(self.market.market, self.bus, self.market_id)
+        self.psp = SimPaymentProvider(self.pay_signer, keys=self.keys, ap2_key=self.pay_ec, parties=self.identities.payment_party,
+                                      wallets=self.wallets, client_matches=self.identities.matches_party, db=self.db,
+                                      on_transfer=lambda t: self.bus.emit("ap2", "transfer", sender=t["payer"], receiver=t["payee"],
+                                          card_digest=t["ref"], period=t.get("period"), amount=t["amount"], outcome=t["purpose"]))
+        self.router.apps["market"] = build_app(self.market.market, name="IoA Lab Agent 交易市场", base_url=self.market_id,
+                                               role="market", jwks={"keys": [self.market_signer.jwk]})
+        self.router.apps["pay"] = build_app(self.psp, name="模拟支付方", base_url=self.pay_id, role="payment",
+                                            jwks={"keys": [self.pay_signer.jwk,self.pay_ec.jwk]}, extensions=(A2C_EXTENSION, AP2_EXTENSION))
+        self.started = False
+        self.background = []
+        from .messaging import MessageCenter
+        self.messaging=MessageCenter(self)
+        from .messaging.delivery import DeliveryBroker
+        self.messaging.delivery=DeliveryBroker(self.db,self.identities,settings,emit=self.bus.emit)
+        self.messaging.delivery.scopes=self.scopes
+        self.messaging.delivery.publications=self.publications
+        from .delegation import Admissions
+        from .operations import PaymentOperations,MarketOperations
+        self.admissions=Admissions(self.db,self.identities,self.publications,self.scopes,self.payment_provider)
+        self.admissions.active=self.messaging.delivery.active_in
+        from .delegation.contracts import ContractAuthority
+        self.contracts=ContractAuthority(self.db,self.identities,self.admissions,self.scopes,self.market,self.psp)
+        self.admissions.contracts=self.contracts
+        from .observation import ContractProjection
+        self.contract_views=ContractProjection(self.db,self.identities,self.market)
+        self.payment_operations=PaymentOperations(self.db,self.identities,self.psp,self.admissions,self.scopes,record=self.contract_views.record_in)
+        self.market_operations=MarketOperations(self.db,self.identities,self.admissions,self.market,contracts=self.contracts,psp=self.psp,
+            close=self.messaging.delivery.contract_closed_in,record=self.contract_views.record_in)
+        self.messaging.delivery.admissions=self.admissions
+        self.messaging.delivery.payment_operations=self.payment_operations
+        self.messaging.delivery.market_operations=self.market_operations
+        self.psp.requires_admission=self.identities.bound_service
+        self.market.market.requires_admission=self.identities.bound_service
+        from .delegation.relay import ProtocolRelay
+        self.messaging.delivery.protocol=ProtocolRelay(self.db,self.identities,self.admissions,self.scopes,self.files,clock=self.messaging.delivery.clock,contracts=self.contracts,record=self.contract_views.record_in)
+        from .delegation.arbitration_evidence import ArbitrationEvidence
+        self.arbitration_evidence=ArbitrationEvidence(self.db,self.identities,self.admissions,self.contracts,self.psp,
+            self.messaging.delivery.protocol,self.messaging.delivery,clock=self.admissions.clock)
+        from .delegation.arbitration_cases import ArbitrationCases
+        self.arbitration_cases=ArbitrationCases(self.db,self.identities,self.auth,self.admissions,
+            self.arbitration_evidence,self.files,model_binding=self.arbitration_models.binding,
+            clock=lambda:self.arbitration_evidence.clock(),market=self.market,
+            notify_in=self.messaging.delivery.ruling_in,notify=self.messaging.delivery.notify)
+        self.messaging.delivery.arbitrations=self.arbitration_cases
+        self.messaging.delivery.protocol.arbitrations=self.arbitration_cases
+        self.payment_operations.arbitrations=self.arbitration_cases
+        self.market_operations.arbitrations=self.arbitration_cases
+        self.market.request_outcomes=self.arbitration_cases.request_outcomes
+        self.contract_views.rebuild()
+        from .observation.activity import ActivityViews
+        self.activity_views=ActivityViews(self.contract_views)
+        self.messaging.delivery.observe_in=self.activity_views.capture_in
+        from .observation import MessageViews,ServiceViews
+        self.message_views=MessageViews(self.db)
+        self.service_views=ServiceViews(self.db)
+
+    def _agent_of_provider(self, provider_id):
+        return next((r for r in self.db.rows("SELECT * FROM agents WHERE role='service'")
+                     if jload(r["meta"]).get("url") == provider_id), None)
+
+    def provider_url(self, agent_id):
+        row = self.db.one("SELECT meta FROM agents WHERE id=?", agent_id)
+        return jload(row["meta"]).get("url", "") if row else ""
+
+    async def _owned(self, create):
+        if self._closing or self._closed:
+            from .errors import LabError
+            raise LabError('closed', 'Core is stopping; recover the original operation after restart',
+                           status=503, recovery='retry_original')
+        task = asyncio.create_task(create())
+        self._workers.add(task)
+        def finished(original):
+            self._workers.discard(original)
+            if not original.cancelled():
+                original.exception()  # Retain failures without an unobserved-task warning.
+        task.add_done_callback(finished)
+        # The observer can disappear; the actual request/thread remains owned.
+        return await asyncio.shield(task)
+
+    async def _worker(self, function, *args, **kwargs):
+        return await self._owned(lambda: asyncio.to_thread(function, *args, **kwargs))
+
+    async def _serve_owned(self, app, scope, receive, send):
+        # A2C's executor and task-store effects must finish before DB/OS unlock.
+        return await self._owned(lambda: app(scope, receive, send))
+
+    async def startup(self):
+        if self._closing or self._closed:
+            raise RuntimeError('Core is stopping or closed')
+        if self.started:
+            return
+        try:
+            self.bus.new_run()
+            await self._worker(self.discovery.startup)
+            if self.s.autoseed:
+                await self._worker(self.ensure_seeded)
+            if self._closing:
+                raise RuntimeError('Core stopped during startup')
+            await self._worker(self.arbitration_cases.recover)
+            self.started = True
+            self.background.append(asyncio.create_task(self._sync_loop()))
+            self.background.append(asyncio.create_task(self._arbitration_loop()))
+        except BaseException:
+            await self.shutdown()
+            raise
+
+    async def shutdown(self):
+        if self._closed:
+            return
+        if self._shutdown_task is None:
+            self._closing = True
+            self._shutdown_task = asyncio.create_task(self._shutdown())
+        # A canceled observer cannot release data while the actual writers run.
+        await asyncio.shield(self._shutdown_task)
+
+    async def _shutdown(self):
+        for task in self.background:
+            task.cancel()
+        await asyncio.gather(*self.background, return_exceptions=True)
+        if self._workers:
+            await asyncio.gather(*tuple(self._workers), return_exceptions=True)
+        await asyncio.to_thread(self._close_resources)
+
+    def close(self):
+        """Close an unstarted/fully drained Core, including failed construction."""
+        if self._closed:
+            return
+        if self._workers or any(not task.done() for task in self.background):
+            raise RuntimeError('Core still has actual workers; await shutdown()')
+        if self._shutdown_task is not None and not self._shutdown_task.done():
+            raise RuntimeError('Core shutdown is still running')
+        self._closing = True
+        self._close_resources()
+
+    def _close_resources(self):
+        if self._closed:
+            return
+        discovery = getattr(self, 'discovery', None)
+        if discovery is not None:
+            discovery.close()
+        for transport in tuple(self.transports):
+            transport.close()
+            self.transports.remove(transport)
+        bus = getattr(self, 'bus', None)
+        if bus is not None:
+            bus.close()
+        database = getattr(self, 'db', None)
+        if database is not None:
+            database.close()
+        self._owner.close()
+        self.started = False
+        self._closed = True
+
+    def ensure_seeded(self, *, force=False):
+        from .seed import seed_all
+        return seed_all(self)
+
+    def reset_transactions(self):
+        with self.db.tx() as conn:
+            if conn.execute('SELECT 1 FROM paid LIMIT 1').fetchone() or conn.execute('SELECT 1 FROM payment_records LIMIT 1').fetchone():
+                fail(CARD_INVALID,'已有付款证据；请使用新的实验身份或独立数据目录')
+            for name in ("orders", "events", "observations", "transfers", "paid", "rulings"):
+                conn.execute(f"DELETE FROM {name}")
+            conn.execute("DELETE FROM kv WHERE party='market' AND tbl NOT IN ('templates','snapshots')")
+
+    async def _arbitration_loop(self):
+        while True:
+            await asyncio.sleep(.25)
+            try:
+                await self._worker(self.arbitration_cases.process_one)
+            except Exception:
+                log.exception("Original case worker stopped this attempt; recorded results remain recoverable")
+
+    async def _sync_loop(self):
+        while True:
+            await asyncio.sleep(1)
+            self.sync_orders()
+            self.messaging.cleanup()
+            self.messaging.delivery.cleanup()
+
+    def sync_orders(self):
+        for row in self.db.rows("SELECT card_digest,state FROM orders"):
+            entry = self.market.market.store.get("ledger", row["card_digest"])
+            if entry and entry.get("outcome") != row["state"]:
+                self.db.run("UPDATE orders SET state=?,phase=?,updated=? WHERE card_digest=?", entry["outcome"], entry["outcome"], now(), row["card_digest"])
+                self.bus.emit("platform", "order." + entry["outcome"], sender=self.market_id,
+                              card_digest=row["card_digest"], outcome=entry["outcome"], detail={"trust": "verified"})
+
+
+    def _transport(self, party: str) -> TracingTransport:
+        # trust_env=False：回环请求不走系统代理（代理会把 127.0.0.1 变成 502）
+        public, local = self.s.public_url, self.s.local_url
+        transport = TracingTransport(A2ATransport(http=lambda: httpx.AsyncClient(timeout=120, trust_env=False,
+                                                                             transport=LoopbackTransport(public, local))),
+                                self.bus, party)
+        self.transports.append(transport)
+        return transport
+
+
+    def _pin_public_url(self) -> None:
+        """参与方 id 内嵌对外地址：首次运行记到 data/public_url，之后不一致就拒绝启动（改地址须 reset 重来）。"""
+        p = self.s.data / "public_url"
+        if p.exists():
+            old = p.read_text(encoding="utf-8").strip()
+            if old and old != self.s.public_url:
+                raise SystemExit(f"[ioalab] IOALAB_PUBLIC_URL 已从 {old} 改为 {self.s.public_url}：参与方 id 内嵌旧地址，"
+                                 f"请改回，或 `ioalab reset` 后重新 init")
+        else:
+            p.write_text(self.s.public_url, encoding="utf-8")
+
+
+    def register_user(self, username: str, password: str = "", *, kind: str = "external", display_name: str = "", note: str = "",
+                      invite: str = "", ip: str = "") -> dict:
+        u = self.auth.register(username, password, kind=kind, display_name=display_name, note=note, invite=invite, ip=ip)
+        self.wallets.ensure(u["id"])
+        self.bus.emit("platform", "user.register", sender=u["id"], outcome=kind, detail={"username": username, "displayName": u["display_name"]})
+        return u
+
+
+    def login(self,username,password,*,ip='',operation_id=None,audience='browser'):
+        return self.accounts.login(username,password,ip=ip,operation_id=operation_id,audience=audience)
+
+
+    def grant(self, user_id: str, delta: Any, *, by: str, note: str, kind: str = "grant") -> str:
+        bal = self.wallets.adjust(user_id, money(delta), by=by, note=note, kind=kind)
+        self.bus.emit("platform", "wallet.adjust", sender=by, receiver=user_id, amount=str(delta), outcome=kind, detail={"note": note})
+        return str(bal)
+
+
+    def _search(self, query: str, top_k: int, *, by: str = "") -> list[dict]:
+        """市场检索；事件记下是哪个助手问的（sender）与命中的服务 id，回放才能把检索画到那个助手头上。"""
+        hits = self.discovery.search(query, top_k)
+        # Reuse the public directory projection; search neither probes workers nor
+        # reserves admission. Keep the original index/card objects untouched.
+        observed = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        states = {row['id']: row for row in self.service_views.list()}
+        hits = [{**hit, 'availability': ({'observedAt': observed,
+                     **{key: states[hit['id']][key] for key in
+                        ('status', 'activeDelegations', 'maxActiveDelegations')}}
+                     if hit['id'] in states else None)} for hit in hits]
+        self.bus.emit("platform", "discovery.search", sender=by, receiver=self.market_id, outcome=self.discovery.last_mode,
+                      detail={"query": query[:200], "hits": [h["name"] for h in hits], "ids": [h["id"] for h in hits]})
+        return hits
+
+
+    def transfer(self, payer_id: str, payee_id: str, amount: Any, *, purpose: str, ref: str) -> None:
+        """普通转账（不读卡）：裁定后付款 ruling:<文书摘要> · 退差额 refund:<卡摘要> · 市场服务费 fee:<市场>。由责任方自己发起。"""
+        if not purpose.split(":")[0] in ("ruling", "refund", "fee"):
+            fail(CARD_INVALID, "普通转账的用途只能是 ruling / refund / fee")
+        self.wallets.transfer(payer_id, payee_id, money(amount), purpose=purpose, ref=ref, by=payer_id)
+        self.bus.emit("platform", "transfer.plain", sender=payer_id, receiver=payee_id, amount=str(money(amount)), outcome=purpose,
+                      detail={"ref": ref})
+
+
+    def register_external_provider(self, owner_id: str, *, url: str, name: str, description: str, tags: list[str] | None = None,
+                                   category: str | None = None, ap2_jwk: Mapping[str, Any] | None = None) -> dict:
+        """登记一个外部 A2A 服务方：取 Agent Card 与 JWKS → 市场认证其公钥 → 登记 AP2 收款公钥 → 取其公示的模板 → 写入 A2X 并归叶类。"""
+        from a2c.binding import A2C_EXTENSION, CARD_PATH, JWKS_PATH
+        from a2c.slots import verify_template
+        url = (url or "").strip().rstrip("/")
+        if not url.startswith("http"):
+            fail(CARD_INVALID, "url 须是服务方 A2A 应用的地址（http(s)://…）")
+        if url in (self.market_id, self.pay_id):
+            fail(CARD_INVALID, "不能把平台自己的地址登记为外部服务方")
+        if not name:
+            fail(CARD_INVALID, "缺 name")
+        if not (isinstance(ap2_jwk, Mapping) and ap2_jwk.get("kty") == "EC"):
+            fail(CARD_INVALID, "ap2_jwk 须是 ES256 公钥（kty EC）——收款用")
+        from .identity.keys import public_key
+        public_key(dict(ap2_jwk), ec=True)
+        existing = self._agent_of_provider(url)
+        if existing:
+            if existing["owner_id"] != owner_id or jload(existing["meta"])["ap2_jwk"] != ap2_jwk:
+                fail(CARD_INVALID, "Service identity already belongs to another owner or key")
+            return existing
+        try:
+            with httpx.Client(timeout=15, trust_env=False) as http:
+                card_json = http.get(url + CARD_PATH).json()
+                jwks = http.get(url + JWKS_PATH).json()
+        except Exception as e:  # noqa: BLE001
+            fail(CARD_INVALID, f"取不到服务方的 Agent Card / JWKS：{str(e)[:160]}")
+        if A2C_EXTENSION not in json.dumps(card_json):
+            fail(CARD_INVALID, "服务方的 Agent Card 没有声明 A2C 扩展")
+        okp = [k for k in jwks.get("keys", []) if k.get("kty") == "OKP"]
+        if not okp:
+            fail(CARD_INVALID, "服务方 JWKS 里没有 Ed25519 公钥")
+        public_key(okp[0])
+        self.identities.enrollment.claim(owner_id,[okp[0],dict(ap2_jwk)])
+        self.market.certify(url, okp[0], name)                     # 公钥入 Directory（市场签认它的模板要用），认证记录
+        import hashlib
+        aid = "ext-" + hashlib.sha1(url.encode()).hexdigest()[:10]
+        d = {"id": aid, "name": name, "description": description or name, "tags": list(tags or []), "runnable": True,
+             "formation": "preapproval", "category": None, "external": True, "url": url, "deliverable": {"name": "deliverable"}}
+        self.db.run("INSERT INTO agents (id, owner_id, role, name, definition, status, created, meta) VALUES (?,?,?,?,?,?,?,?)",
+                    aid, owner_id, "service", name, jdump(d), "listed", now(), jdump({"url": url, "ap2_jwk": dict(ap2_jwk), "providerJwk":okp[0], "external": True}))
+        card = {"name": name, "description": d["description"], "url": url, "version": "1",
+                "skills": [{"id": f"ext-{i}", "name": tag, "description": tag, "tags": [tag]} for i, tag in enumerate(d["tags"])],
+                "a2c": {"templates": [], "paymentProvider": self.pay_id}, "status": "listed"}
+        d['category']=self.discovery.register_one(aid, card, category=category)
+        self.db.run('UPDATE agents SET definition=? WHERE id=?',jdump(d),aid)
+        status = self.refresh_external_provider(aid, quiet=True)
+        self.bus.emit("platform", "service.register", sender=owner_id, receiver=url, outcome=status,
+                      detail={"name": name, "category": category, "external": True})
+        return self.db.one("SELECT * FROM agents WHERE id=?", aid)
+
+
+    def refresh_external_provider(self, aid: str, *, quiet: bool = False) -> str:
+        """拉外部服务方公示的模板（须经本平台市场签认）进 A2X 索引；有模板即 online，没有保持 listed。返回状态。"""
+        from a2c.slots import verify_template
+        row = self.db.one("SELECT * FROM agents WHERE id=? AND role='service'", aid) or fail(CARD_INVALID, "没有这个服务方")
+        meta, d = jload(row["meta"] or "{}"), jload(row["definition"])
+        if not meta.get("external"):
+            fail(CARD_INVALID, "不是外部服务方")
+        url = meta["url"]
+        try:
+            reply = self._transport("platform").send(url, "template.get", {})
+            from a2c.codec import parse_time
+            templates = [t for t in reply.body.get("templates", []) if t.get("provider") == url and parse_time(t["validUntil"]) > self.market.now()]
+            for t in templates:
+                verify_template(t, self.keys)
+                if header_of(t["signatures"]["market"])["a2c-signer"] != self.market_id:
+                    fail(CARD_INVALID, "Template was not endorsed by this market")
+            templates = [t for t in templates if not t.get("pricing", {}).get("paymentProviders")
+                         or any(p.get("id") == self.pay_id for p in t["pricing"]["paymentProviders"])]
+        except Exception as e:  # noqa: BLE001
+            if quiet:
+                return row["status"]
+            fail(CARD_INVALID, f"取不到服务方公示的模板（须先向本平台市场 template.endorse）：{str(e)[:160]}")
+        status = "online" if templates else "listed"
+        if templates:
+            d["formation"] = templates[0].get("formation", "preapproval")
+            d["deliverable"] = {"name": next(iter(templates[0].get("deliverables") or [{"name": "deliverable"}]))["name"]}
+            d["pricing"] = {"price": (templates[0].get("pricing", {}).get("priceFormula") or {}).get(d["deliverable"]["name"])}
+        self.db.run("UPDATE agents SET status=?, definition=? WHERE id=?", status, jdump(d), aid)
+        self.discovery.update_card(aid, {"status": status, "a2c": {"templates": [
+            {"digest": t["templateDigest"], "formation": t.get("formation"), "price": (t.get("pricing", {}).get("priceFormula") or {}).get(d["deliverable"]["name"]),
+             "proposalFee": t.get("pricing", {}).get("proposalFee")} for t in templates], "paymentProvider": self.pay_id}})
+        if status == "online" and row["status"] != "online":
+            self.bus.emit("platform", "service.online", sender=row["owner_id"], receiver=url, outcome=status,
+                          detail={"name": row["name"], "templates": len(templates), "external": True})
+        return status
+
+
+    def stats(self):
+        count = lambda table, where="1": self.db.one(f"SELECT COUNT(*) AS n FROM {table} WHERE {where}")["n"]
+        day0=time.mktime(time.strptime(time.strftime('%Y-%m-%d'),'%Y-%m-%d'))
+        transfers=self.db.rows('SELECT amount FROM transfers WHERE at>=?',day0)
+        visible=self.db.rows('SELECT digest,created FROM observation_contracts')
+        effective_facts=self.db.rows('SELECT digest FROM delegation_contracts')
+        ledger=self.market.market.store.all('ledger')
+        services=self.service_views.list()
+        return {"assistants": count("agents", "role='assistant'"), "services": count("agents", "role='service'"),
+                "runnable": sum(row["status"]=="online" for row in services), "users": count("users"), "needs": 0,
+                "orders_today": sum(row["created"]>=day0 for row in visible), "transfers_today": len(transfers), "completed": sum(ledger.get(row["digest"],{}).get("outcome")=="completed" for row in effective_facts),
+                "arbitrated": count("rulings"), "declined": 0, "success_rate": None, "avg_duration_s": None,
+                "volume_today": str(sum(money(r["amount"]) for r in transfers)),
+                "circulating": str(sum(money(r["balance"]) for r in self.db.rows("SELECT balance FROM wallets"))),
+                "llm_calls": None, "tokens": None, "discovery": self.discovery.last_mode, "taxonomy": self.discovery.taxonomy_state(),
+                "run": self.bus.run_id, "mode": self.s.mode}
+
+    def components(self):
+        stats = self.stats()
+        reports=self.service_views.list()
+        connected=[r for r in reports if r['connected']]
+        message_states={r['state']:r['n'] for r in self.db.rows("SELECT request_state AS state,COUNT(*) AS n FROM delivery_messages WHERE kind='message.request' GROUP BY request_state")}
+        return {"messaging":{"interfaces":self.db.one('SELECT COUNT(*) AS n FROM message_interfaces')['n'],"states":message_states,"pending":sum(v for k,v in message_states.items() if k not in ('completed','rejected','expired'))},"registry": {"services": stats["services"], "online": stats["runnable"], "categories": len(self.discovery.categories()),
+                             "taxonomy": stats["taxonomy"], "last_mode": self.discovery.last_mode},
+                "templates": {"endorsed": len(self.market.market.store.all("templates")), "snapshots": len(self.market.market.store.all("snapshots")),
+                              "certifications": len(self.db.rows("SELECT agent_id FROM certifications"))},
+                "ledger": {"completed": stats["completed"], "rulings": stats["arbitrated"], "declined": 0},
+                "payment": {"transfers_today": stats["transfers_today"], "volume_today": stats["volume_today"],
+                            "circulating": stats["circulating"], "wallets": stats["users"], "transfers_total":len(self.db.rows('SELECT id FROM transfers'))},
+                "services": {"online": stats["runnable"],"observed":len(connected),"unknown":len(reports)-len(connected),
+                             "working":None,"queued":None,"sessions":None,
+                             "busy": [], "location": "independent-process"},
+                "assistants": {"total": stats["assistants"], "external_driven": stats["assistants"], "active_needs": 0,
+                               "pending_confirmations": 0, "runtime": False},
+                "llm": {"key_configured": self.discovery_models.enabled, "model": self.s.a2x_model, "a2x_model": self.s.a2x_model,
+                        "embed_model": self.s.embedding_model, "calls": None, "tokens": None, "concurrency": self.s.llm_concurrency},
+                "sandbox": {"concurrency": self.s.sandbox_concurrency, "available": None},
+                "bus": {"run": self.bus.run_id, "seq": (self.db.one("SELECT MAX(seq) AS n FROM events") or {}).get("n") or 0,
+                        "events": len(self.bus.recent(2000)), "subscribers": len(self.bus.subscribers)},
+                "traffic": {"level": "external", "enabled": False},
+                "config": {"mode": self.s.mode, "public_url": self.s.public_url, "registration": self.s.registration,
+                           "login_credit": self.s.login_credit, "isc_count": self.s.isc_count,
+                           "version": version("ioalab")}}
+
+    def order_detail(self, cd):
+        self.sync_orders()
+        row = self.db.one("SELECT * FROM orders WHERE card_digest=?", cd) or fail(CARD_INVALID, "Order not observed")
+        detail = jload(row["detail"])
+        card = detail.get("card")
+        sigs = {k: [bool(x) for x in v] if isinstance(v, list) else bool(v) for k,v in card["signatures"].items()} if card else {}
+        return {**row, "detail": detail, "card": card, "signatures": sigs, "paidPeriods": [r["period"] for r in self.db.rows("SELECT period FROM paid WHERE ref=? AND purpose='installment'", cd)],
+                "ruling": jload((self.db.one("SELECT ruling FROM rulings WHERE card_digest=?", cd) or {}).get("ruling")),
+                "events": self.db.rows("SELECT * FROM events WHERE card_digest=? ORDER BY seq", cd)}

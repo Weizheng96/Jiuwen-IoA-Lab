@@ -3,7 +3,7 @@ import secrets
 
 from a2c.codec import digest, digest_bytes
 from ioalab_sdk.assistant.rules import render
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.assistant.role import AssistantRole
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json, private_text, read_json

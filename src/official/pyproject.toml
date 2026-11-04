@@ -13,6 +13,7 @@ dependencies = ["ioalab-sdk>=0.0.39", "python-dotenv>=1,<2"]
 ioalab-official = "ioalab_services.__main__:main"
 ioalab-admin-assistant = "ioalab_admin_assistant.__main__:main"
 ioalab-schedule = "ioalab_tools.schedule_cli:main"
+ioalab-agentmail = "ioalab_tools.agentmail_setup:main"
 
 [project.entry-points."ioalab.business_tools"]
 calendar = "ioalab_tools.appointments:configure"

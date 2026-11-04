@@ -1,4 +1,4 @@
-"""Capture accepted metadata inside its transaction; emit only after commit."""
+"""Build accepted activity metadata for transaction-owned recording and post-commit publication."""
 import json
 
 from a2c.card import card_digest
@@ -14,7 +14,7 @@ class ActivityViews:
         row=conn.execute('SELECT * FROM observation_contracts WHERE admission=?',(admission,)).fetchone()
         if not row or fingerprint(encoded(card))!=row['card_hash'] or fingerprint(row['card'])!=row['card_hash']:return {}
         original=self.contracts.original_in(conn,admission)
-        ended=self.contracts.market.market.store.get('ledger',row['digest'])
+        ended=self.contracts.market.contract_outcome(row['digest'])
         facts=conn.execute('SELECT receipt,step FROM delegation_contracts WHERE admission=?',(admission,)).fetchone()
         state='signed' if row['effective'] else 'offered'
         if facts and facts['receipt']:state='started'

@@ -12,7 +12,7 @@ from conftest import wait_for
 from test_official_deployment import deployment,prepare,active,UnusedHost
 from ioalab_services import coordinator
 from ioalab_services.lifecycle import Shutdown,released,serve,stop
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.provider import ProviderRole
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json,read_json
@@ -33,12 +33,23 @@ def running(deployment,jobs):
         finally:runtime.close()
     thread=threading.Thread(target=work,daemon=True);thread.start()
     try:
-        wait_for(lambda:runtime.ipc.thread and runtime.connection.connected)
+        def ready():
+            try:result=LocalClient(config.home).call('runtime.status')
+            except RuntimeFault:return False
+            return (result['status']=='completed' and result['data']['bootId']==runtime.ipc.boot_id
+                    and result['data']['ipcReady'] and result['data']['platformConnected'])
+        wait_for(ready)
         yield runtime
     finally:
-        if thread.is_alive():LocalClient(config.home).call('runtime.stop',{'bootId':runtime.ipc.boot_id})
+        if thread.is_alive():
+            try:LocalClient(config.home,boot_id=runtime.ipc.boot_id).call('runtime.stop',{'bootId':runtime.ipc.boot_id})
+            except RuntimeFault:
+                # A normal close may remove its descriptor before this join.
+                # Do not infer release: the worker and OS lease are checked.
+                pass
         thread.join(10)
         assert not thread.is_alive() and not errors,errors
+        assert released(config.home),'The original runtime directory still has an execution owner'
 
 
 def test_active_job_drains_then_original_queued_job_identity_and_session_resume(deployment):
@@ -277,7 +288,10 @@ def test_active_draining_job_still_rejects_connection_loss_and_foreign_context(d
     with running(deployment,{'fixture.guard':JobHandler(job,'guard-v1',False)}) as runtime:
         runtime.scheduler.submit(runtime.identities[0].agent_id,'guard-context','fixture.guard',{},operation_id=str(uuid.uuid4()))
         assert entered.wait(5)
-        try:group=Shutdown(deployment);assert group.poll()['status']=='waiting'
+        try:
+            group=Shutdown(deployment);pending=group.poll()
+            assert pending['status']=='waiting' and any(row['phase']=='draining' for row in pending['accounts'])
+            assert runtime.stop_requested.is_set(),'Negative execution checks require the original stop to be received first'
         finally:release.set()
         assert group.wait(8)['allRuntimesReleased']
     assert checks==[True]
@@ -296,7 +310,10 @@ def test_user_wait_context_does_not_receive_draining_execution_permit(deployment
     with running(deployment,{'fixture.userwait':JobHandler(job,'userwait-v1',True)}) as runtime:
         runtime.scheduler.submit(runtime.identities[0].agent_id,'wait-context','fixture.userwait',{},operation_id=str(uuid.uuid4()))
         assert entered.wait(5)
-        try:group=Shutdown(deployment);assert group.poll()['status']=='waiting'
+        try:
+            group=Shutdown(deployment);pending=group.poll()
+            assert pending['status']=='waiting' and any(row['phase']=='draining' for row in pending['accounts'])
+            assert runtime.stop_requested.is_set(),'Negative execution checks require the original stop to be received first'
         finally:release.set()
         assert group.wait(8)['allRuntimesReleased']
     assert denied==[True]

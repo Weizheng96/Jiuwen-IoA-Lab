@@ -74,7 +74,7 @@ def account_login(python, config, home):
 def invalidate_verification_credential(python, config, home, log):
     # Only the new isolated experiment calls this SDK-owned fault; no product backdoor.
     code = """import sys
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.session import AccountSession
 config=RuntimeConfig.load(sys.argv[1])
@@ -165,7 +165,7 @@ def exercise(layout, release, installations, report):
             assert not (home/'runtime.json').exists()
             code = '''import sys
 from pathlib import Path
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 with Lease(Path(sys.argv[1])/'client.lock',timeout=0):pass
 '''
             run([sdk_python, '-I', '-c', code, home], cwd=layout.state, log=layout.private/'released.log')

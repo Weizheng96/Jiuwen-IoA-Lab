@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "src/official/services"))
 from a2c.card import build_card, build_proposal_card, build_request, validate_card  # noqa: E402
 from a2c.template import validate  # noqa: E402
 from a2c.verifier.acceptance import run_target  # noqa: E402
-from ioalab.runtime.packages import PackageStore  # noqa: E402
+from ioalab.delegation.packages import PackageStore  # noqa: E402
 from ioalab_sdk.templates import template_from_definition  # noqa: E402
 from ioalab_services.catalog import definitions as load_definitions  # noqa: E402
 
@@ -29,7 +29,7 @@ PAY = {"id": "http://127.0.0.1:8750/a2a/pay", "jwksUri": "http://127.0.0.1:8750/
 def check(d: dict, packages: PackageStore) -> list[str]:
     errs: list[str] = []
     t = template_from_definition(d, packages=packages, payment_provider=PAY)
-    t["provider"] = "http://127.0.0.1:8750/a2a/providers/svc-" + d["id"]
+    t["provider"] = "https://provider.example/services/" + d["id"]
     from a2c.template import template_digest
     t["templateDigest"] = template_digest(t)
     from a2c.jws import Signer

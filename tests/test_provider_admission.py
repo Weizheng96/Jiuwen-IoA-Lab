@@ -148,8 +148,8 @@ def test_concurrent_same_control_has_one_policy_effect_and_conflicting_revision_
         assert len(competing)==1 and control(provider,'status')['data']['admissionPolicy']==competing[0]
 
 
-def test_pause_preserves_preexisting_held_fee_commit_but_rejects_a_new_reservation(platform,client,local_client,service):
-    local=local_client;template=offer(platform,service);value=intent(platform,client,local,service,template)
+def test_pause_preserves_preexisting_held_fee_commit_but_rejects_a_new_reservation(platform,client,protocol_participant,service):
+    local=protocol_participant;template=offer(platform,service);value=intent(platform,client,local,service,template)
     with online(client,local,service) as (sender,receiver):
         receiver.call('admission.configure',{'expectedRevision':0,'maxActiveDelegations':2,'accepting':True})
         binding=opened(sender,receiver,value);held=receiver.call('admission.reserve',binding)

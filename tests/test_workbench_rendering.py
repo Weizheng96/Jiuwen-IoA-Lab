@@ -22,8 +22,8 @@ function node(id){
   });
   return nodes.get(id);
 }
-const context={console,document:{getElementById:node,querySelectorAll(){return [];},addEventListener(){},body:node('body')},
-  location:{origin:'http://platform.example'},setInterval(){},requestAnimationFrame(){},
+const context={console,URLSearchParams:require('node:url').URLSearchParams,document:{getElementById:node,querySelectorAll(){return [];},addEventListener(){},body:node('body')},
+  location:{origin:'http://platform.example',search:''},setInterval(){},requestAnimationFrame(){},
   fetch:async(path)=>({ok:true,json:async()=>path==='/api/session'?{id:null}:[]}),
   NetworkMap:{components:[],subs:[],random:()=>()=>.5}};
 context.window=context;vm.createContext(context);

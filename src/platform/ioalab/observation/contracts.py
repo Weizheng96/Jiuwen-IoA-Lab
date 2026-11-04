@@ -98,7 +98,7 @@ class ContractProjection:
                 if card:
                     try:cd=card_digest(card)
                     except (A2CError,KeyError,TypeError,ValueError):continue
-                    anchored=self.market.market.store.get('cards',cd)
+                    anchored=self.market.card(cd)
                     if anchored:cards.append(anchored)
             for card in cards:
                 with self.db.tx() as conn:changed+=self.record_in(conn,row['id'],card)
@@ -126,7 +126,7 @@ class ContractProjection:
         return {actor:{key:str(amount) for key,amount in value.items()} for actor,value in totals.items()}
 
     def service_completions(self,owner):
-        ledger=self.market.market.store.all('ledger');counts={}
+        ledger=self.market.ledger();counts={}
         rows=self.db.rows("""SELECT a.service,f.digest FROM delegation_contracts f
             JOIN delegation_admissions a ON a.id=f.admission JOIN agents s ON s.id=a.service WHERE s.owner_id=?""",owner)
         for row in rows:
@@ -211,7 +211,7 @@ class ContractProjection:
             'evidenceStatus':'verified' if available else 'unavailable','effective':bool(row['effective'])}
         if not card:
             payments=self.payments(row);template=json.loads(row['details'])['template']
-            ending=self.market.market.store.get('ledger',row['digest'])
+            ending=self.market.contract_outcome(row['digest'])
             return {**base,'state':ending['outcome'] if ending else 'unknown','phase':'合同副本待恢复' if row['effective'] else '候选合同副本待恢复','signatures':{},'payments':payments,
                 'paid':str(sum((net_amount(p) for p in payments if p['purpose']!='proposal-fee'),money(0))),
                 'proposalFeePaid':str(sum((net_amount(p) for p in payments if p['purpose']=='proposal-fee'),money(0))),
@@ -222,7 +222,7 @@ class ContractProjection:
         signatures={key:[bool(s) for s in value] if isinstance(value,list) else bool(value) for key,value in card['signatures'].items()}
         payments=self.payments(row);commission=[p for p in payments if p['purpose']!='proposal-fee']
         facts=self.db.one('SELECT receipt,step FROM delegation_contracts WHERE admission=?',row['admission']) or {}
-        ending=self.market.market.store.get('ledger',row['digest'])
+        ending=self.market.contract_outcome(row['digest'])
         unknown=not ending and self.unknown(row['admission'])
         state='signed' if row['effective'] else 'offered'
         if facts.get('receipt'):state='started'

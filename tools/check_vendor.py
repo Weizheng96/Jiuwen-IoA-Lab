@@ -53,7 +53,7 @@ def validate(root=ROOT):
                     prefix='jiuwenswarm/channels/web/frontend/dist/'
                     if prefix+'index.html' not in names:raise ValueError('Jiuwen web UI missing from local wheel')
                     if sum(n.startswith(prefix) and not n.endswith('/') for n in names)<item['frontendBuild']['assetFiles']:raise ValueError('Jiuwen web assets are incomplete')
-    lock=root/'personal-assistant/requirements-swarm.lock';spec=json.loads((root/'personal-assistant/swarm.lock.json').read_text('utf-8'))
+    lock=root/'vendor/jiuwen/requirements-swarm.lock';spec=json.loads((root/'vendor/jiuwen/swarm.lock.json').read_text('utf-8'))
     if sha(lock)!=spec['requirementsSha256']:raise ValueError('Swarm dependency lock digest mismatch')
     if 'workswarm' in components:
         runtime=components['workswarm']

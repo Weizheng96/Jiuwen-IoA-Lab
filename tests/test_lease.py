@@ -6,7 +6,7 @@ import sys
 import time
 
 import pytest
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from conftest import wait_for
 
 
@@ -30,7 +30,7 @@ def test_fresh_lease_serializes_actual_independent_processes(tmp_path):
     code = '''
 import sys,time
 from pathlib import Path
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 root=Path(sys.argv[1]);worker=sys.argv[2]
 (root/('ready-'+worker)).touch()
 until=time.monotonic()+20

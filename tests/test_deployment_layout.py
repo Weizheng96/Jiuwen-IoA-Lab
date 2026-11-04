@@ -59,7 +59,8 @@ def test_invalid_roots_and_accounts_fail_before_creation(tmp_path,case):
 
 
 def test_literal_environment_roundtrip_and_existing_file_preservation(tmp_path):
-    values={'IOALAB_ADMIN_PASSWORD':'literal$(touch x)`cmd`"quote"\\slash', 'IOALAB_PUBLIC_URL':'https://测试.example', 'IOALAB_PORT':'8750'}
+    values={'IOALAB_ADMIN_PASSWORD':'literal$(touch x)`cmd`"quote"\\slash', 'IOALAB_PUBLIC_URL':'https://测试.example', 'IOALAB_PORT':'8750','IOALAB_SEED_FILE':'','IOALAB_BUNDLES_DIR':'',
+            'OWNER_WINDOWS_PATH':r'D:\demo\assistant','OWNER_JSON':'["a","b"]'}
     path=tmp_path/'core.env'
     content=environment_text(values).encode('utf-8');write_initial(path,content)
     assert read_environment(path)==values

@@ -33,6 +33,11 @@ def test_reinstall_preserves_credentials_and_operator_edits(tmp_path):
     assert actual['IOALAB_LLM_MODEL']=='operator-model'
     assert json.loads(path.read_text())==data
     assert actual['IOALAB_SEED_FILE']==str(layout.environments/'current/release/seed.json')
+    core=read_environment(core_path);core.update(IOALAB_SEED_FILE='',IOALAB_BUNDLES_DIR='')
+    core_path.write_text(environment_text(core),encoding='utf-8');before=core_path.read_bytes()
+    preserved=Configuration(layout,identity,value).base()
+    assert preserved['IOALAB_SEED_FILE']==preserved['IOALAB_BUNDLES_DIR']==''
+    assert core_path.read_bytes()==before
 
 
 def test_changed_initial_input_rejected_without_printing_secrets(tmp_path):

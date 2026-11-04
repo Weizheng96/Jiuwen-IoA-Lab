@@ -9,8 +9,8 @@ import pytest
 
 from ioalab.config import Settings
 from ioalab.errors import LabError
-from ioalab.platform import Platform
-from ioalab.store import DataOwner,DataInUse
+from ioalab.app import Platform
+from ioalab.storage import DataOwner,DataInUse
 from ioalab.web.app import create_app
 
 
@@ -28,7 +28,7 @@ def test_canceled_public_caller_keeps_original_writer_and_data_owned(tmp_path,mo
             raise
         finally:finished.set()
         return {}
-    if entry=='http':monkeypatch.setattr(core,'components',writer)
+    if entry=='http':monkeypatch.setattr(core.overview,'components',writer)
     elif entry=='case-admin':monkeypatch.setattr(core.arbitration_cases,'admin_list',writer)
     elif entry=='case-query':monkeypatch.setattr(core.arbitration_cases,'by_admission',writer)
     elif entry=='websocket':monkeypatch.setattr(core.identities,'consume',writer)

@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 import re
 
-ROOT = Path(__file__).resolve().parents[4]
 HERE = Path(__file__).resolve().parent
 DEFAULT_SERVICE = 'nail-mashangfei'
 SKILL = 'nail-miniapp'
@@ -22,9 +21,9 @@ MATERIALS = [
 
 
 @lru_cache(maxsize=1)
-def _legacy_definitions():
+def _scene_definitions():
     spec = importlib.util.spec_from_file_location(
-        'ioalab_nail_definitions', ROOT / 'official-services/scenario.py')
+        'ioalab_nail_definitions', HERE / 'definitions.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return {value['id']: value for _, value in module.nail_services()}
@@ -34,7 +33,7 @@ def definition(service_id=DEFAULT_SERVICE):
     """Reuse existing assets without samples or legacy production generators."""
     if service_id not in SKILLS:
         raise ValueError('Choose an explicit supported nail service id')
-    original = _legacy_definitions()[service_id]
+    original = _scene_definitions()[service_id]
     value = {key: deepcopy(original[key]) for key in (
         'id', 'name', 'description', 'tags', 'formation', 'deliverable', 'inputs',
         'deadlines', 'pricing', 'steps', 'notCovered', 'verifier') if key in original}

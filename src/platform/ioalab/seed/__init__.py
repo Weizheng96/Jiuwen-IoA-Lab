@@ -7,7 +7,7 @@ def seed_all(platform, only=None):
     accounts = ensure_accounts(platform, domains=domains)
     members = {d["category"]["id"]: [] for d in domains}
     for row in platform.db.rows("SELECT id,definition FROM agents WHERE role='service'"):
-        from ..store import jload
+        from ..storage import jload
         category = jload(row["definition"]).get("category")
         if category in members:
             members[category].append(row["id"])

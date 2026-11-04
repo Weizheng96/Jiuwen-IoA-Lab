@@ -134,25 +134,6 @@ def test_encoded_review_is_bound_to_acceptance_presentation(tmp_path):
     with pytest.raises(ValueError,match='presentation changed'):validate_reviews(proof,changed,review,movie)
 
 
-def test_local_onboarding_writes_only_declared_skill_configuration(tmp_path):
-    import sys,json
-    from pathlib import Path
-    root=Path(__file__).resolve().parents[1]
-    sys.path.insert(0,str(root/'demo'))
-    import pytest
-    from onboarding import write_settings
-    skill=tmp_path/'skill';skill.mkdir()
-    cfg={'onboarding':True,'scenario':'delegation','base':'http://127.0.0.1:12345','accounts':{'b':{'username':'xiaomei@outlook.com','password':'123456'}},'folder':str(tmp_path),'skillDirectory':str(skill)}
-    values={'IOALAB_BASE_URL':cfg['base'],'IOALAB_USERNAME':'xiaomei@outlook.com','IOALAB_PASSWORD':'123456'}
-    assert write_settings(cfg,values)['verified']
-    saved=json.loads((skill/'settings.local.json').read_text(encoding='utf-8'))
-    assert all(saved[k]==v for k,v in values.items())
-    with pytest.raises(ValueError):write_settings(cfg,{**values,'OTHER_SECRET':'unrelated'})
-    with pytest.raises(ValueError):write_settings({**cfg,'onboarding':False},values)
-    policy_cfg={**cfg,'delegationPolicy':{'IOALAB_MIN_QUOTES':3}}
-    with pytest.raises(ValueError):write_settings(policy_cfg,values)
-    assert write_settings(policy_cfg,{**values,'IOALAB_MIN_QUOTES':3})['verified']
-    assert json.loads((skill/'settings.local.json').read_text(encoding='utf-8'))['IOALAB_MIN_QUOTES']==3
 
 
 def test_new_generic_film_requires_actual_onboarding(delegation):

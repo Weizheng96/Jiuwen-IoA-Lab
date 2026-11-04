@@ -9,7 +9,7 @@ from a2c import objects
 from a2c.codec import parse_time,digest_bytes
 from a2c.jws import header_of,verify
 from ioalab.config import Settings
-from ioalab.platform import Platform
+from ioalab.app import Platform
 from ioalab.web.app import create_app
 from ioalab.delegation.arbitration_cases import ArbitrationCases
 from ioalab_sdk.runtime.protocol import RuntimeFault

@@ -9,7 +9,7 @@ import pytest
 
 @pytest.fixture
 def module():
-    path=Path(__file__).resolve().parents[1]/'personal-assistant/agentmail.py'
+    path=Path(__file__).resolve().parents[1]/'src/official/tools/ioalab_tools/agentmail_setup.py'
     spec=importlib.util.spec_from_file_location('agentmail_setup',path)
     result=importlib.util.module_from_spec(spec);spec.loader.exec_module(result);return result
 
@@ -28,12 +28,14 @@ def test_signup_reuse_verification_and_config_preserve_other_accounts(module,tmp
     assert setup.signup('owner@example.test','test-ioa')==public and len(requests)==1
     env=tmp_path/'assistant.env';env.write_text('IOALAB_HOME="D:/assistant"\nIOALAB_USERNAME=ISC_001\nIOALAB_PASSWORD=platform-test-only\nIOALAB_GRAPH_CLIENT_ID=existing-app\n',encoding='utf-8')
     with pytest.raises(ValueError,match='Verify'):setup.configure(env)
-    setup.verify('123456');setup.configure(env)
-    values=module.read_env(env)
+    setup.verify('123456');configured=setup.configure(env)
+    from dotenv import dotenv_values
+    values=dotenv_values(env,interpolate=False)
     assert values['IOALAB_HOME']=='D:/assistant' and values['IOALAB_PASSWORD']=='platform-test-only' and values['IOALAB_GRAPH_CLIENT_ID']=='existing-app'
-    assert values['IOALAB_SMTP_FROM']==values['IOALAB_SMTP_USERNAME']=='test-ioa@agentmail.to'
-    assert values['IOALAB_SMTP_PASSWORD']=='test-local-only-key' and values['IOALAB_SMTP_PORT']=='465'
-    assert values['IOALAB_NOTIFICATION_TRANSPORT']=='agentmail'
+    assert values['AGENTMAIL_API_KEY']=='test-local-only-key'
+    assert configured['notification']=={'transport':'agentmail','sender':'test-ioa@agentmail.to',
+        'credentials_file':str(env.resolve()),'api_key_env':'AGENTMAIL_API_KEY'}
+    assert 'IOALAB_SMTP_PASSWORD' not in values
     assert 'test-local-only-key' not in capsys.readouterr().out
 
 

@@ -136,7 +136,7 @@ def test_reconnect_replays_original_operation_after_lost_response(platform, clie
     store = store_at(tmp_path,b,platform.s.base_url)
     connection = AgentConnection(platform.s.base_url,b['token'],[b['actor']],store)
     original = request(a['actor'])
-    broker = platform.messaging.delivery
+    broker = platform.delivery
     apply = broker.control
     committed = threading.Event()
     release = threading.Event()

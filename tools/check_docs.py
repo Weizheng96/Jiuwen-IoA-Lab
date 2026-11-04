@@ -34,12 +34,11 @@ def current_documents():
     files = [ROOT / name for name in ("README.md", "AGENTS.md", "历史备份/README.md")]
     files.extend(design_documents())
     files.append(ROOT / "设计/变更/README.md")
-    files.extend((ROOT / "docs").rglob("*.md"))
     files.extend((ROOT / ".agents/skills").rglob("*.md"))
     files.extend((ROOT / "src/access/skills").rglob("*.md"))
     files.extend((ROOT / "demo").glob("*/剧本.md"))
     for folder in (
-        "src/platform", "src/access/sdk", "src/hosts/jiuwen", "src/official", "official-services", "personal-assistant", "connector",
+        "src/platform", "src/access/sdk", "src/access/examples", "src/hosts/jiuwen", "src/official",
         "experiments", "demo", "demo/verification",
     ):
         files.append(ROOT / folder / "README.md")

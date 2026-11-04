@@ -1,6 +1,5 @@
-"""Provider role and its existing A2C participant implementation."""
-from .agent import ServiceAccount, ProviderAgent, DurableProvider, service_keys
+"""Provider role over the shared resident runtime and original A2C protocol."""
 from .publication import ProviderRole
 from .terms import publication_terms
 
-__all__ = ['ServiceAccount', 'ProviderAgent', 'DurableProvider', 'service_keys', 'ProviderRole', 'publication_terms']
+__all__ = ["ProviderRole", "publication_terms"]

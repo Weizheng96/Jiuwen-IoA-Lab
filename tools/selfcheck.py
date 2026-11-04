@@ -51,7 +51,7 @@ def main():
     ok('Core SDK imports no platform, host implementation or official tools',not imports)
     if imports:print('\n'.join(imports))
     hits=[]
-    for folder in ['src/platform/ioalab','src/access/sdk','src/hosts/jiuwen','src/official','official-services','connector','experiments','设计','docs','deploy','examples']:
+    for folder in ['src/platform/ioalab','src/access/sdk','src/hosts/jiuwen','src/official','experiments','设计','docs','deploy']:
         for path in (ROOT/folder).rglob('*'):
             if path.suffix not in ('.py','.md','.js','.html','.json','.txt','.sh','.example','.service'): continue
             if any(part in ('__pycache__','变更','*.egg-info') or part.endswith('.egg-info') for part in path.parts): continue

@@ -6,7 +6,7 @@ import signal
 import pytest
 
 from conftest import wait_for
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from test_resident_runtime import configuration,process,query,uid
 
 

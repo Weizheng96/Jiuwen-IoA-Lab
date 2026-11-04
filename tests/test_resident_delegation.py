@@ -48,12 +48,14 @@ class QuoteHost:
 
 
 @contextmanager
-def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None,preload_verifier=True,template_terms=None,verifier_reads=None,quote_amount=9):
+def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None,preload_verifier=True,template_terms=None,verifier_reads=None,quote_amount=9,provider_factory=None):
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
     private_json(pconfig,value);host=agent_host or QuoteHost();prole=ProviderRole(host,provider_tools)
-    provider=ResidentRuntime(RuntimeConfig.load(pconfig),modules=(prole,),host_status=host.capabilities).start()
+    provider=(provider_factory(RuntimeConfig.load(pconfig),host,provider_tools) if provider_factory else
+              ResidentRuntime(RuntimeConfig.load(pconfig),modules=(prole,),host_status=host.capabilities)).start()
+    prole=provider.modules[0]
     aconfig,_=configuration(platform,tmp_path/'assistant',service=False);avalue=read_json(aconfig);avalue['max_model_runs']=models;private_json(aconfig,avalue);arole=AssistantRole(assistant_host)
     assistant=ResidentRuntime(RuntimeConfig.load(aconfig),modules=(arole,)).start()
     try:
@@ -94,7 +96,9 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
         template=published['data']['publicationReceipt']['templates'][0]
         # Apply the saved professional configuration by the normal runtime restart.
         provider.close();prole=ProviderRole(host,provider_tools)
-        provider=ResidentRuntime(RuntimeConfig.load(pconfig),modules=(prole,),host_status=host.capabilities).start()
+        provider=(provider_factory(RuntimeConfig.load(pconfig),host,provider_tools) if provider_factory else
+                  ResidentRuntime(RuntimeConfig.load(pconfig),modules=(prole,),host_status=host.capabilities)).start()
+        prole=provider.modules[0]
         wait_for(lambda:provider.connection.connected)
         try:wait_for(lambda:prole.ready('service'))
         except AssertionError:
@@ -340,7 +344,7 @@ def test_market_snapshot_offer_and_operation_rollback_together_before_original_c
             try:
                 lease=platform.db.one('SELECT * FROM delivery_leases WHERE actor=?',actor)
                 frame={'type':'a2c.market','agentId':actor,'generation':lease['generation'],'operationId':uid(),'payload':payload}
-                with pytest.raises(sqlite3.IntegrityError):platform.messaging.delivery.control(owner,lease['connection'],{actor:lease['generation']},frame)
+                with pytest.raises(sqlite3.IntegrityError):platform.delivery.control(owner,lease['connection'],{actor:lease['generation']},frame)
                 assert platform.market.market.store.get('snapshots',cd) is None
                 assert not platform.db.rows('SELECT * FROM delegation_offers WHERE admission=?',payload['admissionId'])
                 assert not platform.db.rows('SELECT * FROM delegation_market_operations WHERE actor=?',actor)

@@ -4,7 +4,7 @@ import signal
 import threading
 import time
 
-from ..lease import Lease
+from .lease import Lease
 from .config import RuntimeConfig
 from .connection import AgentConnection
 from .files import read_json,prepare_home

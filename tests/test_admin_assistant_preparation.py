@@ -11,7 +11,7 @@ import pytest
 from deploy.layout import Layout
 from ioalab_admin_assistant import deployment as configuration, preparation
 from ioalab_admin_assistant.deployment import Deployment
-from ioalab_sdk.lease import Lease
+from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json, read_json
 from ioalab_sdk.runtime.protocol import RuntimeFault
@@ -25,7 +25,7 @@ def platform(tmp_path):
     # ISC_001 is intentionally fixed; each experiment needs its own actual core.
     import uvicorn
     from ioalab.config import Settings
-    from ioalab.platform import Platform
+    from ioalab.app import Platform
     from ioalab.web.app import create_app
     core=Platform(Settings(port=free_port(),data=tmp_path/'isolated-core',autoseed=True))
     server=uvicorn.Server(uvicorn.Config(create_app(core),host='127.0.0.1',port=core.s.port,log_level='critical'))

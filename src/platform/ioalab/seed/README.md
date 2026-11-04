@@ -1,3 +1,3 @@
 # 账号与分类种子
 
-核心只创建内部账号和分类元数据，不运行个人助手或服务方。官方服务内容在 `official-services/`，由独立进程经公开接口登记；实验需求与材料在 `experiments/`。
+核心只创建内部账号和分类元数据，不运行个人助手或服务方。官方服务内容在 [src/official/services/](../../../official/services/)，由独立进程经公开接口登记；实验需求与材料在 `experiments/`。

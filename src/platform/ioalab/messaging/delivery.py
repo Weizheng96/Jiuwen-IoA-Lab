@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 import hashlib
 import json
+import logging
 import threading
 import time
 import uuid
@@ -11,6 +12,7 @@ from ..errors import LabError
 from .interfaces import PublicInterfaces
 
 SYSTEM='urn:ioa:platform'
+log=logging.getLogger(__name__)
 TERMINAL={'completed','rejected','failed','expired'}
 SCHEMA='''
 CREATE TABLE IF NOT EXISTS delivery_leases(actor TEXT PRIMARY KEY,runtime TEXT,connection TEXT,generation INTEGER NOT NULL,expires REAL NOT NULL);
@@ -50,8 +52,9 @@ def identifier(value,name='messageId'):
 
 
 class DeliveryBroker:
-    def __init__(self,db,identities,settings,*,emit=None,clock=time.time):
-        self.db,self.identities,self.s,self.emit,self.clock=db,identities,settings,emit,clock
+    def __init__(self,db,identities,settings,*,record_in=None,publish=None,clock=time.time):
+        self.db,self.identities,self.s,self.clock=db,identities,settings,clock
+        self.record_in,self.publish_event=record_in,publish
         self.interfaces=PublicInterfaces(db,identities)
         self.scopes=None
         self.publications=None
@@ -198,6 +201,7 @@ class DeliveryBroker:
         inserted=False
         transferred=False
         activity=[]
+        recorded=[]
         with self.db.tx() as conn:
             self.lease(conn,owner,actor,connection,generations[actor])
             if kind=='operation.get':
@@ -216,17 +220,29 @@ class DeliveryBroker:
                 if not self.admissions:raise LabError('not_ready','Admission authority is unavailable',status=409)
                 result=self.admissions.apply_in(conn,owner,actor,kind,frame.get('operationId'),payload)
             elif kind in handlers:
+                fresh=not conn.execute('SELECT 1 FROM delivery_operations WHERE actor=? AND kind=? AND id=?',
+                    (actor,kind,frame.get('operationId'))).fetchone()
                 prior=conn.execute('SELECT 1 FROM delivery_messages WHERE id=?',(payload.get('messageId') if isinstance(payload.get('messageId'),str) else None,)).fetchone() if kind=='message.send' else None
                 result=self._operation(conn,actor,kind,frame.get('operationId'),payload,
                                        lambda:handlers[kind](conn,actor,payload,generations[actor]))
                 inserted=kind=='message.send' and not prior and result.get('messageId')==payload.get('messageId')
             else:raise LabError('protocol_error','Unsupported control operation')
-            if self.observe_in and kind in ('message.send','request.start'):activity=self.observe_in(conn,frame,result,inserted=inserted)
+            if self.observe_in and (kind=='message.send' or (kind=='request.start' and fresh)):
+                activity=self.observe_in(conn,frame,result,inserted=inserted)
+            if activity:
+                if not self.record_in:raise RuntimeError('Activity history requires its owned transaction writer')
+                recorded=[self.record_in(conn,**event) for event in activity]
             conn.execute('UPDATE delivery_leases SET expires=? WHERE actor=?',(self.clock()+self.s.ws_lease_seconds,actor))
         self.notify()
         if transferred:self.payment_operations.project(payment)
-        if self.emit:
-            for event in activity:self.emit(**event)
+        if self.publish_event:
+            for event in recorded:
+                try:self.publish_event(event)
+                except Exception:
+                    # The accepted operation, original response and event are already
+                    # durable. A display/file/subscriber fault must not undo acceptance
+                    # or cause a caller to execute the business a second time.
+                    log.exception('Activity is persisted; live publication failed for event %s',event['seq'])
         return result
 
     @staticmethod

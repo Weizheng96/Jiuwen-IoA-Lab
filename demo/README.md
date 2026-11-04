@@ -1,142 +1,57 @@
 # 演示视频与真实录屏
 
-名称：九问IoA实验平台（Jiuwen IoA Lab）。介绍：面向智能体互联网的仿真验证与开放体验平台。
+九问IoA实验平台（Jiuwen IoA Lab）：面向智能体互联网的仿真验证与开放体验平台。
 
-三段新版视频统一命名如下；旧版成片另列在下方。
+## 已完成的三段演示
 
-| 名称 | 状态 |
+| 视频 | 范围与证据 |
 |---|---|
-| [发布服务演示](out/发布服务演示.mp4) | 已剪辑，2分29.25秒 |
-| [发起委托演示](out/发起委托演示.mp4) | 已剪辑，5分49.53秒；含四类真实确认、交付验收、付款和结清 |
-| [私人交互演示](out/私人交互演示.mp4) | 已修订，2分26.5秒；正常平台交互，片尾简述邮箱调用问题 |
+| [发布服务演示](out/发布服务演示.mp4) | 用户真实注册、接入、发布确认及启用接单；[成片记录](verification/native-provider-onboarding-video.json) |
+| [发起委托演示](out/发起委托演示.mp4) | 委托授权、具体合同、实名演练及验收付款；合同款299、三家拟卡费共3；[原单核验](verification/native-assistant-delegation-recording.json)、[成片检查](verification/native-assistant-delegation-video.json) |
+| [私人交互演示](out/私人交互演示.mp4) | 两侧九问真实批准、留言、冲突及同一交流改约；片尾说明邮箱调用异常、邀请结果未确认；[播放页](messaging/播放.html)、[修订检查](verification/native-messaging-video-revision.json) |
 
-[发布服务演示](out/发布服务演示.mp4)来自用户真实整屏操作；保留注册、已有技能选择、接入、发布确认及启用接单。未录到ZIP上传和配置填写，也不含后续交易，未替换旧片；[声画与范围记录](verification/native-provider-onboarding-video.json)。
+用户已确认第二阶段完成。上述视频各自证明的范围见原记录；发布服务片没有拍ZIP实际导入、配置填写或后续交易，私人交互片不作为邮箱邀请成功证据。当前产品接入使用两个[产品技能](../src/access/skills/README.md)，普通接入与运行入口见根[README](../README.md)。
 
-成片入口见根[使用教程](../README.md#使用教程)，当前进展与未验收项集中在[验证记录](verification/README.md)。原始配置和录像在本机忽略目录，不提交为公开验收摘要。
+原始录屏、账号和模型配置保留在本机忽略目录，不提交为公开证据。现有媒体与历史证据保留当时的事实和来源路径，不因源码迁移改写历史。
 
-全局演示可直接打开[播放页](全局视角/播放.html)：讲解结束自动切入单一全屏真实管理员监控录屏并循环播放，持续标注回放。实际平台的`/admin?view=panorama`提供组件点选说明与账号聚焦；视频本身不代表可操作的实时页面。
+## 场景资产
 
-[发起委托演示](out/发起委托演示.mp4)来自用户43分40秒连续录屏，保留委托授权、具体合同、独立实名演练和验收付款四类真实本机确认。合同款299、三家拟卡费共3，本轮总支出302虚拟币；[原单核验](verification/native-assistant-delegation-recording.json)与[成片检查](verification/native-assistant-delegation-video.json)分别记录业务和视频范围。
+服务方的七家美甲业务定义、Skill、验收说明与构造源由 [delegation-provider/src/scenario](delegation-provider/src/scenario/README.md) 持有。它复用官方包的通用领域与验收资源，不再从旧官方执行器目录读取固定候选。
 
-最新[私人交互演示](out/私人交互演示.mp4)（2分26.5秒，附[本机播放页](messaging/播放.html)）展示两侧九问、真实发布批准、留言、冲突和同一交流中的改约。仅片尾6秒说明个人助手调用邮箱服务异常、邀请结果暂未确认；不将该问题表述为平台流程失败。修订与声画检查见[成片记录](verification/native-messaging-video-revision.json)，[原轮记录](verification/native-dual-screen-recording.json)及旧版保持可追溯。
-
-| Demo | 剧本 | 当前视频 |
-|---|---|---|
-| 全局视角 | [剧本.md](全局视角/剧本.md) | [正式片](out/01-global.mp4) |
-| 美甲委托 | [剧本.md](美甲委托/剧本.md) | [正式片](out/02-delegation.mp4) |
-| 助手交互 | [剧本.md](助手交互/剧本.md) | [平台演示正式片，旁白收尾](out/03-messaging.mp4) |
+个人助手侧的安全预约运行器归本场景所有，说明见[预约工具](delegation-assistant/预约工具.md)。运行器只执行仓库固定逻辑，不执行交付件中的服务方源码：
 
 ```powershell
-python demo/script_documents.py          # 生成全部场景的剧本.md
-python demo/script_documents.py --check  # 核对剧本、镜头覆盖与已发布视频哈希
+python demo/delegation-assistant/src/booking_app.py --config <SDK取件返回的booking.json> --database data/booking-demo.sqlite --port 8768
 ```
 
-剧本由场景源、配音时间轴、画面操作说明和脱敏证据共同生成，不手改。当前交互片按用户选择用条件式旁白说明本人接受入历，不编排Outlook操作镜头；完整邮箱实录模式仍要求本轮实际画面。原散放剧本与重复镜头方案已移至[历史备份](../历史备份/README.md)。
+已有[全局视角](全局视角/播放.html)、[美甲委托剧本](美甲委托/剧本.md)、[助手交互剧本](助手交互/剧本.md)及原版成片保留，用于追溯已发布素材。剧本源 `global_story.py`、`case_story.py` 与当前三片审定源 `review_story.py` 分别保留原职责；不从旧剧本推导当前产品功能。
 
-## 全局视角
+## 媒体制作与检查
 
-`global_story.py`定义字幕与旁白，`global_web/`定义只读讲解地图。0—8按剧本隔离动画，左侧用户与个人助手一一配对；9—10用户先虚化消失、助手重排，再柔焦渐变进入单一全屏真实管理员监控，旁白后延续网络活动。概念片与真实界面共用组件布局及短连接；真实界面没有讲解用户。上下线、授权和条件仲裁为机制示意；执行A2X分类树，ANN只介绍方案。实际统计和成片检查见[global.json](verification/global.json)。
-
-复用入库素材重制，无需模型或邮箱凭据：
+当前保留配音、剪辑、发布、反伪造校验和只读同单补录工具。它们消费已有真实录屏与证据，不启动已归档的个人助手、服务执行器或自动付款流程。
 
 ```powershell
-python demo/record_global.py --source demo/assets/run/global --voice-timing demo/assets/voice/global/voice.json --render-helper ../AgentContractProtocol/demo/_lib/video/record.py --out recordings/global-rebuild
-```
-
-重新采集时先执行`capture_global.py --model-env <本地模型env> --out data/<新目录> --seconds 150 --participants 36`；`global_story.py --prepare data/<新配音目录>`生成字幕，再按下文配音和录制。保持概念动画与实际数据分开标识，不修改A2C共用录制器。
-
-真实监控与概念地图共用`ioalab/web/static/network-map.js`和`network-map.css`。讲解段使用固定种子的有限随机计划，收发错峰、部分并发、传输结束撤除；真实监控仅响应实际事件，历史状态不产生常驻连线。身份中心、委托中心统一命名；灰色悬赏中心与意图中心仅展示规划，没有业务接口、交互或旁白。意图中心副标题为“用户权限白名单管理”。
-
-真实流量按实际绘制的委托/P2P传输接近各半调整，不以订单数直接对比消息数。独立实验客户端分散调用不同服务；原始订单、消息、绘制计数分别保留，未达目标与失败的录制不作为成片素材。
-
-真实监控为助手、等高平台组件、服务、行为日志四列。日志只显示真实事件元数据，最近200条，支持暂停滚动；字幕避开日志区域。多发起方密度由瞬时短线、不同发起方与每秒新增传输检查。讲解切入实录时同时对齐助手/组件/服务，2.8秒渐变中保持已预加载的同一首帧，再继续播放；最终编码提供七个过渡检查时点。
-
-委托与消息各用独立工作线程持续运行，搜索或履约等待不会暂停收发；首次消息也铺开到完整周期，避免开头集中一波。录制前等待真实混合流量稳定，再按管理员实际绘制计数定时采样；每个完整十秒窗口必须同时包含两类传输。`public-run.json`内`proof.mixedActivity`保存逐窗结果，剪辑与发布均拒绝时段分离的素材。片尾与循环播放页使用同一份合格实录。
-
-```powershell
-python tools/check_panorama.py  # 使用demo录制环境的Playwright；离线DOM及残影回归，不调用模型
-python demo/publish_global.py --recording recordings/<已检查全局片> --source data/<本轮真实运行>
-python demo/script_documents.py
-```
-
-发布工具核对成片哈希和真实运行检查，保存去掉初始化空场的监控片、配音、逐镜头最终编码抽帧和脱敏数据。原始失败运行保留在本机；没有用删除旧合同的方式恢复服务容量。
-
-## 两段真实用例
-
-| 用例 | 实际执行与镜头 |
-|---|---|
-| 美甲委托 | 平台注册→保存本地skill配置→九问原生选择技能→一句需求→委托授权→A2X及七家筛选→三份真实提案→推荐码上飞→确认合同→实名环节授权→独立Swarm生产→本地WASM→确认验收及付款→服务运营台同单收入→预约/取消 |
-| 助手交互 | 王经理定义交互接口与账号范围→赵专员的九问查询inputSchema→留言→冲突回执→改约→邀请交王经理接受；真实Outlook接受与入历另行验收 |
-
-`case_story.py`是两段用例字幕与旁白的唯一源，`script_documents.py`维护画面操作并生成上表剧本。52px短字幕、较快旁白，A2C念“A to C”。按实测音频安排镜头，剪短等待时标明；工作台详情按钮聚焦同一合同。报价叠层明确为讲解，数字来自实际签名提案。
-
-两段用例的个人助手工作台固定上方网络，下方记录、接口与详情独立滚动。网络复用管理员组件目录；仅其他个人助手匿名；服务使用公开目录的真实名称，非关联服务弱化。灰色短连接为本地示意，不请求其他账号的私有活动，也不进入业务统计。本人活动依真实事件变化播放，不循环补造业务。接口区统一为“我定义的交互接口”，助手间交互不预设都是协作。使用录屏环境运行`python tools/check_workbench.py`复查布局、隐私请求、轮询展开保持和短线清除。
-
-前提：按[独立助手说明](../personal-assistant/README.md)安装锁定九问与通知扩展，确认Web和Process模型可用，构建技能包；录屏Python环境安装`demo/requirements.txt`并执行`python -m playwright install chromium`。
-
-每轮正式委托必须新建**参与方数据目录**，不能只换录像目录。旧未采纳提案可能占服务容量；入口在有旧合同时拒绝继续。
-
-```powershell
-python tools/build_connector.py
-python demo/case_stack.py --scenario delegation --folder data/<新委托参与方目录> --model-env <九问本地模型env> --notification-env <通知env> --service-model <model.list的selection_key>
-# 保持上方进程运行；另开终端，使用其生成的配置，不输出口令
-python demo/record_cases.py --config data/<新委托参与方目录>/run.json --case delegation --out recordings/<新委托录像目录>
-# 委托录制结束后另建 --scenario messaging 的独立参与方目录，再录交互片；两轮依次运行，避免覆盖本地技能配置
-python demo/record_cases.py --config data/<新交互参与方目录>/run.json --case messaging --out recordings/<新交互录像目录>
-```
-
-`case_stack.py`关闭样例替身：服务由真实Swarm生产，独立A客户端读取本地日程并使用部署方真实通知邮箱。账号、密钥和配置只落本机忽略目录。启动不发信；消息用例改约会向配置收件人提交一封邀请。邮箱形式B账号只是平台账号字符串，不代表企业邮箱认证。
-
-网页模型资源ID不能充当Process选择键。服务启动先查询`model.list`，配置其`selection_key`；网页选对应资源别名。安装阶段确认宿主已索引技能并准备SDK，新会话通过原生菜单选择IoA技能（只传名称提示，模型须再调用skill_tool读取正文与流程）；用户首句仅保留业务需求，不附加技能路径或技术提示。签字、验收和付款由九问调用用户侧SDK完成，录制器不替用户执行成功业务。
-
-委托录制完成后执行`python demo/summarize_delegation.py --config data/<本轮参与方>/run.json --recording recordings/<本轮>`，从实际服务任务和本地WASM报告附加脱敏摘要，再进入剪辑。需要补录服务运营台时，使用`record_provider_view.py`的同一配置与录像参数；它核对已结案合同，保留独立source，不重新生产或付款。
-
-## 配音、剪辑与核对
-
-```powershell
-python demo/case_story.py --case delegation --prepare data/<新配音目录>
-python demo/build_voice.py --recording data/<新配音目录> --helper <A2C主仓>/demo/_lib/aliyun.py --speech-rate 1.6 --tempo 1.12
+python demo/script_documents.py --check
 python demo/edit_cases.py --recording recordings/<本轮> --voice-timing data/<配音目录>/voice.json
 python demo/review_cases.py --recording recordings/<本轮>
 ```
 
-交互配音将case改为`messaging`，当前旁白收尾版在`case_story.py`和`edit_cases.py`命令中增加`--acceptance-presentation narrated`。全景配音使用同一`build_voice.py`参数后，把voice.json传回`record_global.py`。`edit_cases.py`调用`assemble.py`和`check_recording.py`；`review_cases.py`核对每个编码镜头及配音窗口。输出包含剪辑清单、SRT、配音索引、证据、检查与MP4。
+`approved_voice.py`、`build_voice.py` 处理配音，`assemble.py` 合成媒体，`check_recording.py` 和 `artifacts.py` 核验原片、证据及最终摘要。旧全景专用的[混合流量指标](../历史备份/旧执行链/demo/mixed_activity.py)随旧录制器归档，原采样和结果继续作为历史证据保留。`publish_cases.py`、`publish_global.py` 发布前核对证据与成片摘要。影片重新合成后必须重新取得匹配的新检查结果，不能沿用旧结果。
 
-`qa.json`与`shot-review.json`均记录实际视频的SHA256；发布前必须同时匹配当前视频。影片重新合成后须重新运行这两项检查，不能沿用旧结果。
+`record_provider_view.py` 只读核查已结案合同后补录相同运营台，需要原轮真实配置和来源。旧 `summarize_delegation.py` 只处理已退出执行链的私有历史与旧库，已随旧业务脚本归档；它已生成的公开证据保留原字节，不从历史脚本重建当前业务结果。
 
-| 工具 | 单一职责 |
-|---|---|
-| `global_story.py` / `case_story.py` | 场景字幕与旁白；准备配音输入，不读凭据 |
-| `script_documents.py` | 生成逐场景剧本，核对已发布素材 |
-| `case_stack.py` | 准备本轮独立参与方环境，配置仅保留本地 |
-| `record_cases.py` / `message_case.py` / `record_provider_view.py` | 真实界面及同单补录，保留独立时间原点 |
-| `artifacts.py` / `summarize_delegation.py` | 共用证据判定；从实际任务和本地报告生成脱敏摘要 |
-| `edit_cases.py` / `assemble.py` | 按实测配音裁切、标识等待剪辑与讲解叠层、合成 |
-| `check_recording.py` / `review_cases.py` | 业务准入、最终编码及逐镜头声画检查 |
-| `publish_cases.py` | 仅发布已核对成片、配音、抽帧和脱敏摘要 |
+全景重制可复用入库素材，保持“回放”标记：
 
-当前交互片采用`--acceptance-presentation narrated`：平台消息链路为实录，邀请提交后的本人接受入历为标注的流程说明，实际状态仍为待接受。配音准备时也传该参数，仅生成九段旁白。完整邮箱实录使用默认recorded模式，仍要求本轮真实Outlook接受及日历画面，缺证时只能显式预览。`outlook.status=accepted_and_visible`仅在实际核验后填写；浏览器受限不复制认证状态绕过。
+```powershell
+python demo/record_global.py --source demo/assets/run/global --voice-timing demo/assets/voice/global/voice.json --render-helper <共用录制器路径> --out recordings/global-rebuild
+```
 
-`record_case_tail.py`仅供同一已完成合同的工具与收尾补录：先核签7、已付和摘要，不重造合同结果；独立source与原因写入证据。失败拍摄保留。
+`render_global.py` 明确接收共用录制器路径，所需工具须已存在。当前不提供旧流量生成器重采命令；新实验参与方应通过公开SDK另行验证后接入。
 
-## 联调与边界
+## 已退出的录制业务链
 
-原`local_stack.py`、`verify_local.py`、`record_local.py`保留给回环SMTP、测试日历和样例服务联调，测试片持续标识，不作正式片。真实服务、消息、邮件与视频分别验收。
+旧全景自动业务采集、旧 HTTP 服务、旧收件器和旧技能驱动录制器已移至[历史备份](../历史备份/README.md)的 `旧执行链/demo/`。它们仅供源码追溯，不参与运行、构建、导入或当前验收；不从历史备份导入实现来恢复旧入口。
 
-选用[AgentMail原生会议请求](../personal-assistant/README.md)时，`notification-check`只验证传输，不发邮件。Outlook由收件人接受后入历；本地安排不代表已读取私人日历。Graph和Outlook SMTP OAuth2仍是可选后端，本轮不要求重新配置Entra。
+旧片脚本的源码路径可继续出现在当时的证据JSON和剧本中，含义是“当时采用的来源”，不是当前运行命令。当前工具不得以这些历史来源创建新的成功证据。媒体、业务授权边界、摘要和原回执校验继续保留。
 
-仅公开必要的演示画面、成片、配音与脱敏摘要；run.json、SQLite、私钥、模型/邮件配置、浏览器状态与私人消息不入库。失败、初剪、预览和正式片分名。制作方法见本仓[demo-video 技能](../.agents/skills/demo-video/SKILL.md)。
-
-新委托剧本先编写并生成，再制作旁白/录屏。注册使用用户指定的公开演示平台账号xiaomei@outlook.com、密码123456；仅这组演示凭据允许出镜。case_stack不预建该账号，录制中的平台注册按钮实际创建它；配置镜头使用明确标注的录制用本地文件编辑器，真实保存并重新读取settings.local.json，不伪称九问内置编辑器。展示额外1000虚拟币准备额度时记录为管理员显式演示配置。普通使用只导入/配置skill并从原生菜单选中；菜单选择是名称提示，还须模型调用skill_tool读取主文件和相应通用流程。
-
-用户可通过普通聊天或九问原生窗口作答。原生窗口的文本答案需实际填写、回读后提交；录制器此前只点确定遗漏输入，已纠正，不能归因于宿主不支持。一次空点击不算授权。拟卡费按模板公示规则计收，不承诺未成交退还；错误话术或未完成授权的take保留为失败，不进入正式片。
-
-模型可复现配置：case_stack可用--assistant-model-id、--assistant-model-alias、--assistant-model-name选择已通过九问正常入口配置的模型，录像会核对可见别名并保存模型摘要；不改宿主源码或全局指令。service-model独立控制服务方Process模型，二者不要混淆。
-
-同单接续仅用于已录到三份未签约提案的画面中断：`python demo/record_cases.py --config <原run.json> --case delegation --out <原录像目录> --resume-quotes`。入口核对技能摘要、三份合同及未签约状态，使用原生会话URL恢复，保留screen.webm与独立continuation.webm时间原点；不重复注册、授权或拟卡付费，已有接续片时拒绝覆盖。必需材料的业务追问如实入镜，不注入技能路径或SDK命令。
-
-接续还须保留至少3分钟提案响应余量；最终合同确认前再保留2分钟。以真实签3及模板respondWithin计算，不能改写期限。窗口不足拒绝接续；模型收到deadline-passed应停止，重新授权或付费必须有新的用户同意。
-
-实际规格追问可按已编写剧本作一次自然业务答复；本轮答复仅为非关键默认值随合同确认。summarize_delegation核对同一原生会话的实际问题、用户答复、完整轮次和原片时点，再附加settings镜头；其他operator消息仍拒绝正式发布，不把额外业务确认隐藏为全自动。
-
-原生问答提交后，录制器先等待同一会话的新ask_user_answer回执，再刷新同一会话URL，清除已回答却仍显示的旧表单；不修改九问源码、不隐藏业务结果，未收到回执时停止且不自动重发。
+当前证据范围与待验收能力统一见[验证记录](verification/README.md)，产品职责见[架构](../设计/架构.md)，后续工作见[开发计划](../设计/工程/实施资料/开发计划.md)。文档整理和媒体检查不发送邮件、不运行真实委托。

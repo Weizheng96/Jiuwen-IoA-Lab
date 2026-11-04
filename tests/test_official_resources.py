@@ -5,7 +5,7 @@ import json
 
 import pytest
 from a2c.template import validate, template_digest
-from ioalab.runtime.packages import PackageStore
+from ioalab.delegation.packages import PackageStore
 from ioalab_services import prepare
 from ioalab_services.catalog import definitions, materialize, seed_manifest
 

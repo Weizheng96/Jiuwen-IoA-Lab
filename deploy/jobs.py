@@ -14,7 +14,7 @@ from .workspace import path_without_links,save
 
 
 SOURCE_DIRECTORIES=('deploy','tools','src','vendor')
-SOURCE_FILES=('personal-assistant/requirements-swarm.lock','personal-assistant/swarm.lock.json')
+SOURCE_FILES=('vendor/jiuwen/requirements-swarm.lock','vendor/jiuwen/swarm.lock.json')
 
 
 def source_identity(root):

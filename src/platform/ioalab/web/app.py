@@ -18,9 +18,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from a2c.errors import A2CError
 from ..errors import LabError
 
-from ..platform import Platform
+from ..app import Platform
 from ..payments import money
-from ..store import jdump, jload
+from ..storage import jdump, jload
 from ..observation import event_view
 
 log = logging.getLogger("ioalab.web")
@@ -125,7 +125,7 @@ def create_app(platform: Platform) -> FastAPI:
     # ── 用户端 API ────────────────────────────────────────────────────
     @app.get("/api/config")
     async def config():
-        return {"mode": s.mode, "registration": s.registration, "loginCredit": s.login_credit, "currency": "虚拟币", "llm": platform.llm.enabled,
+        return {"mode": s.mode, "registration": s.registration, "loginCredit": s.login_credit, "currency": "虚拟币", "llm": platform.discovery_models.enabled,
                 "publicUrl": s.public_url, "market": platform.market_id, "pay": platform.pay_id,
                 "discovery": platform.discovery.last_mode or ("a2x-tree" if platform.discovery.llm_configured else "vector")}
 
@@ -148,7 +148,7 @@ def create_app(platform: Platform) -> FastAPI:
     @app.post("/api/auth/login")
     async def login(request: Request):
         b = await body(request)
-        u = await platform._worker(platform.login,b.get('username',''),b.get('password',''),ip=ip(request),operation_id=b.get('operationId'))
+        u = await platform._worker(platform.accounts.login,b.get('username',''),b.get('password',''),ip=ip(request),operation_id=b.get('operationId'))
         resp = JSONResponse(u)
         set_cookie(resp, u["token"])
         return resp
@@ -207,8 +207,8 @@ def create_app(platform: Platform) -> FastAPI:
     from .arbitrations import build_router as arbitration_router
     app.include_router(arbitration_router(platform,require_admin))
     from .workbench import build_router as workbench_router
-    from ..messaging import build_router as messaging_router
-    app.include_router(messaging_router(platform.messaging,current_user))
+    from ..messaging.directory import build_router as messaging_router
+    app.include_router(messaging_router(platform.interface_directory,current_user))
     from .agents import build_router as agents_router
     app.include_router(agents_router(platform,current_user))
     app.include_router(workbench_router(platform,current_user,require_admin,require_auditor))
@@ -225,7 +225,7 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/admin/stats")
     async def stats(_: str = Depends(require_admin)):
-        return platform.stats()
+        return platform.overview.stats()
 
     @app.get("/api/admin/events")
     async def events(_: str = Depends(require_admin), after: int = 0, limit: int = 300, run: str = ""):
@@ -285,17 +285,17 @@ def create_app(platform: Platform) -> FastAPI:
         for i in range(n):
             name = b.get("username") if n == 1 and b.get("username") else f"virtual_{platform.db.one('SELECT COUNT(*) AS n FROM users')['n'] + 1:03d}"
             pw = b.get("password") or _secrets.token_urlsafe(8)
-            u = await platform._worker(platform.register_user, name, pw, kind="virtual", display_name=b.get("display_name", ""),
+            u = await platform._worker(platform.accounts.create_account, name, pw, kind="virtual", display_name=b.get("display_name", ""),
                                         note=b.get("note", "管理员创建"))
             if b.get("credit"):
-                platform.grant(u["id"], b["credit"], by="admin", note="创建时发放")
+                platform.ledger_operations.adjust(u["id"], b["credit"], by="admin", note="创建时发放")
             out.append({**u, "password": pw})
         return out
 
     @app.post("/api/admin/wallet")
     async def adjust(request: Request, _: str = Depends(require_admin)):
         b = await body(request)
-        return {"balance": platform.grant(b["user_id"], b["delta"], by="admin", note=b.get("note", "管理员调整"))}
+        return {"balance": platform.ledger_operations.adjust(b["user_id"], b["delta"], by="admin", note=b.get("note", "管理员调整"))}
 
     @app.post("/api/admin/invite")
     async def invite(_: str = Depends(require_admin)):
@@ -313,17 +313,17 @@ def create_app(platform: Platform) -> FastAPI:
     @app.post("/api/admin/search")
     async def admin_search(request: Request, _: str = Depends(require_admin)):
         b = await body(request)
-        hits = await platform._worker(platform._search, b.get("query", ""), int(b.get("top_k", 8)))
+        hits = await platform._worker(platform.discovery_operations.search, b.get("query", ""), int(b.get("top_k", 8)))
         return {"mode": platform.discovery.last_mode, "hits": [{"id": h["id"], "name": h["name"], "status": h["card"].get("status")} for h in hits]}
 
 
     @app.get("/api/admin/components")
     async def components(_: str = Depends(require_admin)):
-        return await platform._worker(platform.components)
+        return await platform._worker(platform.overview.components)
 
     @app.get("/api/admin/traffic")
     async def traffic_get(_: str = Depends(require_admin)):
-        return {"level":"external","enabled":False,"command":"python experiments/traffic.py"}
+        return {"level":"external","enabled":False}
 
 
 
@@ -385,19 +385,6 @@ def create_app(platform: Platform) -> FastAPI:
             return RedirectResponse('/login?next=%2Fadmin',status_code=303)
         if not platform.auth.is_admin(actor):raise HTTPException(403,'需要管理员权限')
         return FileResponse(STATIC / "admin.html")
-
-    @app.get('/downloads/ioalab-skill.zip')
-    def skill_download():
-        path=platform.s.bundles_dir/'ioalab-skill.zip'
-        if not path.is_file(): raise HTTPException(503,'Run tools/build_connector.py first')
-        return FileResponse(path,filename='ioalab-skill.zip',media_type='application/zip')
-
-    @app.get("/downloads/ioalab-client.zip")
-    async def connector_bundle():
-        path = platform.s.bundles_dir / "ioalab-client.zip"
-        if not path.is_file():
-            raise HTTPException(503, "连接器尚未生成，请运行 tools/build_connector.py")
-        return FileResponse(path, filename="ioalab-client.zip", media_type="application/zip")
 
     @app.get('/downloads/{bundle}')
     def access_skill_download(bundle:str):

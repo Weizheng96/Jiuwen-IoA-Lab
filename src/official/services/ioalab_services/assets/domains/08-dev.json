@@ -623,7 +623,7 @@
     "title": "本地预约配置",
     "file": "booking.json",
     "mediaType": "application/json",
-    "description": "JSON配置，配合examples/booking_app.py运行；判据核对配置，不执行任意服务代码。",
+    "description": "JSON配置，用于符合约定的预约应用；判据核对配置，不执行任意服务代码。",
     "specSchema": {
      "shop": {
       "type": "string",
@@ -753,7 +753,7 @@
     "title": "本地预约配置",
     "file": "booking.json",
     "mediaType": "application/json",
-    "description": "JSON配置，配合examples/booking_app.py运行；判据核对配置，不执行任意服务代码。",
+    "description": "JSON配置，用于符合约定的预约应用；判据核对配置，不执行任意服务代码。",
     "specSchema": {
      "shop": {
       "type": "string",

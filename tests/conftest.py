@@ -26,7 +26,7 @@ def wait_for(predicate,timeout=20):
 def platform(tmp_path_factory):
     import uvicorn
     from ioalab.config import Settings
-    from ioalab.platform import Platform
+    from ioalab.app import Platform
     from ioalab.web.app import create_app
     pf=Platform(Settings(port=free_port(),data=tmp_path_factory.mktemp('core'),autoseed=True))
     app=create_app(pf);pf.app=app
@@ -42,35 +42,32 @@ def client(platform):
     with httpx.Client(base_url=platform.s.base_url,trust_env=False,timeout=120) as http:
         yield http
 
-@pytest.fixture(scope='session')
-def providers(platform,tmp_path_factory):
-    import uvicorn
-    from serve import ServiceHost,create_app
-    from ioalab_services.catalog import definitions
-    from copy import deepcopy
-    items=definitions()
-    preapproval=deepcopy(next(d for d in items if d['formation']=='countersign'))
-    preapproval.update(id='protocol-preapproval-fixture',formation='preapproval')
-    selected=[preapproval,*[next(d for d in items if d['formation']==f) for f in ('countersign','proposal')]]
-    port=free_port()
-    ids=[d['id'] for d in selected]+['wechat-posts']
-    host=ServiceHost(platform=platform.s.base_url,public_url=f'http://127.0.0.1:{port}',data=tmp_path_factory.mktemp('providers'),
-                     stub=True,only=ids)
-    host.definitions.append(('ISP_008',preapproval))
-    host.selected=selected
-    host.all_definitions=[*items,preapproval]
-    server=uvicorn.Server(uvicorn.Config(create_app(host),host='127.0.0.1',port=port,log_level='critical'))
-    thread=threading.Thread(target=server.run,daemon=True);thread.start()
-    wait_for(lambda:host.ready or host.error)
-    assert host.ready,host.error
-    yield host
-    server.should_exit=True;thread.join(8)
-
 @pytest.fixture
-def local_client(platform,tmp_path):
-    from ioalab_sdk import LabClient
+def protocol_participant(platform,tmp_path):
+    """Real account/identity owner; protocol tests give Peer exclusive WS control."""
+    from ioalab_sdk.runtime.config import RuntimeConfig
+    from ioalab_sdk.runtime.files import private_json
+    from ioalab_sdk.runtime.resident import ResidentRuntime
+    from ioalab_sdk.runtime.ipc import LocalClient
     from _support import new_user,PASSWORD
     user=new_user(platform)
-    client=LabClient(platform.s.base_url,user['username'],PASSWORD,tmp_path/'local',source='experiment')
-    yield client
-    client.close()
+    path=tmp_path/'protocol-participant.json'
+    private_json(path,{'platform_url':platform.s.base_url,'username':user['username'],'password':PASSWORD,
+                       'data_dir':'./protocol-state','identities':[{'key':'personal','role':'assistant','name':'协议测试参与方'}]})
+    runtime=ResidentRuntime(RuntimeConfig.load(path))
+    # The transport under test, not a competing resident reconnect loop, owns WS.
+    runtime.ipc.start()
+    try:
+        result=LocalClient(runtime.config.home).call('identity.status')
+        assert result['status']=='completed' and len(result['data'])==1
+        yield runtime
+    finally:runtime.close()
+
+
+@pytest.fixture
+def public_transport():
+    import httpx
+    from a2c.binding import A2ATransport
+    transport=A2ATransport(http=lambda:httpx.AsyncClient(timeout=30,trust_env=False))
+    try:yield transport
+    finally:transport.close()

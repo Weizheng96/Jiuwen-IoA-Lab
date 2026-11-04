@@ -6,9 +6,9 @@
 
 | 素材 | 现有入口与适用范围 |
 |---|---|
-| 概念全景与实际监控 | `demo/global_story.py`、`capture_global.py`、`record_global.py`；动画与监控分别标识 |
+| 概念全景与实际监控 | `demo/global_story.py`、`record_global.py`复用已核素材；新监控录制使用当前所有者的原生页面，动画与监控分别标识 |
 | 新批准稿与旁白计划 | `demo/review_story.py`、`script_documents.py --drafts`、`approved_voice.py`；不生成业务事实 |
-| 既有场景录制与接续 | `demo/record_cases.py`、`record_case_tail.py`、`record_provider_view.py`；先读其前置检查、调用与证据格式 |
+| 既有场景录制与接续 | 原生整屏用 `scripts/capture_desktop.py`，同单只读补录用 `demo/record_provider_view.py`；先读前置检查、调用与证据格式；旧录制业务链已归档，不恢复旧执行器 |
 | 既有场景剪辑与发布 | `demo/edit_cases.py`、`check_recording.py`、`review_cases.py`、`publish_cases.py`；仅在当前场景及证据契约匹配时复用 |
 | 新批准稿原生剪辑 | `demo/edit_cases.py --scene delegation-provider\|delegation-assistant\|messaging`；指定新 `--recording` 目录和对应 `--voice-timing` 文件，缺镜头或证据时用 `--review-candidate` |
 | 当前所有者的原生页面原帧 | [capture_frames.mjs](../scripts/capture_frames.mjs)；注入已绑定 Tab/CDP 与文件系统，分次 await 采集，不启动浏览器或操作页面 |

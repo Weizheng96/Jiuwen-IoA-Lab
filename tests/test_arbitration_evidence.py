@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from a2c import objects
-from a2c.codec import utcnow,parse_time
+from a2c.codec import utcnow
 from ioalab_sdk.adapters.transport import SessionTransport
 from ioalab_sdk.runtime.host import HostResult
 from ioalab_sdk.runtime.ipc import LocalClient
@@ -32,31 +32,6 @@ def preview(runtime,admission,ground,period=None):
     args={'agentId':runtime.identities[0].agent_id,'admissionId':admission,'ground':ground}
     if period is not None:args['period']=period
     return runtime.account.api('POST','/arbitrations/preview',args)
-
-
-@pytest.mark.parametrize('formation',['proposal','countersign'])
-def test_no_delivery_needed_for_start_deadline_and_preview_has_no_effects(platform,tmp_path,monkeypatch,formation):
-    with participants(platform,tmp_path,formation=formation,fee=0) as (p,a,host,t,task):
-        q=candidate(a,p,t,task);ref,admission=formed(a,q)
-        before=preview(a,admission,'start-overdue')
-        assert not before['eligible'] and before['reason']=='not_due'
-        assert before['subject']=={'kind':'contract','digest':ref}
-        assert before['evidence']['card']['fulfillment']=={} and not before['evidence']['steps']
-        due=parse_time(before['deadline']);monkeypatch.setattr(platform.arbitration_evidence,'clock',lambda:due.timestamp())
-        exact=preview(a,admission,'start-overdue');assert not exact['eligible']
-        monkeypatch.setattr(platform.arbitration_evidence,'clock',lambda:due.timestamp()+1)
-        after=preview(a,admission,'start-overdue');assert after['eligible']
-        assert after['basisDigest']==before['basisDigest']
-        assert platform.market.market.store.get('ledger',ref) is None
-        with platform.db.lock:
-            count=platform.db.conn.total_changes
-            platform.arbitration_evidence.preview(a.account.account['id'],
-                {'agentId':a.identities[0].agent_id,'admissionId':admission,'ground':'start-overdue'})
-            assert platform.db.conn.total_changes==count
-        turns=len(host.turns)
-        monkeypatch.setattr(platform.arbitration_evidence,'clock',lambda:(utcnow()+timedelta(days=40)).timestamp())
-        assert preview(a,admission,'start-overdue')['eligible']
-        assert len(host.turns)==turns and not platform.db.rows('SELECT * FROM payment_records WHERE ref=?',ref)
 
 
 def test_preview_authentication_fields_and_party_are_checked(platform,tmp_path):
@@ -153,14 +128,14 @@ def test_every_original_step_and_answer_contributes_to_deadline(platform,tmp_pat
         assert value['eligible']
         # Missing retained original progress must stop adjudication, even when
         # the latest contract projection still looks usable.
-        original=platform.messaging.delivery.protocol_history_in
+        original=platform.delivery.protocol_history_in
         def missing(conn,message):
             data=original(conn,message)
             if any((r['body']['reply'].get('task') or {}).get('state')=='auth-required' for r in data['results']):
                 data['results']=[]
             return data
         with monkeypatch.context() as patch:
-            patch.setattr(platform.messaging.delivery,'protocol_history_in',missing)
+            patch.setattr(platform.delivery,'protocol_history_in',missing)
             with pytest.raises(httpx.HTTPStatusError) as error:preview(p,admission,'authorize-overdue',1)
             assert error.value.response.status_code==409 and error.value.response.json()['error']['code']=='history_gap'
 

@@ -14,7 +14,7 @@ from typing import Any, Callable, Mapping
 
 from a2c.common import Endpoint, Reply, Transport
 
-from .store import DB, jdump
+from .storage import DB, jdump
 
 # 报文 op → 中文标签（设计/委托流程.md 的说法）
 LABELS = {

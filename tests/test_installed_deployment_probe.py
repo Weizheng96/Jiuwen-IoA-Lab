@@ -1,7 +1,7 @@
 """Installed deployment probes must exercise the actual bootstrap authority."""
 from urllib.error import HTTPError
 import pytest
-from verify_deployment import seed_accounts
+from experiments.verify_deployment import seed_accounts
 
 
 def test_probe_seeds_through_bootstrap_cookie_without_creating_or_crediting_a_user(platform):

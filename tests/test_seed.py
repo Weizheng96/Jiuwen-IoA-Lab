@@ -8,7 +8,7 @@ class _Ctx:
 def test_rules_engine_core_checks():
     # The original rule interpreter is retained byte-for-byte; exercise it through its verifier package.
     from tools.check_services import check
-    from ioalab.runtime.packages import PackageStore
+    from ioalab.delegation.packages import PackageStore
     from pathlib import Path
     import tempfile
     package=PackageStore(Path(tempfile.mkdtemp()))

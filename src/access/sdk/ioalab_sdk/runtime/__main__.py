@@ -8,7 +8,7 @@ import sys
 import time
 import uuid
 
-from ..lease import Lease
+from .lease import Lease
 from .config import RuntimeConfig,read_configuration,data_directory
 from .files import private_json,read_arguments,prepare_home
 from .ipc import LocalClient,public_error

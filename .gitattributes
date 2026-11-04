@@ -10,6 +10,7 @@
 *.md text eol=lf
 *.whl binary
 *.png binary
+历史备份/旧执行链/整理期间/** -text -whitespace
 
 # Preserve upstream bytes and source archive digests across Windows/Linux clones.
 vendor/A2X-registry/** -text

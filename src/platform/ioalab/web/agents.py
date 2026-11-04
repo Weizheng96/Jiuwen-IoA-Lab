@@ -9,7 +9,7 @@ from ..errors import LabError
 
 def build_router(platform,current_user):
     router=APIRouter()
-    directory,broker=platform.identities,platform.messaging.delivery
+    directory,broker=platform.identities,platform.delivery
 
     def sdk_user(request:Request):
         return directory.bearer(request.headers.get('authorization',''))

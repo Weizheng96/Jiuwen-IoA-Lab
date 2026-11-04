@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from ioalab.observation.services import ServiceViews
-from ioalab.platform import Platform
+from ioalab.operations import DiscoveryOperations
 from ioalab.web.api_v1 import build_router
 
 
@@ -51,13 +51,14 @@ def platform_for(rows, *, active=0):
     def search(query, top_k):
         calls.append((query,top_k))
         return cards
-    platform=object.__new__(Platform)
+    platform=SimpleNamespace()
     platform.db=db
     platform.discovery=SimpleNamespace(search=search,last_mode='a2x-tree')
     platform.service_views=ServiceViews(db,clock=lambda:100)
     events=[]
     platform.bus=SimpleNamespace(emit=lambda *args,**kwargs:events.append((args,kwargs)))
     platform.market_id='market'
+    platform.discovery_operations=DiscoveryOperations(platform.discovery,platform.service_views,platform.bus.emit,platform.market_id)
     return platform,cards,calls,events
 
 
@@ -73,7 +74,7 @@ def test_search_preserves_original_hits_and_uses_current_public_projection(chang
     platform,original,calls,events=platform_for([service_row(**changes)],active=active)
     before=deepcopy(original)
     rows=deepcopy(platform.db.values)
-    result=platform._search('自然业务需求',8,by='assistant')
+    result=platform.discovery_operations.search('自然业务需求',8,by='assistant')
     assert calls==[('自然业务需求',8)]
     assert [r['id'] for r in result]==[r['id'] for r in original]
     assert result[0]['availability'] is None
@@ -111,7 +112,7 @@ def test_search_http_transmits_null_or_public_snapshot_without_dropping_hits():
 
 def test_search_with_no_public_projection_never_invents_online_state():
     platform,original,_,_=platform_for([])
-    result=platform._search('仍保留搜索命中',8)
+    result=platform.discovery_operations.search('仍保留搜索命中',8)
     assert [h['id'] for h in result]==[h['id'] for h in original]
     assert all(hit['availability'] is None for hit in result)
     assert all('availability' not in hit for hit in original)

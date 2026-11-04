@@ -332,7 +332,7 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
             assistant.close();provider.close()
             iid=actual['interactionId']
             platform.db.run('UPDATE delivery_messages SET expires=0,retain_until=0 WHERE interaction=?',iid)
-            platform.messaging.delivery.cleanup()
+            platform.delivery.cleanup()
             assert not platform.db.one('SELECT 1 FROM delivery_messages WHERE interaction=? AND envelope IS NOT NULL',iid)
             original_view=platform.db.one('SELECT * FROM observation_contracts WHERE digest=?',ref)
             platform.contract_views.rebuild()

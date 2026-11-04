@@ -1,4 +1,1 @@
-"""Local IoA access. No platform or Swarm imports."""
-from .client import LabClient
-
-__all__ = ["LabClient"]
+"""Resident IoA access SDK; use role modules and the authenticated runtime API."""

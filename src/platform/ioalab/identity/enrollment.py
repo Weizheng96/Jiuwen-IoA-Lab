@@ -25,13 +25,11 @@ def stamp(value):
 
 
 class EnrollmentRegistry:
-    def __init__(self,db,settings,*,legacy_keys=(),legacy_certificates=()):
+    def __init__(self,db,settings,*,existing_keys=()):
         self.db,self.settings=db,settings
         with db.lock:db.conn.executescript(SCHEMA)
         with db.tx() as conn:
-            for owner,key in legacy_keys:self.claim_in(conn,owner,[key])
-            for owner,fingerprint in legacy_certificates:
-                self._claim(conn,owner,'certificate:'+fingerprint)
+            for owner,key in existing_keys:self.claim_in(conn,owner,[key])
 
     @staticmethod
     def _claim(conn,owner,fingerprint):

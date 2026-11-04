@@ -20,7 +20,7 @@ def sha(blob):return hashlib.sha256(blob).hexdigest()
 
 
 def bundle(tmp_path):
-    root=tmp_path;vendor=root/'vendor';vendor.mkdir();(root/'personal-assistant').mkdir()
+    root=tmp_path;vendor=root/'vendor';vendor.mkdir();(vendor/'jiuwen').mkdir()
     license=vendor/'LICENSE';license.write_bytes(b'upstream license')
     archive=vendor/'source.tar.gz';raw=b'pinned upstream source';archive.write_bytes(gzip.compress(raw,mtime=0))
     source=vendor/'A2X-registry/module.py';source.parent.mkdir();source.write_bytes(b'VALUE=1\n')
@@ -33,8 +33,8 @@ def bundle(tmp_path):
         {**common,'id':'registry','delivery':'directory','sourceDirectory':'A2X-registry','sourceFiles':{'module.py':sha(source.read_bytes())}},
         {**common,'id':'runtime','delivery':'build-wheel','wheel':wheel.name,'archive':archive.name,'archiveSha256':sha(archive.read_bytes()),'sourceTarSha256':sha(raw),'frontend':True,'frontendBuild':{'assetFiles':1},'wheelInfo':{'file':wheel.name,'sha256':sha(wheel.read_bytes()),'package':'runtime','version':'1.0'}}]}
     (vendor/'SOURCES.json').write_text(json.dumps(manifest))
-    lock=root/'personal-assistant/requirements-swarm.lock';lock.write_text('./vendor/'+wheel.name+'\n')
-    (root/'personal-assistant/swarm.lock.json').write_text(json.dumps({'requirementsSha256':sha(lock.read_bytes())}))
+    lock=root/'vendor/jiuwen/requirements-swarm.lock';lock.write_text('./vendor/'+wheel.name+'\n')
+    (root/'vendor/jiuwen/swarm.lock.json').write_text(json.dumps({'requirementsSha256':sha(lock.read_bytes())}))
     return root
 
 
@@ -45,9 +45,9 @@ def test_local_bundle_is_valid_and_source_tampering_fails(tmp_path):
 
 
 def test_lock_cannot_hide_remote_vcs_with_updated_digest(tmp_path):
-    root=bundle(tmp_path);lock=root/'personal-assistant/requirements-swarm.lock'
+    root=bundle(tmp_path);lock=root/'vendor/jiuwen/requirements-swarm.lock'
     lock.write_text(lock.read_text()+'pkg @ git+https://github.com/example/repo.git\n')
-    (root/'personal-assistant/swarm.lock.json').write_text(json.dumps({'requirementsSha256':sha(lock.read_bytes())}))
+    (root/'vendor/jiuwen/swarm.lock.json').write_text(json.dumps({'requirementsSha256':sha(lock.read_bytes())}))
     with pytest.raises(ValueError,match='Remote/VCS'):validate(root)
 
 
@@ -68,14 +68,14 @@ def test_archive_traversal_and_git_checkout_are_rejected(tmp_path):
 
 
 def test_verify_only_needs_no_git_npm_or_package_index(tmp_path):
-    result=subprocess.run([sys.executable,str(ROOT/'personal-assistant/install_swarm.py'),'--verify-only'],cwd=tmp_path,
+    result=subprocess.run([sys.executable,str(ROOT/'deploy/install_swarm.py'),'--verify-only'],cwd=tmp_path,
         env={**os.environ,'PATH':str(tmp_path),'PIP_NO_INDEX':'1','PYTHONUTF8':'1'},capture_output=True,text=True,encoding='utf-8')
     assert result.returncode==0,result.stderr
     assert 'local Jiuwen inputs verified' in result.stdout
 
 
 def test_same_version_new_wheel_reinstalls_without_overwriting_workspace(tmp_path,monkeypatch):
-    spec=importlib.util.spec_from_file_location('local_swarm_installer',ROOT/'personal-assistant/install_swarm.py');installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
+    spec=importlib.util.spec_from_file_location('local_swarm_installer',ROOT/'deploy/install_swarm.py');installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
     environment=tmp_path/'venv';environment.mkdir();data=tmp_path/'workspace';data.mkdir();config=data/'config.yaml';config.write_text('existing user settings')
     manifest={'components':[{'id':'runtime','delivery':'build-wheel','wheelInfo':{'sha256':'first'}}]};wheel=tmp_path/'runtime.whl';calls=[]
     monkeypatch.setattr(installer,'installation_plan',lambda:(manifest,[wheel],'local requirements\n'))
@@ -100,14 +100,14 @@ def test_wheel_cannot_contain_unmaterialized_git_lfs_pointer(tmp_path):
 
 @pytest.mark.parametrize('line',['https://github.com/example/package.whl','--extra-index-url https://example.test/simple','-r remote-requirements.txt'])
 def test_lock_cannot_add_remote_inputs_or_include_files(tmp_path,line):
-    root=bundle(tmp_path);lock=root/'personal-assistant/requirements-swarm.lock';lock.write_text(lock.read_text()+line+'\n')
-    (root/'personal-assistant/swarm.lock.json').write_text(json.dumps({'requirementsSha256':sha(lock.read_bytes())}))
+    root=bundle(tmp_path);lock=root/'vendor/jiuwen/requirements-swarm.lock';lock.write_text(lock.read_text()+line+'\n')
+    (root/'vendor/jiuwen/swarm.lock.json').write_text(json.dumps({'requirementsSha256':sha(lock.read_bytes())}))
     with pytest.raises(ValueError):validate(root)
 
 
 def test_jiuwen_provenance_cannot_drift_between_manifests(tmp_path):
     root=bundle(tmp_path);path=root/'vendor/SOURCES.json';data=json.loads(path.read_text());data['components'][1]['id']='workswarm';path.write_text(json.dumps(data))
-    spec=root/'personal-assistant/swarm.lock.json';lock=json.loads(spec.read_text());lock.update(commit='b'*40,sourceArchiveSha256=data['components'][1]['sourceTarSha256']);spec.write_text(json.dumps(lock))
+    spec=root/'vendor/jiuwen/swarm.lock.json';lock=json.loads(spec.read_text());lock.update(commit='b'*40,sourceArchiveSha256=data['components'][1]['sourceTarSha256']);spec.write_text(json.dumps(lock))
     with pytest.raises(ValueError,match='source pin differs'):validate(root)
 
 
@@ -145,7 +145,7 @@ def test_default_entries_forward_literal_local_configuration_without_git(tmp_pat
 
 
 def test_initialization_preserves_packaged_template_and_existing_user_configuration(tmp_path,monkeypatch):
-    spec=importlib.util.spec_from_file_location('workspace_installer',ROOT/'personal-assistant/install_swarm.py');installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
+    spec=importlib.util.spec_from_file_location('workspace_installer',ROOT/'deploy/install_swarm.py');installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
     package=tmp_path/'fake/jiuwenswarm';(package/'common').mkdir(parents=True);(package/'resources').mkdir()
     (package/'__init__.py').write_text('');(package/'common/__init__.py').write_text('')
     template=package/'resources/config.yaml';template.write_text(json.dumps({'updater':{'enabled':True},'preferred_language':'zh'}));original=template.read_bytes()

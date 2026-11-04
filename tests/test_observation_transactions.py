@@ -1,66 +1,56 @@
-"""Report acknowledgement and durable history share a transaction; live publication is separate."""
+"""Current WS message receipt and durable event share a transaction."""
 import copy
-import uuid
-import httpx
+from contextlib import closing
 import pytest
-
 from _support import as_admin
 from ioalab.delegation.contracts import evidence_extends
+from test_agent_delivery import people,publish,request,Peer,uid
+from test_delegation_admission import invoke
 
 
-def report(local_client):
-    return {'id':uuid.uuid4().hex,'source':'experiment','actor':local_client.signer.id,
-            'op':'participant.activity','detail':{}}
+def counts(platform,sender,message,operation):
+    return (platform.db.one('SELECT COUNT(*) AS n FROM delivery_messages WHERE id=?',message)['n'],
+            platform.db.one('SELECT COUNT(*) AS n FROM delivery_operations WHERE actor=? AND kind=? AND id=?',sender,'message.send',operation)['n'],
+            platform.db.one('SELECT COUNT(*) AS n FROM events WHERE sender=? AND op=?',sender,'message.queued')['n'])
 
 
-def submit(local_client,body):
-    # A deliberately unhandled ASGI fault closes its keep-alive connection.
-    # Reconnect for each attempt; the original event ID remains unchanged.
-    with httpx.Client(trust_env=False,timeout=5,headers={'Connection':'close'}) as http:
-        response=http.post(local_client.base+'/api/v1/observations',json=body,
-                           headers={'Authorization':'Bearer '+local_client.token})
-        response.raise_for_status()
-        return response.json()
-
-
-def counts(platform,body):
-    return (platform.db.one('SELECT COUNT(*) AS n FROM observations WHERE id=?',body['id'])['n'],
-            platform.db.one('SELECT COUNT(*) AS n FROM events WHERE sender=? AND op=?',body['actor'],body['op'])['n'])
-
-
-def test_event_write_failure_rolls_back_original_acknowledgement(platform,local_client,monkeypatch):
-    body=report(local_client);original=platform.bus.record_in
+def test_event_write_failure_rolls_back_original_acknowledgement(platform,client,people,monkeypatch):
+    recipient,sender=people[:2]
+    publish(client,recipient,[sender['username']]).raise_for_status()
+    value=request(recipient['actor']);operation=uid();original=platform.bus.record_in
     def fail(connection,*args,**kwargs):
         event=original(connection,*args,**kwargs)
-        if event['sender']==body['actor']:raise RuntimeError('isolated event write boundary')
+        if event['sender']==sender['actor'] and event['op']=='message.queued':raise RuntimeError('isolated event write boundary')
         return event
-    with monkeypatch.context() as patch:
-        patch.setattr(platform.bus,'record_in',fail)
-        with pytest.raises(httpx.HTTPStatusError) as failure:
-            submit(local_client,body)
-        assert failure.value.response.status_code==500
-    assert counts(platform,body)==(0,0)
-    assert submit(local_client,body)['ok']
-    assert counts(platform,body)==(1,1)
+    with closing(Peer(client,sender)) as peer:
+        with monkeypatch.context() as patch:
+            patch.setattr(platform.bus,'record_in',fail)
+            with pytest.raises(RuntimeError,match='event write boundary'):invoke(platform,peer,'message.send',value,operation)
+        assert counts(platform,sender['actor'],value['messageId'],operation)==(0,0,0)
+        receipt=peer.call('message.send',value,operation=operation)
+        assert receipt['messageId']==value['messageId']
+        assert counts(platform,sender['actor'],value['messageId'],operation)==(1,1,1)
 
 
-def test_postcommit_publication_failure_retains_one_history_and_database_replay(platform,local_client,client,monkeypatch):
-    body=report(local_client);original=platform.bus.publish
+def test_postcommit_publication_failure_retains_one_history_and_database_replay(platform,client,people,monkeypatch):
+    recipient,sender=people[:2]
+    publish(client,recipient,[sender['username']]).raise_for_status()
+    value=request(recipient['actor']);operation=uid();original=platform.bus.publish
     def fail(event):
-        if event['sender']==body['actor']:raise OSError('isolated publication failure')
+        if event['sender']==sender['actor'] and event['op']=='message.queued':raise OSError('isolated publication failure')
         return original(event)
-    with monkeypatch.context() as patch:
-        patch.setattr(platform.bus,'publish',fail)
-        with pytest.raises(httpx.HTTPStatusError) as failure:
-            submit(local_client,body)
-        assert failure.value.response.status_code==500
-    assert counts(platform,body)==(1,1)
-    assert submit(local_client,body)['duplicate']
-    assert counts(platform,body)==(1,1)
+    with closing(Peer(client,sender)) as peer:
+        with monkeypatch.context() as patch:
+            patch.setattr(platform.bus,'publish',fail)
+            result=invoke(platform,peer,'message.send',value,operation)
+            assert result['messageId']==value['messageId']
+        assert counts(platform,sender['actor'],value['messageId'],operation)==(1,1,1)
+        assert peer.call('message.send',value,operation=operation)['messageId']==value['messageId']
+        assert counts(platform,sender['actor'],value['messageId'],operation)==(1,1,1)
     as_admin(client)
     replay=client.get('/api/admin/replay/'+platform.bus.run_id)
     assert replay.status_code==200
-    assert len([row for row in replay.json() if row['sender']==body['actor'] and row['op']==body['op']])==1
+    assert len([row for row in replay.json() if row['sender']==sender['actor'] and row['op']=='message.queued'])==1
 
 
 def test_snapshot_cannot_remove_or_replace_original_receipt_or_equal_length_signature():
