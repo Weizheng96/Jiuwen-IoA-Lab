@@ -111,45 +111,37 @@ def test_jiuwen_provenance_cannot_drift_between_manifests(tmp_path):
     with pytest.raises(ValueError,match='source pin differs'):validate(root)
 
 
-def upgrade_fixture(tmp_path):
+def bash_program():
     import shutil
-    bash=Path('D:/tool/Git/bin/bash.exe') if os.name=='nt' else Path(shutil.which('bash') or '/missing-bash')
-    if not bash.is_file():pytest.skip('Bash is required for deployment script checks')
-    app=tmp_path/'app';(app/'deploy').mkdir(parents=True);(app/'设计').mkdir();(app/'设计/VERSION').write_text('test-version')
-    state=tmp_path/'state';state.mkdir();bin_dir=tmp_path/'bin';bin_dir.mkdir();config=tmp_path/'config';config.mkdir()
-    script=(ROOT/'deploy/upgrade.sh').read_text('utf-8').replace('/etc/ioalab','"$UPGRADE_TEST_CONFIG"')
-    (app/'deploy/upgrade.sh').write_text(script,encoding='utf-8',newline='\n')
-    (app/'deploy/install.sh').write_text('#!/usr/bin/env bash\nprintf "install local\\n" >> "$UPGRADE_TEST_LOG"\n',newline='\n')
-    mocks={
-        'git':'printf "git %s\\n" "$*" >> "$UPGRADE_TEST_LOG"; if [ "$*" = "remote get-url origin" ]; then echo https://github.com/example/lab.git; else exit 91; fi',
-        'sudo':'printf "backup\\n" >> "$UPGRADE_TEST_LOG"',
-        'systemctl':"""printf "systemctl %s\n" "$*" >> "$UPGRADE_TEST_LOG"
-if [ "$1" = is-active ]; then [[ "${@: -1}" = ioalab || "${@: -1}" = ioalab-providers ]]; fi"""}
-    for name,body in mocks.items():
-        path=bin_dir/name;path.write_text('#!/usr/bin/env bash\n'+body+'\n',newline='\n');path.chmod(0o755)
-    log=tmp_path/'calls.log'
-    code='''convert() { if command -v cygpath >/dev/null; then cygpath -u "$1"; else printf "%s" "$1"; fi; }
-export IOALAB_APP_DIR="$(convert "$1")" IOALAB_STATE_DIR="$(convert "$2")" UPGRADE_TEST_CONFIG="$(convert "$3")" UPGRADE_TEST_LOG="$(convert "$4")"
-export PATH="$(convert "$5"):$PATH"
-bash "$IOALAB_APP_DIR/deploy/upgrade.sh" "$6"
-'''
-    def run(ref):
-        return subprocess.run([str(bash),'-c',code,'upgrade-test',str(app),str(state),str(config),str(log),str(bin_dir),ref],capture_output=True,text=True,encoding='utf-8',env={**os.environ,'LANG':'C.UTF-8'})
-    return run,log
+    path=Path('D:/tool/Git/bin/bash.exe') if os.name=='nt' else Path(shutil.which('bash') or '/missing-bash')
+    if not path.is_file():pytest.skip('Bash is required for deployment entry checks')
+    return path
 
 
-def test_upgrade_rejects_github_before_stopping_services(tmp_path):
-    run,log=upgrade_fixture(tmp_path);result=run('main')
-    assert result.returncode!=0
-    calls=log.read_text();assert 'git remote get-url origin' in calls and 'systemctl' not in calls and 'backup' not in calls
+def test_upgrade_rejects_legacy_git_ref_arguments_before_any_deployment(tmp_path):
+    log=tmp_path/'git-called';bin_dir=tmp_path/'bin';bin_dir.mkdir()
+    git=bin_dir/'git';git.write_text('#!/usr/bin/env bash\nprintf called > "$DEPLOY_TEST_LOG"\n',newline='\n');git.chmod(0o755)
+    result=subprocess.run([str(bash_program()),(ROOT/'deploy/upgrade.sh').as_posix(),'main'],
+        env={**os.environ,'PYTHON':Path(sys.executable).as_posix(),'DEPLOY_TEST_LOG':log.as_posix(),
+             'PATH':bin_dir.as_posix()+os.pathsep+os.environ['PATH']},capture_output=True,text=True,encoding='utf-8')
+    assert result.returncode==2,result.stdout+result.stderr
+    assert not log.exists()
 
 
-def test_local_upgrade_restores_only_previously_active_services_without_git(tmp_path):
-    run,log=upgrade_fixture(tmp_path);result=run('--local')
+@pytest.mark.parametrize('action',['install','upgrade'])
+def test_default_entries_forward_literal_local_configuration_without_git(tmp_path,action):
+    app=tmp_path/'source with spaces';(app/'deploy').mkdir(parents=True)
+    (app/'deploy'/(action+'.sh')).write_bytes((ROOT/'deploy'/(action+'.sh')).read_bytes())
+    log=tmp_path/'arguments';python=tmp_path/'python-fixture'
+    python.write_text('#!/usr/bin/env bash\nprintf "%s\\0" "$PWD" "$@" > "$DEPLOY_TEST_LOG"\n',newline='\n');python.chmod(0o755)
+    config=tmp_path/'private settings.json'
+    result=subprocess.run([str(bash_program()),(app/'deploy'/(action+'.sh')).as_posix(),
+        '--config',str(config),'--state',str(tmp_path/'state with spaces')],capture_output=True,text=True,encoding='utf-8',
+        env={**os.environ,'PYTHON':python.as_posix(),'DEPLOY_TEST_LOG':log.as_posix()})
     assert result.returncode==0,result.stdout+result.stderr
-    calls=log.read_text();assert 'git ' not in calls and 'install local' in calls and 'backup' in calls
-    assert 'systemctl start ioalab ioalab-providers' in calls
-    assert 'systemctl start ioalab-swarm' not in calls and 'systemctl start ioalab-assistant' not in calls
+    values=log.read_bytes().split(b'\0');values=[value.decode('utf-8') for value in values if value]
+    assert values[0].endswith('/source with spaces')
+    assert values[1:]==['-m','deploy',action,'--config',str(config),'--state',str(tmp_path/'state with spaces')]
 
 
 def test_initialization_preserves_packaged_template_and_existing_user_configuration(tmp_path,monkeypatch):

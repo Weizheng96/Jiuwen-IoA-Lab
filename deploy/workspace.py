@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import uuid
 
 from .configuration import load as load_configuration, model as validate_model
@@ -74,7 +75,7 @@ print('IOALAB_BOOTSTRAP_JSON:'+json.dumps({'name':client['model_name'], 'provide
 
 
 class Workspace:
-    def __init__(self, python, workspace, deployment_id):
+    def __init__(self, python, workspace, deployment_id, *, run_as=None):
         try:
             if uuid.UUID(deployment_id).hex != deployment_id:
                 raise ValueError()
@@ -95,15 +96,26 @@ class Workspace:
         if not self.python.is_file() or not self.command.is_file():
             raise ValueError('The verified Swarm entry points are missing')
         self.owner = {'format': FORMAT, 'deploymentId': deployment_id, 'workspace': str(self.home)}
+        self.execution = {}
+        if run_as is not None:
+            if (sys.platform != 'linux' or not isinstance(run_as, dict)
+                    or set(run_as) != {'uid', 'gid', 'home', 'name'}
+                    or any(type(run_as[k]) is not int or run_as[k] <= 0 for k in ('uid', 'gid'))):
+                raise ValueError('Owned workspace queries require the verified Linux service identity')
+            from .layout import user_name
+            user_name(run_as['name']); path_without_links(run_as['home'])
+            self.execution = {'user':run_as['uid'], 'group':run_as['gid'], 'extra_groups':[]}
         self.environment = child_environment()
         self.environment.update(PYTHONUTF8='1', PYTHONNOUSERSITE='1', JIUWENSWARM_DATA_DIR=str(self.home),
                                 JIUWENSWARM_CONFIG_DIR=str(self.home / 'config'))
+        if run_as is not None:
+            self.environment.update(HOME=str(run_as['home']), USER=run_as['name'], LOGNAME=run_as['name'])
 
     def run(self, stage, command, value=None):
         try:
             result = subprocess.run(list(map(str, command)), cwd=self.home, env=self.environment,
                                     input=json.dumps(value) if value is not None else '',
-                                    capture_output=True, text=True, encoding='utf-8', timeout=180)
+                                    capture_output=True, text=True, encoding='utf-8', timeout=180, **self.execution)
         except (OSError, subprocess.TimeoutExpired):
             raise RuntimeError('Owned Swarm preparation could not finish stage: ' + stage) from None
         if result.returncode:
@@ -158,6 +170,8 @@ class Workspace:
                     raise ValueError('Unrecorded workspace files exist; preserve and inspect them')
                 state = {**self.owner, 'phase': 'initializing', 'modelId': None, 'modelInputDigest': None}
                 save(marker, state); reused = False
+            if self.execution and state['phase'] != 'ready':
+                raise RuntimeError('Complete the original root preparation before handing over the workspace')
             if state['phase'] == 'initializing':
                 self.run('prepare_workspace', [self.python, '-I', '-c', PREPARE])
                 state['phase'] = 'workspace'; save(marker, state)

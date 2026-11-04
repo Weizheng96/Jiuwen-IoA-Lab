@@ -1,0 +1,116 @@
+"""Default entry observation is read-only; fixed bootstrap prepares extensions before web start."""
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+from deploy import __main__ as entry
+from deploy.installation import Installation
+from deploy.layout import Layout,environment_text
+from deploy import units
+
+
+def test_status_does_not_initialize_or_repair_any_role_state(tmp_path,monkeypatch,capsys):
+    layout=Layout(tmp_path/'runtime',tmp_path/'state',tmp_path/'config');layout.claim()
+    before={str(p):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    monkeypatch.setattr(entry,'require_host',lambda:None)
+    assert entry.main(['status','--state',str(layout.state)])==0
+    result=json.loads(capsys.readouterr().out)
+    assert result['task']['status']=='not_started' and result['currentSet'] is None
+    assert before=={str(p):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    assert not (layout.private/'initial.json').exists()
+
+
+def test_bootstrap_prepares_admin_extension_before_handoff_and_original_web_start(tmp_path):
+    layout=Layout(tmp_path/'runtime',tmp_path/'state',tmp_path/'config');layout.claim()
+    folder=layout.config/'agents';folder.mkdir()
+    for name in ('official','assistant'):(folder/(name+'.env')).write_text(environment_text({'HOME':str(layout.state/'agents')}))
+    events=[];plans=units.plans(layout,administrator=True)
+    manager=SimpleNamespace(install=lambda _:events.append(('units',)),
+        start=lambda name:events.append(('start',name)),enable=lambda name:events.append(('enable',name)))
+    accounts=SimpleNamespace(reserve=lambda path,*args,**kwargs:events.append(('reserve',path.name)),
+        handoff=lambda path,*args:events.append(('handoff',path.name)))
+    configuration=SimpleNamespace(input={'admin_assistant':{'enabled':True}},
+        official=lambda _:None,administrator=lambda _:layout.private/'admin-assistant/config.json',
+        core=lambda:{'IOALAB_ADMIN_PASSWORD':'bootstrap-only-sentinel'})
+    installed=[]
+    def call(module,command,*args,**kwargs):
+        events.append(('prepare',module,command));installed.append((module,command,kwargs))
+        return {'status':'completed'}
+    selected=object.__new__(Installation)
+    selected.layout,selected.metadata,selected.plans=layout,{},plans
+    selected.contents,selected.manager,selected.accounts,selected.config={},manager,accounts,configuration
+    selected.workspace=lambda *args,**kwargs:{'status':'completed'}
+    selected.permissions=lambda:None;selected.wait=lambda _:None;selected.core_ready=lambda:None
+    selected.installed=call;selected.save_metadata=lambda:None
+    selected.bootstrap()
+    extension=events.index(('prepare','ioalab_admin_assistant','prepare'))
+    handoff=events.index(('handoff','swarm-admin'))
+    start=events.index(('start',plans['swarm-agent']['unit']))
+    assert extension<handoff<start
+    authorized=next(kwargs for module,command,kwargs in installed if command=='authorize')
+    assert authorized['role']=='agents' and authorized['environment']['IOALAB_BOOTSTRAP_ADMIN_PASSWORD']=='bootstrap-only-sentinel'
+    assert all('IOALAB_BOOTSTRAP_ADMIN_PASSWORD' not in kwargs['environment'] for module,command,kwargs in installed if command!='authorize')
+    count=len(installed);selected.bootstrap()
+    assert len(installed)==count,'Completed preparation/authorization must not be replayed'
+
+
+def test_accepted_background_install_does_not_look_like_a_shell_failure(monkeypatch,capsys):
+    monkeypatch.setattr(entry,'require_host',lambda:None)
+    monkeypatch.setattr(entry,'submit',lambda _: {'status':'waiting','operationId':'original'})
+    assert entry.main(['install','--config','not-read-by-this-fixture.json'])==0
+    result=json.loads(capsys.readouterr().out)
+    assert result=={'status':'waiting','operationId':'original'}
+
+
+def test_installed_preparation_does_not_require_access_to_private_source_directory(tmp_path,monkeypatch):
+    import deploy.installation as module
+    layout=Layout(tmp_path/'runtime',tmp_path/'state',tmp_path/'config');layout.claim()
+    home=layout.state/'agents';home.mkdir();job=layout.private/'job';job.mkdir()
+    subject=object.__new__(Installation);subject.layout=layout;subject.job=SimpleNamespace(folder=job)
+    subject.request={'source':{'root':str(tmp_path/'private-source')}}
+    subject.role=lambda _: {'uid':1201,'gid':1202,'home':str(home),'name':'ioalab-agents'}
+    calls=[]
+    def run(argv,**kwargs):
+        calls.append(kwargs);return SimpleNamespace(returncode=0,stdout='{"status":"completed"}\n',stderr='')
+    monkeypatch.setattr(module.subprocess,'run',run)
+    subject.command(['/installed/python','-I','-m','public-module'],role='agents')
+    assert calls[-1]['cwd']==home and calls[-1]['user']==1201 and calls[-1]['extra_groups']==[]
+    subject.command(['/installed/python','-I','-m','public-module'])
+    assert calls[-1]['cwd']==layout.private and 'user' not in calls[-1]
+    subject.command(['/builder/python','-m','tools.build_deployment'],cwd=subject.request['source']['root'])
+    assert calls[-1]['cwd']==Path(subject.request['source']['root'])
+
+
+def readiness_subject():
+    subject=object.__new__(Installation)
+    subject.progress={'requiredRunning':['official']};subject.request={'action':'upgrade'}
+    subject.plans={'official':{'unit':'ioalab-official.service'}}
+    subject.manager=SimpleNamespace(ready=lambda _: {'ActiveState':'active','UnitFileState':'enabled'})
+    subject.layout=SimpleNamespace(config=Path('/not-read'))
+    rows=[{'account':'ISP_'+str(i+1).zfill(3),'runtime':{'platformConnected':True,'host':{'available':True}},'services':[]} for i in range(8)]
+    for i in range(50):
+        rows[i%8]['services'].append({'profile':str(i),'current':{'indexReady':True,'templateReady':True,
+            'localExecution':{'executionReady':True},'admissionPolicy':{'accepting':True}}})
+    subject.installed=lambda *args,**kwargs:{'status':'completed','accounts':rows}
+    return subject,rows
+
+
+def test_upgrade_readiness_preserves_pause_and_reports_available_service_count(monkeypatch):
+    import deploy.installation as module
+    monkeypatch.setattr(module,'read_environment',lambda _: {})
+    subject,rows=readiness_subject();rows[0]['services'][0]['current']['admissionPolicy']['accepting']=False
+    report=subject.readiness()
+    assert report['runtimeReady'] is True and report['official']['availableServices']==49
+    assert rows[0]['services'][0]['current']['admissionPolicy']['accepting'] is False
+
+
+def test_official_readiness_rejects_incomplete_status_instead_of_counting_it_as_paused(monkeypatch):
+    import pytest
+    import deploy.installation as module
+    monkeypatch.setattr(module,'read_environment',lambda _: {})
+    for error in ('missing','error'):
+        subject,rows=readiness_subject()
+        if error=='missing':rows[0]['services'].pop()
+        else:rows[0]['services'][0]['error']={'code':'not_ready'}
+        with pytest.raises(RuntimeError,match='status is incomplete'):subject.readiness()
+

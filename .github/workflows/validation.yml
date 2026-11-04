@@ -8,7 +8,7 @@ on:
         type: choice
         required: true
         default: full
-        options: [full, deployment]
+        options: [full, deployment, default-deployment]
   schedule:
     - cron: '0 20 * * 0'
 
@@ -69,4 +69,26 @@ jobs:
             ${{ runner.temp }}/ioalab-deployment/runtime/build/*/*.log
             ${{ runner.temp }}/ioalab-deployment/runtime/envs/*/*.log
           include-hidden-files: true
+          if-no-files-found: warn
+
+  default-deployment:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'default-deployment'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Default root systemd install and safe upgrade on disposable runner
+        run: sudo -n -- "$(command -v python)" -X utf8 -B experiments/verify_default_deployment.py --isolated-runner --output /tmp/ioalab-default-${{ github.run_id }}-${{ github.run_attempt }} --index https://pypi.org/simple --seconds 2400
+      - name: Preserve only the public lifecycle report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-default-deployment
+          path: /tmp/ioalab-default-${{ github.run_id }}-${{ github.run_attempt }}/report.json
           if-no-files-found: warn

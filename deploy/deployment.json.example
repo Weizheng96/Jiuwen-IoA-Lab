@@ -4,7 +4,11 @@
   "port": 8750,
   "mode": "trial",
   "pypi_index": "https://pypi.tuna.tsinghua.edu.cn/simple",
-  "model": null,
+  "model": {
+    "name": "API_MODEL_NAME",
+    "base_url": "https://MODEL_ENDPOINT/v1",
+    "api_key": ""
+  },
   "admin_password": "",
   "max_model_runs": 2,
   "isc_count": 10

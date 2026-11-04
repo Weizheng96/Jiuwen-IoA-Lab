@@ -34,3 +34,14 @@ $env:IOALAB_NATIVE_WEB_REPORT="D:/project/Jiuwen-IoA-Lab/data/native-web-check/d
 ## 固定管理员预设的Linux安装包验证
 
 `verify_deployment.py`在本次新建的实验核心中显式初始化账号，然后用已安装的参与方Python运行`verify_admin_assistant.py`。后者仅在新的专用目录中以Linux root准备固定预设，复用原版公开工作区初始化；不改系统账号、服务或已有九问。检查真实HTTP公示、root归属、危险配置权限拒绝、重复/状态只读及SDK锁释放。未配置模型和邮件是刻意的验证边界：不代表助手已上线、模型业务、默认安装或systemd已通过。
+
+
+## 默认安装与升级的systemd验证
+
+`verify_default_deployment.py`仅用于全新、可丢弃的Linux root/systemd/cgroup v2主机，不在已有平台或用户九问环境运行。它调用默认安装/升级命令，核独立任务、真实角色身份、权限、8账号50服务、原版预构建网页及管理员SDK；在私有源码副本中产生另一发行，检查实际排空、备份、单集合切换、原身份/暂停/开机设置与手动停止的保留。已有账号、组、单位或输出目录一律拒绝接管，不删除数据。
+
+```bash
+sudo python3.11 experiments/verify_default_deployment.py --isolated-runner --output /tmp/ioalab-default-check --index https://pypi.org/simple
+```
+
+脚本提供只读模型目录夹具，任何模型业务调用都会失败；不发邮件、不代用户确认、不证明真实业务或影片。它是CI中的独立任务，尚待首次实际执行。公开产物仅`report.json`；初始配置、原始日志、身份库和备份不上传。观察超时保留原安装任务，不重启或强杀；成功后有序停止本次运行单位，核实际控制组为空且SDK锁已释放。

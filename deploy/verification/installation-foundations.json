@@ -1,0 +1,67 @@
+{
+  "status": "windows-passed-linux-pending",
+  "recordedAt": "2026-11-01T11:52:39.056153+00:00",
+  "scope": "Default deployment foundations; CLI, detached worker and complete install/upgrade remain unfinished",
+  "codeSha256": {
+    "deploy/activation.py": "f46ac3d98d0456ec8c345333f1cf693965c87076682c28f5b2fe9bbc41605059",
+    "deploy/workspace.py": "b015f4f2fe410acd2da783e8dc9cbfe6b06dba050579fa751feec90421653261",
+    "deploy/linux.py": "debf5924f010b6c4063a832e8976d65dcb3c878d880559dbe4a2f5103fb566a9",
+    "deploy/units.py": "44227508dd044ea7d10f79d38822dfb87a6045f74995e7e990a58df770f6fc8a",
+    "deploy/configs.py": "00d90dea37f639dea36a7249f8d286e140629a44017a4b1ce3d680b722f47707",
+    "deploy/backup.py": "681991b2756642519888615400244eb330cd2ce24427b14a0988358386aa3baa",
+    "experiments/verify_deployment.py": "2eda7380813379a72e8e50f97b78a6cd1db9466a2e2414eb9a2bb8197d8f1b6f",
+    "tests/test_deployment_activation.py": "3e297bd388da6983a90586b0d9a83dd5f0da735730ce19b22479d83642a8cd45",
+    "tests/test_owned_workspace.py": "9c88d8680b08ade2a317dc3108ed529ab4d82b509c6c525a8b3efc5476a99f3f",
+    "tests/test_linux_service_management.py": "e929001081cb4ba561fc93e71139fa06c36721acf5cc0412cf7de9ea32f43a14",
+    "tests/test_deployment_configs.py": "f5ad13dbbf613cbed5179cdf051c9442c5e741fa1ce6d81af6c20594c7dbcee9",
+    "tests/test_deployment_backup.py": "0418cea67227716015e52b2f44ae901577690bcdec8977afcbc3a20e21c40261"
+  },
+  "fullWindowsGates": {
+    "passed": 783,
+    "skipped": 34,
+    "seconds": 1590.31,
+    "frozenInputs": 747,
+    "allFourCommandsPassed": true,
+    "unchangedInputs": true
+  },
+  "verified": {
+    "ownedRuntimeUnitRendering": true,
+    "sameNameReplacementInvocationRejected": true,
+    "deadLeaderDoesNotReleasePopulatedGroup": true,
+    "missingKernelPopulationIsNotEmpty": true,
+    "failedDaemonReloadKeepsOriginalWritingPhase": true,
+    "unknownServiceFilePreserved": true,
+    "initialCredentialsReused": true,
+    "completedOperatorConfigurationPreserved": true,
+    "missingOriginalConfigurationNotRegenerated": true,
+    "mailCredentialOnlyInAssistantEnvironment": true,
+    "roleIdentityPassedToPublicWorkspaceQueries": true,
+    "realFileArchiveIncludesUnknownEffectsAndConfiguration": true,
+    "archiveIntegrityCheckedWithoutExtraction": true,
+    "reappearingWriterPreventsAutomaticBackupCompletion": true,
+    "backupDoesNotRestoreBusinessData": true
+  },
+  "verificationBoundary": {
+    "systemdAndAccountDirectoryTestsUseExplicitFixtures": true,
+    "subprocessRoleContextTestUsesMockedRunner": true,
+    "backupTestsUseIsolatedRealFiles": true,
+    "directorySymlinkCasesSkippedOnWindows": 16,
+    "realLinuxRootAccounts": false,
+    "actualSystemdUnitRuns": false,
+    "sourceChangedBackupGuard": "Implemented; dedicated mid-archive source-change fault execution not in this snapshot",
+    "callsModel": false,
+    "sendsMail": false
+  },
+  "notProven": [
+    "New directory symlink behavior on actual Linux",
+    "Service account filesystem isolation on actual Linux",
+    "Installed runtime artifact readability under service UIDs",
+    "Detached installer and complete default CLI",
+    "Complete safe upgrade with real SDK execution locks and kernel groups",
+    "Default administrator model/web runtime",
+    "Native real-user confirmation and complete ordinary onboarding",
+    "Four new films",
+    "Later operations assistant",
+    "Final README"
+  ]
+}

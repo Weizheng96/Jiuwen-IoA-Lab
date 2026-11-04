@@ -236,3 +236,22 @@ def test_venv_python_link_keeps_its_own_installation_prefix(installed,tmp_path):
     instance=Workspace(installed,tmp_path/'owned-workspace',uuid.uuid4().hex)
     assert instance.installation_id==digest({'unit':'swarm','fixture':1})
     assert instance.python==installed
+
+
+def test_service_queries_use_the_actual_role_identity(installed,tmp_path,monkeypatch):
+    from types import SimpleNamespace
+    import deploy.workspace as module
+    monkeypatch.setattr(module.sys,'platform','linux')
+    role={'uid':1201,'gid':1202,'home':str(tmp_path/'agents'),'name':'ioalab-agents'}
+    workspace=Workspace(installed,tmp_path/'owned',uuid.uuid4().hex,run_as=role)
+    workspace.home.mkdir()
+    calls=[]
+    def run(command,**kwargs):
+        calls.append(kwargs);return SimpleNamespace(returncode=0,stdout='query-completed')
+    monkeypatch.setattr(module.subprocess,'run',run)
+    assert workspace.run('read_model',[installed,'-I','-c','public query'])=='query-completed'
+    assert calls[0]['user']==1201 and calls[0]['group']==1202 and calls[0]['extra_groups']==[]
+    assert calls[0]['env']['HOME']==role['home'] and calls[0]['env']['USER']=='ioalab-agents'
+    assert calls[0]['env']['LOGNAME']=='ioalab-agents'
+    with pytest.raises(ValueError,match='service identity'):
+        Workspace(installed,tmp_path/'other',uuid.uuid4().hex,run_as={**role,'uid':0})
