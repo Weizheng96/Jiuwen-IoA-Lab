@@ -1,0 +1,66 @@
+{
+  "observedDate": "2026-11-04",
+  "validationLevel": "D",
+  "status": "media_review_pass",
+  "title": "私人交互演示",
+  "video": "demo/out/私人交互演示.mp4",
+  "sha256": "7290bcf7f1b9236236a3bc323f11cc14bcbd1788cefc72fbd971870a0eb7dfac",
+  "bytes": 8883974,
+  "seconds": 146.5,
+  "dimensions": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "audio": "AAC stereo 48000Hz",
+  "revisionRequestedByUser": true,
+  "presentation": "正常平台交互流程；仅片尾简述个人助手邮箱调用问题和邀请结果未知",
+  "replacesVideoSha256": "214da468bba52322f5674a1a41b73f41d382a10f30731e2bdafb1c6a2dbd050e",
+  "sameOriginalSourceAndEditIntervals": true,
+  "rawSourceSha256": "512396d30ac62036e5cf2eb58ec9cc7c1594d14ff5cb98b6d9c2ffc2d1fa2961",
+  "sourceRecordingPrivateAndPreserved": true,
+  "originalPublishedVideoPreservedPrivately": true,
+  "platformFlowShown": [
+    "双方身份与接入就绪",
+    "收信规则与两次真实本机发布批准",
+    "接口发现",
+    "留言进入对方九问",
+    "首轮冲突及实际建议",
+    "同一交流内按建议改约"
+  ],
+  "ownerPublicationApprovalsOperatedByCodex": true,
+  "externalMailIssueAttribution": "用户确认问题位于个人助手调用邮箱服务；不将该问题呈现为平台失败",
+  "invitationSubmissionVerified": false,
+  "ownerInvitationAcceptanceVerified": false,
+  "calendarEntryVerified": false,
+  "endingNote": {
+    "startSeconds": 140.5,
+    "durationSeconds": 6,
+    "text": "个人助手调用邮箱服务异常，邀请结果暂未确认"
+  },
+  "previousAllShotReviewWarningRemoved": true,
+  "nativePageResultTextUnmodified": true,
+  "narration": {
+    "approvedContentSha256": "30ef813cf3adee14528433274554d04e975691057c522bb7c616b2dbbd00bd4a",
+    "cachedClipsReused": 11,
+    "allHashesMatched": true,
+    "omittedSuccessClaims": [
+      "invite",
+      "acceptance"
+    ],
+    "newTtsCalls": 0
+  },
+  "qa": {
+    "fullDecodeExitCode": 0,
+    "finalShotFramesViewed": 11,
+    "realPublicationApprovalFramesViewed": 2,
+    "finalEndingFrameViewed": true,
+    "allElevenNarrationWindowsHaveValidAudio": true,
+    "narrationWithinShots": true,
+    "privacyReview": "passed",
+    "humanListeningPerformed": false,
+    "privateContactSheetSha256": "139e5c82beaefe3ddd3ee3ceda3d491cf6ed61a94063f39b47eb16a504d9390a"
+  },
+  "newBusinessTriggered": false,
+  "privateEvidencePublished": false
+}
