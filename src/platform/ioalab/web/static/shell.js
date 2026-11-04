@@ -22,6 +22,7 @@
     nav.insertBefore(guide,nav.querySelector('.nav-owned,.auth-actions'));
   }
   if(!nav){const guide=document.createElement('a');guide.href='/connect';guide.className='header-help';guide.textContent='如何接入';header.append(guide);}
+  if(nav&&!nav.querySelector('a[href="/trial"]')){const trial=document.createElement('a');trial.href='/trial';trial.textContent='在线试用';nav.insertBefore(trial,nav.querySelector('.auth-actions'));}
   function measureHeader(){
     document.documentElement.style.setProperty('--shell-height',header.getBoundingClientRect().height+'px');
   }

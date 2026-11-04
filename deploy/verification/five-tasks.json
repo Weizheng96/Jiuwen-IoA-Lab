@@ -1,0 +1,278 @@
+{
+  "date": "2026-11-04",
+  "sourceBase": "164f188",
+  "design": "v0.0.126",
+  "scope": "Five tasks; focused Windows validation only; trial remains unready",
+  "checks": [
+    {
+      "report": "five-core-b1",
+      "status": "failed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.203
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.422
+        },
+        {
+          "label": "Tests",
+          "exitCode": 1,
+          "seconds": 54.344
+        }
+      ]
+    },
+    {
+      "report": "five-programming-b1",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.281
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.313
+        },
+        {
+          "label": "Tests",
+          "exitCode": 0,
+          "seconds": 37.156
+        }
+      ]
+    },
+    {
+      "report": "five-sdk-b1",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.25
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.438
+        },
+        {
+          "label": "Tests",
+          "exitCode": 0,
+          "seconds": 110.907
+        }
+      ]
+    },
+    {
+      "report": "five-layers-b1",
+      "status": "failed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.266
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.406
+        },
+        {
+          "label": "Tests",
+          "exitCode": 1,
+          "seconds": 92.515
+        }
+      ]
+    },
+    {
+      "report": "five-manifest-b2",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.125
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.437
+        },
+        {
+          "label": "Tests",
+          "exitCode": 0,
+          "seconds": 1.047
+        }
+      ]
+    },
+    {
+      "report": "five-tests-before-r2",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.109
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.328
+        },
+        {
+          "label": "Tests",
+          "exitCode": 0,
+          "seconds": 48.172
+        }
+      ]
+    },
+    {
+      "report": "five-tests-after",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.14
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.391
+        },
+        {
+          "label": "Tests",
+          "exitCode": 0,
+          "seconds": 40.781
+        }
+      ]
+    },
+    {
+      "report": "five-boundaries-b1",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.375
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.281
+        },
+        {
+          "label": "Tests",
+          "exitCode": 0,
+          "seconds": 212.218
+        }
+      ]
+    },
+    {
+      "report": "five-confirmation-b2",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.141
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.266
+        },
+        {
+          "label": "Tests",
+          "exitCode": 0,
+          "seconds": 98.812
+        }
+      ]
+    },
+    {
+      "report": "five-trial-b2",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.109
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.328
+        },
+        {
+          "label": "Tests",
+          "exitCode": 0,
+          "seconds": 3.281
+        }
+      ]
+    },
+    {
+      "report": "five-formal-final",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Design versions",
+          "exitCode": 0,
+          "seconds": 0.141
+        },
+        {
+          "label": "Documentation links and index",
+          "exitCode": 0,
+          "seconds": 0.265
+        },
+        {
+          "label": "Tests",
+          "exitCode": 0,
+          "seconds": 4.437
+        }
+      ]
+    },
+    {
+      "report": "five-programming-samples",
+      "status": "passed",
+      "steps": [
+        {
+          "label": "Owned programming samples in A2C WASM",
+          "exitCode": 0,
+          "seconds": 1.968
+        }
+      ]
+    }
+  ],
+  "a2uiSchema": {
+    "sdk": "a2ui-agent-sdk==0.2.1",
+    "wheelSha256": "36157834654c591dbe11c40131a51c9f9b54bdedcb15e789cb33eedbefddbc03",
+    "sourceSha256": "69e1ae92cf9a94da4d0db4dcf946e48a44ee65e13a1a50af28f1dc1d1b537384",
+    "protocol": "0.8",
+    "forms": [
+      "requirements",
+      "candidates"
+    ],
+    "errors": [],
+    "nativeBrowserVerified": false
+  },
+  "limitations": [
+    "No full pytest or selfcheck claimed for this batch",
+    "Three original-Jiuwen cases and Windows symlink behavior remain environment-gated",
+    "Linux container reset/isolation, original browser end-to-end, and three-seat resource measurements not executed",
+    "Software client behavior, Android build/install and public deployment not established"
+  ],
+  "optimization": {
+    "baselineTests": 4,
+    "afterTests": 4,
+    "baselineSeconds": 47.22,
+    "afterSeconds": 39.78,
+    "scope": "Single same-product-source installation and MockTransport subgroup; not a whole-suite estimate",
+    "deletedDuplicateSceneCases": 2,
+    "allOriginalSceneFaultsRetained": true
+  },
+  "failedReports": "Initial failures retained above; corrected cases passed in later focused reports. The reports themselves stay in temp/checks."
+}

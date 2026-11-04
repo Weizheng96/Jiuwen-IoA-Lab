@@ -39,24 +39,14 @@ def build_router(platform,subject,current_user):
 
     @router.get('/api/public/assistants')
     def people():
-        names={}
-        for agent in platform.db.rows("SELECT owner_id,name FROM agents WHERE role='assistant' AND status<>'disabled' ORDER BY created,id"):
-            names.setdefault(agent['owner_id'],[]).append(agent['name'])
-        return [{'username':user['username'],'displayName':user['display_name'],'assistantNames':names.get(user['id'],[])}
-                for user in platform.db.rows('SELECT id,username,display_name FROM users ORDER BY created,id')]
+        return platform.account_views.people()
 
     @router.get('/api/people/{username}/history')
     def history(username:str,uid=Depends(current_user)):
-        peer=platform.db.one('SELECT id FROM users WHERE username=?',username)
-        if not peer:raise HTTPException(404,'用户不存在')
-        return {'messages':[platform.message_views.view(row,private=True) for row in platform.message_views.rows(uid,peer=peer['id'])],
-                'intents':platform.contract_views.intents(uid,peer=peer['id']),
-                'contracts':[platform.contract_views.view(row,private=True) for row in platform.contract_views.rows(uid,peer=peer['id'])]}
+        return platform.account_views.history(uid,username)
 
     @router.get('/api/public/stats')
     def statistics():
-        return {'services':len(platform.service_views.list()),
-                'assistants':platform.db.one("SELECT COUNT(*) AS n FROM agents WHERE role='assistant' AND status<>'disabled'")['n'],
-                'interactions':platform.db.one('SELECT COUNT(*) AS n FROM delivery_interactions')['n']}
+        return platform.account_views.statistics()
 
     return router

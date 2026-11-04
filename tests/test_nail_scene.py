@@ -131,7 +131,7 @@ def fixture_package(value):
 
 
 @pytest.mark.parametrize('service_id,amount,kind,count,skill', [
-    ('nail-lingxi', 239, 'skill', 3, 'nail-lingxi'),
+    ('nail-lingxi', 239, 'script', 5, 'nail-lingxi'),
     ('nail-kuaida', 259, 'script', 5, 'nail-kuaida'),
     ('nail-mashangfei', 299, 'script', 10, 'nail-miniapp'),
 ])
@@ -248,8 +248,8 @@ def test_countersign_requires_real_upload_and_retains_material_price_and_scope(t
         assert '不提供顾客自助取消' in terms['deliverables'][0]['description']
         assert '取消后释放名额' not in value['verifier']['criteria']
     elif service_id == 'nail-jisu':
-        assert '不提供微信小程序' in terms['deliverables'][0]['description']
-        assert 'Android源码结构与预约配置齐全' in value['verifier']['criteria']
+        assert 'android' in terms['deliverables'][0]['description']
+        assert '约定载体源码结构齐全' in value['verifier']['criteria']
     if service_id in ('nail-weiye', 'nail-jisu'):
         assert 'authorizableSteps' not in terms
         assert '微信小程序' not in value['tags']
@@ -268,7 +268,7 @@ def test_countersign_requires_real_upload_and_retains_material_price_and_scope(t
 def test_variants_cannot_borrow_capabilities_or_drop_contract_requirements(tmp_path, service_id, fault):
     module = builder()
     value = module.definition(service_id)
-    if fault == 'kind': value['verifier']['kind'] = 'script' if service_id == 'nail-lingxi' else 'skill'
+    if fault == 'kind': value['verifier']['kind'] = 'skill'
     elif fault == 'source': value['verifier']['source'] = module.definition()['verifier']['source']
     elif fault == 'criteria': value['verifier']['criteria'][0] = 'unimplemented claim'
     elif fault == 'level': value['deliverable']['specSchema']['level']['const'] = 'reliable'
@@ -279,7 +279,7 @@ def test_variants_cannot_borrow_capabilities_or_drop_contract_requirements(tmp_p
     assert not (tmp_path / 'invalid').exists()
 
 
-@pytest.mark.parametrize('fault', ['id', 'digest', 'missing', 'uri', 'proposal'])
+@pytest.mark.parametrize('fault', ['id', 'digest', 'missing', 'uri', 'carrier'])
 def test_wrong_upload_reference_is_rejected_without_partial_artifacts(tmp_path, fault):
     module = builder()
     value = module.definition('nail-yungou')
@@ -288,7 +288,7 @@ def test_wrong_upload_reference_is_rejected_without_partial_artifacts(tmp_path, 
     elif fault == 'digest': reference['digest'] = 'not-a-digest'
     elif fault == 'missing': reference.pop('uri')
     elif fault == 'uri': reference['uri'] = 'ioalab://pkg/sha256:' + '0' * 64
-    else: value = module.definition('nail-lingxi')
+    else: value = module.definition('nail-kuaida')
     with pytest.raises(ValueError):
         module.build(tmp_path / 'invalid', source=value, verifier_reference=reference)
     assert not (tmp_path / 'invalid').exists()
@@ -342,18 +342,9 @@ def test_limited_scope_verifier_runs_true_behaviors_and_rejects_false_flags_in_w
     value = module.definition(service_id)
     package, _ = fixture_package(value)
     fixture = deepcopy(next(item for _, item in nail_services() if item['id'] == service_id))
-    spec = {**fixture['sample_spec'], 'capacity': 2, 'level': 'basic'}
+    spec = {**fixture['sample_spec'], **{key: domain['const'] for key, domain in value['deliverable']['specSchema'].items() if 'const' in domain}}
     values = {'spec.booking.' + key: data for key, data in spec.items()}
-    good = fixture['sample']; good.pop('miniProgram')
-    if service_id == 'nail-weiye':
-        removal = '    def cancel(self, ident):\n        self.rows.pop(ident,None)\n'
-        assert removal in good['engineSource']
-        good['engineSource'] = good['engineSource'].replace(removal, '')
-        good['allowCancel'] = False
-        good['displayPage'] = {'index.html': '<html><body>预约查询</body></html>'}
-    else:
-        good['androidApp'] = {'AndroidManifest.xml': '<manifest package="isolated.fixture"/>',
-                              'MainActivity.kt': 'class MainActivity : Activity() { }'}
+    good = fixture['sample']
 
     def verify(data):
         return run(package, target='booking', values=values,
@@ -376,26 +367,24 @@ def test_limited_scope_verifier_runs_true_behaviors_and_rejects_false_flags_in_w
     assert verify(wrong).checks[4]['ok'] is False
 
 
-def test_three_verifier_kinds_keep_real_difference_in_coverage_in_wasm():
+def test_basic_and_reliable_keep_real_difference_in_coverage_in_wasm():
     from _nail_scene import nail_services
     from a2c.verifier.runner import run
     module = builder()
-    fixture = deepcopy(next(value for _, value in nail_services() if value['id'] == 'nail-mashangfei'))
-    source = fixture['sample']['engineSource']
-    needle = "sum(x['slot']==slot for x in self.rows.values()) >= self.capacity"
-    assert needle in source
-    fixture['sample']['engineSource'] = source.replace(needle, 'len(self.rows) >= self.capacity')
+    fixtures = {value['id']: value for _, value in nail_services()}
     outcomes = {}
     for key in ('lingxi', 'kuaida', 'mashangfei'):
         value = module.definition('nail-' + key)
         package, _ = fixture_package(value)
-        values = {'spec.booking.' + name: data for name, data in fixture['sample_spec'].items()}
-        values['spec.booking.level'] = 'reliable' if key == 'mashangfei' else 'basic'
-        # Explicit observation fixture: this is not evidence that qwen-plus is available.
-        observation = lambda need: {'hasBooking': True, 'hasCancellation': True, 'hasCapacityControl': True}
+        fixture = deepcopy(fixtures['nail-' + key])
+        source = fixture['sample']['engineSource']
+        needle = "sum(x['slot']==slot for x in self.rows.values()) >= self.capacity"
+        assert needle in source
+        fixture['sample']['engineSource'] = source.replace(needle, 'len(self.rows) >= self.capacity')
+        spec = {**fixture['sample_spec'], **{name: domain['const'] for name, domain in value['deliverable']['specSchema'].items() if 'const' in domain}}
+        values = {'spec.booking.' + name: data for name, data in spec.items()}
         result = run(package, target='booking', values=values, period=1,
-                     files={'booking.json': json.dumps(fixture['sample'], ensure_ascii=False).encode('utf-8')},
-                     resolver=observation if key == 'lingxi' else None)
+                     files={'booking.json': json.dumps(fixture['sample'], ensure_ascii=False).encode('utf-8')})
         outcomes[key] = result.status
         assert [row['check'] for row in result.checks] == value['verifier']['criteria']
         if key == 'mashangfei':

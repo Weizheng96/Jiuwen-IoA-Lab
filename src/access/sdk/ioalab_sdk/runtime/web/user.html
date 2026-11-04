@@ -28,12 +28,22 @@ function formState(record){
   for(const input of record.node.querySelectorAll('select,textarea,button'))input.disabled=disabled;
   record.node.querySelector('[data-decision-error]').textContent=record.error;
 }
+function readable(value){
+  if(Array.isArray(value))return value.length?`<ul>${value.map(v=>`<li>${readable(v)}</li>`).join('')}</ul>`:'<span>无</span>';
+  if(value&&typeof value==='object')return `<dl>${Object.entries(value).map(([k,v])=>`<dt><b>${esc(k)}</b></dt><dd>${readable(v)}</dd>`).join('')}</dl>`;
+  return esc(value??'未提供');
+}
+function preview(item){
+  const view=item.view;
+  if(!view)return `<pre>${esc(JSON.stringify(item.binding.preview,null,2))}</pre>`;
+  return `<p>${esc(view.notice)}</p>${view.sections.map(s=>`<section><h3>${esc(s.label)}</h3>${readable(s.value)}</section>`).join('')}<details><summary>查看完整原始依据</summary><pre>${esc(JSON.stringify(item.binding.preview,null,2))}</pre></details>`;
+}
 function draw(record){
   const item=record.item,b=item.binding,signature=JSON.stringify(item);
   if(record.signature!==signature){
     let fields='';
     if(item.kind==='question'&&item.status==='pending')fields=item.questions.map((q,index)=>`<label>${esc(q.question||q.title||q.text||'问题 '+(index+1))}${q.options?.length?`<select data-answer="${index}"${q.multi_select?' multiple':''}><option value="">请选择</option>${q.options.map(o=>`<option value="${esc(o.value)}">${esc(o.label||o.text||o.value)}</option>`).join('')}</select>`:''}${q.allow_custom_input===false?'':`<textarea data-text="${index}" rows="2" placeholder="您的补充答复"></textarea>`}</label>`).join('');
-    record.node.innerHTML=`<header><b>${esc(b.preview.title||b.action)}</b><span class="state">${esc(labels[item.status]||item.status)}</span></header><p>智能体：${esc(item.agentId)}<br>阶段：${esc(item.stage)} · 动作：${esc(item.action)}</p><pre>${esc(JSON.stringify(b.preview,null,2))}</pre>${fields}${item.status==='pending'?item.kind==='approval'?'<button data-decision="approve">允许此操作</button><button class="reject" data-decision="reject">拒绝</button>':'<button data-decision="answer">提交答复</button>':''}<p class="decision-error" data-decision-error role="alert"></p><p><small>有效至 ${esc(new Date(item.expiresAt).toLocaleString())}</small></p>`;
+    record.node.innerHTML=`<header><b>${esc(b.preview.title||b.action)}</b><span class="state">${esc(labels[item.status]||item.status)}</span></header><p>智能体：${esc(item.agentId)}<br>阶段：${esc(item.stage)} · 动作：${esc(item.action)}</p>${preview(item)}${fields}${item.status==='pending'?item.kind==='approval'?'<button data-decision="approve">允许此操作</button><button class="reject" data-decision="reject">拒绝</button>':'<button data-decision="answer">提交答复</button>':''}<p class="decision-error" data-decision-error role="alert"></p><p><small>有效至 ${esc(new Date(item.expiresAt).toLocaleString())}</small></p>`;
     record.signature=signature;
     if(item.status==='pending')for(const [index] of item.questions.entries()){
       const answer=drafts.get(record.key)?.[index],input=record.node.querySelector(`[data-text="${index}"]`);

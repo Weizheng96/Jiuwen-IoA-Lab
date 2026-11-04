@@ -22,12 +22,6 @@ from .ledger import money
 
 
 log=logging.getLogger(__name__)
-SCHEMA='''CREATE TABLE IF NOT EXISTS payment_records(
- payment_id TEXT PRIMARY KEY,fingerprint TEXT UNIQUE NOT NULL,
- payer_id TEXT NOT NULL,payee_id TEXT NOT NULL,provider TEXT NOT NULL,
- ref TEXT NOT NULL,purpose TEXT NOT NULL,period INTEGER NOT NULL,
- amount TEXT NOT NULL,currency TEXT NOT NULL,payer_key TEXT NOT NULL,
- reply TEXT NOT NULL,created REAL NOT NULL,UNIQUE(ref,purpose,period));'''
 
 
 @dataclass(frozen=True)
@@ -64,7 +58,6 @@ class SimPaymentProvider(Endpoint):
         self.parties,self.wallets,self.client_matches=parties,wallets,client_matches
         self.db,self.now,self.on_transfer=db,now_or(clock),on_transfer
         self.requires_admission=lambda provider:False
-        with db.lock:db.conn.executescript(SCHEMA)
 
     def _party(self,identity):
         try:

@@ -92,7 +92,10 @@ def test_trial_invite_registration():
     tmp = Path(tempfile.mkdtemp(prefix="ioalab-trial-"))
     s = Settings(mode="trial", registration="invite", data=tmp)
     assert s.open and s.needs_per_day == 20
-    auth = Auth(DB(tmp / "trial.sqlite"), s)
+    from ioalab.migrations import migrate
+    database = DB(tmp / "trial.sqlite")
+    migrate(database)
+    auth = Auth(database, s)
     with pytest.raises(A2CError, match="密码"):
         auth.register("alice", "short", ip="1.2.3.4")
     with pytest.raises(A2CError, match="邀请码"):
@@ -120,7 +123,9 @@ def test_trial_invite_registration():
     assert auth.login("ISP_001", "001", ip="9.9.9.9")["display_name"] == "内部服务方 · 测试"
     # closed：外部不开放，内部仍可建
     s2 = Settings(mode="trial", registration="closed", data=tmp)
-    auth2 = Auth(DB(tmp / "closed.sqlite"), s2)
+    database2 = DB(tmp / "closed.sqlite")
+    migrate(database2)
+    auth2 = Auth(database2, s2)
     with pytest.raises(A2CError, match="不开放"):
         auth2.register("dave", "longpassword1", ip="1.2.3.7")
     assert auth2.register("ISC_001", "001", kind="isc")["kind"] == "isc"

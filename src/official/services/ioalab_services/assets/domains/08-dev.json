@@ -607,23 +607,22 @@
    }
   },
   {
-   "id": "nail-booking-basic",
-   "name": "美甲预约工具·基础版",
-   "description": "为美甲店配置本地预约工具：营业时段、容量、项目时长。提案型，拟卡费1虚拟币，报价259虚拟币；5项WASM配置判据，配合仓内独立运行器使用。非微信发布服务。",
+   "id": "code-miniapp-reliable",
+   "name": "码上飞",
+   "description": "码上飞：交付wechat-miniapp源码；支持跨行业预约（时段容量、取消）及预约幂等、重试与时段隔离。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。",
    "tags": [
     "软件开发",
-    "美甲",
-    "预约",
-    "本地工具"
+    "wechat-miniapp",
+    "可靠预约"
    ],
    "runnable": true,
    "formation": "proposal",
    "deliverable": {
     "name": "booking",
-    "title": "本地预约配置",
+    "title": "业务软件源码包",
     "file": "booking.json",
     "mediaType": "application/json",
-    "description": "JSON配置，用于符合约定的预约应用；判据核对配置，不执行任意服务代码。",
+    "description": "码上飞：交付wechat-miniapp源码；支持跨行业预约（时段容量、取消）及预约幂等、重试与时段隔离。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。 miniProgram为真实微信小程序文本文件映射，含app.json及其中pages所指向的.js/.wxml；页面实现本单业务交互，不放空函数。",
     "specSchema": {
      "shop": {
       "type": "string",
@@ -643,9 +642,6 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 10
-     },
-     "level": {
-      "const": "basic"
      },
      "service1Name": {
       "type": "string",
@@ -664,136 +660,15 @@
       "type": "integer",
       "minimum": 15,
       "maximum": 240
-     }
-    }
-   },
-   "inputs": [],
-   "deadlines": {
-    "respondWithin": "PT10M",
-    "startWithin": "PT30M",
-    "deliverWithin": "PT30M",
-    "acceptWithin": "PT15M"
-   },
-   "pricing": {
-    "proposalFee": 1,
-    "range": [
-     259,
-     259
-    ]
-   },
-   "verifier": {
-    "id": "nail_booking_basic@1.0",
-    "reads": [
-     "spec.booking.shop",
-     "spec.booking.open",
-     "spec.booking.close",
-     "spec.booking.capacity",
-     "spec.booking.level",
-     "spec.booking.service1Name",
-     "spec.booking.service1Minutes",
-     "spec.booking.service2Name",
-     "spec.booking.service2Minutes"
-    ],
-    "script": "nail_booking.py"
-   },
-   "notCovered": [
-    "微信注册、发布及审核",
-    "任意软件源代码的质量",
-    "公网部署和身份认证"
-   ],
-   "generator": {
-    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services数组固定两项，依序使用service1Name/service1Minutes与service2Name/service2Minutes，元素键为name与minutes，禁止改变合同名称或时长；format固定ioalab.booking；allowCancel和idempotent均为true。交付声明格式的预约JSON配置，不生成可执行源码。",
-    "output": "{\"format\": \"ioalab.booking\", \"shop\": \"小满美甲店\", \"open\": 10, \"close\": 20, \"capacity\": 2, \"services\": [{\"name\": \"纯色美甲\", \"minutes\": 60}, {\"name\": \"延长甲\", \"minutes\": 90}], \"allowCancel\": true, \"idempotent\": true}",
-    "quote_system": "本服务统一定价259虚拟币，仅输出JSON：{\"price\":259,\"summary\":\"5项配置判据的本地预约工具\"}。"
-   },
-   "sample": {
-    "format": "ioalab.booking",
-    "shop": "小满美甲店",
-    "open": 10,
-    "close": 20,
-    "capacity": 2,
-    "services": [
-     {
-      "name": "纯色美甲",
-      "minutes": 60
      },
-     {
-      "name": "延长甲",
-      "minutes": 90
-     }
-    ],
-    "allowCancel": true,
-    "idempotent": true
-   },
-   "sample_spec": {
-    "shop": "小满美甲店",
-    "open": 10,
-    "close": 20,
-    "capacity": 2,
-    "service1Name": "纯色美甲",
-    "service1Minutes": 60,
-    "service2Name": "延长甲",
-    "service2Minutes": 90
-   }
-  },
-  {
-   "id": "nail-booking-reliable",
-   "name": "美甲预约工具·可靠版",
-   "description": "为美甲店配置本地预约工具：营业时段、容量、项目时长。提案型，拟卡费1虚拟币，报价299虚拟币；10项WASM配置判据，配合仓内独立运行器使用。非微信发布服务。",
-   "tags": [
-    "软件开发",
-    "美甲",
-    "预约",
-    "本地工具"
-   ],
-   "runnable": true,
-   "formation": "proposal",
-   "deliverable": {
-    "name": "booking",
-    "title": "本地预约配置",
-    "file": "booking.json",
-    "mediaType": "application/json",
-    "description": "JSON配置，用于符合约定的预约应用；判据核对配置，不执行任意服务代码。",
-    "specSchema": {
-     "shop": {
-      "type": "string",
-      "maxLength": 80
+     "mode": {
+      "const": "booking"
      },
-     "open": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 23
-     },
-     "close": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 24
-     },
-     "capacity": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 10
+     "carrier": {
+      "const": "wechat-miniapp"
      },
      "level": {
       "const": "reliable"
-     },
-     "service1Name": {
-      "type": "string",
-      "maxLength": 100
-     },
-     "service1Minutes": {
-      "type": "integer",
-      "minimum": 15,
-      "maximum": 240
-     },
-     "service2Name": {
-      "type": "string",
-      "maxLength": 100
-     },
-     "service2Minutes": {
-      "type": "integer",
-      "minimum": 15,
-      "maximum": 240
      }
     }
    },
@@ -812,58 +687,568 @@
     ]
    },
    "verifier": {
-    "id": "nail_booking_reliable@1.0",
+    "id": "code_miniapp_reliable@1.0.0",
+    "script": "programming.py",
     "reads": [
      "spec.booking.shop",
      "spec.booking.open",
      "spec.booking.close",
      "spec.booking.capacity",
-     "spec.booking.level",
      "spec.booking.service1Name",
      "spec.booking.service1Minutes",
      "spec.booking.service2Name",
-     "spec.booking.service2Minutes"
+     "spec.booking.service2Minutes",
+     "spec.booking.mode",
+     "spec.booking.carrier",
+     "spec.booking.level"
     ],
-    "script": "nail_booking.py"
+    "criteria": [
+     "业务配置逐项符合合同",
+     "可以预约并查询或列出目录",
+     "容量边界或目录关键词筛选",
+     "取消后释放名额或无匹配目录返回空",
+     "约定载体源码结构齐全",
+     "重复提交不重复占位",
+     "连续竞争请求不超容量",
+     "相同请求重试返回原预约",
+     "不同时段独立计数",
+     "重复取消不误减名额"
+    ]
    },
    "notCovered": [
-    "微信注册、发布及审核",
-    "任意软件源代码的质量",
-    "公网部署和身份认证"
+    "客户端界面实际行为",
+    "微信真实注册、审核和发布",
+    "Android构建、APK安装和设备运行",
+    "公网部署",
+    "真实多线程压力与网络故障注入"
    ],
    "generator": {
-    "system": "根据本单规格生成本地预约JSON配置。shop、open、close、capacity原样匹配；services数组固定两项，依序使用service1Name/service1Minutes与service2Name/service2Minutes，元素键为name与minutes，禁止改变合同名称或时长；format固定ioalab.booking；allowCancel和idempotent均为true。交付声明格式的预约JSON配置，不生成可执行源码。",
-    "output": "{\"format\": \"ioalab.booking\", \"shop\": \"小满美甲店\", \"open\": 10, \"close\": 20, \"capacity\": 2, \"services\": [{\"name\": \"纯色美甲\", \"minutes\": 60}, {\"name\": \"延长甲\", \"minutes\": 90}], \"allowCancel\": true, \"idempotent\": true}",
-    "quote_system": "本服务统一定价299虚拟币，仅输出JSON：{\"price\":299,\"summary\":\"10项配置判据的本地预约工具\"}。"
+    "system": "仅按本单合同的载体、mode、规格和材料生成新源码，不复制样件。用write_file在本次artifactDirectory创建UTF-8 booking.json（此文件名为统一软件源码交付容器，不表示所有模式都执行预约）。format=ioalab.booking；shop/open/close/capacity/mode逐项符合spec.booking，services按service1Name/service1Minutes、service2Name/service2Minutes组成name/minutes两项。shop是机构名称，行业不固定。mode=booking时Python engineSource定义BookingEngine(capacity)，reserve(request,slot)返回{id,slot}或满员None，list返回当前记录，cancel(id)释放名额；allowCancel=true。可靠覆盖须重复request幂等、顺序竞争不超容量、分时段隔离及重复取消幂等。mode=catalog时无预约流程，engineSource定义Catalog(items)，list返回原项目，search(keyword)按项目名称包含关系筛选，空匹配返回[]；open/close表示展示的营业时间，capacity仅为机构公布容量，不是目录筛选条件。源码不导入外部模块，只在A2C python.wasm执行。miniProgram为真实微信小程序文本文件映射，含app.json及其中pages所指向的.js/.wxml；页面实现本单业务交互，不放空函数。不得同时交付其他载体来冒称兼容。生产后用provider.task.selftest对同一booking.json自测，通过后provider.task.deliver；不得改判据或代替用户批准。未另获本单真实证据不得声称客户端行为/构建/安装/部署完成。",
+    "output": "JSON对象：配置、engineSource和仅本单载体的文件映射",
+    "quote_system": "本服务定价299虚拟币；只输出JSON：{\"price\":299,\"summary\":\"本单约定载体与覆盖的源码交付\"}。"
    },
    "sample": {
     "format": "ioalab.booking",
-    "shop": "小满美甲店",
+    "shop": "演示工作室",
     "open": 10,
     "close": 20,
     "capacity": 2,
+    "mode": "booking",
     "services": [
      {
-      "name": "纯色美甲",
+      "name": "项目一",
       "minutes": 60
      },
      {
-      "name": "延长甲",
+      "name": "项目二",
       "minutes": 90
      }
     ],
     "allowCancel": true,
-    "idempotent": true
+    "idempotent": true,
+    "engineSource": "class BookingEngine:\n    def __init__(self, capacity):\n        self.capacity=capacity\n        self.rows={}\n        self.requests={}\n    def reserve(self, request, slot):\n        if request in self.requests:\n            return self.requests[request]\n        if sum(x['slot']==slot for x in self.rows.values()) >= self.capacity:\n            return None\n        row={'id':request,'slot':slot}\n        self.rows[request]=row\n        self.requests[request]=row\n        return row\n    def cancel(self, ident):\n        self.rows.pop(ident,None)\n    def list(self):\n        return list(self.rows.values())\nclass Catalog:\n    def __init__(self, items):\n        self.items=items\n    def list(self):\n        return self.items\n    def search(self, keyword):\n        return [x for x in self.items if keyword in x['name']]\n",
+    "miniProgram": {
+     "app.json": "{\"pages\":[\"pages/index/index\"]}",
+     "pages/index/index.js": "Page({data:{rows:[]},book(){const rows=this.data.rows;if(rows.length<2)this.setData({rows:rows.concat([{id:Date.now()}])});},cancel(e){this.setData({rows:this.data.rows.filter(x=>x.id!==e.currentTarget.dataset.id)});}})",
+     "pages/index/index.wxml": "<view><button bindtap=\"book\">预约</button><view wx:for=\"{{rows}}\" wx:key=\"id\">{{item.id}}<button data-id=\"{{item.id}}\" bindtap=\"cancel\">取消</button></view></view>"
+    }
    },
    "sample_spec": {
-    "shop": "小满美甲店",
+    "shop": "演示工作室",
     "open": 10,
     "close": 20,
     "capacity": 2,
-    "service1Name": "纯色美甲",
+    "service1Name": "项目一",
     "service1Minutes": 60,
-    "service2Name": "延长甲",
+    "service2Name": "项目二",
     "service2Minutes": 90
+   }
+  },
+  {
+   "id": "code-miniapp-basic",
+   "name": "灵犀小程序",
+   "description": "灵犀小程序：交付wechat-miniapp源码；支持跨行业预约（时段容量、取消）及两项服务目录展示/关键词筛选。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。",
+   "tags": [
+    "软件开发",
+    "wechat-miniapp",
+    "预约",
+    "项目目录"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "booking",
+    "title": "业务软件源码包",
+    "file": "booking.json",
+    "mediaType": "application/json",
+    "description": "灵犀小程序：交付wechat-miniapp源码；支持跨行业预约（时段容量、取消）及两项服务目录展示/关键词筛选。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。 miniProgram为真实微信小程序文本文件映射，含app.json及其中pages所指向的.js/.wxml；页面实现本单业务交互，不放空函数。",
+    "specSchema": {
+     "shop": {
+      "type": "string",
+      "maxLength": 80
+     },
+     "open": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 23
+     },
+     "close": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 24
+     },
+     "capacity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+     },
+     "service1Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service1Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
+     },
+     "service2Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service2Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
+     },
+     "mode": {
+      "enum": [
+       "booking",
+       "catalog"
+      ]
+     },
+     "carrier": {
+      "const": "wechat-miniapp"
+     },
+     "level": {
+      "const": "basic"
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     239,
+     239
+    ]
+   },
+   "verifier": {
+    "id": "code_miniapp_basic@1.0.0",
+    "script": "programming.py",
+    "reads": [
+     "spec.booking.shop",
+     "spec.booking.open",
+     "spec.booking.close",
+     "spec.booking.capacity",
+     "spec.booking.service1Name",
+     "spec.booking.service1Minutes",
+     "spec.booking.service2Name",
+     "spec.booking.service2Minutes",
+     "spec.booking.mode",
+     "spec.booking.carrier",
+     "spec.booking.level"
+    ],
+    "criteria": [
+     "业务配置逐项符合合同",
+     "可以预约并查询或列出目录",
+     "容量边界或目录关键词筛选",
+     "取消后释放名额或无匹配目录返回空",
+     "约定载体源码结构齐全"
+    ]
+   },
+   "notCovered": [
+    "客户端界面实际行为",
+    "微信真实注册、审核和发布",
+    "Android构建、APK安装和设备运行",
+    "公网部署",
+    "真实多线程压力与网络故障注入",
+    "重复提交幂等",
+    "请求重试一致性",
+    "跨时段隔离",
+    "重复取消幂等"
+   ],
+   "generator": {
+    "system": "仅按本单合同的载体、mode、规格和材料生成新源码，不复制样件。用write_file在本次artifactDirectory创建UTF-8 booking.json（此文件名为统一软件源码交付容器，不表示所有模式都执行预约）。format=ioalab.booking；shop/open/close/capacity/mode逐项符合spec.booking，services按service1Name/service1Minutes、service2Name/service2Minutes组成name/minutes两项。shop是机构名称，行业不固定。mode=booking时Python engineSource定义BookingEngine(capacity)，reserve(request,slot)返回{id,slot}或满员None，list返回当前记录，cancel(id)释放名额；allowCancel=true。可靠覆盖须重复request幂等、顺序竞争不超容量、分时段隔离及重复取消幂等。mode=catalog时无预约流程，engineSource定义Catalog(items)，list返回原项目，search(keyword)按项目名称包含关系筛选，空匹配返回[]；open/close表示展示的营业时间，capacity仅为机构公布容量，不是目录筛选条件。源码不导入外部模块，只在A2C python.wasm执行。miniProgram为真实微信小程序文本文件映射，含app.json及其中pages所指向的.js/.wxml；页面实现本单业务交互，不放空函数。不得同时交付其他载体来冒称兼容。生产后用provider.task.selftest对同一booking.json自测，通过后provider.task.deliver；不得改判据或代替用户批准。未另获本单真实证据不得声称客户端行为/构建/安装/部署完成。",
+    "output": "JSON对象：配置、engineSource和仅本单载体的文件映射",
+    "quote_system": "本服务定价239虚拟币；只输出JSON：{\"price\":239,\"summary\":\"本单约定载体与覆盖的源码交付\"}。"
+   },
+   "sample": {
+    "format": "ioalab.booking",
+    "shop": "演示工作室",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "mode": "booking",
+    "services": [
+     {
+      "name": "项目一",
+      "minutes": 60
+     },
+     {
+      "name": "项目二",
+      "minutes": 90
+     }
+    ],
+    "allowCancel": true,
+    "idempotent": true,
+    "engineSource": "class BookingEngine:\n    def __init__(self, capacity):\n        self.capacity=capacity\n        self.rows={}\n        self.requests={}\n    def reserve(self, request, slot):\n        if request in self.requests:\n            return self.requests[request]\n        if sum(x['slot']==slot for x in self.rows.values()) >= self.capacity:\n            return None\n        row={'id':request,'slot':slot}\n        self.rows[request]=row\n        self.requests[request]=row\n        return row\n    def cancel(self, ident):\n        self.rows.pop(ident,None)\n    def list(self):\n        return list(self.rows.values())\nclass Catalog:\n    def __init__(self, items):\n        self.items=items\n    def list(self):\n        return self.items\n    def search(self, keyword):\n        return [x for x in self.items if keyword in x['name']]\n",
+    "miniProgram": {
+     "app.json": "{\"pages\":[\"pages/index/index\"]}",
+     "pages/index/index.js": "Page({data:{rows:[]},book(){const rows=this.data.rows;if(rows.length<2)this.setData({rows:rows.concat([{id:Date.now()}])});},cancel(e){this.setData({rows:this.data.rows.filter(x=>x.id!==e.currentTarget.dataset.id)});}})",
+     "pages/index/index.wxml": "<view><button bindtap=\"book\">预约</button><view wx:for=\"{{rows}}\" wx:key=\"id\">{{item.id}}<button data-id=\"{{item.id}}\" bindtap=\"cancel\">取消</button></view></view>"
+    }
+   },
+   "sample_spec": {
+    "shop": "演示工作室",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "service1Name": "项目一",
+    "service1Minutes": 60,
+    "service2Name": "项目二",
+    "service2Minutes": 90,
+    "mode": "booking"
+   }
+  },
+  {
+   "id": "code-website",
+   "name": "快搭建站",
+   "description": "快搭建站：交付website源码；支持跨行业预约（时段容量、取消）及两项服务目录展示/关键词筛选。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。",
+   "tags": [
+    "软件开发",
+    "website",
+    "预约",
+    "项目目录"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "booking",
+    "title": "业务软件源码包",
+    "file": "booking.json",
+    "mediaType": "application/json",
+    "description": "快搭建站：交付website源码；支持跨行业预约（时段容量、取消）及两项服务目录展示/关键词筛选。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。 website为网站文本文件映射，至少index.html/app.js/style.css，HTML实际引用JS/CSS。booking页面实现时段选择、预约、容量拒绝、列表、按ID取消；catalog页面列出两个项目并按名称关键字筛选，空匹配显示无结果。前端逻辑必须真实实现并使用本单配置；Python核心通过不代表浏览器行为通过。",
+    "specSchema": {
+     "shop": {
+      "type": "string",
+      "maxLength": 80
+     },
+     "open": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 23
+     },
+     "close": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 24
+     },
+     "capacity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+     },
+     "service1Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service1Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
+     },
+     "service2Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service2Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
+     },
+     "mode": {
+      "enum": [
+       "booking",
+       "catalog"
+      ]
+     },
+     "carrier": {
+      "const": "website"
+     },
+     "level": {
+      "const": "basic"
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     259,
+     259
+    ]
+   },
+   "verifier": {
+    "id": "code_website@1.0.0",
+    "script": "programming.py",
+    "reads": [
+     "spec.booking.shop",
+     "spec.booking.open",
+     "spec.booking.close",
+     "spec.booking.capacity",
+     "spec.booking.service1Name",
+     "spec.booking.service1Minutes",
+     "spec.booking.service2Name",
+     "spec.booking.service2Minutes",
+     "spec.booking.mode",
+     "spec.booking.carrier",
+     "spec.booking.level"
+    ],
+    "criteria": [
+     "业务配置逐项符合合同",
+     "可以预约并查询或列出目录",
+     "容量边界或目录关键词筛选",
+     "取消后释放名额或无匹配目录返回空",
+     "约定载体源码结构齐全"
+    ]
+   },
+   "notCovered": [
+    "客户端界面实际行为",
+    "微信真实注册、审核和发布",
+    "Android构建、APK安装和设备运行",
+    "公网部署",
+    "真实多线程压力与网络故障注入",
+    "重复提交幂等",
+    "请求重试一致性",
+    "跨时段隔离",
+    "重复取消幂等"
+   ],
+   "generator": {
+    "system": "仅按本单合同的载体、mode、规格和材料生成新源码，不复制样件。用write_file在本次artifactDirectory创建UTF-8 booking.json（此文件名为统一软件源码交付容器，不表示所有模式都执行预约）。format=ioalab.booking；shop/open/close/capacity/mode逐项符合spec.booking，services按service1Name/service1Minutes、service2Name/service2Minutes组成name/minutes两项。shop是机构名称，行业不固定。mode=booking时Python engineSource定义BookingEngine(capacity)，reserve(request,slot)返回{id,slot}或满员None，list返回当前记录，cancel(id)释放名额；allowCancel=true。可靠覆盖须重复request幂等、顺序竞争不超容量、分时段隔离及重复取消幂等。mode=catalog时无预约流程，engineSource定义Catalog(items)，list返回原项目，search(keyword)按项目名称包含关系筛选，空匹配返回[]；open/close表示展示的营业时间，capacity仅为机构公布容量，不是目录筛选条件。源码不导入外部模块，只在A2C python.wasm执行。website为网站文本文件映射，至少index.html/app.js/style.css，HTML实际引用JS/CSS。booking页面实现时段选择、预约、容量拒绝、列表、按ID取消；catalog页面列出两个项目并按名称关键字筛选，空匹配显示无结果。前端逻辑必须真实实现并使用本单配置；Python核心通过不代表浏览器行为通过。不得同时交付其他载体来冒称兼容。生产后用provider.task.selftest对同一booking.json自测，通过后provider.task.deliver；不得改判据或代替用户批准。未另获本单真实证据不得声称客户端行为/构建/安装/部署完成。",
+    "output": "JSON对象：配置、engineSource和仅本单载体的文件映射",
+    "quote_system": "本服务定价259虚拟币；只输出JSON：{\"price\":259,\"summary\":\"本单约定载体与覆盖的源码交付\"}。"
+   },
+   "sample": {
+    "format": "ioalab.booking",
+    "shop": "演示工作室",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "mode": "booking",
+    "services": [
+     {
+      "name": "项目一",
+      "minutes": 60
+     },
+     {
+      "name": "项目二",
+      "minutes": 90
+     }
+    ],
+    "allowCancel": true,
+    "idempotent": true,
+    "engineSource": "class BookingEngine:\n    def __init__(self, capacity):\n        self.capacity=capacity\n        self.rows={}\n        self.requests={}\n    def reserve(self, request, slot):\n        if request in self.requests:\n            return self.requests[request]\n        if sum(x['slot']==slot for x in self.rows.values()) >= self.capacity:\n            return None\n        row={'id':request,'slot':slot}\n        self.rows[request]=row\n        self.requests[request]=row\n        return row\n    def cancel(self, ident):\n        self.rows.pop(ident,None)\n    def list(self):\n        return list(self.rows.values())\nclass Catalog:\n    def __init__(self, items):\n        self.items=items\n    def list(self):\n        return self.items\n    def search(self, keyword):\n        return [x for x in self.items if keyword in x['name']]\n",
+    "website": {
+     "index.html": "<!doctype html><html><head><link rel=\"stylesheet\" href=\"style.css\"></head><body><input id=\"slot\" value=\"10:00\"><input id=\"id\"><button id=\"book\">预约</button><button id=\"cancel\">取消</button><pre id=\"rows\"></pre><script src=\"app.js\"></script></body></html>",
+     "app.js": "const rows=[]; const requests={};\nfunction reserve(request,slot,capacity=2){if(requests[request])return requests[request];if(rows.filter(x=>x.slot===slot).length>=capacity)return null;const row={id:request,slot}; rows.push(row);requests[request]=row;return row;}\nfunction cancel(id){const i=rows.findIndex(x=>x.id===id);if(i>=0)rows.splice(i,1);}\nfunction render(){document.getElementById('rows').textContent=JSON.stringify(rows);}\ndocument.getElementById('book').onclick=()=>{reserve(crypto.randomUUID(),document.getElementById('slot').value);render();};\ndocument.getElementById('cancel').onclick=()=>{cancel(document.getElementById('id').value);render();};\n",
+     "style.css": "body {font-family: sans-serif; max-width: 900px; margin: 2rem auto;}"
+    }
+   },
+   "sample_spec": {
+    "shop": "演示工作室",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "service1Name": "项目一",
+    "service1Minutes": 60,
+    "service2Name": "项目二",
+    "service2Minutes": 90,
+    "mode": "booking"
+   }
+  },
+  {
+   "id": "code-android",
+   "name": "极速APP工坊",
+   "description": "极速APP工坊：交付android源码；支持跨行业预约（时段容量、取消）及两项服务目录展示/关键词筛选。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。",
+   "tags": [
+    "软件开发",
+    "android",
+    "预约",
+    "项目目录"
+   ],
+   "runnable": true,
+   "formation": "proposal",
+   "deliverable": {
+    "name": "booking",
+    "title": "业务软件源码包",
+    "file": "booking.json",
+    "mediaType": "application/json",
+    "description": "极速APP工坊：交付android源码；支持跨行业预约（时段容量、取消）及两项服务目录展示/关键词筛选。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。 androidApp为Android项目文本映射，至少AndroidManifest.xml/MainActivity.kt/build.gradle.kts/settings.gradle.kts，Activity实现本单列表、预约/取消或目录筛选界面；提供构建说明。源码结构检查不证明可构建APK、设备行为或上架。",
+    "specSchema": {
+     "shop": {
+      "type": "string",
+      "maxLength": 80
+     },
+     "open": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 23
+     },
+     "close": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 24
+     },
+     "capacity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+     },
+     "service1Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service1Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
+     },
+     "service2Name": {
+      "type": "string",
+      "maxLength": 100
+     },
+     "service2Minutes": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 240
+     },
+     "mode": {
+      "enum": [
+       "booking",
+       "catalog"
+      ]
+     },
+     "carrier": {
+      "const": "android"
+     },
+     "level": {
+      "const": "basic"
+     }
+    }
+   },
+   "inputs": [],
+   "deadlines": {
+    "respondWithin": "PT10M",
+    "startWithin": "PT30M",
+    "deliverWithin": "PT30M",
+    "acceptWithin": "PT15M"
+   },
+   "pricing": {
+    "proposalFee": 1,
+    "range": [
+     199,
+     199
+    ]
+   },
+   "verifier": {
+    "id": "code_android@1.0.0",
+    "script": "programming.py",
+    "reads": [
+     "spec.booking.shop",
+     "spec.booking.open",
+     "spec.booking.close",
+     "spec.booking.capacity",
+     "spec.booking.service1Name",
+     "spec.booking.service1Minutes",
+     "spec.booking.service2Name",
+     "spec.booking.service2Minutes",
+     "spec.booking.mode",
+     "spec.booking.carrier",
+     "spec.booking.level"
+    ],
+    "criteria": [
+     "业务配置逐项符合合同",
+     "可以预约并查询或列出目录",
+     "容量边界或目录关键词筛选",
+     "取消后释放名额或无匹配目录返回空",
+     "约定载体源码结构齐全"
+    ]
+   },
+   "notCovered": [
+    "客户端界面实际行为",
+    "微信真实注册、审核和发布",
+    "Android构建、APK安装和设备运行",
+    "公网部署",
+    "真实多线程压力与网络故障注入",
+    "重复提交幂等",
+    "请求重试一致性",
+    "跨时段隔离",
+    "重复取消幂等"
+   ],
+   "generator": {
+    "system": "仅按本单合同的载体、mode、规格和材料生成新源码，不复制样件。用write_file在本次artifactDirectory创建UTF-8 booking.json（此文件名为统一软件源码交付容器，不表示所有模式都执行预约）。format=ioalab.booking；shop/open/close/capacity/mode逐项符合spec.booking，services按service1Name/service1Minutes、service2Name/service2Minutes组成name/minutes两项。shop是机构名称，行业不固定。mode=booking时Python engineSource定义BookingEngine(capacity)，reserve(request,slot)返回{id,slot}或满员None，list返回当前记录，cancel(id)释放名额；allowCancel=true。可靠覆盖须重复request幂等、顺序竞争不超容量、分时段隔离及重复取消幂等。mode=catalog时无预约流程，engineSource定义Catalog(items)，list返回原项目，search(keyword)按项目名称包含关系筛选，空匹配返回[]；open/close表示展示的营业时间，capacity仅为机构公布容量，不是目录筛选条件。源码不导入外部模块，只在A2C python.wasm执行。androidApp为Android项目文本映射，至少AndroidManifest.xml/MainActivity.kt/build.gradle.kts/settings.gradle.kts，Activity实现本单列表、预约/取消或目录筛选界面；提供构建说明。源码结构检查不证明可构建APK、设备行为或上架。不得同时交付其他载体来冒称兼容。生产后用provider.task.selftest对同一booking.json自测，通过后provider.task.deliver；不得改判据或代替用户批准。未另获本单真实证据不得声称客户端行为/构建/安装/部署完成。",
+    "output": "JSON对象：配置、engineSource和仅本单载体的文件映射",
+    "quote_system": "本服务定价199虚拟币；只输出JSON：{\"price\":199,\"summary\":\"本单约定载体与覆盖的源码交付\"}。"
+   },
+   "sample": {
+    "format": "ioalab.booking",
+    "shop": "演示工作室",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "mode": "booking",
+    "services": [
+     {
+      "name": "项目一",
+      "minutes": 60
+     },
+     {
+      "name": "项目二",
+      "minutes": 90
+     }
+    ],
+    "allowCancel": true,
+    "idempotent": true,
+    "engineSource": "class BookingEngine:\n    def __init__(self, capacity):\n        self.capacity=capacity\n        self.rows={}\n        self.requests={}\n    def reserve(self, request, slot):\n        if request in self.requests:\n            return self.requests[request]\n        if sum(x['slot']==slot for x in self.rows.values()) >= self.capacity:\n            return None\n        row={'id':request,'slot':slot}\n        self.rows[request]=row\n        self.requests[request]=row\n        return row\n    def cancel(self, ident):\n        self.rows.pop(ident,None)\n    def list(self):\n        return list(self.rows.values())\nclass Catalog:\n    def __init__(self, items):\n        self.items=items\n    def list(self):\n        return self.items\n    def search(self, keyword):\n        return [x for x in self.items if keyword in x['name']]\n",
+    "androidApp": {
+     "AndroidManifest.xml": "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"lab.booking\"><application><activity android:name=\".MainActivity\" android:exported=\"true\"/></application></manifest>",
+     "MainActivity.kt": "package lab.booking\nimport android.app.Activity\nimport android.os.Bundle\nimport android.widget.TextView\nclass MainActivity : Activity() { override fun onCreate(state:Bundle?){super.onCreate(state);setContentView(TextView(this).apply {text=\"业务项目\"})} }",
+     "settings.gradle.kts": "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\nrootProject.name=\"BusinessApp\"",
+     "build.gradle.kts": "plugins { id(\"com.android.application\") version \"8.7.3\"; kotlin(\"android\") version \"2.0.21\" }\nandroid { namespace=\"lab.booking\"; compileSdk=35; defaultConfig { applicationId=\"lab.booking\"; minSdk=23; targetSdk=35 } }"
+    }
+   },
+   "sample_spec": {
+    "shop": "演示工作室",
+    "open": 10,
+    "close": 20,
+    "capacity": 2,
+    "service1Name": "项目一",
+    "service1Minutes": 60,
+    "service2Name": "项目二",
+    "service2Minutes": 90,
+    "mode": "booking"
    }
   }
  ]

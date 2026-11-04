@@ -63,6 +63,12 @@ HELPER_CASES = {
 }
 # Exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
+    'tests/test_nail_flow.py': ('programming_services',),
+    'demo/delegation-provider/src/scenario/definitions.py': ('programming_services', 'nail_scene', 'booking_demo'),
+    'src/official/services/ioalab_services/programming.py': ('programming_services', 'nail_scene', 'booking_demo', 'official_resources'),
+    'src/official/services/ioalab_services/assets/verifiers/programming.py': ('programming_services', 'nail_scene', 'booking_demo', 'official_resources'),
+    'src/official/services/ioalab_services/assets/domains/08-dev.json': ('official_*', 'business_tools', 'appointment_source', 'agentmail_*', 'programming_services', 'nail_scene', 'booking_demo'),
+    'tools/test_layers.py': ('test_layers', 'check_workflow'),
     'tools/check_frontend.cjs': ('frontend',),
     'tools/stamp_static.py': ('frontend',),
     'src/access/sdk/ioalab_sdk/assistant/fulfillment.py': ('fulfillment_status', 'resident_fulfillment', 'resident_multiperiod', 'user_confirmations', 'payment_atomicity', 'fulfillment_payment_guards', 'resident_payment_recovery'),

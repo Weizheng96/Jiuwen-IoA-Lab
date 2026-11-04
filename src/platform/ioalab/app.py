@@ -87,6 +87,8 @@ class Platform:
         self._pin_public_url()
         settings.write_a2x_key()
         self.db = DB(settings.data / "ioalab.sqlite")
+        from .migrations import migrate
+        migrate(self.db)
         self.bus = EventBus(self.db, settings.data / "runs")
         self.wallets, self.auth = Wallets(self.db), Auth(self.db, settings)
         from .operations import AccountOperations,LedgerOperations
@@ -190,6 +192,12 @@ class Platform:
         from .observation import MessageViews,ServiceViews
         self.message_views=MessageViews(self.db)
         self.service_views=ServiceViews(self.db)
+        from .observation.accounts import AccountQueries
+        from .observation.workbench import WorkbenchQueries
+        self.account_views=AccountQueries(self.db,auth=self.auth,wallets=self.wallets,contracts=self.contract_views,
+            services=self.service_views,messages=self.message_views,bus=self.bus)
+        self.workbench_views=WorkbenchQueries(self.db,auth=self.auth,wallets=self.wallets,contracts=self.contract_views,
+            services=self.service_views,discovery=self.discovery,messages=self.message_views,interfaces=self.interface_directory)
         from .operations import DiscoveryOperations
         self.discovery_operations=DiscoveryOperations(self.discovery,self.service_views,self.bus.emit,self.market_id)
         from .observation.overview import OverviewQueries

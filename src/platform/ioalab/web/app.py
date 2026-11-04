@@ -161,10 +161,7 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/me")
     async def me(uid: str = Depends(current_user)):
-        u = platform.db.one("SELECT id, username, kind, display_name, created, last_login FROM users WHERE id=?", uid)
-        agents = platform.db.rows("SELECT id, role, name, status, created FROM agents WHERE owner_id=?", uid)
-        return {**u, "roles":platform.auth.roles(uid), "wallet": str(platform.wallets.balance(uid)), "agents": agents,
-                "pending": platform.db.rows("SELECT * FROM confirmations WHERE owner_id=? AND state='pending' ORDER BY created", uid)}
+        return platform.account_views.me(uid)
 
     @app.get("/api/wallet")
     async def wallet(uid: str = Depends(current_user)):
@@ -184,8 +181,7 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/needs")
     async def my_needs(uid: str = Depends(current_user)):
-        rows = platform.db.rows("SELECT id, text, state, card_digest, created, updated, llm_calls, tokens FROM needs WHERE owner_id=? ORDER BY created DESC", uid)
-        return rows
+        return platform.account_views.needs(uid)
 
 
     @app.get("/api/orders")
@@ -212,6 +208,8 @@ def create_app(platform: Platform) -> FastAPI:
     from .agents import build_router as agents_router
     app.include_router(agents_router(platform,current_user))
     app.include_router(workbench_router(platform,current_user,require_admin,require_auditor))
+    from .trial import build_router as trial_router
+    app.include_router(trial_router(platform))
 
     # ── 管理员 API ────────────────────────────────────────────────────
     @app.post("/api/admin/login")
@@ -229,15 +227,11 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/admin/events")
     async def events(_: str = Depends(require_admin), after: int = 0, limit: int = 300, run: str = ""):
-        rid = run or platform.bus.run_id
-        rows = platform.db.rows("SELECT * FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT ?", rid, max(0,after), max(1,min(limit,1000)))
-        for r in rows:
-            r["detail"] = jload(r["detail"])
-        return [event_view(row) for row in rows]
+        return platform.account_views.events(run,after,limit)
 
     @app.get("/api/admin/runs")
     async def runs(_: str = Depends(require_admin)):
-        return sorted({platform.bus.run_id,*[row['run_id'] for row in platform.db.rows('SELECT DISTINCT run_id FROM events')]})
+        return platform.account_views.runs()
 
     @app.get("/api/admin/orders")
     async def admin_orders(_: str = Depends(require_admin)):
@@ -249,12 +243,7 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/admin/users")
     async def users(_: str = Depends(require_admin)):
-        rows = platform.db.rows("SELECT u.*, w.balance FROM users u LEFT JOIN wallets w ON w.user_id=u.id ORDER BY u.created")
-        for r in rows:
-            r.pop("pw_hash", None)
-            r["agents"] = platform.db.rows("SELECT id, role, name, status FROM agents WHERE owner_id=?", r["id"])
-            r["roles"]=platform.auth.roles(r["id"])
-        return rows
+        return platform.account_views.admin_users()
 
     @app.get('/api/admin/publication-authorizations')
     async def publication_authorizations(_:str=Depends(require_admin)):
@@ -283,7 +272,7 @@ def create_app(platform: Platform) -> FastAPI:
         n = int(b.get("count", 1))
         out = []
         for i in range(n):
-            name = b.get("username") if n == 1 and b.get("username") else f"virtual_{platform.db.one('SELECT COUNT(*) AS n FROM users')['n'] + 1:03d}"
+            name = b.get("username") if n == 1 and b.get("username") else platform.auth.next_virtual_name()
             pw = b.get("password") or _secrets.token_urlsafe(8)
             u = await platform._worker(platform.accounts.create_account, name, pw, kind="virtual", display_name=b.get("display_name", ""),
                                         note=b.get("note", "管理员创建"))
@@ -342,10 +331,7 @@ def create_app(platform: Platform) -> FastAPI:
     async def replay(run: str, _: str = Depends(require_admin)):
         if Path(run).name != run or run in (".", ".."):
             raise HTTPException(400)
-        rows=platform.db.rows('SELECT * FROM events WHERE run_id=? ORDER BY seq',run)
-        if not rows and run!=platform.bus.run_id:raise HTTPException(404)
-        for row in rows:row['detail']=jload(row['detail'])
-        return [event_view(row) for row in rows]
+        return platform.account_views.replay(run)
 
     @app.websocket("/ws/admin")
     async def ws_admin(ws: WebSocket):

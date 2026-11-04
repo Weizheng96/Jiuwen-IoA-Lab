@@ -19,7 +19,7 @@ def test_domain_files_shape():
     domains=load_domains()
     assert len(domains)==8 and all(5<=len(d['services'])<=10 for d in domains)
     items=definitions()
-    assert len(items)==50 and len({d['id'] for d in items})==50
+    assert len(items)==52 and len({d['id'] for d in items})==52
     assert {'countersign','proposal'}=={d.get('formation','preapproval') for d in items}
     assert all(d['sample'] and d['verifier']['source'] for d in items)
 

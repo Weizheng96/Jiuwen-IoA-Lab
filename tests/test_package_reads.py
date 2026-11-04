@@ -1,6 +1,8 @@
 """Read-only network recovery never replays token renewal or business writes."""
 import httpx
 import pytest
+import time
+from types import SimpleNamespace
 from a2c.codec import digest_bytes
 from ioalab_sdk.runtime.session import AccountSession
 
@@ -19,7 +21,9 @@ def reader(http):
     return session,acquired
 
 
-def test_package_read_recovers_disconnect_and_truncation_without_repeating_credentials():
+def test_package_read_recovers_disconnect_and_truncation_without_repeating_credentials(monkeypatch):
+    waits=[]
+    monkeypatch.setattr('ioalab_sdk.runtime.session.time',SimpleNamespace(**{**vars(time),'sleep':waits.append}))
     requests=[]
     def serve(request):
         requests.append(request)
@@ -30,11 +34,14 @@ def test_package_read_recovers_disconnect_and_truncation_without_repeating_crede
         session,acquired=reader(http)
         assert session.fetch_package(URI)==BLOB
     assert len(acquired)==1 and len(requests)==3
+    assert waits==[.15,.3]
     assert {(r.method,str(r.url)) for r in requests}=={('GET','https://platform.invalid/api/v1/packages/'+digest_bytes(BLOB))}
     assert all(r.headers['Authorization']=='Bearer isolated-test-token' and not r.content for r in requests)
 
 
-def test_package_read_stops_after_bounded_transport_failures():
+def test_package_read_stops_after_bounded_transport_failures(monkeypatch):
+    waits=[]
+    monkeypatch.setattr('ioalab_sdk.runtime.session.time',SimpleNamespace(**{**vars(time),'sleep':waits.append}))
     requests=[]
     def serve(request):
         requests.append(request)
@@ -44,6 +51,7 @@ def test_package_read_stops_after_bounded_transport_failures():
         with pytest.raises(httpx.ReadError,match='original read still unavailable'):
             session.fetch_package(URI)
     assert len(requests)==3 and len(acquired)==1
+    assert waits==[.15,.3]
 
 
 @pytest.mark.parametrize('status',[401,404,500])

@@ -6,17 +6,11 @@ import time
 from datetime import datetime, timezone
 from ..errors import LabError
 
-SCHEMA='''
-CREATE TABLE IF NOT EXISTS connection_tickets(
- digest TEXT PRIMARY KEY,owner TEXT NOT NULL,actors TEXT NOT NULL,
- expires REAL NOT NULL,consumed INTEGER NOT NULL DEFAULT 0);
-'''
 
 
 class IdentityDirectory:
     def __init__(self,db,auth,settings,*,clock=time.time):
         self.db,self.auth,self.settings,self.clock=db,auth,settings,clock
-        with db.lock:db.conn.executescript(SCHEMA)
 
     def agent(self,agent_id):
         row=self.db.one('SELECT * FROM agents WHERE id=?',agent_id)

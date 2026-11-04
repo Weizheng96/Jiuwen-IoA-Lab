@@ -12,11 +12,6 @@ from ..errors import LabError
 class AccountSessions:
     def __init__(self,db,auth):
         self.db,self.auth=db,auth
-        with db.lock:
-            db.conn.execute('''CREATE TABLE IF NOT EXISTS account_operations(
-                username TEXT,kind TEXT,id TEXT,params TEXT NOT NULL,owner TEXT NOT NULL,
-                credential TEXT NOT NULL,result TEXT NOT NULL,created REAL NOT NULL,
-                PRIMARY KEY(username,kind,id))''')
 
     @staticmethod
     def operation(value):

@@ -117,7 +117,10 @@ LEGACY='''CREATE TABLE delegation_protocol_calls(
 ROW=('original-message','interaction','admission','ap2.checkout','completed','original-result','original-hash','original-task')
 
 
-def relay(db):return ProtocolRelay(db,None,None,None,None,clock=lambda:1)
+def relay(db):
+    from ioalab.migrations import migrate
+    migrate(db)
+    return ProtocolRelay(db,None,None,None,None,clock=lambda:1)
 
 
 @pytest.mark.parametrize('explicit',[False,True])

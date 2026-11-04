@@ -41,32 +41,7 @@ def definition(service_id=DEFAULT_SERVICE):
     value['inputs'] = deepcopy(MATERIALS) + value.get('inputs', [])
     if value['formation'] == 'preapproval':
         value['formation'] = 'countersign'
-    if service_id in ('nail-weiye', 'nail-jisu'):
-        display = service_id == 'nail-weiye'
-        criteria = ['预约配置逐项符合合同', '可以预约并查询', '满额后拒绝新增预约',
-                    '不提供自助取消接口' if display else '取消后释放名额',
-                    '展示页源码与预约配置齐全' if display else 'Android源码结构与预约配置齐全']
-        source = (HERE / 'verifiers/limited_booking.py').read_text(encoding='utf-8')
-        value['verifier'] = {
-            'id': 'nail_weiye_display@1.0.0' if display else 'nail_jisu_android@1.0.0',
-            'kind': 'script', 'reads': deepcopy(original['verifier']['reads']), 'criteria': criteria,
-            'source': source.replace('__CRITERIA__', json.dumps(criteria, ensure_ascii=False))
-                            .replace('__APP_KIND__', repr('display' if display else 'android'))}
-        value['deliverable']['description'] = (
-            'booking.json：预约配置、Python BookingEngine源码和 displayPage 展示页源码；'
-            '仅提供电话登记的预约与查询，不提供顾客自助取消或名额释放，不交付微信小程序。'
-            if display else
-            'booking.json：预约配置、Python BookingEngine源码和 androidApp Android源码映射；'
-            '支持预约、容量控制和取消释放，不提供微信小程序或微信端源码。')
-        value['deliverable']['description'] += ' 可复核验收判据：' + '；'.join(criteria) + '。'
-        value['tags'] = ['美甲预约', '预约展示页' if display else 'Android APP', '软件开发']
-        value['notCovered'] += (['顾客自助取消与取消后名额释放', '微信小程序交付', '展示页浏览器实际执行']
-                                if display else ['微信小程序交付', 'Android编译、设备安装与界面实际执行'])
-        value['steps'] = []
-    if service_id == 'nail-lingxi':
-        value['notCovered'] += ['确定性预约行为测试', '重复提交幂等、请求重试与时段隔离的实际行为']
-    elif service_id != DEFAULT_SERVICE and service_id != 'nail-kuaida':
-        value['notCovered'] += ['重复提交幂等', '请求重试一致性', '跨时段隔离', '重复取消幂等']
+
     return value
 
 
@@ -231,58 +206,14 @@ skill 引用另外配置 disputeModels 为 ''' + json.dumps(verifier['disputeMod
 
 def production_document(value):
     validate(value, 'miniapp')
-    service_id = value['id']
-    display, android = service_id == 'nail-weiye', service_id == 'nail-jisu'
-    application = ('''displayPage 为含 index.html 的源码文本映射，交付非空 HTML 展示页。
-本服务不支持顾客自助取消或取消后名额释放；BookingEngine 不定义 cancel 接口，allowCancel 为 false。
-不生成 miniProgram，不声称满足顾客自助取消的需求。'''
-                   if display else
-                   '''androidApp 为 Android 源码文本映射，至少含 AndroidManifest.xml、MainActivity.kt。
-交付真实 Android 页面源码，不生成 miniProgram，不声称提供微信端能力。
-BookingEngine.cancel(id) 取消真实预约、释放名额；allowCancel 为 true。
-本验收只检查 Android 源码结构，不编译、不安装、不证明设备界面行为。'''
-                   if android else
-                   '''miniProgram 为微信小程序源码文本映射，至少含 app.json、pages/index/index.js、pages/index/index.wxml。
-app.json 的 pages 必须指向真实非空 .js、.wxml 文件；页面实现时段选择、预约列表、提交预约与取消。
-BookingEngine.cancel(id) 取消真实预约并释放名额；allowCancel 和 idempotent 为 true。
-微信客户端实际执行、主体认证和上线不在本次自动验收内。''')
-    coverage = ('本合同采用三项模型观察，不把实际自测解释为五项或十项确定性行为检查。'
-                if value['verifier'].get('kind') == 'skill' else
-                '十项判据还要求同一 request 重试返回同一预约且不重复占位、不同 slot 独立计数、重复取消不误减其他名额。'
-                if service_id == DEFAULT_SERVICE else
-                '本合同仅采用下列五项判据，不声明已验证重复提交幂等、请求重试一致性或跨时段隔离。')
-    steps = ('''先读取本卡声明的 authorizableSteps。需要执行演练环节时，用 provider.task.request_step 请求实际环节名，
-收到 waiting 后结束本轮；只有原绑定请求的真实 granted 回到本单，才继续受保护动作。
-实名注册仅演练授权，不提交身份证件、不申请微信账号、不声称通过审核或上线。'''
-             if value['steps'] else '本服务没有微信实名注册演练环节，不请求或声称取得该环节授权。')
-    materials = ('签前须实际审核 architecture 架构图；缺失时停止，不编造、代写或取消必需材料。'
-                 if service_id == 'nail-yungou' else '')
-    return f'''# {value['name']}：真实生产
-
-仅在 production 阶段按已确认合同、规格、材料和原验收包生成新成果，不替换样件。
-{materials}
-{steps}
-
-## 交付格式
-
-用已授权 write_file 在本次 artifactDirectory 内创建 UTF-8 JSON 对象 booking.json。
-format 为 ioalab.booking；shop、open、close、capacity 与 spec.booking 逐项相等，后三项为整数。
-services 两项按 service1Name/service1Minutes、service2Name/service2Minutes 的合同顺序组装 name/minutes，不更名或改时长。
-engineSource 为纯 Python 源码字符串，不导入外部模块；定义 BookingEngine(capacity)，保存本单真实预约状态。
-reserve(request, slot) 成功返回含 id、slot 的字典，满额时返回 None；list() 返回当前预约。
-{application}
-
-{coverage}
-''' + '\n'.join(f'{i}. {text}' for i, text in enumerate(value['verifier']['criteria'], 1)) + '''
-
-## 同一文件自测与交付
-
-使用 provider.task.selftest，参数为 {"files":{"booking.json":{"artifactPath":"booking.json","mediaType":"application/json"}}}。
-路径只能指本次 artifacts。只有合同 WASM 报告通过，才以同一文件调用 provider.task.deliver。
-失败按实际检查项修正成果，不能换验收器、缩减需求或伪造结果。源码仅在 A2C python.wasm 内执行，
-不能在宿主 Python、Shell 或本机浏览器中执行交付 Python。
-取得真实交付回执后结束本轮，等待委托方验收及付款，不能替委托方批准。
-'''
+    original = _scene_definitions()[value['id']]
+    from ioalab_services.programming import production_document as owned_document
+    return ('# ' + value['name'] + '：真实生产\n\n' + owned_document(original)
+            + '\n仅在production阶段按已确认合同生产，不使用样件。先核全部必需材料和authorizableSteps；'
+              '需要环节时provider.task.request_step等待真实granted，不替用户同意。'
+              '实名注册仅演练授权，不提交真实资料或声称上线。'
+              '使用provider.task.selftest与provider.task.deliver提交同一本单artifactDirectory的booking.json。'
+              '失败修正源码，不改验收依据。未覆盖项不声明已验证。\n')
 
 
 def execution_input(value, *, verifier_reference=None):

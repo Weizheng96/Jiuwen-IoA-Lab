@@ -109,12 +109,16 @@ def test_failed_construction_releases_the_real_owner_and_resources(tmp_path,monk
 def test_failed_db_initialization_closes_its_partial_connection(tmp_path,monkeypatch):
     from ioalab import storage
     opened=[];connect=storage.sqlite3.connect
+    class FailingConnection(storage.sqlite3.Connection):
+        def execute(self,sql,*args,**kwargs):
+            if sql.startswith('PRAGMA'):raise ValueError('injected-connection-setup')
+            return super().execute(sql,*args,**kwargs)
     def track(*args,**kwargs):
+        kwargs['factory']=FailingConnection
         result=connect(*args,**kwargs);opened.append(result);return result
-    def fail(*_):raise ValueError('injected-migration')
     with monkeypatch.context() as patch:
-        patch.setattr(storage.sqlite3,'connect',track);patch.setattr(DB,'_migrate',fail)
-        with pytest.raises(ValueError,match='injected-migration'):Platform(settings(tmp_path))
+        patch.setattr(storage.sqlite3,'connect',track)
+        with pytest.raises(ValueError,match='injected-connection-setup'):Platform(settings(tmp_path))
     assert len(opened)==1
     with pytest.raises(storage.sqlite3.ProgrammingError,match='closed'):opened[0].execute('SELECT 1')
     core=Platform(settings(tmp_path));core.close()

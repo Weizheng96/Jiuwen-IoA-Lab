@@ -8,6 +8,7 @@ import sys
 import venv
 import shutil
 import zipfile
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,14 +20,26 @@ def run(command, cwd):
     return result.stdout
 
 
-def test_built_packages_have_own_versions_and_platform_resources(tmp_path):
+@pytest.fixture(scope='module')
+def official_snapshot(tmp_path_factory):
+    """One immutable baseline wheel; consumers mutate only their own copies."""
+    from tools.build_packages import build_wheel
+    root=tmp_path_factory.mktemp('official-wheel')
+    source=root/'source'
+    shutil.copytree(ROOT/'src/official',source,ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
+    wheel=build_wheel(source,root/'wheels')
+    return source,wheel
+
+
+def test_built_packages_have_own_versions_and_platform_resources(tmp_path,official_snapshot):
     wheels = tmp_path/'wheels'
     source = tmp_path/'platform-source'
     shutil.copytree(ROOT/'src/platform',source,ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
     stale = source/'build/lib/ioalab/psp/obsolete.py'
     stale.parent.mkdir(parents=True)
     stale.write_text("raise RuntimeError('obsolete module must never ship')\n",encoding='utf-8')
-    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(source),str(ROOT/'src/access/sdk'),str(ROOT/'src/hosts/jiuwen'),str(ROOT/'src/official')], tmp_path)
+    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(source),str(ROOT/'src/access/sdk'),str(ROOT/'src/hosts/jiuwen')], tmp_path)
+    shutil.copy2(official_snapshot[1],wheels/official_snapshot[1].name)
     with zipfile.ZipFile(next(wheels.glob('ioalab-*.whl'))) as archive:
         assert not any(name.startswith('ioalab/psp/') for name in archive.namelist())
     with zipfile.ZipFile(next(wheels.glob('ioalab_sdk-*.whl'))) as archive:
@@ -79,7 +92,7 @@ print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host
     assert result['host'] == (ROOT/'src/hosts/jiuwen/VERSION').read_text().strip().removeprefix('v')
     assert result['official'] == (ROOT/'src/official/VERSION').read_text().strip().removeprefix('v')
     assert result['resource'] and result['userPage']
-    assert result['ownedServices'] == 50 and result['ownedSeed'] == 8
+    assert result['ownedServices'] == 52 and result['ownedSeed'] == 8
     assert result['hostEntry']=='ioalab_jiuwen.__main__:main'
     assert result['accessEntry']=='ioalab_sdk.runtime.__main__:main'
     assert Path(result['data']).resolve() == (tmp_path/'data').resolve()
@@ -87,11 +100,11 @@ print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host
         assert environment.resolve() in Path(result[name]).resolve().parents
 
 
-def test_official_wheel_is_reproducible_when_source_mtimes_change(tmp_path):
+def test_official_wheel_is_reproducible_when_source_mtimes_change(tmp_path,official_snapshot):
     from tools.build_packages import build_wheel
     source=tmp_path/'official'
-    shutil.copytree(ROOT/'src/official',source,ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
-    first=build_wheel(source,tmp_path/'first').read_bytes()
+    shutil.copytree(official_snapshot[0],source)
+    first=official_snapshot[1].read_bytes()
     for path in source.rglob('*'):
         if path.is_file():os.utime(path,(1700000000,1700000000))
     second=build_wheel(source,tmp_path/'second').read_bytes()
@@ -100,4 +113,4 @@ def test_official_wheel_is_reproducible_when_source_mtimes_change(tmp_path):
     wheel=next((tmp_path/'second').glob('*.whl'))
     output=run([sys.executable,'-I','-c',
         "import sys;sys.path.insert(0,sys.argv[1]);from ioalab_services.catalog import definitions,seed_manifest;print(len(definitions()),len(seed_manifest()['domains']))",str(wheel)],tmp_path)
-    assert output.strip()=='50 8'
+    assert output.strip()=='52 8'

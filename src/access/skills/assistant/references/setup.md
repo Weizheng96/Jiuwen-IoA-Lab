@@ -8,4 +8,6 @@
 
 个人助手后台收件由常驻SDK维护，不由模型轮询连接。收信规则和外部工具按本机明确配置装配；安装官方可选包不会自动启用邮箱、日程或其他权限。配置变更不扩大旧交互的冻结定义。
 
+结构化需求表单使用原版九问 Web 的可选 A2UI 0.8。锁定版本默认关闭，可由用户在其原版公开配置中设置 a2ui.enabled=true，或在启动九问前设置 JIUWENSWARM_A2UI_ENABLED=true；其他版本先核公开支持。保留用户现有配置，不自动改全局设置或重启其九问。项目独立试用实例由部署显式启用。仅输出a2ui-json标签或schema校验通过不等于网页渲染成功，须实际看到表单、提交并核对事件与后续原SDK回执；A2UI不承担签名授权。
+
 如需主人网页收信，host.business_tools配置jiuwen-web：profile为本机身份键，options声明实际/ws地址、user_id、secret_env及专用credentials_file。用{"profile":"原配置键"}参数调用runtime.web-extension，只准备原生用户应用目录内的扩展；prepared不等于已加载。需要时由用户在九问原生入口重启，再查实际通知能力。不得修改安装、全局配置或权限。

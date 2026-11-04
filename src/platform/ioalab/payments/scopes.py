@@ -16,21 +16,6 @@ from a2c.slots import verify_card,verify_template
 from ..errors import LabError
 
 
-SCHEMA='''
-CREATE TABLE IF NOT EXISTS delegation_scopes(
- digest TEXT PRIMARY KEY,scope_id TEXT UNIQUE NOT NULL,owner TEXT NOT NULL,actor TEXT NOT NULL,
- context TEXT NOT NULL,revision INTEGER NOT NULL,issued REAL NOT NULL,expires REAL NOT NULL,closed INTEGER NOT NULL DEFAULT 0,
- fees TEXT NOT NULL DEFAULT '0.00',contract TEXT,total TEXT NOT NULL DEFAULT '0.00',paid TEXT NOT NULL DEFAULT '0.00');
-CREATE TABLE IF NOT EXISTS delegation_grants(
- scope TEXT NOT NULL,revision INTEGER NOT NULL,payload TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
- PRIMARY KEY(scope,revision));
-CREATE TABLE IF NOT EXISTS delegation_scope_operations(
- owner TEXT NOT NULL,actor TEXT NOT NULL,kind TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
- PRIMARY KEY(actor,kind,id));
-CREATE TABLE IF NOT EXISTS delegation_scope_payments(
- payment_id TEXT PRIMARY KEY,scope TEXT NOT NULL,fingerprint TEXT NOT NULL,ref TEXT NOT NULL,purpose TEXT NOT NULL,
- amount TEXT NOT NULL,period INTEGER NOT NULL,UNIQUE(scope,ref,purpose,period));
-'''
 
 
 def invalid(message):raise LabError('invalid_input',message)
@@ -65,7 +50,6 @@ class ScopeLedger:
     def __init__(self,db,identities,platform,*,keys,template,category,clock=time.time):
         self.db,self.identities,self.platform=db,identities,platform.rstrip('/')
         self.keys,self.template,self.category,self.clock=keys,template,category,clock
-        with db.lock:db.conn.executescript(SCHEMA)
 
     @staticmethod
     def _scope_digest(value):

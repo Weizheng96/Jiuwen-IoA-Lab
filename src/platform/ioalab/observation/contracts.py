@@ -14,9 +14,6 @@ from ..payments import money
 from ..delegation.contracts import evidence_extends
 
 
-SCHEMA='''CREATE TABLE IF NOT EXISTS observation_contracts(
- admission TEXT PRIMARY KEY,digest TEXT UNIQUE NOT NULL,card TEXT NOT NULL,card_hash TEXT NOT NULL,
- effective INTEGER NOT NULL,created REAL NOT NULL,updated REAL NOT NULL);'''
 
 
 def encoded(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False)
@@ -31,7 +28,6 @@ def net_amount(payment):
 class ContractProjection:
     def __init__(self,db,identities,market,*,clock=time.time):
         self.db,self.identities,self.market,self.clock=db,identities,market,clock
-        with db.lock:db.conn.executescript(SCHEMA)
 
     def original_in(self,conn,admission):
         return conn.execute('''SELECT a.*,i.details FROM delegation_admissions a

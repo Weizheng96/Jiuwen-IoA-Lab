@@ -13,15 +13,6 @@ from google.protobuf.json_format import MessageToDict
 from ..errors import LabError
 
 
-SCHEMA = '''
-CREATE TABLE IF NOT EXISTS registry_publications(
- actor TEXT,revision INTEGER,digest TEXT NOT NULL,body TEXT NOT NULL,templates TEXT NOT NULL,
- created REAL NOT NULL,PRIMARY KEY(actor,revision));
-CREATE TABLE IF NOT EXISTS registry_publication_operations(
- actor TEXT,operation TEXT,fingerprint TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(actor,operation));
-CREATE TABLE IF NOT EXISTS registry_projection(
- actor TEXT PRIMARY KEY,revision INTEGER NOT NULL,category TEXT NOT NULL,indexed REAL NOT NULL);
-'''
 
 
 def encode(value):
@@ -41,8 +32,6 @@ class ServicePublications:
     def __init__(self, db, identities, categories, *, authorizations, clock=time.time):
         self.db, self.identities, self.categories, self.clock = db, identities, categories, clock
         self.authorizations=authorizations
-        with db.lock:
-            db.conn.executescript(SCHEMA)
 
     def binding(self, owner, actor):
         row = self.identities.owned(owner, actor)

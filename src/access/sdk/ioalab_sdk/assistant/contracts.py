@@ -8,6 +8,7 @@ from a2c.codec import digest,utcnow,parse_time,parse_duration
 from a2c.errors import A2CError
 from a2c.jws import sign
 from a2c.slots import verify_card
+from a2c.template import acceptance_of,accept_within
 from ..runtime.protocol import RuntimeFault
 from ..runtime.scheduling import JobOutcome
 from ..adapters.transport import stable
@@ -42,7 +43,15 @@ class Contracts:
             until=verified['until'].timestamp()
             binding={'actor':self.identity.agent_id,'operationId':operation,'subject':{'quoteRef':args['quoteRef'],'cardDigest':ref,'scopeDigest':card['delegationScopeDigest']},
                      'stage':'delegation.contract','action':'card.confirm','preview':{'title':'确认具体委托合同','service':quote['service'],
-                        'formation':quote['template']['formation'],'card':card,'materialsForReview':{name:card['inputs'][name] for name in card['inputs']
+                        'formation':quote['template']['formation'],'card':card,
+                        'derived':copy.deepcopy(card['derived']),
+                        'proposalFee':quote['template']['pricing'].get('proposalFee',0),
+                        'currency':quote['template']['pricing']['currency'],
+                        'deliverables':[{**copy.deepcopy(value),'spec':copy.deepcopy(card['spec'][value['name']]),
+                            'acceptance':copy.deepcopy(acceptance_of(quote['template'],card)[value['name']]),
+                            'acceptWithin':accept_within(quote['template'],card,value['name'])} for value in quote['template']['deliverables']],
+                        'authorizableSteps':copy.deepcopy(quote['template'].get('authorizableSteps',[])),
+                        'materialsForReview':{name:card['inputs'][name] for name in card['inputs']
                         if any(item['name']==name and item.get('reviewBeforeSigning') for item in quote['template'].get('inputs',[]))},
                         'materials':{name:{**value,'sendAt':'before-signing' if any(item['name']==name and item.get('reviewBeforeSigning') for item in quote['template'].get('inputs',[])) else 'work.start'} for name,value in card['inputs'].items()},
                         'notice':'本次确认允许签署本合同及按所示阶段发送这些材料；实名环节和验收另行确认'}}

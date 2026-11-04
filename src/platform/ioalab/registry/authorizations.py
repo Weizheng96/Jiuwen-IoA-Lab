@@ -8,13 +8,6 @@ from a2c.codec import digest,parse_time
 from a2c.jws import header_of
 from ..errors import LabError
 
-SCHEMA='''
-CREATE TABLE IF NOT EXISTS registry_publication_authorizations(
- actor TEXT PRIMARY KEY,revision INTEGER NOT NULL,terms TEXT NOT NULL,lifetime INTEGER NOT NULL,
- enabled INTEGER NOT NULL,operator TEXT NOT NULL,updated REAL NOT NULL);
-CREATE TABLE IF NOT EXISTS registry_authorization_operations(
- id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,result TEXT NOT NULL);
-'''
 
 
 def publication_terms(protocol_id,service):
@@ -26,7 +19,6 @@ def publication_terms(protocol_id,service):
 class PublicationAuthorizations:
     def __init__(self,db,identities,auth,*,clock=time.time):
         self.db,self.identities,self.auth,self.clock=db,identities,auth,clock
-        with db.lock:db.conn.executescript(SCHEMA)
 
     def current(self,actor):
         row=self.db.one('SELECT * FROM registry_publication_authorizations WHERE actor=?',actor)

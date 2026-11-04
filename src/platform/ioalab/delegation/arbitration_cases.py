@@ -12,25 +12,6 @@ from .arbitration_evidence import EvidenceSnapshot,GROUNDS,NO_PERIOD,CLIENT,PROV
 from ..errors import LabError
 
 
-SCHEMA='''
-CREATE TABLE IF NOT EXISTS arbitration_cases(
- seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,admission TEXT UNIQUE NOT NULL,
- owner TEXT NOT NULL,actor TEXT NOT NULL,client TEXT NOT NULL,service TEXT NOT NULL,
- client_owner TEXT NOT NULL,service_owner TEXT NOT NULL,request TEXT NOT NULL,basis TEXT NOT NULL,
- assessment TEXT NOT NULL,materials TEXT NOT NULL,model_binding TEXT NOT NULL,state TEXT NOT NULL,
- created REAL NOT NULL,updated REAL NOT NULL,result TEXT,ruling TEXT,decision_basis TEXT,execution TEXT NOT NULL DEFAULT 'pending');
-CREATE TABLE IF NOT EXISTS arbitration_operations(
- actor TEXT NOT NULL,kind TEXT NOT NULL,id TEXT NOT NULL,owner TEXT NOT NULL,fingerprint TEXT NOT NULL,
- result TEXT NOT NULL,PRIMARY KEY(actor,kind,id));
-CREATE TABLE IF NOT EXISTS arbitration_attempts(
- id TEXT PRIMARY KEY,case_id TEXT NOT NULL,sequence INTEGER NOT NULL,state TEXT NOT NULL,
- started REAL NOT NULL,finished REAL,result TEXT,error TEXT,UNIQUE(case_id,sequence));
-CREATE TABLE IF NOT EXISTS arbitration_admin_operations(
- operator TEXT NOT NULL,id TEXT NOT NULL,case_id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
- PRIMARY KEY(operator,id));
-CREATE TABLE IF NOT EXISTS arbitration_audit(
- id INTEGER PRIMARY KEY AUTOINCREMENT,case_id TEXT,operator TEXT NOT NULL,action TEXT NOT NULL,at REAL NOT NULL);
-'''
 GROUPS={'deliveryFiles','fetchEvidence','inputMaterials'}
 
 
@@ -63,10 +44,7 @@ class ArbitrationCases:
         self.market,self.notify_in,self.notify=market,notify_in,notify
         self.processing=threading.Lock()
         self.active_case=None
-        with db.lock:
-            db.conn.executescript(SCHEMA)
-            if 'decision_basis' not in {row['name'] for row in db.conn.execute('PRAGMA table_info(arbitration_cases)')}:
-                db.conn.execute('ALTER TABLE arbitration_cases ADD COLUMN decision_basis TEXT')
+
 
     def _shape(self,operation,payload):
         if not isinstance(operation,str) or not 1<=len(operation)<=128:

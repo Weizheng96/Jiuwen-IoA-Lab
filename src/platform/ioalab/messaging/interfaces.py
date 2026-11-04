@@ -6,16 +6,11 @@ from ..errors import LabError
 from .schema import check_schema,validate
 
 
-SCHEMA='''
-CREATE TABLE IF NOT EXISTS message_interfaces(owner TEXT,name TEXT,revision INTEGER,definition TEXT,enabled INTEGER,updated REAL,PRIMARY KEY(owner,name));
-CREATE TABLE IF NOT EXISTS message_versions(owner TEXT,name TEXT,revision INTEGER,definition TEXT,PRIMARY KEY(owner,name,revision));
-'''
 
 
 class PublicInterfaces:
     def __init__(self,db,identities):
         self.db,self.identities=db,identities
-        with db.lock:db.conn.executescript(SCHEMA)
 
     @staticmethod
     def check(schema,value=None,*,schema_only=False):

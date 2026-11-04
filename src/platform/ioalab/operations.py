@@ -49,9 +49,6 @@ class DiscoveryOperations:
                   detail={'query':query[:200],'hits':[hit['name'] for hit in hits],'ids':[hit['id'] for hit in hits]})
         return hits
 
-PAYMENT_OPERATIONS_SCHEMA='''CREATE TABLE IF NOT EXISTS delegation_payment_operations(
- owner TEXT NOT NULL,actor TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
- PRIMARY KEY(actor,id));'''
 
 
 @dataclass(frozen=True)
@@ -69,7 +66,6 @@ class PaymentOperations:
         self.db,self.identities,self.psp,self.admissions,self.scopes=db,identities,psp,admissions,scopes
         self.record=record
         self.arbitrations=None
-        with db.lock:db.conn.executescript(PAYMENT_OPERATIONS_SCHEMA)
 
     def project(self,prepared):
         if prepared.payment:self.psp.project(prepared.payment)
@@ -135,9 +131,6 @@ class MarketOperations:
         self.db,self.identities,self.admissions,self.market=db,identities,admissions,market
         self.contracts,self.psp,self.close,self.record=contracts,psp,close,record
         self.arbitrations=None
-        with db.lock:db.conn.execute('''CREATE TABLE IF NOT EXISTS delegation_market_operations(
-             owner TEXT NOT NULL,actor TEXT NOT NULL,id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,
-             PRIMARY KEY(actor,id))''')
 
     def operation(self,owner,actor,operation):
         self.identities.owned(owner,actor)

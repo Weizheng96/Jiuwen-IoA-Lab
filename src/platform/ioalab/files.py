@@ -23,7 +23,6 @@ class PrivateFiles:
     def __init__(self,db,identities,root):
         self.db,self.identities,self.root=db,identities,Path(root)
         self.root.mkdir(mode=0o700,parents=True,exist_ok=True)
-        with db.lock:db.conn.executescript(SCHEMA)
 
     def path(self,sha):
         if not isinstance(sha,str) or not re.fullmatch('sha256:[0-9a-f]{64}',sha):raise LabError('invalid_input','A SHA-256 file digest is required')
@@ -98,3 +97,8 @@ class PrivateFiles:
         except OSError:raise LabError('not_ready','Restore the original file bytes',status=409) from None
         if len(data)!=row['size'] or digest_bytes(data)!=row['digest']:raise LabError('not_ready','Stored file integrity check failed',status=409)
         return self.descriptor(row),data
+
+
+def migrate(conn):
+    from .migrations import execute
+    execute(conn, SCHEMA)

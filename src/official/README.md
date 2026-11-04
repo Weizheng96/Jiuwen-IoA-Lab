@@ -8,13 +8,15 @@
 
 | 入口 | 结果与边界 |
 |---|---|
-| `ioalab_services.catalog.load_domains()` / `definitions()` | 8领域50服务；默认待批准/提案；验收器只读取为源码，不在宿主执行 |
+| `ioalab_services.catalog.load_domains()` / `definitions()` | 各领域实际服务定义；默认待批准/提案；验收器只读取为源码，不在宿主执行 |
 | `ioalab_services.catalog.seed_manifest()` | 公共目录摘要及来源校验值；不含样件、生成提示和验收源码，核心只消费部署方显式传入的清单 |
 | `ioalab_services.prepare(service_id, profile=..., verifier_ref=..., payment_provider=...)` | 返回 `service`（未签公示/模板）和 `execution`（该profile的业务配置）；不登录、不发布、不调用模型 |
 
 先通过常驻SDK的 `provider.verifier.publish` 上传定义中实际验收器，取得完整引用后调用prepare。将execution保存到本机配置的 `provider.services[profile]`，按正常流程重新启动；service经 `provider.preview`、真实用户确认及 `provider.publish` 发布。通用SDK负责身份、签名、容量、长连接和履约，不为官方目录增加一套执行器。生产模型只取得格式、定价、验收引用和业务说明，不取得sample样件。
 
 部署协调器提供批量准备、公示及续期；默认安装与验证范围见[开发计划](../../设计/工程/实施资料/开发计划.md)。源变更后用 `python tools/build_seed.py` 重新生成显式初始化清单。
+
+编程服务通过 `ioalab_services.programming.definition()` 读取同一官方资产，提供小程序基础/可靠、网站与Android源码候选；业务参数支持预约或项目目录。Demo只映射场景值。能力与证明分层见[编程服务](../../设计/示例/编程服务.md)，源码结构和WASM核心行为通过不表示前端、构建或部署通过。
 
 ## 官方部署协调器
 

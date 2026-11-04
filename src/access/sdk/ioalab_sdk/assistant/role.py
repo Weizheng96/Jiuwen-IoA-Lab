@@ -24,6 +24,7 @@ from .candidates import Comparisons
 from ..adapters.market import reputation_evidence
 from .fulfillment import Fulfillment
 from .termination import Termination
+from .flow import begin, guidance
 
 
 def stable(*values):return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(list(values))))
@@ -53,7 +54,7 @@ class AssistantRole:
         self.termination=Termination(self.fulfillment)
         names=('tools.list','rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
                'messaging.interfaces','messaging.send','messaging.status','messaging.close',
-               'delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search','delegation.confirm','delegation.compare')
+               'delegation.begin','delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search','delegation.confirm','delegation.compare')
         names=(*names,*('delegation.'+name for name in ('start','answer_step','fetch','verify','accept','pay','termination_quote','terminate')))
         return {'operations':{'assistant.'+name:self._operation(name) for name in names},
                 'jobs':{'assistant.message':JobHandler(self._process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available'))),
@@ -74,7 +75,7 @@ class AssistantRole:
 
     def _operation(self,name):
         def execute(runtime,operation,args):
-            try:return self._call(name,operation,args)
+            try:return guidance(name,operation,args,self._call(name,operation,args))
             except A2CError as exc:raise RuntimeFault('invalid_input',exc.message) from None
             except httpx.HTTPStatusError as exc:
                 try:body=exc.response.json();problem=body.get('error') or body.get('detail')
@@ -87,6 +88,7 @@ class AssistantRole:
         return execute
 
     def _call(self,name,operation,args):
+        if name=='delegation.begin':return begin(self,operation,args)
         if name in ('delegation.termination_quote','delegation.terminate'):return self.termination.call(name.split('.')[1],operation,args)
         if name=='tools.list':
             self.fields(args)

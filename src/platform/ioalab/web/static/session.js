@@ -1,7 +1,7 @@
 /* Browser identity is issued by the server's HttpOnly session cookie. */
 'use strict';
 window.WebSession=(()=>{
-  const pages=new Set(['/','/services','/assistants','/connect','/workbench','/admin']);
+  const pages=new Set(['/','/services','/assistants','/connect','/workbench','/admin','/trial']);
   let current=null,sessionError=null;
   async function api(path,body){
     const response=await fetch(path,{method:body===undefined?'GET':'POST',credentials:'same-origin',headers:body===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});

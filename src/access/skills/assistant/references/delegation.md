@@ -2,17 +2,17 @@
 
 触发：选用本技能后，用户要求制作、撰写、咨询等尚未生产的成果。通过平台服务方完成，不转给本机业务技能自行生产。先理解成果、预算上限及必须条件，准备委托并取得真实授权；期限等合理默认值在授权/合同确认时列明，只澄清影响合同的缺项，不发通用需求采集长清单。随后发现并检查真实服务，技术方案、验收与资质依据真实候选模板比较，不在发现前让用户预先选择；用户明确需要详细需求梳理时再展开。流程保持通用，不预选行业或服务。
 
-必要澄清与候选选择遵守calling.md的普通中文聊天方法。授权范围、费用充足且真实候选资格清楚时，自行按需求征集并比较，不额外反问固定几家或按品牌切分的范围；不硬编码候选数量或品牌。
+必要澄清与候选选择先读requirements.md，使用已启用的原生A2UI收集普通输入。授权范围、费用充足且真实候选资格清楚时，自行按需求征集并比较，不额外反问固定几家或按品牌切分的范围；不硬编码候选数量或品牌。
 
 调用命令中的operation须保留完整 `assistant.delegation.` 前缀。首次准备的命令为：
 
 ```text
-python "<实际技能目录>/scripts/ioalab.py" assistant.delegation.prepare --config "<原外置配置文件>" --args-file "<本次prepare参数文件>"
+python "<实际技能目录>/scripts/ioalab.py" assistant.delegation.begin --config "<原外置配置文件>" --args-file "<本次begin参数文件>"
 ```
 
 | 顺序 | operation 与参数 | 真实结果与推进条件 |
 |---|---|---|
-| 委托授权 | assistant.delegation.prepare：purpose字符串、budget金额、proposalFeeLimit金额；可选 categoryIds、validDays。再 assistant.delegation.authorize：taskRef字符串 | 保存 prepare.data.taskRef；authorize返回waiting后按calling.md立即打开确认页，取得真实决定后重发原 authorize 文件 |
+| 委托授权 | assistant.delegation.begin：purpose字符串、budget金额、proposalFeeLimit金额；可选 categoryIds、validDays | 一次准备并请求授权，保存data.taskRef；waiting后按calling.md打开真实确认页，决定后重发原begin文件；SDK恢复原子操作，不另调prepare/authorize |
 | 发现 | assistant.delegation.search：taskRef、query字符串；可选topK整数。assistant.delegation.inspect：service字符串，可选templateDigest字符串 | service取search.data.hits[i].id，不传服务对象、名称或URL；inspect.data.templates为完整模板数组，先成功读取并核材料/规格再征集，不跳过失败的inspect |
 | 征集与比较 | assistant.delegation.request：taskRef、service、templateDigest、spec，可选 materials | 每家各自保存 quoteRef；提案型取得实际签2/3的报价，待批准只生成未签算价卡，不能为比价向多家复签 |
 | 候选进展 | assistant.delegation.status：quoteRef | accepted/running 等待原结果；必要材料审查另按真实许可处理。比较合格候选的交付、验收覆盖/未覆盖、费用、期限、材料和责任，不固化最低数量 |

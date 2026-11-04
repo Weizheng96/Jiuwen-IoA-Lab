@@ -14,14 +14,6 @@ from a2c.payment.terms import verify_quote
 from ..errors import LabError
 
 
-SCHEMA='''CREATE TABLE IF NOT EXISTS delegation_contracts(
- admission TEXT PRIMARY KEY,digest TEXT UNIQUE NOT NULL,card TEXT NOT NULL,task TEXT,
- start_message TEXT,permit REAL,receipt TEXT,step TEXT,progress TEXT);
-CREATE TABLE IF NOT EXISTS delegation_step_answers(
- admission TEXT NOT NULL,request TEXT NOT NULL,message TEXT NOT NULL,answer TEXT NOT NULL,
- PRIMARY KEY(admission,request));
-CREATE TABLE IF NOT EXISTS delegation_termination_quotes(
- admission TEXT NOT NULL,digest TEXT NOT NULL,quote TEXT NOT NULL,PRIMARY KEY(admission,digest));'''
 
 
 def encode(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'))
@@ -45,10 +37,7 @@ def current_card(facts):return json.loads(facts['progress'] or facts['card'])
 class ContractAuthority:
     def __init__(self,db,identities,admissions,scopes,market,payments):
         self.db,self.identities,self.admissions,self.scopes,self.market,self.payments=db,identities,admissions,scopes,market,payments
-        with db.lock:
-            db.conn.executescript(SCHEMA)
-            if 'progress' not in {row['name'] for row in db.conn.execute('PRAGMA table_info(delegation_contracts)')}:
-                db.conn.execute('ALTER TABLE delegation_contracts ADD COLUMN progress TEXT')
+
 
     def facts(self,conn,admission):
         row=conn.execute('SELECT * FROM delegation_contracts WHERE admission=?',(admission,)).fetchone()

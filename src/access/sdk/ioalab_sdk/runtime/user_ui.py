@@ -13,6 +13,7 @@ import uuid
 import webbrowser
 
 from .protocol import RuntimeFault
+from .confirmation_view import present
 
 
 class UserUi:
@@ -108,7 +109,7 @@ class UserUi:
                 return True
             session=self._session(request)
             if request.command=='GET' and path.path=='/user/api':
-                request.reply(200,{'csrf':session['csrf'],'confirmations':self.confirmations.list()})
+                request.reply(200,{'csrf':session['csrf'],'confirmations':[present(item) for item in self.confirmations.list()]})
                 return True
             if request.command=='POST' and path.path=='/user/decision':
                 if supplied!=origin or not hmac.compare_digest(request.headers.get('X-Ioa-Csrf','').encode(),session['csrf'].encode()):

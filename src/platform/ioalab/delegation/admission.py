@@ -15,21 +15,6 @@ from a2c.slots import verify_card,verify_template
 from ..errors import LabError
 
 
-SCHEMA='''
-CREATE TABLE IF NOT EXISTS admission_policies(service TEXT PRIMARY KEY,revision INTEGER NOT NULL,maximum INTEGER NOT NULL,accepting INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS delegation_intents(origin TEXT PRIMARY KEY,sender TEXT NOT NULL,service TEXT NOT NULL,
- scope TEXT NOT NULL,binding TEXT NOT NULL,template TEXT NOT NULL,expires REAL NOT NULL,details TEXT NOT NULL,started REAL,closed INTEGER NOT NULL DEFAULT 0,
- UNIQUE(sender,service,binding));
-CREATE TABLE IF NOT EXISTS delegation_links(id TEXT PRIMARY KEY,origin TEXT UNIQUE NOT NULL);
-CREATE TABLE IF NOT EXISTS delegation_admissions(id TEXT PRIMARY KEY,interaction TEXT UNIQUE NOT NULL,origin TEXT UNIQUE NOT NULL,
- service TEXT NOT NULL,client TEXT NOT NULL,scope TEXT NOT NULL,binding TEXT NOT NULL,template TEXT NOT NULL,
- state TEXT NOT NULL,hold_until REAL NOT NULL,created REAL NOT NULL,committed REAL);
-CREATE TABLE IF NOT EXISTS admission_operations(owner TEXT NOT NULL,actor TEXT NOT NULL,kind TEXT NOT NULL,id TEXT NOT NULL,
- fingerprint TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(actor,kind,id));
-CREATE TABLE IF NOT EXISTS admission_payments(payment_id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,admission TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS delegation_signed_requests(admission TEXT PRIMARY KEY,message TEXT NOT NULL,request TEXT NOT NULL,started REAL);
-CREATE TABLE IF NOT EXISTS delegation_offers(admission TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,result TEXT NOT NULL);
-'''
 
 
 def encode(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False)
@@ -44,7 +29,6 @@ class Admissions:
         self.db,self.identities,self.publications,self.scopes=db,identities,publications,scopes
         self.payment_provider,self.clock=payment_provider,clock
         self.active=lambda conn,actor:False
-        with db.lock:db.conn.executescript(SCHEMA)
 
     def owned_service(self,owner,actor):
         row=self.identities.owned(owner,actor)

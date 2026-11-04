@@ -86,6 +86,9 @@ class Auth:
         return subject=='admin' or bool(subject and not subject.startswith('assistant:') and
                 self.db.one("SELECT 1 FROM user_roles WHERE user_id=? AND role='admin'",subject))
 
+    def next_virtual_name(self):
+        return "virtual_{:03d}".format(self.db.one("SELECT COUNT(*) AS n FROM users")["n"]+1)
+
     def roles(self,uid):
         return [r['role'] for r in self.db.rows('SELECT role FROM user_roles WHERE user_id=?',uid)]
 
@@ -104,8 +107,6 @@ class Auth:
             desired=sorted(roles)
             if current==desired:return {'userId':target,'roles':current,'changed':False}
             if current!=sorted(expected):raise LabError('revision_conflict','Read current roles before replacing them',status=409)
-            conn.execute("""CREATE TABLE IF NOT EXISTS identity_role_changes(
-                id TEXT PRIMARY KEY,at REAL NOT NULL,operator TEXT NOT NULL,target TEXT NOT NULL,previous TEXT NOT NULL,current TEXT NOT NULL)""")
             conn.execute('DELETE FROM user_roles WHERE user_id=?',(target,))
             conn.executemany('INSERT INTO user_roles(user_id,role) VALUES(?,?)',[(target,role) for role in desired])
             import json

@@ -55,7 +55,7 @@ def test_explicit_manifest_works_from_another_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     domains=load_domains(manifest)
     assert len(domains)==8
-    assert sum(len(d['services']) for d in domains)==50
+    assert sum(len(d['services']) for d in domains)==52
     assert {d['account'] for d in domains}=={f'ISP_{i:03d}' for i in range(1,9)}
     assert all('sample' not in s and 'verifier' not in s for d in domains for s in d['services'])
 

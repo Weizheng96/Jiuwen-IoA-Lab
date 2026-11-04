@@ -12,12 +12,6 @@ from ..errors import LabError
 from .keys import public_key,fingerprints
 
 
-SCHEMA='''
-CREATE TABLE IF NOT EXISTS identity_keys(fingerprint TEXT PRIMARY KEY,owner TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS identity_enrollments(owner TEXT,operation TEXT,actor TEXT NOT NULL,role TEXT NOT NULL,
- protocol TEXT NOT NULL,challenge TEXT NOT NULL,expires REAL NOT NULL,fingerprint TEXT,result TEXT,
- PRIMARY KEY(owner,operation));
-'''
 
 
 def stamp(value):
@@ -27,7 +21,6 @@ def stamp(value):
 class EnrollmentRegistry:
     def __init__(self,db,settings,*,existing_keys=()):
         self.db,self.settings=db,settings
-        with db.lock:db.conn.executescript(SCHEMA)
         with db.tx() as conn:
             for owner,key in existing_keys:self.claim_in(conn,owner,[key])
 

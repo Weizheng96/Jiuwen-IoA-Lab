@@ -7,7 +7,7 @@
     "src/official/services/ioalab_services/assets/domains/05-translate.json": "1003a8024dafc9864a3776c215614cb6081e26c042f42842a44b1c3f0f4b42d1",
     "src/official/services/ioalab_services/assets/domains/06-travel.json": "7fa608c1bcc0612fc5a1a9c73164aaeb5ef99f4df73e3cf057ceeaf9e6394540",
     "src/official/services/ioalab_services/assets/domains/07-office.json": "537786e1e4a6b3dcb844002843eecfe79524449cb39b26a8130458e0f798ee43",
-    "src/official/services/ioalab_services/assets/domains/08-dev.json": "3ad96316fc6081cef01ce26921d66ffca5cd0f446b2da358cab92434d5256fa6"
+    "src/official/services/ioalab_services/assets/domains/08-dev.json": "bcc16fd07bd1e360d2c9b2e2211754421b036d9e97b54964b9b348ccd158c257"
   },
   "domains": [
     {
@@ -665,9 +665,39 @@
           "category": "cat_dev"
         },
         {
-          "id": "nail-booking-basic",
-          "name": "美甲预约工具·基础版",
-          "description": "为美甲店配置本地预约工具：营业时段、容量、项目时长。提案型，拟卡费1虚拟币，报价259虚拟币；5项WASM配置判据，配合仓内独立运行器使用。非微信发布服务。",
+          "id": "code-miniapp-reliable",
+          "name": "码上飞",
+          "description": "码上飞：交付wechat-miniapp源码；支持跨行业预约（时段容量、取消）及预约幂等、重试与时段隔离。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              299,
+              299
+            ]
+          },
+          "category": "cat_dev"
+        },
+        {
+          "id": "code-miniapp-basic",
+          "name": "灵犀小程序",
+          "description": "灵犀小程序：交付wechat-miniapp源码；支持跨行业预约（时段容量、取消）及两项服务目录展示/关键词筛选。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。",
+          "formation": "proposal",
+          "runnable": true,
+          "pricing": {
+            "proposalFee": 1,
+            "range": [
+              239,
+              239
+            ]
+          },
+          "category": "cat_dev"
+        },
+        {
+          "id": "code-website",
+          "name": "快搭建站",
+          "description": "快搭建站：交付website源码；支持跨行业预约（时段容量、取消）及两项服务目录展示/关键词筛选。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。",
           "formation": "proposal",
           "runnable": true,
           "pricing": {
@@ -680,16 +710,16 @@
           "category": "cat_dev"
         },
         {
-          "id": "nail-booking-reliable",
-          "name": "美甲预约工具·可靠版",
-          "description": "为美甲店配置本地预约工具：营业时段、容量、项目时长。提案型，拟卡费1虚拟币，报价299虚拟币；10项WASM配置判据，配合仓内独立运行器使用。非微信发布服务。",
+          "id": "code-android",
+          "name": "极速APP工坊",
+          "description": "极速APP工坊：交付android源码；支持跨行业预约（时段容量、取消）及两项服务目录展示/关键词筛选。配置字段shop表示机构名称，项目名称和时长取用户规格。仅验收约定Python核心行为和载体源码结构；客户端实际行为、构建、安装、上线均未证明。",
           "formation": "proposal",
           "runnable": true,
           "pricing": {
             "proposalFee": 1,
             "range": [
-              299,
-              299
+              199,
+              199
             ]
           },
           "category": "cat_dev"

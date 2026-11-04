@@ -11,7 +11,7 @@ app=importlib.util.module_from_spec(spec);spec.loader.exec_module(app)
 
 
 def test_capacity_cancel_and_retries(tmp_path):
-    config=next(d['sample'] for d in definitions() if d['id']=='nail-booking-reliable')
+    config=next(d['sample'] for _, d in __import__('_nail_scene').nail_services() if d['id']=='nail-mashangfei')
     bookings=app.Bookings(config,tmp_path/'bookings.db')
     def attempt(n):
         try:return bookings.book(str(n),'测试客户'+str(n),'纯色美甲','2026-10-29T11:00')
@@ -31,7 +31,7 @@ def test_booking_verifiers_good_and_bad(tmp_path):
     from ioalab.delegation.packages import PackageStore
     import copy
     packages=PackageStore(tmp_path/'packages')
-    for original in [d for d in definitions() if d['id'].startswith('nail-booking-')]:
+    for original in [d for d in definitions() if d['id'].startswith('code-miniapp-')]:
         assert check(original,packages)==[]
         bad=copy.deepcopy(original);bad['sample']['capacity']=3;bad['expect_fail']=True
         assert check(bad,packages)==[]
@@ -43,7 +43,7 @@ def test_booking_spec_rejects_duration_alias_and_out_of_range_minutes():
     from a2c.schema import validate_filled
     from a2c.errors import A2CError
     import copy
-    for d in [d for d in definitions() if d['id'].startswith('nail-booking-')]:
+    for d in [d for d in definitions() if d['id'].startswith('code-miniapp-')]:
         schema=d['deliverable']['specSchema'];good=copy.deepcopy(d['sample_spec'])
         validate_filled(schema,good,'booking')
         wrong=copy.deepcopy(good);wrong['service1Duration']=wrong.pop('service1Minutes')
@@ -55,7 +55,7 @@ def test_booking_spec_rejects_duration_alias_and_out_of_range_minutes():
 
 def test_browser_cancel_request_shape(tmp_path):
     import socket,subprocess,sys,time,json,httpx
-    config=next(d['sample'] for d in definitions() if d['id']=='nail-booking-reliable')
+    config=next(d['sample'] for _, d in __import__('_nail_scene').nail_services() if d['id']=='nail-mashangfei')
     path=tmp_path/'config.json';path.write_text(json.dumps(config),encoding='utf-8')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     child=subprocess.Popen([sys.executable,str(ROOT/'demo/delegation-assistant/src/booking_app.py'),'--config',str(path),'--database',str(tmp_path/'book.db'),'--port',str(port)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
