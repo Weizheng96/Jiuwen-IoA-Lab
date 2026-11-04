@@ -14,6 +14,7 @@ prepare 的配置字段为 purpose、budget、proposalFeeLimit，以及可选 ca
 
 | 操作 | 输入 | 结果与调用边界 |
 |---|---|---|
+| `assistant.delegation.begin` | 与prepare相同的需求和授权范围 | 持久父操作串联prepare与authorize，首次waiting，真实确认后恢复同一任务；不合并具体合同批准或开工 |
 | `assistant.delegation.prepare` | purpose、budget、proposalFeeLimit；可选categoryIds、validDays | 本地任务、待补信息、可读授权摘要；不付款、不签约 |
 | `assistant.delegation.authorize` | 任务引用、可信确认引用 | 本地 scope 及有效授权范围；复核用途、总预算、拟卡费限额与有效期 |
 | `assistant.delegation.intent` | taskRef、目标 service agentId、原未签 request 或 card；可选 ttlSeconds | 保存原消息与操作后提交委托意向，返回 messageRef 和投递回执；不付款、不签约 |
