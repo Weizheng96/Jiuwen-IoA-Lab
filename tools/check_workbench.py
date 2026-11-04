@@ -58,11 +58,12 @@ def main():
                     path = route.request.url.split("/api/")[1]
                     paths.append(path)
                     value = (
-                        {"id": "own"}
+                        {"id": "own", "role": "user"}
                         if path == "session"
+                        else sample['account'] if path == 'me'
                         else sample if path == "workbench" else public_services
                     )
-                    assert path in ("session", "workbench", "catalog"), path
+                    assert path in ("session", "me", "workbench", "catalog"), path
                     route.fulfill(
                         status=200,
                         content_type="application/json",
@@ -72,7 +73,7 @@ def main():
                 page.route("**/api/**", api)
                 page.clock.install(time=0)
                 page.clock.pause_at(1)
-                page.goto(f"http://127.0.0.1:{server.server_port}/static/index.html")
+                page.goto(f"http://127.0.0.1:{server.server_port}/static/workbench.html")
                 page.locator("#workspace").wait_for(state="visible")
                 assert (
                     page.locator("#assistant-title").inner_text() == "王经理的个人助手"

@@ -3,18 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>九问IoA实验平台（Jiuwen IoA Lab）· 管理员控制台</title>
+<title>九问IoA实验室（Jiuwen IoA Lab）· 管理员控制台</title>
 <link rel="stylesheet" href="/static/app.css?sha256=c96c5a4f91060823">
 <link rel="stylesheet" href="/static/panorama.css?sha256=5953d94ea3f121ff">
 <link rel="stylesheet" href="/static/network-map.css?sha256=ce9a15007df34a57">
+<link rel="stylesheet" href="/static/shell.css?sha256=c15cb99d856637a9">
+<script src="/static/session.js?sha256=c2c1f9d54764a18a"></script><script src="/static/shell.js?sha256=6b1109cb3285c1b0" defer></script>
 </head>
 <body>
 <div class="topbar">
-  <div class="brand" title="面向智能体互联网的仿真验证与开放体验平台。">九问IoA实验平台<small>Jiuwen IoA Lab · 管理员控制台</small></div>
+  <div class="brand" title="面向智能体互联网的仿真验证与开放体验平台。">九问IoA实验室<small>Jiuwen IoA Lab · 管理员控制台</small></div>
   <span class="badge info" id="runTag"></span>
   <span class="badge" id="modeTag"></span>
   <span class="badge market" id="discTag"></span>
-  <div class="spacer"></div><a class="btn sm" href="/">账号工作台</a>
+  <div class="spacer"></div><a class="btn sm" href="/workbench">我的智能体</a>
   <span id="focusTag"><span>聚焦</span><b id="focusName"></b><span class="x" id="focusClear" title="还原（Esc）">×</span></span>
   <span class="replay-badge hide" id="replayBadge"><i></i><span id="replayText">回放</span></span>
   <span class="who" id="wsBox"><span class="dot off" id="wsDot"></span><span id="wsText">未连接</span></span>

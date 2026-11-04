@@ -133,9 +133,13 @@ class ContractProjection:
             if ledger.get(row['digest'],{}).get('outcome')=='completed':counts[row['service']]=counts.get(row['service'],0)+1
         return counts
 
-    def intents(self,owner=None,*,limit=200):
+    def intents(self,owner=None,*,peer=None,limit=200):
         where='v.admission IS NULL AND f.admission IS NULL';values=[]
         if owner is not None:where+=' AND (c.owner_id=? OR s.owner_id=?)';values.extend((owner,owner))
+        if peer is not None:
+            if owner is None:raise ValueError('A peer history requires its viewing account')
+            where+=' AND ((c.owner_id=? AND s.owner_id=?) OR (c.owner_id=? AND s.owner_id=?))'
+            values.extend((owner,peer,peer,owner))
         rows=self.db.rows("""SELECT i.origin,i.closed,i.expires,i.details,i.binding,a.id AS admission,a.state AS admission_state,
             a.hold_until,rel.id AS interaction,c.id AS client,s.id AS service,c.owner_id,s.owner_id AS service_owner_id,
             c.name AS client_name,s.name AS service_name,m.created,m.delivery_state,m.request_state,
@@ -169,9 +173,13 @@ class ContractProjection:
             WHERE p.admission=? AND p.state IN ('working','auth-required','processing') ORDER BY d.created DESC LIMIT 1""",admission)
         return bool(row and row['envelope'] and json.loads(row['envelope'])['body'].get('executionError'))
 
-    def rows(self,owner=None,*,limit=200,digest=None):
+    def rows(self,owner=None,*,limit=200,digest=None,peer=None):
         clauses=[];values=[]
         if owner is not None:clauses.append('(c.owner_id=? OR s.owner_id=?)');values.extend((owner,owner))
+        if peer is not None:
+            if owner is None:raise ValueError('A peer history requires its viewing account')
+            clauses.append('((c.owner_id=? AND s.owner_id=?) OR (c.owner_id=? AND s.owner_id=?))')
+            values.extend((owner,peer,peer,owner))
         if digest is not None:clauses.append('v.digest=?');values.append(digest)
         where='WHERE '+' AND '.join(clauses) if clauses else ''
         return self.db.rows('''SELECT v.*,a.client,a.service,a.interaction,a.state AS admission_state,a.binding,

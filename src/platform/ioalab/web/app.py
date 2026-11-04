@@ -370,12 +370,20 @@ def create_app(platform: Platform) -> FastAPI:
             platform.bus.unsubscribe(q)
 
     # ── 页面 ──────────────────────────────────────────────────────────
+    from .frontend import build_router as frontend_router
+    app.include_router(frontend_router(platform,subject,current_user))
+
     @app.get("/")
     async def index():
         return FileResponse(STATIC / "index.html")
 
     @app.get("/admin")
-    async def admin_page():
+    async def admin_page(request: Request):
+        actor=subject(request)
+        if not actor:
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse('/login?next=%2Fadmin',status_code=303)
+        if not platform.auth.is_admin(actor):raise HTTPException(403,'需要管理员权限')
         return FileResponse(STATIC / "admin.html")
 
     @app.get('/downloads/ioalab-skill.zip')

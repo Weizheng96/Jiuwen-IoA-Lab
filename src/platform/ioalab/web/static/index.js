@@ -39,7 +39,7 @@ let data = null,
   chosen = null,
   active = "assistant",
   publicServices = [], catalogChecked = 0;
-$("base").textContent = location.origin;
+
 async function api(path, body, method) {
   const r = await fetch(path, {
     method: method || (body ? "POST" : "GET"),
@@ -47,7 +47,7 @@ async function api(path, body, method) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const d = await r.json();
-  if (!r.ok) { const error=Error(d.error?.message||"请求失败"); error.status=r.status; throw error; }
+  if (!r.ok) { const error=Error(d.error?.message||"请求失败"); error.status=r.status; if(r.status===401)location.replace(WebSession.loginUrl(location.href)); throw error; }
   return d;
 }
 const badge = (s, text = labels[s] || s) =>
@@ -168,60 +168,17 @@ function notice(text) {
 }
 async function refresh() {
   const s = await api("/api/session");
-  if (!s.id) return;
+  if (!s.id) { location.replace(WebSession.loginUrl(location.href)); return; }
   data = await api("/api/workbench");
   if(!catalogChecked||Date.now()-catalogChecked>30000){publicServices=await api('/api/catalog');catalogChecked=Date.now();}
   data.publicServices=publicServices;
-  $("welcome").hidden = true;
+
   $("workspace").hidden = false;
   document.body.classList.add("workbench-connected");
   $("logout").hidden = false;
   render();
 }
-let pendingAuth = null;
-async function auth(action) {
-  try {
-    const fields = {
-      username: $("name").value.trim(),
-      password: $("password").value,
-      invite: $("invite").value,
-    };
-    const fingerprint=JSON.stringify([action,fields]);
-    if (!pendingAuth || pendingAuth.fingerprint!==fingerprint) {
-      let saved=null;
-      try { saved=JSON.parse(sessionStorage.getItem('ioa-auth-operation')); } catch (_) {}
-      const operationId=saved&&saved.action===action&&saved.username===fields.username?saved.operationId:
-        (crypto.randomUUID?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join(''));
-      pendingAuth={fingerprint,operationId};
-      sessionStorage.setItem('ioa-auth-operation',JSON.stringify({action,username:fields.username,operationId}));
-    }
-    await api("/api/auth/" + action, {...fields,operationId:pendingAuth.operationId});
-    pendingAuth=null;
-    sessionStorage.removeItem('ioa-auth-operation');
-    $("password").value = "";
-    notice("账号连接成功");
-    await refresh();
-    const list = await api("/api/catalog");
-    $("catalog").innerHTML = list
-      .map(
-        (s) =>
-          `<article class="service-card"><h3>${esc(s.name)}</h3><p class="hint">${esc(s.description)}</p><span class="badge">${esc(s.price ?? "按合同报价")} 虚拟币</span></article>`,
-      )
-      .join("");
-  } catch (e) {
-    if (e.status>=400 && e.status<500) { pendingAuth=null; sessionStorage.removeItem('ioa-auth-operation'); }
-    notice(e.message);
-  }
-}
-$("auth").onsubmit = (e) => {
-  e.preventDefault();
-  auth("login");
-};
-$("register").onclick = () => auth("register");
-$("logout").onclick = async () => {
-  await api("/api/auth/logout", {});
-  location.reload();
-};
+$("logout").onclick = () => WebSession.logout();
 document.querySelectorAll("[data-view]").forEach(
   (b) =>
     (b.onclick = () => {
@@ -233,6 +190,7 @@ document.querySelectorAll("[data-view]").forEach(
       $("provider-view").hidden = active !== "provider";
     }),
 );
+if(new URLSearchParams(location.search).get('view')==='provider')document.querySelector('[data-view="provider"]').click();
 $("lookup").onsubmit = async (e) => {
   e.preventDefault();
   try {

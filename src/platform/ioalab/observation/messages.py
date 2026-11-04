@@ -6,10 +6,14 @@ import time
 class MessageViews:
     def __init__(self,db,*,clock=time.time):self.db,self.clock=db,clock
 
-    def rows(self,owner=None,*,message_id=None,limit=200):
+    def rows(self,owner=None,*,message_id=None,peer=None,limit=200):
         where="m.kind='message.request'";values=[]
         if owner is not None:
             where+=' AND (sa.owner_id=? OR ra.owner_id=?)';values.extend((owner,owner))
+        if peer is not None:
+            if owner is None:raise ValueError('A peer history requires its viewing account')
+            where+=' AND ((sa.owner_id=? AND ra.owner_id=?) OR (sa.owner_id=? AND ra.owner_id=?))'
+            values.extend((owner,peer,peer,owner))
         if message_id is not None:where+=' AND m.id=?';values.append(message_id)
         return self.db.rows('''SELECT m.*,sa.owner_id AS sender_owner,ra.owner_id AS receiver_owner,
             su.username AS sender_username,su.display_name AS sender_name,

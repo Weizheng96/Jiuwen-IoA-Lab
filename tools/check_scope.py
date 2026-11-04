@@ -63,6 +63,8 @@ HELPER_CASES = {
 }
 # Exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
+    'tools/check_frontend.cjs': ('frontend',),
+    'tools/stamp_static.py': ('frontend',),
     'src/access/sdk/ioalab_sdk/assistant/fulfillment.py': ('fulfillment_status', 'resident_fulfillment', 'resident_multiperiod', 'user_confirmations', 'payment_atomicity', 'fulfillment_payment_guards', 'resident_payment_recovery'),
     'src/access/sdk/ioalab_sdk/assistant/trading.py': ('assistant_role', 'sdk_inputs', 'resident_contracts', 'payment_transport_recovery'),
     'src/access/sdk/ioalab_sdk/adapters/payments.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs', 'payment_transport_recovery'),
@@ -101,7 +103,7 @@ RULES = (
     (('src/access/sdk/ioalab_sdk/provider/',), ('provider_*', 'service_publication', 'publication_authorizations', 'task_*', 'resident_fulfillment')),
     (('src/access/sdk/',), ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'sdk_inputs')),
     (('src/hosts/',), ('jiuwen_host', 'host_tool_names', 'native_*', 'web_*', 'runtime_delivery')),
-    (('src/platform/ioalab/web/',), ('api_v1', 'admin_api', 'workbench_*', 'user_browser')),
+    (('src/platform/ioalab/web/',), ('api_v1', 'admin_api', 'workbench_*', 'user_browser', 'frontend')),
     (('src/platform/ioalab/payments/',), ('payment_*', 'delegation_scopes')),
     (('src/platform/ioalab/messaging/',), ('messaging', 'protocol_relay', 'runtime_delivery')),
     (('src/platform/ioalab/identity/',), ('auth', 'authentication_recovery')),

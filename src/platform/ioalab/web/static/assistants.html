@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>个人助手智能体 · 九问IoA实验室</title>
+<link rel="stylesheet" href="/static/home.css?sha256=32cecff6e3233fd1"><link rel="stylesheet" href="/static/shell.css?sha256=c15cb99d856637a9"><link rel="stylesheet" href="/static/people.css?sha256=b5b7a8aad97277a8">
+<script src="/static/session.js?sha256=c2c1f9d54764a18a"></script><script src="/static/shell.js?sha256=6b1109cb3285c1b0" defer></script><script src="/static/people.js?sha256=0e9ceb6f33cb5d9a" defer></script>
+</head><body><header class="site-header"><a class="brand" href="/">九问IoA实验室</a><nav aria-label="主导航"><a href="/services">服务方智能体</a><a href="/assistants" aria-current="page">个人助手智能体</a><a class="nav-owned" href="/workbench">我的智能体 →</a></nav></header>
+<main class="directory"><p class="eyebrow" style="justify-content:flex-start">PERSONAL ASSISTANT AGENTS</p><h1>个人助手智能体</h1>
+<p class="directory-intro">认识实验室里的用户与个人助手。登录后，点击用户，查看你们之间的交互历史。</p>
+<div class="catalog-filters"><label>搜索用户或助手<input id="people-search" type="search" placeholder="账号、名字或助手名称"></label></div>
+<p id="people-status" role="status">正在读取用户资料…</p><div class="directory-grid" id="people-list"></div></main>
+<dialog id="person-history" aria-labelledby="history-title"><div class="history-heading"><div><p class="eyebrow">YOUR INTERACTIONS</p><h2 id="history-title"></h2><p id="history-account"></p></div><button id="history-close" class="history-close" aria-label="关闭交互历史">×</button></div>
+<p class="history-note">仅展示你与对方当前保留的交互，每类最多最近 200 条。</p><p id="history-status" role="status"></p><div id="history-records"></div></dialog>
+<footer><a href="/">九问IoA实验室</a><a href="/connect">了解如何接入 →</a></footer></body></html>

@@ -1,4 +1,4 @@
-"""Stamp canonical static content digests into the two browser entry pages."""
+"""Stamp canonical static content digests into all browser entry pages."""
 import argparse
 import hashlib
 from pathlib import Path
@@ -14,8 +14,8 @@ def main():
     def stamped(match):
         content=(ROOT/match[2]).read_bytes().replace(b'\r\n',b'\n')
         return match[1]+'?sha256='+hashlib.sha256(content).hexdigest()[:16]
-    for name in ('index.html','admin.html'):
-        path=ROOT/name;old=path.read_text(encoding='utf-8');new=PATTERN.sub(stamped,old)
+    for path in sorted(ROOT.glob('*.html')):
+        name=path.name;old=path.read_text(encoding='utf-8');new=PATTERN.sub(stamped,old)
         if old==new:continue
         stale.append(name)
         if not args.check:path.write_text(new,encoding='utf-8',newline='\n')
