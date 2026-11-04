@@ -1,0 +1,22 @@
+{
+  "origin": "https://trial.example.test",
+  "confirm_origin": "https://trial-confirm.example.test",
+  "formal_origin": "https://ioa.example.test",
+  "port": 8766,
+  "control_directory": "/var/lib/ioalab-trial/control",
+  "admission_key": "REPLACE_WITH_DEDICATED_RANDOM_SECRET_MATCHING_FORMAL_PLATFORM",
+  "lease_seconds": 1200,
+  "grace_seconds": 90,
+  "sandbox": {
+    "deployment": "ioa-trial",
+    "image": "ioalab-trial-seat@sha256:REPLACE_WITH_ACTUAL_IMAGE_DIGEST",
+    "egress_network": "bridge",
+    "provider_base_url": "https://provider.example.test/compatible-mode/v1",
+    "proxy_secret_file": "/etc/ioalab-trial/provider.json",
+    "control_key": "REPLACE_WITH_DIFFERENT_HIGH_ENTROPY_RANDOM_SECRET",
+    "port_base": 19000,
+    "memory": "6g",
+    "cpus": 2,
+    "model": {"name": "REPLACE"}
+  }
+}

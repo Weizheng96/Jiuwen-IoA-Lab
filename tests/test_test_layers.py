@@ -37,10 +37,27 @@ def test_first_preserves_full_files_and_diagnostics_never_sample_matrices(tmp_pa
 def test_removed_scene_cases_and_asset_changes_select_their_real_coverage_owner():
     from test_programming_services import SCENE_REGRESSIONS
     from tools.check_scope import select_tests
-    from tools.test_layers import APPROVED_REPLACEMENTS
+    import ast
+    from tools.test_layers import APPROVED_REPLACEMENTS, REPLACEMENT_COVERAGE
     assert SCENE_REGRESSIONS == {'code-website': 'kuaida', 'code-miniapp-reliable': 'mashangfei'}
     assert len(APPROVED_REPLACEMENTS) == 2
     assert all(Path(ROOT / target.split('::')[0]).is_file() for target in APPROVED_REPLACEMENTS.values())
+    for old, target in APPROVED_REPLACEMENTS.items():
+        source, case = target.split('::')
+        function, parameter = case.rstrip(']').split('[')
+        tree = ast.parse((ROOT / source).read_text(encoding='utf-8'))
+        node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == function)
+        assert any(isinstance(value, ast.Constant) and value.value == parameter
+                   for decorator in node.decorator_list for value in ast.walk(decorator))
+        coverage = REPLACEMENT_COVERAGE[old]
+        assert coverage['target'] == target and len(coverage['boundaries']) == 4
+        assert {'open mismatch: check[0] fails', 'close mismatch: check[0] fails',
+                'service name mismatch: check[0] fails', 'service minutes mismatch: check[0] fails',
+                'missing engineSource fails'} <= set(coverage['checks'])
+        expected = (['invalid miniProgram app.json: check[4] fails', 'missing miniProgram page: check[4] fails']
+                    if '[mashangfei]' in old else ['missing website app.js: check[4] fails'])
+        assert set(expected) <= set(coverage['checks'])
+    assert plan()['replacementCoverage'] == REPLACEMENT_COVERAGE
     paths = ['tests/test_nail_flow.py',
              'demo/delegation-provider/src/scenario/definitions.py',
              'src/official/services/ioalab_services/programming.py',
@@ -50,6 +67,16 @@ def test_removed_scene_cases_and_asset_changes_select_their_real_coverage_owner(
         selected = select_tests([path])['tests']
         assert 'tests/test_programming_services.py' in selected, path
         assert 'tests/test_nail_flow.py' not in selected, path
+    for path, owner in {
+        'src/platform/ioalab/storage.py':'domain_migrations',
+        'src/platform/ioalab/migrations/__init__.py':'domain_migrations',
+        'src/platform/ioalab/identity/migrations.py':'domain_migrations',
+        'src/access/sdk/ioalab_sdk/assistant/flow.py':'assistant_flow_guidance',
+        'src/access/sdk/ioalab_sdk/runtime/confirmation_view.py':'confirmation_view',
+        'src/hosts/jiuwen/ioalab_jiuwen/a2ui.py':'jiuwen_a2ui_forms',
+        'src/platform/ioalab/web/trial.py':'trial_admission',
+    }.items():
+        assert 'tests/test_'+owner+'.py' in select_tests([path])['tests'], path
 
 
 def test_missing_module_empty_inventory_and_uncollectable_source_fail_closed(tmp_path):

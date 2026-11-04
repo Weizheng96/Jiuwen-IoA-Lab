@@ -63,6 +63,16 @@ HELPER_CASES = {
 }
 # Exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
+    'experiments/trial_resources.py': ('trial_resources',),
+    'src/access/sdk/ioalab_sdk/assistant/flow.py': ('assistant_flow_guidance', 'resident_delegation', 'user_confirmations'),
+    'src/access/sdk/ioalab_sdk/runtime/confirmation_view.py': ('confirmation_view', 'user_confirmation_view', 'user_confirmations'),
+    'src/access/sdk/ioalab_sdk/runtime/trusted_user.py': ('trusted_user_port', 'user_confirmations', 'trial_gateway'),
+    'src/hosts/jiuwen/ioalab_jiuwen/a2ui.py': ('jiuwen_a2ui_forms', 'access_products'),
+    'src/platform/ioalab/storage.py': ('domain_migrations', 'protocol_operations', 'core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission'),
+    'src/platform/ioalab/observation/accounts.py': ('account_views', 'frontend', 'observation_views'),
+    'src/platform/ioalab/observation/workbench.py': ('account_views', 'workbench_*', 'observation_views'),
+    'src/platform/ioalab/identity/trial.py': ('trial_admission', 'frontend'),
+    'src/platform/ioalab/web/trial.py': ('trial_admission', 'frontend'),
     'tests/test_nail_flow.py': ('programming_services',),
     'demo/delegation-provider/src/scenario/definitions.py': ('programming_services', 'nail_scene', 'booking_demo'),
     'src/official/services/ioalab_services/programming.py': ('programming_services', 'nail_scene', 'booking_demo', 'official_resources'),
@@ -108,6 +118,11 @@ FILE_RULES = {
     'demo/approved_voice.py': ('approved_voice', 'demo_artifacts'),
 }
 RULES = (
+    (('src/trial/', 'deploy/trial/'), ('trial_*',)),
+    (('src/platform/ioalab/migrations/', 'src/platform/ioalab/identity/migrations.py',
+      'src/platform/ioalab/payments/migrations.py', 'src/platform/ioalab/registry/migrations.py',
+      'src/platform/ioalab/delegation/migrations.py', 'src/platform/ioalab/messaging/migrations.py',
+      'src/platform/ioalab/observation/migrations.py'), ('domain_migrations', 'protocol_operations', 'auth', 'core_ownership')),
     (('.agents/', '.github/', 'tools/check_scope.py'), ('check_workflow', 'check_scope')),
     (('tests/js/user_confirmation_view.cjs',), ('user_confirmation_view',)),
     (('src/access/examples/',), ('external_provider', 'resident_runtime', 'configuration_boundary')),

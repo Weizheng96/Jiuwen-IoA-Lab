@@ -1,0 +1,15 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>在线试用 · 九问IoA实验室</title>
+<style>body{max-width:1000px;margin:36px auto;padding:0 20px;font:16px system-ui;background:#f4f7fc;color:#17263b}button{padding:10px 20px;margin:8px;cursor:pointer}iframe{width:100%;height:70vh;border:1px solid #cbd5e1;background:white}#confirmations article{background:white;padding:18px;margin:12px 0;white-space:pre-wrap}input,textarea{display:block;max-width:100%;margin:8px 0}</style>
+<h1>在线试用</h1><p>每次试用使用独立体验身份。结束后清除本轮聊天、文件和模拟业务记录。</p>
+<p id="status">正在核对准入状态…</p><button id="join">加入试用队列</button><button id="end">结束试用</button>
+<p>取得席位后，请回正式平台点击“试用确认入口”，在独立可信页面核对授权。</p><iframe id="native" title="九问试用会话" hidden></iframe>
+<script>
+let csrf='',currentEpoch=null;const status=document.querySelector('#status'),frame=document.querySelector('#native');
+async function api(path,body){let r=await fetch('/trial/api/'+path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json','X-Trial-Csrf':csrf}:{},body:body?JSON.stringify(body):undefined});let v=await r.json();if(!r.ok)throw Error(v.error||'试用暂不可用');return v}
+async function refresh(){try{let v=await api('status');csrf=v.csrf;status.textContent=v.state==='queued'?'正在排队，前方 '+(v.position-1)+' 人':v.state==='leased'||v.state==='reconnect_grace'?'正在试用，截止 '+new Date(v.expires*1000).toLocaleTimeString():v.state==='idle'?'可以加入队列':'席位正在清理或准备，请稍候';let active=['leased','reconnect_grace'].includes(v.state);frame.hidden=!active;if(active&&currentEpoch!==v.epoch){currentEpoch=v.epoch;frame.src='/'}if(!active){currentEpoch=null;frame.removeAttribute('src')}}catch(e){status.textContent=e.message;frame.hidden=true;frame.removeAttribute('src')}}
+document.querySelector('#join').onclick=async()=>{try{await api('join',{});await refresh()}catch(e){status.textContent=e.message}};
+let refreshTimer=null;
+document.querySelector('#end').onclick=async()=>{try{await api('end',{});if(refreshTimer)clearInterval(refreshTimer);frame.hidden=true;frame.removeAttribute('src');currentEpoch=null;status.textContent='本次试用已结束，返回正式平台可重新申请';document.querySelector('#join').disabled=document.querySelector('#end').disabled=true}catch(e){status.textContent=e.message}};
+(async()=>{try{if(location.hash){let ticket=location.hash.slice(1);history.replaceState(null,'','/trial');let v=await api('entry',{ticket});csrf=v.csrf}await refresh();refreshTimer=setInterval(refresh,5000)}catch(e){status.textContent=e.message}})();
+</script></html>

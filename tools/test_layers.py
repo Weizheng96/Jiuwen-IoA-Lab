@@ -20,6 +20,19 @@ APPROVED_REPLACEMENTS = {
     'tests/test_nail_flow.py::test_scene_verifier_rejects_mismatched_spec_and_broken_source_structure[mashangfei]':
         'tests/test_programming_services.py::test_owned_carriers_accept_real_core_and_reject_wrong_carrier_or_broken_source[code-miniapp-reliable]',
 }
+REPLACEMENT_COVERAGE = {
+    old: {
+        'target': target,
+        'reason': 'Reuse the identical owned verifier package; preserve actual Demo sample/spec values and all WASM assertions.',
+        'boundaries': ['verifier identity/source/reads/criteria equality', 'booking.json', 'target=booking', 'period=1'],
+        'checks': ['scene good passes and criteria count matches', 'open mismatch: check[0] fails',
+                   'close mismatch: check[0] fails', 'service name mismatch: check[0] fails',
+                   'service minutes mismatch: check[0] fails', 'missing engineSource fails'] + (
+                   ['invalid miniProgram app.json: check[4] fails', 'missing miniProgram page: check[4] fails']
+                   if '[mashangfei]' in old else ['missing website app.js: check[4] fails']),
+    }
+    for old, target in APPROVED_REPLACEMENTS.items()
+}
 
 
 def inventory(root=ROOT):
@@ -49,8 +62,9 @@ def plan(*, module=None, root=ROOT):
     return {'layer': 'diagnose' if module is not None else 'first',
             'tests': targets,
             'replacements': dict(APPROVED_REPLACEMENTS),
+            'replacementCoverage': REPLACEMENT_COVERAGE,
             'diagnostics': {name: path for name, path in modules.items()},
-            'coverage': 'All existing tests and parametrizations retained; no representative sampling.',
+            'coverage': 'All effective coverage retained, including reviewed replacement mappings; no representative sampling.',
             'limits': 'First has no unproven matrix reductions. Environment-gated tests remain gated; '
                       'stage selfcheck and real deployment evidence are separate.'}
 

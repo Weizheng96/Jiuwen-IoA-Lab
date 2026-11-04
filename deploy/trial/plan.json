@@ -1,0 +1,10 @@
+{
+  "setup": ["/opt/participant/bin/python", "-m", "ioalab_trial.bootstrap", "setup"],
+  "health": ["/opt/participant/bin/python", "-m", "ioalab_trial.probe"],
+  "processes": {
+    "core": ["/opt/participant/bin/python", "-m", "ioalab_trial.bootstrap", "core"],
+    "native": ["/opt/participant/bin/python", "-m", "ioalab_trial.bootstrap", "native"],
+    "assistant": ["/opt/participant/bin/python", "-m", "ioalab_trial.sdk_entry", "--config", "/epoch/assistant/config.json"],
+    "services": ["/opt/participant/bin/python", "-m", "ioalab_trial.bootstrap", "services"]
+  }
+}

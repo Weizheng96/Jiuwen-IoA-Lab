@@ -16,10 +16,22 @@ from _support import new_user
 
 
 @pytest.fixture
-def payment(platform,tmp_path,monkeypatch):
+def live_payment(platform,tmp_path,monkeypatch):
     from _resident_payment import signed_unpaid
     with signed_unpaid(platform,tmp_path,monkeypatch) as (provider,assistant,ref,body):
         yield assistant,ref,provider.identities[0],body
+
+
+@pytest.fixture(scope='module')
+def payment_snapshot(tmp_path_factory):
+    from _payment_snapshot import create_snapshot
+    return create_snapshot(tmp_path_factory.mktemp('signed-payment-evidence'))
+
+
+@pytest.fixture
+def component_payment(payment_snapshot,tmp_path):
+    with payment_snapshot.clone(tmp_path/'component-core') as value:
+        yield value
 
 
 def execute_payment_component(component,body):
@@ -31,7 +43,8 @@ def execute_payment_component(component,body):
     return reply
 
 
-def test_prepare_does_not_mutate_and_receipt_failure_rolls_back(platform,payment):
+def test_prepare_does_not_mutate_and_receipt_failure_rolls_back(component_payment):
+    platform,payment = component_payment
     c,cd,agent,body = payment
     psp = platform.psp
     before = platform.wallets.balance(c.account.account['id'])
@@ -52,7 +65,8 @@ def test_prepare_does_not_mutate_and_receipt_failure_rolls_back(platform,payment
     assert platform.wallets.balance(c.account.account['id'])==before-prepared.amount
 
 
-def test_concurrent_replay_restart_and_original_receipt(platform,client,payment):
+def test_concurrent_replay_restart_and_original_receipt(platform,client,live_payment):
+    payment = live_payment
     c,cd,_,body = payment
     psp = platform.psp
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -80,7 +94,8 @@ def test_concurrent_replay_restart_and_original_receipt(platform,client,payment)
     assert denied.status_code==404 and denied.json()['error']['code']=='forbidden'
 
 
-def test_expired_and_mismatched_signed_checkout_are_rejected(platform,payment):
+def test_expired_and_mismatched_signed_checkout_are_rejected(component_payment):
+    platform,payment = component_payment
     c,cd,agent,body = payment
     expired = copy.deepcopy(body)
     _,pm = jwt_decode(expired['paymentMandate'].rstrip('~'))
@@ -101,7 +116,8 @@ def test_expired_and_mismatched_signed_checkout_are_rejected(platform,payment):
     assert platform.db.one('SELECT 1 FROM paid WHERE ref=?',cd) is None
 
 
-def test_commit_rechecks_expiry_and_paid_result_survives_expiry(platform,payment,monkeypatch):
+def test_commit_rechecks_expiry_and_paid_result_survives_expiry(component_payment,monkeypatch):
+    platform,payment = component_payment
     _,cd,_,body = payment
     psp = platform.psp
     prepared = psp.prepare(body)
@@ -138,7 +154,8 @@ def test_commit_rechecks_expiry_and_paid_result_survives_expiry(platform,payment
         assert execute_payment_component(psp,body).body==reply.body
 
 
-def test_projection_failure_and_legacy_paid_are_not_repaid(platform,payment,monkeypatch):
+def test_projection_failure_and_legacy_paid_are_not_repaid(component_payment,monkeypatch):
+    platform,payment = component_payment
     c,cd,_,body = payment
     psp = platform.psp
     platform.db.run('INSERT INTO paid(ref,purpose,period,at) VALUES(?,?,?,?)',cd,'installment',1,time.time())
@@ -173,7 +190,8 @@ def test_projection_failure_and_legacy_paid_are_not_repaid(platform,payment,monk
     assert platform.db.rows('SELECT * FROM transfers WHERE ref=?',cd)==transfers
 
 
-def test_new_mandate_for_an_existing_payment_does_not_create_another_receipt(platform,payment):
+def test_new_mandate_for_an_existing_payment_does_not_create_another_receipt(component_payment):
+    platform,payment = component_payment
     _,cd,_,body = payment
     psp = platform.psp
     original = execute_payment_component(psp,body)
@@ -189,7 +207,8 @@ def test_new_mandate_for_an_existing_payment_does_not_create_another_receipt(pla
     assert execute_payment_component(psp,body).body==original.body
 
 
-def test_identity_changes_between_prepare_and_commit_are_fenced(platform,payment,monkeypatch):
+def test_identity_changes_between_prepare_and_commit_are_fenced(component_payment,monkeypatch):
+    platform,payment = component_payment
     c,cd,_,body = payment
     psp = platform.psp
     prepared = psp.prepare(body)
@@ -206,7 +225,8 @@ def test_identity_changes_between_prepare_and_commit_are_fenced(platform,payment
     assert platform.db.one('SELECT 1 FROM transfers WHERE ref=?',cd) is None
 
 
-def test_valid_registered_payer_cannot_pay_another_accounts_contract(platform,payment,tmp_path):
+def test_valid_registered_payer_cannot_pay_another_accounts_contract(platform,live_payment,tmp_path):
+    payment = live_payment
     from ioalab_sdk.runtime.config import RuntimeConfig
     from ioalab_sdk.runtime.resident import ResidentRuntime
     from ioalab_sdk.runtime.files import private_json
@@ -231,7 +251,8 @@ def test_valid_registered_payer_cannot_pay_another_accounts_contract(platform,pa
 
 
 
-def test_bare_public_ap2_cannot_bypass_the_current_connection_and_admission(platform,payment):
+def test_bare_public_ap2_cannot_bypass_the_current_connection_and_admission(component_payment):
+    platform,payment = component_payment
     _,ref,_,body=payment
     with pytest.raises(A2CError,match='execution connection and admission context') as rejected:
         platform.psp.op_ap2_pay(body,{},None)
