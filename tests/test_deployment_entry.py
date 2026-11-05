@@ -7,6 +7,7 @@ from deploy import __main__ as entry
 from deploy.installation import Installation
 from deploy.layout import Layout,environment_text
 from deploy import units
+from test_production_release import source,release
 
 
 def test_status_does_not_initialize_or_repair_any_role_state(tmp_path,monkeypatch,capsys):
@@ -81,36 +82,61 @@ def test_installed_preparation_does_not_require_access_to_private_source_directo
     assert calls[-1]['cwd']==Path(subject.request['source']['root'])
 
 
-def readiness_subject():
+def readiness_subject(source,tmp_path):
+    declarations=[{'account':'provider-a','services':[{'id':'alpha'},{'id':'beta'}]},
+                  {'account':'provider-b','services':[{'id':'gamma'}]}]
+    (source/'deploy/default-seed.json').write_text(json.dumps({'domains':declarations}),encoding='utf-8')
+    folder=release(source,tmp_path/'readiness-release')
     subject=object.__new__(Installation)
-    subject.progress={'requiredRunning':['official']};subject.request={'action':'upgrade'}
+    subject.progress={'requiredRunning':['official'],'candidate':{'release':str(folder)}};subject.request={'action':'upgrade'}
     subject.plans={'official':{'unit':'ioalab-official.service'}}
     subject.manager=SimpleNamespace(ready=lambda _: {'ActiveState':'active','UnitFileState':'enabled'})
     subject.layout=SimpleNamespace(config=Path('/not-read'))
-    rows=[{'account':'ISP_'+str(i+1).zfill(3),'runtime':{'platformConnected':True,'host':{'available':True}},'services':[]} for i in range(8)]
-    for i in range(50):
-        rows[i%8]['services'].append({'profile':str(i),'current':{'indexReady':True,'templateReady':True,
-            'localExecution':{'executionReady':True},'admissionPolicy':{'accepting':True}}})
+    rows=[{'account':domain['account'],'runtime':{'platformConnected':True,'host':{'available':True}},
+        'services':[{'profile':service['id'],'agentId':'runtime-id-'+service['id'],
+                    'current':{'indexReady':True,'templateReady':True,'localExecution':{'executionReady':True},
+                    'admissionPolicy':{'accepting':True}}} for service in domain['services']]} for domain in declarations]
     subject.installed=lambda *args,**kwargs:{'status':'completed','accounts':rows}
     return subject,rows
 
 
-def test_upgrade_readiness_preserves_pause_and_reports_available_service_count(monkeypatch):
+def test_upgrade_readiness_preserves_pause_and_reports_available_service_count(monkeypatch,source,tmp_path):
     import deploy.installation as module
     monkeypatch.setattr(module,'read_environment',lambda _: {})
-    subject,rows=readiness_subject();rows[0]['services'][0]['current']['admissionPolicy']['accepting']=False
+    subject,rows=readiness_subject(source,tmp_path);rows[0]['services'][0]['current']['admissionPolicy']['accepting']=False
     report=subject.readiness()
-    assert report['runtimeReady'] is True and report['official']['availableServices']==49
+    assert report['runtimeReady'] is True and report['official']['availableServices']==2
     assert rows[0]['services'][0]['current']['admissionPolicy']['accepting'] is False
 
 
-def test_official_readiness_rejects_incomplete_status_instead_of_counting_it_as_paused(monkeypatch):
+def test_official_readiness_rejects_incomplete_status_instead_of_counting_it_as_paused(monkeypatch,source,tmp_path):
     import pytest
     import deploy.installation as module
     monkeypatch.setattr(module,'read_environment',lambda _: {})
-    for error in ('missing','error'):
-        subject,rows=readiness_subject()
+    for index,error in enumerate(('missing','error')):
+        subject,rows=readiness_subject(source,tmp_path/str(index))
         if error=='missing':rows[0]['services'].pop()
         else:rows[0]['services'][0]['error']={'code':'not_ready'}
         with pytest.raises(RuntimeError,match='status is incomplete'):subject.readiness()
+
+
+def test_readiness_rejects_wrong_account_or_catalog_and_initial_pause(monkeypatch,source,tmp_path):
+    import copy
+    import pytest
+    import deploy.installation as module
+    monkeypatch.setattr(module,'read_environment',lambda _: {})
+    subject,rows=readiness_subject(source,tmp_path)
+    original=copy.deepcopy(rows)
+    for fault in ('account','duplicate-account','profile','duplicate-profile','cross-account'):
+        rows[:]=copy.deepcopy(original)
+        if fault=='account':rows[0]['account']='unexpected'
+        elif fault=='duplicate-account':rows[1]['account']=rows[0]['account']
+        elif fault=='profile':rows[0]['services'][0]['profile']='unknown'
+        elif fault=='duplicate-profile':rows[0]['services'][1]['profile']='alpha'
+        else:rows[0]['services'][0],rows[1]['services'][0]=rows[1]['services'][0],rows[0]['services'][0]
+        with pytest.raises(RuntimeError):subject.readiness()
+    rows[:]=copy.deepcopy(original);subject.request['action']='install'
+    assert subject.readiness()['official']['availableServices']==3
+    rows[0]['services'][0]['current']['admissionPolicy']['accepting']=False
+    with pytest.raises(RuntimeError,match='publication/index is not ready'):subject.readiness()
 

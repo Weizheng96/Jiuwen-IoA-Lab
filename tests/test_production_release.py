@@ -99,6 +99,57 @@ def test_target_markers_extras_and_local_direct_urls(source):
         inputs('core', 'linux-x86_64', pool.glob('*.whl'))
 
 
+def test_participant_installed_catalog_matches_verified_release_ids(source,tmp_path,environment_root,monkeypatch):
+    """Exercise generated install checks in a child, with a non-50 catalog and wrong-ID negatives."""
+    seed={'domains':[{'account':'provider-a','services':[{'id':'alpha'},{'id':'beta'}]}]}
+    (source/'deploy/default-seed.json').write_text(json.dumps(seed),encoding='utf-8')
+    folder=release(source,tmp_path/'catalog')
+    selected=Environment(folder,'participant',environment_root)
+    prefix=selected.folder/'check-prefix';prefix.mkdir(parents=True)
+    actual=['alpha','beta'];calls=[]
+    def checked_child(python,args,work,log):
+        calls.append(args)
+        if args[:2]==['-m','pip']:
+            assert args[-1]=='check'
+            return
+        assert args[0]=='-c'
+        # Owned fixture modules isolate this validator from the developer's packages.
+        bootstrap="""import importlib.metadata as metadata,sys,types
+sys.prefix=PREFIX
+versions=VERSIONS
+metadata.distributions=lambda:[types.SimpleNamespace(metadata={'Name':k},version=v) for k,v in versions.items()]
+for name in ('ioalab_sdk','ioalab_sdk.runtime','ioalab_sdk.runtime.resident','ioalab_jiuwen','ioalab_jiuwen.process','ioalab_services','ioalab_services.catalog','ioalab_admin_assistant','ioalab_admin_assistant.presets'):
+ module=types.ModuleType(name);module.__path__=[];module.__file__=sys.prefix+'/'+name.replace('.','/')+'.py'
+ sys.modules[name]=module
+ if '.' in name:setattr(sys.modules[name.rsplit('.',1)[0]],name.rsplit('.',1)[1],module)
+sys.modules['ioalab_sdk.runtime.resident'].ResidentRuntime=object
+sys.modules['ioalab_jiuwen.process'].ProcessHost=object
+sys.modules['ioalab_services.catalog'].definitions=lambda:[{'id':item} for item in ACTUAL]
+sys.modules['ioalab_admin_assistant.presets'].load=lambda **kw:(None,['one','two'])
+""".replace('PREFIX',repr(str(prefix))).replace('VERSIONS',repr(selected.versions)).replace('ACTUAL',repr(actual))
+        result=subprocess.run([sys.executable,'-I','-c',bootstrap+args[1],*args[2:]],capture_output=True,text=True)
+        if result.returncode:raise subprocess.CalledProcessError(result.returncode,result.args,output=result.stdout,stderr=result.stderr)
+    monkeypatch.setattr('deploy.environment.execute',checked_child)
+    assert selected.validate('check-prefix',prefix/'probe.log')==prefix
+    assert calls[-1][-1]=='check'
+    for wrong in (['alpha','wrong'],['alpha'],['alpha','beta','extra'],['alpha','alpha']):
+        actual[:]=wrong
+        with pytest.raises(subprocess.CalledProcessError) as rejected:
+            selected.validate('check-prefix',prefix/'probe.log')
+        assert 'Installed official catalog differs' in rejected.value.stderr
+    for index,bad in enumerate(({'domains':[]},
+            {'domains':[seed['domains'][0],seed['domains'][0]]},
+            {'domains':[{'account':'a','services':[{'id':'same'},{'id':'same'}]}]},
+            {'domains':[{'account':'a','services':[{'id':1}]}]})):
+        (source/'deploy/default-seed.json').write_text(json.dumps(bad),encoding='utf-8')
+        invalid=Environment(release(source,tmp_path/('invalid-'+str(index))),'participant',environment_root)
+        (invalid.folder/'check-prefix').mkdir(parents=True,exist_ok=True)
+        before=len(calls)
+        with pytest.raises(ValueError,match='catalog'):
+            invalid.validate('check-prefix',prefix/'probe.log')
+        assert len(calls)==before,'Bad release declarations must be rejected before running installed code'
+
+
 def test_release_and_unit_identity_change_for_same_version_new_bytes(source, tmp_path, environment_root):
     first = release(source, tmp_path / 'one')
     one = Environment(first, 'participant', environment_root)

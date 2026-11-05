@@ -139,6 +139,31 @@ def checked(root, record, *, wheel=False):
     return path
 
 
+def official_catalog(root, document):
+    """The verified release seed declares accounts and catalog IDs, not live identities."""
+    seed = read_json(checked(root, document['assets']['seed']))
+    domains = seed.get('domains') if isinstance(seed, dict) else None
+    if not isinstance(domains, list) or not domains:
+        raise ValueError('Release seed must declare the official catalog')
+    accounts, seen = {}, set()
+    for domain in domains:
+        if not isinstance(domain, dict):
+            raise ValueError('Invalid release catalog domain')
+        account, services = domain.get('account'), domain.get('services')
+        if (not isinstance(account, str) or not account.strip() or account in accounts
+                or not isinstance(services, list) or not services):
+            raise ValueError('Invalid or duplicate release catalog account')
+        ids = []
+        for service in services:
+            identifier = service.get('id') if isinstance(service, dict) else None
+            if not isinstance(identifier, str) or not identifier.strip() or identifier in seen:
+                raise ValueError('Invalid or duplicate release catalog service')
+            seen.add(identifier)
+            ids.append(identifier)
+        accounts[account] = tuple(ids)
+    return accounts
+
+
 def load(root, *, require_target=False):
     root = Path(root).absolute()
     value = read_json(regular(root, 'release.json'))

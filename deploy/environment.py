@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 import uuid
 import venv
 
-from .release import UNITS, current_target, digest, linked, load, pins, read_json, regular
+from .release import UNITS, current_target, digest, linked, load, official_catalog, pins, read_json, regular
 from .processes import child_environment
 
 
@@ -81,7 +81,7 @@ def native_paths(environment):
             raise RuntimeError('A Windows native library path is too long; preserve this attempt and choose a shorter --root')
 
 
-def validation_code(unit, expected):
+def validation_code(unit, expected, catalog):
     checks = '''
 import importlib.metadata as metadata
 import json,re,sys
@@ -97,7 +97,9 @@ assert not set(actual)-set(expected)-{'pip','setuptools','wheel'}, 'Unexpected p
     elif unit == 'participant':
         checks += ("from ioalab_sdk.runtime.resident import ResidentRuntime\n"
                    "from ioalab_jiuwen.process import ProcessHost\n"
-                   "from ioalab_services.catalog import definitions\nassert len(definitions())==50\n"
+                   "from ioalab_services.catalog import definitions\n"
+                   "services=[item['id'] for item in definitions()]\n"
+                   "assert sorted(services)==" + repr(sorted(identifier for ids in catalog.values() for identifier in ids)) + ", 'Installed official catalog differs from the release declaration'\n"
                    "from ioalab_admin_assistant.presets import load\nassert len(load(meetings=False)[1])==2\n")
     else:
         checks += ("import jiuwenswarm,openjiuwen,sqlalchemy\n"
@@ -172,7 +174,8 @@ class Environment:
             raise RuntimeError('Installed environment path has changed')
         native_paths(environment)
         python = python_in(environment)
-        execute(python, validation_code(self.unit, self.versions), self.folder, log)
+        catalog = official_catalog(self.release, self.document) if self.unit == 'participant' else None
+        execute(python, validation_code(self.unit, self.versions, catalog), self.folder, log)
         execute(python, ['-m', 'pip', '--isolated', 'check'], self.folder, log)
         return environment
 

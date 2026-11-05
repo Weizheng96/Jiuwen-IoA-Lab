@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-05",
+  "design": "v0.0.128",
+  "sourceBase": "3e9a229370745624f18984e395d02f617c0fa2a5",
+  "scope": "Shared production deployment catalog checks and two-platform operator guide",
+  "changes": [
+    "Expected official accounts and stable service IDs come from the checksum-verified release seed",
+    "Participant installation compares the installed wheel catalog with the release declaration",
+    "Runtime readiness rejects wrong, duplicated, missing, extra or cross-account service profiles",
+    "First installation requires all declared services ready; upgrade preserves existing paused admission",
+    "Windows guide keeps installer progress and extracts the final JSON only after exit-code verification",
+    "Windows and remote Linux commands share the same platform and SDK implementation"
+  ],
+  "validation": {
+    "report": "temp/checks/linux-release-catalog-20261105/report.json",
+    "exitCode": 0,
+    "pytestPassed": 12,
+    "pytestSeconds": 4.40,
+    "testStageSeconds": 5.125,
+    "includes": [
+      "Owned fixture subprocess executes generated participant checks with matching and mismatched catalogs",
+      "Malformed and duplicate release declarations reject before installed code executes",
+      "Original failed, unknown, identity and mirror-boundary installation checks",
+      "Readiness account/profile ownership and initial versus upgrade pause behavior"
+    ],
+    "powershellSyntaxBlocks": 7,
+    "readOnlyCliHelpExitCodes": [0, 0, 0, 0],
+    "progressAndFinalJsonExtraction": "passed with synthetic stdout; no installation executed by this probe",
+    "designCheckExitCode": 0,
+    "documentationCheckExitCode": 0
+  },
+  "limits": [
+    "No full regression or selfcheck was run for this focused change",
+    "Fixture checks do not establish real remote systemd deployment or trial business acceptance",
+    "No production data, credentials, model calls or external business were used"
+  ]
+}

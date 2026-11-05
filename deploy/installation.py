@@ -16,7 +16,7 @@ from .jobs import source_identity
 from .layout import read_environment
 from .linux import Accounts,Systemd,expose_runtime
 from .processes import child_environment
-from .release import UNITS,read_json
+from .release import UNITS,load,official_catalog,read_json
 from .workspace import Workspace,path_without_links,save
 
 
@@ -187,7 +187,8 @@ class Installation:
         expose_runtime(self.layout,candidate)
         for unit,entry in candidate['units'].items():
             prefix=Path(entry['environment']);versions=read_json(prefix/'deployment.json')['versions']
-            arguments=validation_code(unit,versions)
+            catalog=official_catalog(path,load(path)) if unit=='participant' else None
+            arguments=validation_code(unit,versions,catalog)
             arguments[1]+="\nprint(json.dumps({'status':'completed'}))\n"
             role='core' if unit=='core' else 'agents'
             self.command([prefix/'bin/python','-I','-X','utf8',*arguments],role=role,
@@ -292,20 +293,27 @@ print(json.dumps(r,ensure_ascii=False))
             if key in required and actual.get('ActiveState')!='active':raise RuntimeError('An expected runtime unit is not active')
         if 'core' in required:self.core_ready();report['coreIdentityChecked']=True
         if 'official' in required:
+            release=Path(self.progress['candidate']['release'])
+            expected=official_catalog(release,load(release))
             result=self.installed('ioalab_services','status','--config',str(self.layout.config/'agents/official.json'),
                 role='agents',environment=read_environment(self.layout.config/'agents/official.env'))
             rows=result.get('accounts',[])
-            if len(rows)!=8 or any(row.get('error') or not row.get('runtime',{}).get('platformConnected') or
-                    not row.get('runtime',{}).get('host',{}).get('available') for row in rows):
+            if (not isinstance(rows,list) or any(not isinstance(row,dict) or not isinstance(row.get('account'),str) for row in rows)
+                    or sorted(row['account'] for row in rows)!=sorted(expected)
+                    or any(row.get('error') or not row.get('runtime',{}).get('platformConnected') or
+                    not row.get('runtime',{}).get('host',{}).get('available') for row in rows)):
                 raise RuntimeError('Original official SDK/host connectivity is not ready')
-            services=[item for row in rows for item in row.get('services',[])]
-            if len(services)!=50 or any(item.get('error') or not item.get('current') for item in services):
+            if (any(not isinstance(row.get('services'),list) or any(not isinstance(item,dict) or not isinstance(item.get('profile'),str) for item in row['services']) for row in rows)
+                    or any(sorted(item['profile'] for item in row['services'])!=sorted(expected[row['account']]) for row in rows)):
+                raise RuntimeError('The original official service status is incomplete')
+            services=[item for row in rows for item in row['services']]
+            if any(item.get('error') or not item.get('current') for item in services):
                 raise RuntimeError('The original official service status is incomplete')
             ready=sum(bool(item['current'].get('indexReady') and item['current'].get('templateReady')
                            and item['current'].get('localExecution',{}).get('executionReady')
                            and item['current'].get('admissionPolicy',{}).get('accepting')) for item in services)
             report['official']={'connectedAccounts':len(rows),'services':len(services),'availableServices':ready}
-            if self.request['action']=='install' and not self.progress.get('recheck') and ready!=50:
+            if self.request['action']=='install' and not self.progress.get('recheck') and ready!=sum(map(len,expected.values())):
                 raise RuntimeError('Initial official service publication/index is not ready')
         if 'swarm-web' in required:
             env=read_environment(self.layout.config/'agents/swarm-admin.env')
