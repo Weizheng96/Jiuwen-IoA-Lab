@@ -3,7 +3,7 @@
 import copy
 
 import pytest
-from demo.artifacts import (
+from tools.media.artifacts import (
     inside,
     media_digest,
     validate_real_case,
@@ -146,7 +146,7 @@ def test_new_generic_film_requires_actual_onboarding(delegation):
 
 
 def test_unsigned_recording_resume_rejects_replay():
-    from demo.artifacts import validate_delegation_resume
+    from tools.media.artifacts import validate_delegation_resume
     proof={'case':'delegation','executionPath':'generic-primitives','skillAudit':{'main':'same'},'quotes':[{'cardDigest':str(i)} for i in range(3)],'userTurns':[{'kind':'request'},{'kind':'authorization'}],'browserErrors':[]}
     segments=[{'id':k} for k in ('cover','account','configuration','skill','need','authorization','discovery','quotes')]
     orders=[{'card_digest':str(i),'signatures':{'1':False}} for i in range(3)]
@@ -162,7 +162,7 @@ def test_unsigned_recording_resume_rejects_replay():
 def test_recording_rejects_expired_or_too_short_proposal_window():
     from datetime import datetime, timedelta, timezone
     from a2c.jws import Signer, sign
-    from demo.artifacts import require_offer_window
+    from tools.media.artifacts import require_offer_window
     at=datetime(2026,10,30,0,0,tzinfo=timezone.utc)
     card={'signatures':{'3':sign('sha256:'+'0'*64,Signer.generate('urn:test'),'3',at)}}
     template={'deadlines':{'respondWithin':'PT10M'}}
@@ -172,7 +172,7 @@ def test_recording_rejects_expired_or_too_short_proposal_window():
 
 
 def test_only_recorded_business_answer_can_use_operator_input():
-    from demo.artifacts import BUSINESS_SETTINGS_REPLY, validate_business_operator
+    from tools.media.artifacts import BUSINESS_SETTINGS_REPLY, validate_business_operator
     proof={'operatorActions':[{'id':'technical-rescue','kind':'message'}]}
     with pytest.raises(ValueError,match='Unapproved'):validate_business_operator(proof)
     proof['operatorActions'][0]['id']='business-settings-answer'
@@ -184,7 +184,7 @@ def test_only_recorded_business_answer_can_use_operator_input():
 
 
 def test_native_answer_evidence_uses_actual_custom_input():
-    from demo.artifacts import native_user_text
+    from tools.media.artifacts import native_user_text
     assert native_user_text({'role':'user','content':'确认合同'})=='确认合同'
     native={'role':'assistant','event_type':'chat.ask_user_answer','answers':[{'custom_input':'授权本环节'}]}
     assert native_user_text(native)=='授权本环节'
@@ -196,7 +196,7 @@ def test_native_answer_evidence_uses_actual_custom_input():
 
 def test_native_acknowledgement_must_be_new_and_match_answer(tmp_path):
     import json
-    from demo.artifacts import native_answer_seen
+    from tools.media.artifacts import native_answer_seen
     trace=tmp_path/'history.jsonl'
     def line(text):return json.dumps({'event_type':'chat.ask_user_answer','answers':[{'custom_input':text}]}).encode()+b'\n'
     trace.write_bytes(line('same answer'));offset=trace.stat().st_size

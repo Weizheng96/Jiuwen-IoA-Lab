@@ -81,7 +81,7 @@ FILE_RULES = {
     'deploy/windows_local.py': ('windows_local', 'windows_local_owner', 'deployment_configs', 'owned_workspace'),
     'src/official/admin-assistant/ioalab_admin_assistant/deployment.py': ('admin_assistant_preparation', 'windows_local_owner'),
     'src/official/admin-assistant/ioalab_admin_assistant/local_owner.py': ('admin_assistant_preparation', 'windows_local_owner'),
-    'experiments/trial_resources.py': ('trial_resources',),
+    'tools/verification/trial_resources.py': ('trial_resources',),
     'src/access/sdk/ioalab_sdk/assistant/flow.py': ('assistant_flow_guidance', 'resident_delegation', 'user_confirmations'),
     'src/access/sdk/ioalab_sdk/runtime/confirmation_view.py': ('confirmation_view', 'user_confirmation_view', 'user_confirmations'),
     'src/access/sdk/ioalab_sdk/runtime/trusted_user.py': ('trusted_user_port', 'user_confirmations', 'trial_gateway'),
@@ -92,10 +92,12 @@ FILE_RULES = {
     'src/platform/ioalab/identity/trial.py': ('trial_admission', 'frontend'),
     'src/platform/ioalab/web/trial.py': ('trial_admission', 'frontend'),
     'tests/test_nail_flow.py': ('programming_services',),
-    'demo/delegation-provider/src/scenario/definitions.py': ('programming_services', 'nail_scene', 'booking_demo'),
+    'tools/media/delegation-provider/src/scenario/definitions.py': ('programming_services', 'nail_scene', 'booking_demo'),
     'src/official/services/ioalab_services/programming.py': ('programming_services', 'nail_scene', 'booking_demo', 'official_resources'),
     'src/official/services/ioalab_services/assets/verifiers/programming.py': ('programming_services', 'nail_scene', 'booking_demo', 'official_resources'),
     'src/official/services/ioalab_services/assets/domains/08-dev.json': ('official_*', 'business_tools', 'appointment_source', 'agentmail_*', 'programming_services', 'nail_scene', 'booking_demo'),
+    'tools/llm.py': ('llm', 'import_model_source', 'approved_voice'),
+    'tools/import_model_source.py': ('import_model_source', 'llm'),
     'tools/test_layers.py': ('test_layers', 'check_workflow'),
     'tools/check_frontend.cjs': ('frontend',),
     'tools/stamp_static.py': ('frontend',),
@@ -130,10 +132,10 @@ FILE_RULES = {
     'src/official/tools/ioalab_tools/agentmail_setup.py': ('agentmail_setup', 'business_tools'),
     'src/official/tools/ioalab_tools/schedule_cli.py': ('local_schedule', 'appointment_source'),
     'tools/build_requirements.py': ('access_products', 'package_installation', 'package_manifest_boundary'),
-    'demo/script_documents.py': ('review_story', 'demo_artifacts'),
-    'demo/review_story.py': ('review_story', 'demo_artifacts'),
-    'demo/build_voice.py': ('approved_voice', 'demo_artifacts'),
-    'demo/approved_voice.py': ('approved_voice', 'demo_artifacts'),
+    'tools/media/script_documents.py': ('review_story', 'demo_artifacts'),
+    'tools/media/review_story.py': ('review_story', 'demo_artifacts'),
+    'tools/media/build_voice.py': ('approved_voice', 'demo_artifacts'),
+    'tools/media/approved_voice.py': ('approved_voice', 'demo_artifacts'),
 }
 RULES = (
     (('src/trial/', 'deploy/trial/'), ('trial_*',)),
@@ -158,8 +160,7 @@ RULES = (
     (('src/platform/ioalab/',), ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission')),
     (('src/official/',), ('official_*', 'business_tools', 'appointment_source', 'agentmail_*')),
     (('deploy/', 'vendor/'), ('deployment*', 'vendor_deployment', 'owned_workspace', 'production_release', 'sync_a2c')),
-    (('demo/verification/',), ('demo_artifacts',)),
-    (('demo/', 'experiments/'), ('demo_artifacts', 'booking_demo', 'appointment_source', 'seed_manifest')),
+    (('tools/media/', 'tools/verification/'), ('demo_artifacts', 'booking_demo', 'appointment_source', 'seed_manifest')),
 )
 CODE = ('.py', '.sh', '.cjs', '.js', '.html', '.toml', '.lock', '.whl', '.json', '.yml', '.yaml', '.example')
 SHARED_INPUTS = ('requirements.txt', 'pyproject.toml', 'tests/conftest.py', 'tests/_support.py')

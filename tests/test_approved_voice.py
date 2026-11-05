@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from demo import approved_voice, build_voice
-from demo.review_story import DRAFTS
+from tools.media import approved_voice, build_voice
+from tools.media.review_story import DRAFTS
 import hashlib
 
 
@@ -123,8 +123,8 @@ def test_full_cache_name_still_requires_matching_settings_and_audio_metadata(tmp
 
 
 def test_legacy_lab_cache_keys_remain_reusable():
-    folder = Path(__file__).resolve().parents[1] / 'demo/assets/voice/delegation'
-    entry = json.loads((folder / 'voice.json').read_text(encoding='utf-8'))[0]
+    folder = Path(__file__).resolve().parents[1] / 'tests/fixtures'
+    entry = json.loads((folder / 'legacy_voice_cache.json').read_text(encoding='utf-8'))[0]
     assert build_voice.cache_name(entry['voice'], entry['speechRate'], entry['tempo']) == entry['file']
 
 

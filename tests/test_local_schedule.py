@@ -12,7 +12,7 @@ from ioalab_tools.appointments import Appointments
 from ioalab_tools.calendar import SMTPNotification
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from test_assistant import appointment
-from demo.smtp_capture import Capture
+from tools.media.smtp_capture import Capture
 
 
 def test_schedule_revision_backup_reload_and_interval_edges(tmp_path):

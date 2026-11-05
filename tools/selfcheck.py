@@ -19,7 +19,7 @@ def main():
         print(('  ✓ ' if condition else '  ✗ ')+name,flush=True)
         if not condition: failures.append(name)
     for label,command in [('Design versions',[sys.executable,'设计/check.py']),
-                          ('Demo scripts and published evidence',[sys.executable,'demo/script_documents.py','--check']),
+                          ('Approved screenplay sources (recordings require explicit D check)',[sys.executable,'tools/media/script_documents.py','--sources-only']),
                           ('Current documentation links',[sys.executable,'tools/check_docs.py']),
                           ('Official service definitions',[sys.executable,'tools/check_services.py']),
                           ('Vendored deployment inputs',[sys.executable,'tools/check_vendor.py']),
@@ -51,7 +51,7 @@ def main():
     ok('Core SDK imports no platform, host implementation or official tools',not imports)
     if imports:print('\n'.join(imports))
     hits=[]
-    for folder in ['src/platform/ioalab','src/access/sdk','src/hosts/jiuwen','src/official','experiments','设计','docs','deploy']:
+    for folder in ['src/platform/ioalab','src/access/sdk','src/hosts/jiuwen','src/official','tools/verification','设计','docs','deploy']:
         for path in (ROOT/folder).rglob('*'):
             if path.suffix not in ('.py','.md','.js','.html','.json','.txt','.sh','.example','.service'): continue
             if any(part in ('__pycache__','变更','*.egg-info') or part.endswith('.egg-info') for part in path.parts): continue

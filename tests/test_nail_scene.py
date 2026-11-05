@@ -12,7 +12,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILDER = ROOT / 'demo/delegation-provider/src/scenario/build.py'
+BUILDER = ROOT / 'tools/media/delegation-provider/src/scenario/build.py'
 
 
 def builder():

@@ -71,7 +71,8 @@ def check_history_paths(git, head):
         _, _, path = row.partition(' ')
         parts = path.lower().split('/')
         if (parts[0] in ('data', 'temp', 'apikey') or
-                parts[-1] in ('.env', 'settings.local.json', 'llm_apikey.json') or
+                parts[-1] in ('.env', 'settings.local.json', 'llm_apikey.json', 'llm_apikey') or
+                path.lower().startswith('.agents/data/') or
                 path.lower().endswith(('.pem', '.key'))):
             candidates.append(path)
     if candidates:

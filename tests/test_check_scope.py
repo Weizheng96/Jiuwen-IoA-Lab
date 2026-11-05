@@ -61,12 +61,12 @@ def test_migrated_owners_select_current_consumers_and_never_archived_wrappers(pa
     assert all((ROOT/name.split('::')[0]).is_file() for name in selected)
 
 
-@pytest.mark.parametrize('path', ['demo/script_documents.py', 'demo/review_story.py'])
+@pytest.mark.parametrize('path', ['tools/media/script_documents.py', 'tools/media/review_story.py'])
 def test_review_draft_sources_select_generation_and_evidence_checks_only(path):
     assert select_tests([path])['tests'] == ['tests/test_demo_artifacts.py', 'tests/test_review_story.py']
 
 
-@pytest.mark.parametrize('path', ['demo/build_voice.py', 'demo/approved_voice.py'])
+@pytest.mark.parametrize('path', ['tools/media/build_voice.py', 'tools/media/approved_voice.py'])
 def test_approved_voice_sources_select_cache_and_existing_evidence_checks_only(path):
     result = select_tests([path])
     assert result['level'] == 'B' and result['warnings'] == []
@@ -74,8 +74,17 @@ def test_approved_voice_sources_select_cache_and_existing_evidence_checks_only(p
 
 
 def test_approved_voice_owner_does_not_spread_to_unrelated_demo_or_test_edits():
-    assert 'tests/test_approved_voice.py' not in select_tests(['demo/unrelated_voice_example.py'])['tests']
+    assert 'tests/test_approved_voice.py' not in select_tests(['tools/media/unrelated_voice_example.py'])['tests']
     assert select_tests(['tests/test_approved_voice.py'])['tests'] == ['tests/test_approved_voice.py']
+
+
+@pytest.mark.parametrize('path,expected',[
+    ('tools/llm.py',['tests/test_approved_voice.py','tests/test_import_model_source.py','tests/test_llm.py']),
+    ('tools/import_model_source.py',['tests/test_import_model_source.py','tests/test_llm.py']),
+])
+def test_shared_model_tools_select_import_initialization_and_narration_boundaries(path,expected):
+    result=select_tests([path])
+    assert result['tests']==expected and result['warnings']==[]
 
 
 @pytest.mark.parametrize('path', ['requirements.txt', 'pyproject.toml', 'tests/conftest.py', 'tests/_support.py'])

@@ -6,16 +6,16 @@
 
 确认本片面向谁、展示什么产品形态、哪些是机制示意、哪些要实际录到。完整稿应同时包含台词、旁白、镜头操作、所需证据和未录条件；尚无事实的镜头保留待录，不预填成功结果。用户指定的产品形态、合同方式与结尾在各处保持一致，场景值归设计示例及场景源。
 
-当前新稿源为 [review_story.py](../../../../demo/review_story.py)，[script_documents.py](../../../../demo/script_documents.py) 的 `--drafts` 生成三稿；其批准状态绑定规范化内容的 SHA-256。修改旁白、产品形态或关键展示范围时，取得对改动的确认并更新绑定，不把状态文字沿用为新稿批准；真实操作中的自然措辞、按需追问及不改变主要流程的顺序变化，不要求逐句复演或重新批准。旧影片的 `case_story.py`、`global_story.py` 及发布记录仍是各自版本的来源，不能因新稿获准就改写旧片。
+当前新稿源为 [review_story.py](../../../../tools/media/review_story.py)，[script_documents.py](../../../../tools/media/script_documents.py) 的 `--drafts` 生成三稿；其批准状态绑定规范化内容的 SHA-256。修改旁白、产品形态或关键展示范围时，取得对改动的确认并更新绑定，不把状态文字沿用为新稿批准；真实操作中的自然措辞、按需追问及不改变主要流程的顺序变化，不要求逐句复演或重新批准。旧影片的 `case_story.py`、`global_story.py` 及发布记录仍是各自版本的来源，不能因新稿获准就改写旧片。
 
 生成物不手改。先用当前入口的只读检查核对：
 
 ```powershell
-.venv/Scripts/python.exe -X utf8 demo/script_documents.py --drafts --check
-.venv/Scripts/python.exe -X utf8 demo/approved_voice.py --check
+.venv/Scripts/python.exe -X utf8 tools/media/script_documents.py --drafts --check
+.venv/Scripts/python.exe -X utf8 tools/media/approved_voice.py --check
 ```
 
-批准稿、配音计划就绪只证明内容准备，不能写成已录制、已履约或已发布。准备配音时使用 [approved_voice.py](../../../../demo/approved_voice.py) 保留批准内容摘要、音频摘要和 `recorded: false`；真实镜头完成后另核录制证据。
+批准稿、配音计划就绪只证明内容准备，不能写成已录制、已履约或已发布。准备配音时使用 [approved_voice.py](../../../../tools/media/approved_voice.py) 保留批准内容摘要、音频摘要和 `recorded: false`；真实镜头完成后另核录制证据。
 
 ## 自然输入与实际流程
 

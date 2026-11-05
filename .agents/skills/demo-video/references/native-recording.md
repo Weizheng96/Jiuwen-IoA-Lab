@@ -1,16 +1,16 @@
 # 录制与剪辑
 
-安排原生镜头、全景或同单补录时阅读。实际参数与运行方式以 [demo/README.md](../../../../demo/README.md)及当前脚本为准。
+安排原生镜头、全景或同单补录时阅读。实际参数与运行方式以 [tools/media/README.md](../../../../tools/media/README.md)及当前脚本为准。
 
 ## 选择真实入口
 
 | 素材 | 现有入口与适用范围 |
 |---|---|
-| 概念全景与实际监控 | `demo/global_story.py`、`record_global.py`复用已核素材；新监控录制使用当前所有者的原生页面，动画与监控分别标识 |
-| 新批准稿与旁白计划 | `demo/review_story.py`、`script_documents.py --drafts`、`approved_voice.py`；不生成业务事实 |
-| 既有场景录制与接续 | 原生整屏用 `scripts/capture_desktop.py`，同单只读补录用 `demo/record_provider_view.py`；先读前置检查、调用与证据格式；旧录制业务链已归档，不恢复旧执行器 |
-| 既有场景剪辑与发布 | `demo/edit_cases.py`、`check_recording.py`、`review_cases.py`、`publish_cases.py`；仅在当前场景及证据契约匹配时复用 |
-| 新批准稿原生剪辑 | `demo/edit_cases.py --scene delegation-provider\|delegation-assistant\|messaging`；指定新 `--recording` 目录和对应 `--voice-timing` 文件，缺镜头或证据时用 `--review-candidate` |
+| 概念全景与实际监控 | `tools/media/global_story.py`、`record_global.py`复用已核素材；新监控录制使用当前所有者的原生页面，动画与监控分别标识 |
+| 新批准稿与旁白计划 | `tools/media/review_story.py`、`script_documents.py --drafts`、`approved_voice.py`；不生成业务事实 |
+| 既有场景录制与接续 | 原生整屏用 `scripts/capture_desktop.py`，同单只读补录用 `tools/media/record_provider_view.py`；先读前置检查、调用与证据格式；旧录制业务链已归档，不恢复旧执行器 |
+| 既有场景剪辑与发布 | `tools/media/edit_cases.py`、`check_recording.py`、`review_cases.py`、`publish_cases.py`；仅在当前场景及证据契约匹配时复用 |
+| 新批准稿原生剪辑 | `tools/media/edit_cases.py --scene delegation-provider\|delegation-assistant\|messaging`；指定新 `--recording` 目录和对应 `--voice-timing` 文件，缺镜头或证据时用 `--review-candidate` |
 | 当前所有者的原生页面原帧 | [capture_frames.mjs](../scripts/capture_frames.mjs)；注入已绑定 Tab/CDP 与文件系统，分次 await 采集，不启动浏览器或操作页面 |
 
 旧编排脚本不直接等同于新版原生教程。核对它是否启动业务、创建账号、触发费用或依赖旧接口；若与现行设计或批准稿不符，先由所属开发任务修正，不能为出片恢复已替代的参数或绕过正常接入。
@@ -114,7 +114,7 @@ node --test .agents/skills/demo-video/scripts/capture_frames.test.mjs
 
 用户原片的文件名可能是保存或结束时刻，先以媒体creation_time、实际首帧与已发生的日志事件校准源零点。粗间隔抽帧仅用于定位，不能据此宣称短暂的注册、上传或确认动作缺失；须细查对应操作窗口。实际未录到的步骤不由相近页面或旁白补成已发生，部分流程剪辑明确其范围，并保留未覆盖镜头清单。
 
-原片、接续和尾段各保留独立文件与时间原点；每段写清 `source`、原始起点、时长及关联证据。新版在 `segments.json` 按批准镜头 ID 指定 `layout` 和 `panels`，各面板绑定真实源文件 SHA-256、`start`、`duration`、`role` 与标签。双格按 `native/platform`、四格按 `wang-platform/zhao-platform/wang-native/zhao-native` 归位，先保比例合成为 1920×1080，再叠字幕与旁白。编辑决策表把原片区间映射到成片，跨源不能直接比较绝对时间戳。现有 [artifacts.py](../../../../demo/artifacts.py) 的 `waiting_was_cut` 仅比较同源区间，应保留这个边界。
+原片、接续和尾段各保留独立文件与时间原点；每段写清 `source`、原始起点、时长及关联证据。新版在 `segments.json` 按批准镜头 ID 指定 `layout` 和 `panels`，各面板绑定真实源文件 SHA-256、`start`、`duration`、`role` 与标签。双格按 `native/platform`、四格按 `wang-platform/zhao-platform/wang-native/zhao-native` 归位，先保比例合成为 1920×1080，再叠字幕与旁白。编辑决策表把原片区间映射到成片，跨源不能直接比较绝对时间戳。现有 [artifacts.py](../../../../tools/media/artifacts.py) 的 `waiting_was_cut` 仅比较同源区间，应保留这个边界。
 
 可压缩真实等待并标记“等待片段已剪短”，保留操作、请求和实际结果的先后。不能通过换源删除关键追问、拒绝或失败，将后来恢复剪成首次自主成功。事后只读回看设 `captureKind: later-review`；原片不够长时可用 `holdLastFrame` 和 `holdReason` 明确标注定格讲解，也可延长可用实录区间或重排剪辑，不补造未录操作。
 

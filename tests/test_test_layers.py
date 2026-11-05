@@ -59,7 +59,7 @@ def test_removed_scene_cases_and_asset_changes_select_their_real_coverage_owner(
         assert set(expected) <= set(coverage['checks'])
     assert plan()['replacementCoverage'] == REPLACEMENT_COVERAGE
     paths = ['tests/test_nail_flow.py',
-             'demo/delegation-provider/src/scenario/definitions.py',
+             'tools/media/delegation-provider/src/scenario/definitions.py',
              'src/official/services/ioalab_services/programming.py',
              'src/official/services/ioalab_services/assets/verifiers/programming.py',
              'src/official/services/ioalab_services/assets/domains/08-dev.json']

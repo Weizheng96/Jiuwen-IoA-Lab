@@ -36,10 +36,11 @@ def current_documents():
     files.append(ROOT / "设计/变更/README.md")
     files.extend((ROOT / ".agents/skills").rglob("*.md"))
     files.extend((ROOT / "src/access/skills").rglob("*.md"))
-    files.extend((ROOT / "demo").glob("*/剧本.md"))
+    files.extend((ROOT / "tools/media").rglob("*.md"))
+
     for folder in (
         "src/platform", "src/access/sdk", "src/access/examples", "src/hosts/jiuwen", "src/official",
-        "experiments", "demo", "demo/verification",
+        "tools", "tools/media", "tools/verification",
     ):
         files.append(ROOT / folder / "README.md")
     return sorted(set(files))

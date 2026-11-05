@@ -20,4 +20,4 @@
 
 检查：`python tools/check_vendor.py`、`python deploy/install_swarm.py --verify-only`。摘要不匹配、安装包缺网页或锁文件含远端VCS项均拒绝通过。新部署的专用九问工作区关闭自动更新；已有配置和技能账号保留。
 
-实测结果见[部署依赖验证](../deploy/verification/dependencies.json)。
+实测结果见[部署依赖验证](../设计/工程/实施资料/部署发行.md#历史验证资料归档)。

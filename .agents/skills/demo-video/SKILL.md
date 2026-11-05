@@ -5,7 +5,7 @@ description: 制作或修改 Jiuwen IoA Lab 演示视频的剧本、旁白、真
 
 # Demo 视频制作
 
-先读根 [AGENTS.md](../../../AGENTS.md)、[制作入口](../../../demo/README.md)和[当前验证记录](../../../demo/verification/README.md)，再按本片涉及的流程读取[设计职责页](../../../设计/README.md)。旧影片、后台实验、当前待录稿分别核对。
+先读根 [AGENTS.md](../../../AGENTS.md)、[制作入口](../../../tools/media/README.md)和[当前验证记录](../../../设计/工程/实施资料/部署发行.md#历史验证资料归档)，再按本片涉及的流程读取[设计职责页](../../../设计/README.md)。旧影片、后台实验、当前待录稿分别核对。
 
 ## 工作顺序
 
@@ -24,4 +24,4 @@ description: 制作或修改 Jiuwen IoA Lab 演示视频的剧本、旁白、真
 | 原生录屏、四宫格、网络、滚动、真实等待与补录 | [录制与剪辑](references/native-recording.md) |
 | 配音、字幕、最终编码检查与发布 | [声画与交付](references/audio-and-release.md) |
 
-复用 `demo/` 已有生成器和检查脚本；先核入口当前支持的流程，不复制流水线。A2C 的编排动画由其仓库的 [demo-video 技能](https://github.com/Weizheng96/AgentContractProtocol/blob/510d10a9f303cce2a4548f4b1439949c3ef42413/.agents/skills/demo-video/SKILL.md)维护，跨仓改动先读对方 AGENTS.md。账号、业务偏好和场景参数留在相应示例，不写进通用技能。
+复用 `tools/media/` 已有生成器和检查脚本；先核入口当前支持的流程，不复制流水线。A2C 的编排动画由其仓库的 [demo-video 技能](https://github.com/Weizheng96/AgentContractProtocol/blob/510d10a9f303cce2a4548f4b1439949c3ef42413/.agents/skills/demo-video/SKILL.md)维护，跨仓改动先读对方 AGENTS.md。账号、业务偏好和场景参数留在相应示例，不写进通用技能。

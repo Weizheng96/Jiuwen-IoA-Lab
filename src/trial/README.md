@@ -12,4 +12,4 @@
 
 SDK确认页直接复用SDK渲染，保留闭合问题表单和未知提交恢复。原生网页与可信确认使用不同HTTPS hostname，同一网关进程按Host/Origin严格分路。正式平台分别签发两种aud票据；可信会话在消费时绑定当前席位及epoch，不接受原生cookie。原生host不提供确认页面/API，确认host不代理原生网页、文件和WS；确认页禁止iframe嵌入。未取得席位时明确等待，取得后从正式平台重新打开确认入口。结束原子撤销两种aud会话。
 
-本轮没有启动容器、模型或付费/邮件业务，没有资源实测。`experiments/trial_resources.py`只采真实Docker计数，未取得的模型令牌、宿主PSS及业务时延明确标missing。
+本轮没有启动容器、模型或付费/邮件业务，没有资源实测。`tools/verification/trial_resources.py`只采真实Docker计数，未取得的模型令牌、宿主PSS及业务时延明确标missing。

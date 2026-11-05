@@ -3,9 +3,9 @@ import copy
 
 import pytest
 
-from demo import script_documents
-from demo import review_story
-from demo.review_story import DRAFTS
+from tools.media import script_documents
+from tools.media import review_story
+from tools.media.review_story import DRAFTS
 
 
 def test_generate_and_check_new_drafts_without_published_media_or_legacy_overwrite(tmp_path, monkeypatch):

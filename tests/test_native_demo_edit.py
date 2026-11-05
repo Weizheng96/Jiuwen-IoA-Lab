@@ -10,9 +10,9 @@ import json
 
 import pytest
 
-from demo import artifacts, edit_cases
-from demo.approved_voice import voice_plan
-from demo.review_story import APPROVAL
+from tools.media import artifacts, edit_cases
+from tools.media.approved_voice import voice_plan
+from tools.media.review_story import APPROVAL
 
 
 def _sha(data):
@@ -216,7 +216,7 @@ def test_business_validation_is_readonly_and_missing_facts_are_not_complete(nati
 
 
 def test_review_candidate_is_refused_before_reading_publication_artifacts(native_inputs):
-    from demo import publish_cases
+    from tools.media import publish_cases
 
     inputs = native_inputs
     inputs["proof"]["reviewCandidate"] = True
@@ -557,7 +557,7 @@ def test_missing_business_and_missing_shot_block_complete_edit(complete_messagin
 
 
 def test_native_public_projection_omits_private_audit_and_unapproved_nested_fields(complete_messaging):
-    from demo.publish_cases import public_native_business
+    from tools.media.publish_cases import public_native_business
 
     proof = complete_messaging["proof"]
     business = proof["business"]
@@ -646,7 +646,7 @@ def test_incomplete_delegation_is_never_promoted(complete_delegation, mutation):
 @pytest.fixture
 def publishable_native_files(complete_messaging, monkeypatch):
     """Exercise publication gates without pretending to decode the inert MP4."""
-    from demo import publish_cases
+    from tools.media import publish_cases
 
     inputs = complete_messaging
     folder, proof = inputs["folder"], inputs["proof"]
@@ -684,7 +684,7 @@ def publishable_native_files(complete_messaging, monkeypatch):
 
 
 def test_native_publication_requires_current_hashes_and_never_copies_private_evidence(publishable_native_files):
-    from demo.publish_cases import publish_native
+    from tools.media.publish_cases import publish_native
 
     inputs = publishable_native_files
     summary = publish_native(inputs["folder"], "messaging", approved_video_sha256=inputs["movieDigest"])
@@ -700,7 +700,7 @@ def test_native_publication_requires_current_hashes_and_never_copies_private_evi
 
 
 def test_public_shot_summary_uses_only_safe_measured_fields(publishable_native_files):
-    from demo.publish_cases import publish_native
+    from tools.media.publish_cases import publish_native
 
     inputs = publishable_native_files
     review_file = inputs["folder"] / "shot-review.json"
@@ -720,7 +720,7 @@ def test_public_shot_summary_uses_only_safe_measured_fields(publishable_native_f
 
 
 def test_unbound_contact_sheet_is_not_copied_into_publication(publishable_native_files):
-    from demo.publish_cases import publish_native
+    from tools.media.publish_cases import publish_native
 
     inputs = publishable_native_files
     contact_sheet = inputs["folder"] / "shot-review.jpg"
@@ -741,7 +741,7 @@ def test_unbound_contact_sheet_is_not_copied_into_publication(publishable_native
     "changed-edit-list", "changed-audio", "changed-source", "changed-movie",
 ])
 def test_native_publication_rejects_stale_qa_or_missing_final_approval(publishable_native_files, mutation):
-    from demo.publish_cases import publish_native
+    from tools.media.publish_cases import publish_native
 
     inputs = publishable_native_files
     folder, approved = inputs["folder"], inputs["movieDigest"]

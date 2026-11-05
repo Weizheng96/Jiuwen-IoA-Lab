@@ -118,3 +118,15 @@ def test_gitcode_transport_keeps_tls_and_disables_trace_and_inherited_proxy(monk
     assert 'GIT_SSL_NO_VERIFY' not in observed['env'] and 'GIT_TRACE_CURL' not in observed['env']
     assert 'http.'+sync_gitcode.GITCODE+'.proxy=' in observed['argv']
     assert 'http.'+sync_gitcode.GITCODE+'.sslVerify=true' in observed['argv']
+
+
+@pytest.mark.parametrize('path', ['.agents/llm_apikey','.agents/data/demo/record.json','.agents/data/private-model.json'])
+def test_history_guard_refuses_private_development_source_and_data(path):
+    class History:
+        def text(self, *args): return '0'*40+' '+path
+    with pytest.raises(SyncError): sync_gitcode.check_history_paths(History(),'HEAD')
+
+def test_history_guard_accepts_public_llm_tool_and_skill():
+    class History:
+        def text(self, *args): return '0'*40+' tools/llm.py\n'+'1'*40+' .agents/skills/llm/SKILL.md'
+    sync_gitcode.check_history_paths(History(),'HEAD')

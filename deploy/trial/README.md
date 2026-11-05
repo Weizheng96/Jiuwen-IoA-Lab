@@ -83,8 +83,8 @@ Swarm环境先安装现有Linux普通依赖锁，再由install_swarm_wheels.py�
 业务使用公开注册的普通`trial-user`，不是默认管理员身份。core公共seed只含四个编程候选的公共摘要；模型指令、样例和验收器仍归外部服务资源。仅试用环境显式登录赠1000虚拟币，独立于用户预算/授权；探针使用首次注册原cookie只读核钱包可支持500预算样例，不反复登录或赠币。
 
 ```sh
-/opt/ioalab-trial-controller/bin/python experiments/trial_resources.py --deployment-profile linux-server --deployment ioa-trial --phase three-idle --seconds 60 --out temp/three-idle.jsonl
-/opt/ioalab-trial-controller/bin/python experiments/trial_resources.py --deployment-profile linux-server --deployment ioa-trial --phase three-active --seconds 120 --out temp/three-active.jsonl
+/opt/ioalab-trial-controller/bin/python tools/verification/trial_resources.py --deployment-profile linux-server --deployment ioa-trial --phase three-idle --seconds 60 --out temp/three-idle.jsonl
+/opt/ioalab-trial-controller/bin/python tools/verification/trial_resources.py --deployment-profile linux-server --deployment ioa-trial --phase three-active --seconds 120 --out temp/three-active.jsonl
 ```
 
 同样保存baseline、one-active、after-reset；包含核心与服务方。Docker内存不是PSS；脚本明确标出待补的宿主/PSS、模型请求令牌及业务时延，不用空闲数值推算三席执行负担。

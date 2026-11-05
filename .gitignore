@@ -3,7 +3,7 @@ data/
 logs/
 ext-data/
 
-# 一次性调查、草案、脚本；正式可复现实验保留在 experiments/
+# 一次性调查、草案、脚本
 /temp/
 
 # 凭据与本机配置
@@ -32,3 +32,7 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# 开发模型源与复用私有数据
+/.agents/data/
+/.agents/llm_apikey

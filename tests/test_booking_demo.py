@@ -6,7 +6,7 @@ import pytest
 from ioalab_services.catalog import definitions
 
 ROOT=Path(__file__).resolve().parents[1]
-spec=importlib.util.spec_from_file_location('booking_app',ROOT/'demo/delegation-assistant/src/booking_app.py')
+spec=importlib.util.spec_from_file_location('booking_app',ROOT/'tools/media/delegation-assistant/src/booking_app.py')
 app=importlib.util.module_from_spec(spec);spec.loader.exec_module(app)
 
 
@@ -58,7 +58,7 @@ def test_browser_cancel_request_shape(tmp_path):
     config=next(d['sample'] for _, d in __import__('_nail_scene').nail_services() if d['id']=='nail-mashangfei')
     path=tmp_path/'config.json';path.write_text(json.dumps(config),encoding='utf-8')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
-    child=subprocess.Popen([sys.executable,str(ROOT/'demo/delegation-assistant/src/booking_app.py'),'--config',str(path),'--database',str(tmp_path/'book.db'),'--port',str(port)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    child=subprocess.Popen([sys.executable,str(ROOT/'tools/media/delegation-assistant/src/booking_app.py'),'--config',str(path),'--database',str(tmp_path/'book.db'),'--port',str(port)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     try:
         with httpx.Client(base_url=f'http://127.0.0.1:{port}',trust_env=False) as http:
             until=time.monotonic()+10

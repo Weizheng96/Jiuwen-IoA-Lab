@@ -9,7 +9,10 @@ from .layout import Layout,write_initial
 from .release import read_json
 
 
-def initialize(layout,*,assets=None):
+def initialize(layout,*,assets=None,llm=None):
+    if llm is not None:
+        from .configuration import model
+        llm=model(llm)
     layout.claim()
     path=layout.config/'core/platform.json'
     if path.exists():raise ValueError('Platform configuration already exists; edit the original private file')
@@ -21,6 +24,8 @@ def initialize(layout,*,assets=None):
         private_directory(directory)
     else:os.chmod(directory,0o700)
     value=read_json(Path(__file__).with_name('platform.json.example'))
+    if llm is not None:
+        value['llm'].update(model=llm['name'],base_url=llm['base_url'],api_key=llm['api_key'])
     assets=Path(assets).absolute() if assets else layout.environments/'current/release'
     value['runtime'].update(data=str(layout.state/'core'),seed_file=str(assets/'seed.json'),
         bundles_dir=str(assets/'skills'),session_secret=secrets.token_hex(32),assistant_password=secrets.token_urlsafe(24))

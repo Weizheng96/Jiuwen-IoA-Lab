@@ -8,7 +8,7 @@ import pytest
 
 
 def module():
-    path=Path(__file__).parents[1]/'experiments/trial_resources.py'
+    path=Path(__file__).parents[1]/'tools/verification/trial_resources.py'
     spec=importlib.util.spec_from_file_location('trial_resource_experiment',path)
     result=importlib.util.module_from_spec(spec);spec.loader.exec_module(result)
     return result
@@ -77,7 +77,7 @@ def test_windows_idle_records_real_single_capacity(tmp_path,monkeypatch):
 def test_standalone_help_and_dependency_failure_do_not_use_pytest_pythonpath(tmp_path):
     import subprocess
     import sys
-    script=Path(__file__).parents[1]/'experiments/trial_resources.py'
+    script=Path(__file__).parents[1]/'tools/verification/trial_resources.py'
     # Isolated interpreter without site packages cannot inherit pytest's imports.
     command=[sys.executable,'-I','-S',str(script)]
     help_result=subprocess.run([*command,'--help'],capture_output=True,text=True,check=False)

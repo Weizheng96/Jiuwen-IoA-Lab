@@ -1,0 +1,18 @@
+---
+name: llm
+description: 为开发和验收工具管理统一私有模型凭据来源及显式实例初始化；不改变运行组件的配置权威。
+---
+# 开发模型输入
+
+开发与验收工具统一读取 Git 忽略的 `.agents/llm_apikey`，调用与安全初始化复用 `tools/llm.py`。凭据内容不进入 Git、日志、命令参数或全局环境；不得输出私有源正文。
+
+私有源使用 `profiles` 对象，以操作者选择的名字索引模型对象；字段复用 deploy.configuration.model 的 `name`、`base_url`、`api_key` 与可选 `provider`。开发调用使用 `tools.llm.profile()` 或 `complete()`，不在每个工具重新解析秘密源。`python -m tools.llm --profile <名字> --root <实例根> --state <状态目录> --config-dir <配置目录>` 仅经既有 deploy.configure 显式初始化；name 在写入唯一平台 JSON 时转换为 llm.model，不生成旁路运行配置。
+
+运行实例经显式初始化取得属于自身的单 JSON，之后只读自己的配置。核心配置仍由[平台配置规范](../../../设计/工程/平台配置.md)定义，参与方由各自运行时读取；运行组件不跨读开发源，不以环境逐字段覆盖形成第二权威。
+
+迁移旧源前列出所有消费者，确认新路径已 ignore 且发布 guard 能拒绝无扩展秘密路径，先安全初始化并核验消费者，再移除已无引用旧源。并发 Windows/服务器部署使用中的私有输入不得移动或删除。初始化工具拒绝覆盖原文件，失败不输出服务商错误或密钥。
+
+
+首次迁移阿里 CSV 使用 `python -m tools.import_model_source --csv <已授权CSV> --profile <名字> --model <模型>`，仅一次显式导入；严格核重复字段、HTTPS 原空间入口和目标不存在，先限制文件 ACL 再写秘密，失败清除本次空目标并保留原源。原源与在途输入不自动删除。导入工具不是运行组件的旧格式回退。
+
+语音工具只使用 `tools.llm.Aliyun` 和源内 `tts` 配置（引用 profile，不复制凭据）；官方 SDK 的 key 仅设在客户端实例，不修改全局 API key 或环境。TTS 的响应、错误、提前关闭及空音频均有确定性替身测试；真实服务连通和听感仍属授权后 D 专项，不为源码整理调用付费服务。

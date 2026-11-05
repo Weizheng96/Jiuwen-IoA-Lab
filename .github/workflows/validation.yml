@@ -57,7 +57,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Installed Linux release and HTTP WebSocket lifecycle
-        run: python experiments/verify_deployment.py --output "${{ runner.temp }}/ioalab-deployment" --index https://pypi.org/simple
+        run: python tools/verification/verify_deployment.py --output "${{ runner.temp }}/ioalab-deployment" --index https://pypi.org/simple
       - name: Preserve deployment evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,7 +84,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Default root systemd install and safe upgrade on disposable runner
-        run: sudo -n -- "$(command -v python)" -X utf8 -B experiments/verify_default_deployment.py --isolated-runner --output /tmp/ioalab-default-${{ github.run_id }}-${{ github.run_attempt }} --index https://pypi.org/simple --seconds 2400
+        run: sudo -n -- "$(command -v python)" -X utf8 -B tools/verification/verify_default_deployment.py --isolated-runner --output /tmp/ioalab-default-${{ github.run_id }}-${{ github.run_attempt }} --index https://pypi.org/simple --seconds 2400
       - name: Preserve only the public lifecycle report
         if: always()
         uses: actions/upload-artifact@v4
