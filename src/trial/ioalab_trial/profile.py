@@ -3,6 +3,9 @@ import platform
 import sys
 
 CAPACITIES={'linux-server':3,'windows-wsl':1}
+RESOURCE_LAYOUT='epoch-ingress/1'
+INGRESS_CAPABILITY='fixed-seat-tcp-8080-8767'
+DOCKER_COMMAND=('docker','--host','unix:///var/run/docker.sock')
 
 
 def capacity(profile):

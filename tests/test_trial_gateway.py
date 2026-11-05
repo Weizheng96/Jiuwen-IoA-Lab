@@ -26,7 +26,7 @@ def gateway(tmp_path, monkeypatch):
     coordinator=Coordinator(store,audience='https://trial.test',admission_key='k'*40,
                             lease_seconds=100,grace_seconds=20,clock=lambda:1000)
     monkeypatch.setattr(coordinator,'reconcile',lambda sandbox:None)
-    sandbox=SimpleNamespace(ui=lambda seat:f'http://127.0.0.1:{19000+seat*2}')
+    sandbox=SimpleNamespace(ui=lambda seat,epoch:f'http://127.0.0.1:{19000+seat*2}')
     app=create_app(coordinator,sandbox,confirm_origin='https://confirm.trial.test')
     with TestClient(app,base_url='https://trial.test',raise_server_exceptions=False) as client:
         with store.transaction() as db:
@@ -98,7 +98,8 @@ def test_sdk_control_rejection_and_unknown_are_distinct(gateway,code):
     native=login('alice');client.post('/trial/api/join',json={},headers=native)
     trusted='https://confirm.trial.test'
     headers=login('alice',trusted)
-    def fail(*args):
+    def fail(*args,**kwargs):
+        kwargs['before_send']()
         response=httpx.Response(code,request=httpx.Request('POST','http://private-control/confirmations'),
                                 json={'error':{'message':'private backend detail'}})
         response.raise_for_status()
@@ -107,6 +108,42 @@ def test_sdk_control_rejection_and_unknown_are_distinct(gateway,code):
     assert response.status_code==code
     assert response.json()['error']['code']==('unknown_result' if code==503 else 'confirmation_rejected')
     assert 'private backend detail' not in response.text
+
+
+def test_revocation_during_preflight_never_reaches_http_ws_or_sdk(gateway,monkeypatch):
+    client,coordinator,sandbox,login=gateway
+    upstream=[]
+    def forbidden(*args,**kwargs):
+        upstream.append('sent');raise AssertionError('Revoked request reached an upstream')
+    monkeypatch.setattr('ioalab_trial.gateway.httpx.AsyncClient.stream',forbidden)
+    monkeypatch.setattr('ioalab_trial.gateway.websockets.connect',forbidden)
+    for kind in ('http','ws','sdk'):
+        entered=threading.Event();release=threading.Event();outcomes=[]
+        headers=login(kind)
+        lease=client.post('/trial/api/join',json={},headers=headers).json()
+        def preflight(*args):
+            entered.set();assert release.wait(3);return 'http://127.0.0.1:19999'
+        sandbox.ui=preflight
+        if kind=='sdk':
+            headers=login(kind,'https://confirm.trial.test')
+            def control(*args,before_send):
+                preflight();before_send();return forbidden()
+            sandbox.control=control
+        def request():
+            if kind=='http':outcomes.append(client.get('/api/config').status_code)
+            elif kind=='sdk':outcomes.append(client.post('https://confirm.trial.test/trial/user/decision',headers=headers,
+                json={'reference':'original','bindingDigest':'digest','decision':'approve'}).status_code)
+            else:
+                try:
+                        with client.websocket_connect('wss://trial.test/ws',headers={'Origin':'https://trial.test'}):outcomes.append('accepted')
+                except WebSocketDisconnect:outcomes.append('closed')
+        thread=threading.Thread(target=request);thread.start()
+        try:
+            assert entered.wait(3),(kind,outcomes,lease)
+            coordinator.revoke(lease['id'],'test-preflight-revocation')
+        finally:release.set();thread.join(4)
+        assert not thread.is_alive() and upstream==[]
+        assert outcomes==(['closed'] if kind=='ws' else [403])
 
 
 @pytest.mark.parametrize('origin',['https://trial.test','https://trial.test:9999','http://confirm.trial.test'])
@@ -137,7 +174,7 @@ def test_owner_and_old_cookie_cannot_select_another_seat(gateway,monkeypatch):
     monkeypatch.setattr('ioalab_trial.gateway.httpx.AsyncClient',lambda **kwargs:Upstream())
     response=client.get('/native/query',params={'seat':original['id'],'epoch':original['epoch'],'owner':'alice'},headers={'Authorization':'Bearer attacker'})
     assert response.content==b'own-seat'
-    assert observed[0][0].startswith(sandbox.ui(current['id'])+'/')
+    assert observed[0][0].startswith(sandbox.ui(current['id'],current['epoch'])+'/')
     assert 'authorization' not in observed[0][1]['headers']
     coordinator.end('alice')
     client.cookies.clear()
@@ -205,7 +242,8 @@ def test_closed_confirmation_uses_actual_sdk_and_original_digest(gateway,tmp_pat
     port=TrustedUserPort(manager,actor='actor',generation=lease['epoch'],authorize=lambda context,generation:True)
     server=TrustedUserServer(port,key='sdk-transport-key-'+'x'*32).start()
     sent=[]
-    def control(seat,epoch,method,body):
+    def control(seat,epoch,method,body,*,before_send):
+        before_send()
         sent.append(dict(body))
         assert seat==lease['id'] and epoch==lease['epoch'] and method=='confirmations'
         response=httpx.post(server.address,json=body,headers={'Authorization':'Bearer '+'sdk-transport-key-'+'x'*32},trust_env=False,timeout=3)
@@ -246,7 +284,7 @@ def test_ws_rejects_cross_origin_and_revokes_active_connection(gateway):
         released.wait(3)
     with serve(peer,'127.0.0.1',0) as server:
         thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
-        sandbox.ui=lambda seat:'http://127.0.0.1:'+str(server.socket.getsockname()[1])
+        sandbox.ui=lambda seat,epoch:'http://127.0.0.1:'+str(server.socket.getsockname()[1])
         try:
             with client.websocket_connect('wss://trial.test/ws?user_id=trial',headers={'Origin':'https://trial.test'}) as socket:
                 assert socket.receive_json()=={'ready':True}

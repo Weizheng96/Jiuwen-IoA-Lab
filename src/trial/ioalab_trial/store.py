@@ -2,7 +2,7 @@
 import contextlib
 import sqlite3
 import threading
-from .profile import capacity
+from .profile import capacity, RESOURCE_LAYOUT
 
 
 class Store:
@@ -17,9 +17,12 @@ class Store:
             if tables:
                 if 'deployment' not in tables:
                     raise ValueError('Original control database has no deployment profile; preserve it, fully retire its old epochs before using a new control_directory')
-                bound=self.db.execute('SELECT profile,capacity FROM deployment').fetchall()
+                columns={row[1] for row in self.db.execute('PRAGMA table_info(deployment)')}
+                if columns!={'profile','capacity','resource_layout'}:
+                    raise ValueError('Original control database has no current resource layout; preserve all old epochs and retire them before using a new control_directory')
+                bound=self.db.execute('SELECT profile,capacity,resource_layout FROM deployment').fetchall()
                 ids=[row[0] for row in self.db.execute('SELECT id FROM seats ORDER BY id')]
-                if [tuple(row) for row in bound]!=[(self.profile,self.capacity)] or ids!=list(range(1,self.capacity+1)):
+                if [tuple(row) for row in bound]!=[(self.profile,self.capacity,RESOURCE_LAYOUT)] or ids!=list(range(1,self.capacity+1)):
                     raise ValueError('Control database deployment/capacity mismatch; preserve all old epochs and use a new control_directory only after full retirement')
         except BaseException:
             self.db.close()
@@ -33,9 +36,9 @@ class Store:
         CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, owner TEXT NOT NULL,
           csrf TEXT NOT NULL, expires REAL NOT NULL, audience TEXT NOT NULL,
           purpose TEXT NOT NULL, seat INTEGER, epoch TEXT);
-        CREATE TABLE IF NOT EXISTS deployment(profile TEXT PRIMARY KEY,capacity INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS deployment(profile TEXT PRIMARY KEY,capacity INTEGER NOT NULL,resource_layout TEXT NOT NULL);
         ''')
-        self.db.execute('INSERT OR IGNORE INTO deployment VALUES(?,?)',(self.profile,self.capacity))
+        self.db.execute('INSERT OR IGNORE INTO deployment VALUES(?,?,?)',(self.profile,self.capacity,RESOURCE_LAYOUT))
         for seat in range(1, self.capacity+1):
             self.db.execute("INSERT OR IGNORE INTO seats(id,state) VALUES(?,'preparing')", (seat,))
 

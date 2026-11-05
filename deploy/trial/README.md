@@ -12,6 +12,12 @@ python deploy/trial/start_windows.py --distribution IoA-Trial --python /opt/ioal
 
 已有无profile控制库或切换profile/容量时启动会拒绝并保留原库；先在原部署完整结束全部轮次、撤销旧访问并核任务及数据重置成功，再选新的专用control_directory。不要删除旧数据库或改profile字段来绕过拒绝；新目录不能证明旧容器或业务已清退。原版网页、可信确认与整轮重置未过时仍不提供试用。
 
+程序、控制库、镜像能力和资源标签必须绑定当前epoch-ingress/1布局；旧两容器控制库不能补记版本后接管。入口在开放网关前核镜像布局与固定ingress能力，原镜像缺声明时明确失败。仍先沿原部署完整清退原轮次，再启用新的专用控制目录；不删库绕过。
+
+协调器及资源采样固定使用本机unix:///var/run/docker.sock，不继承外部DOCKER_HOST或当前Docker context；不会操作SSH目标上的既有容器。
+
+每轮由seat、model、ingress三个容器组成：seat仅连接禁用IPv6的isolated内部桥，供应商secret仍只归model；ingress无secret/卷、非root，只发布loopback并透明转发到本轮seat的8080/8767，不解释CONNECT为新目标。Docker按已核seat ID与数值IPv4固定hosts映射，不依赖运行期DNS解析；程序核真实发布、全部网络和角色归属后才向端口发控制请求。不支持isolated或IPv6隔离时拒绝准备，不给seat添加外网。
+
 资源脚本须由已安装trial的Linux控制器解释器执行，Windows同样先进入所选WSL发行版再使用该绝对解释器，不用Windows项目Python采样。Windows资源采集使用`--deployment-profile windows-wsl`，阶段为baseline、one-idle、one-active、after-reset；三席阶段在该profile被拒绝。下文三席命令仅用于Linux服务器。目标容量及实测结果必须同时记录。
 
 实际容量及隔离规则见[在线试用](../../设计/工程/在线试用.md)，尚未完成原版业务专项验收。每席位全部可写状态归一个epoch volume。原生九问UID10003不能读写SDK UID10002、核心UID10001或服务方UID10004数据。只读程序和完整离线wheelhouse共享。
@@ -72,7 +78,7 @@ Swarm环境先安装现有Linux普通依赖锁，再由install_swarm_wheels.py�
 
 真实健康后仍需原版UI/WS/A2UI/Skill工具调用和双origin确认边界专项。`probe.py`查询实际公开接口并要求镜像中`/opt/trial/native-acceptance.json`记录`originalUiProxy`、`originalWsProxy`、`a2ui`、`skillSdkCall`的真实验收结果；Dockerfile不会伪造该文件。审核证据后冻结镜像摘要，不能手写true冒充实测。应实测原生host的活动内容不能取得确认cookie或CSRF，旧epoch在两个host均无法读写；不得将确认API临时搬回原生host绕过验收。
 
-结束先持久撤销用户会话和epoch访问并关闭WS，再停本轮模型sidecar、通知容器撤销SDK确认并SIGTERM所属进程组。PID1等待全部后代；未退出保持quarantined，不强杀伪装停止。所有待删除资源的标签、挂载、状态与网络成员在首个删除动作前统一核对；核两个容器Exited/Pid=0后移除容器、整个volume和本轮网络，再准备新epoch。未知部分创建不盲目接管；默认隔离，人工核完整owner标签和真实资源后恢复。
+结束先持久撤销用户会话和epoch访问并关闭WS，在首个TERM前完整核三个容器、卷及内部网络的归属和固定形状，再停本轮model、经仍活ingress撤销SDK确认、SIGTERM席位所属进程组并核退出，最后SIGTERM ingress关闭活动连接并核退出。未知保持quarantined，不强杀伪装停止。首个删除动作前再次完整核验；三个容器均成功Exited/Pid=0后移除三个容器、整个volume和本轮网络，再准备新epoch，共用外网桥保留。未知部分创建不盲目接管；默认隔离，人工核完整owner标签和真实资源后恢复。
 
 业务使用公开注册的普通`trial-user`，不是默认管理员身份。core公共seed只含四个编程候选的公共摘要；模型指令、样例和验收器仍归外部服务资源。仅试用环境显式登录赠1000虚拟币，独立于用户预算/授权；探针使用首次注册原cookie只读核钱包可支持500预算样例，不反复登录或赠币。
 

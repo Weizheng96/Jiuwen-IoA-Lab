@@ -33,7 +33,9 @@ def main():
         try:
             coordinator = Coordinator(store,audience=config['origin'],admission_key=config['admission_key'],
                 lease_seconds=config['lease_seconds'],grace_seconds=config['grace_seconds'])
-            app = create_app(coordinator,DockerSandbox(config['sandbox'],deployment_profile=profile),confirm_origin=config['confirm_origin'],formal_origin=config['formal_origin'])
+            sandbox=DockerSandbox(config['sandbox'],deployment_profile=profile)
+            sandbox.validate_image()
+            app = create_app(coordinator,sandbox,confirm_origin=config['confirm_origin'],formal_origin=config['formal_origin'])
             uvicorn.run(app,host='127.0.0.1',port=config.get('port',8766),proxy_headers=False)
         finally:
             store.close()

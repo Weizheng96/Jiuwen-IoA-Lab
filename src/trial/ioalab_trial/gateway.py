@@ -193,8 +193,11 @@ def create_app(coordinator, sandbox, *, secure=True, confirm_origin=None, formal
     async def user_pending(request:Request):
         actor = session(request)
         lease = access(request)
+        def authorized():
+            session(request)
+            coordinator.access(actor['owner'],lease['epoch'])
         result = await asyncio.to_thread(sandbox.control,lease['id'],lease['epoch'],'confirmations',
-                                       {'generation':lease['epoch'],'method':'list'})
+                                       {'generation':lease['epoch'],'method':'list'},before_send=authorized)
         session(request)
         coordinator.access(actor['owner'],lease['epoch'])
         return {'csrf':actor['csrf'],'confirmations':result['data']}
@@ -207,10 +210,12 @@ def create_app(coordinator, sandbox, *, secure=True, confirm_origin=None, formal
         if not isinstance(data,dict) or set(data) - {'reference','bindingDigest','decision','answers'}:
             raise Denied('Invalid SDK user decision')
         data.update(method='decide',generation=lease['epoch'],eventId=secrets.token_hex(16))
-        def call():
+        def authorized():
             session(request,write=True)
             coordinator.access(actor['owner'],lease['epoch'])
-            return sandbox.control(lease['id'],lease['epoch'],'confirmations',data)
+        def call():
+            authorized()
+            return sandbox.control(lease['id'],lease['epoch'],'confirmations',data,before_send=authorized)
         result = await asyncio.to_thread(call)
         return result['data']
 
@@ -233,9 +238,12 @@ def create_app(coordinator, sandbox, *, secure=True, confirm_origin=None, formal
             if len(body) > 16 * 1024 * 1024:
                 raise HTTPException(413)
         # Fixed upstream, normalized relative path; absolute URL and Host cannot override it.
-        target = sandbox.ui(lease['id']) + '/' + path
+        origin = await asyncio.to_thread(sandbox.ui,lease['id'],lease['epoch'])
+        session(request)
+        coordinator.access(lease['owner'],lease['epoch'])
+        target = origin + '/' + path
         headers = {key:value for key,value in request.headers.items() if key.lower() not in HOP}
-        headers['origin'] = sandbox.ui(lease['id'])
+        headers['origin'] = origin
         async with httpx.AsyncClient(follow_redirects=False,timeout=30,trust_env=False) as client:
             async with client.stream(request.method,target,params=request.query_params,content=bytes(body),headers=headers) as stream:
                 content = bytearray()
@@ -266,12 +274,17 @@ def create_app(coordinator, sandbox, *, secure=True, confirm_origin=None, formal
             if audience(websocket) != coordinator.audience or websocket.headers.get('origin') != coordinator.audience:
                 raise Denied('Same-origin websocket required')
             lease = access(websocket,touch=True)
-            target = sandbox.ui(lease['id']).replace('http:','ws:',1) + '/' + path
+            origin = await asyncio.to_thread(sandbox.ui,lease['id'],lease['epoch'])
+            session(websocket)
+            coordinator.access(lease['owner'],lease['epoch'])
+            target = origin.replace('http:','ws:',1) + '/' + path
             if websocket.url.query:
                 target += '?' + websocket.url.query
             await websocket.accept()
             sockets.setdefault(lease['id'],set()).add(websocket)
-            async with websockets.connect(target,origin=sandbox.ui(lease['id']),max_size=16*1024*1024) as upstream:
+            session(websocket)
+            coordinator.access(lease['owner'],lease['epoch'])
+            async with websockets.connect(target,origin=origin,max_size=16*1024*1024) as upstream:
                 async def outbound():
                     while True:
                         message = await websocket.receive()

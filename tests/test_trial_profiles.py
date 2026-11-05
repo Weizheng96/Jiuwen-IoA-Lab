@@ -84,12 +84,30 @@ def test_entry_rejects_old_capacity_before_constructing_any_sandbox(tmp_path,mon
     assert (root/'control.sqlite').read_bytes()==before
 
 
+def test_old_or_mismatched_layout_preserves_database_and_business_references(tmp_path):
+    for old in ('missing','wrong'):
+        path=tmp_path/(old+'.sqlite')
+        if old=='missing':
+            db=sqlite3.connect(path)
+            db.executescript("CREATE TABLE deployment(profile TEXT,capacity INTEGER); INSERT INTO deployment VALUES('windows-wsl',1); CREATE TABLE seats(id INTEGER,epoch TEXT); INSERT INTO seats VALUES(1,'old-contract-payment-reference');")
+            db.close()
+        else:
+            original=Store(path,deployment_profile='windows-wsl')
+            with original.transaction() as db:
+                db.execute("UPDATE deployment SET resource_layout='two-container-old'")
+                db.execute("UPDATE seats SET epoch='old-contract-payment-reference'")
+            original.close()
+        before=path.read_bytes()
+        with pytest.raises(ValueError,match='preserve'):Store(path,deployment_profile='windows-wsl')
+        assert path.read_bytes()==before
+
+
 def test_windows_sandbox_cannot_target_other_seats():
     from test_trial_sandbox import configuration,EPOCH
     sandbox=DockerSandbox(configuration(),deployment_profile='windows-wsl')
     for seat in (2,3,True):
         with pytest.raises(ValueError):sandbox.identity(seat,EPOCH)
-        with pytest.raises(ValueError):sandbox.ui(seat)
+        with pytest.raises(ValueError):sandbox.ui(seat,EPOCH)
 
 
 @pytest.mark.parametrize('uid,gid,mode,ok',[(0,0,0o600,True),(1000,0,0o600,False),(0,1000,0o600,False),(0,0,0o644,False)])

@@ -19,7 +19,7 @@ def main():
     if not re.fullmatch(r'[a-z][a-z0-9-]{2,30}',args.deployment):parser.error('deployment must be an exact reviewed trial prefix')
     if not 1 <= args.seconds <= 3600:parser.error('seconds must be 1..3600')
     try:
-        from ioalab_trial.profile import capacity
+        from ioalab_trial.profile import capacity,DOCKER_COMMAND
     except ModuleNotFoundError as exc:
         if exc.name not in ('ioalab_trial','ioalab_trial.profile'):raise
         parser.error('Install the reviewed optional ioalab-trial wheel and run this script with /opt/ioalab-trial-controller/bin/python inside the Linux controller environment; see deploy/trial/README.md')
@@ -29,11 +29,11 @@ def main():
     until=time.monotonic()+args.seconds
     with args.out.open('x',encoding='utf-8') as stream:
         while time.monotonic()<until:
-            selected=subprocess.run(['docker','ps','--filter','name=^'+args.deployment+'-','--format','{{.ID}}'],
+            selected=subprocess.run([*DOCKER_COMMAND,'ps','--filter','name=^'+args.deployment+'-','--format','{{.ID}}'],
                 check=True,capture_output=True,text=True).stdout.split()
             rows=[]
             if selected:
-                result=subprocess.run(['docker','stats','--no-stream','--format','{{json .}}',*selected],
+                result=subprocess.run([*DOCKER_COMMAND,'stats','--no-stream','--format','{{json .}}',*selected],
                     check=True,capture_output=True,text=True)
                 rows=[json.loads(line) for line in result.stdout.splitlines() if line]
             stream.write(json.dumps({'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),

@@ -27,15 +27,16 @@ def test_collector_includes_seat_and_proxy_and_marks_unmeasured_fields(tmp_path,
     calls=[]
     def run(argv,**kwargs):
         calls.append(argv);assert kwargs['check'] is True
-        if argv[1]=='ps':
-            assert argv[3]=='name=^ioa-trial-'
-            return SimpleNamespace(stdout='seat-id\nproxy-id\n')
-        assert argv[-2:]==['seat-id','proxy-id']
-        return SimpleNamespace(stdout='{"ID":"seat-id","CPUPerc":"12.5%"}\n{"ID":"proxy-id","CPUPerc":"1.5%"}\n')
+        assert argv[:3]==['docker','--host','unix:///var/run/docker.sock']
+        if argv[3]=='ps':
+            assert argv[5]=='name=^ioa-trial-'
+            return SimpleNamespace(stdout='seat-id\nproxy-id\ningress-id\n')
+        assert argv[-3:]==['seat-id','proxy-id','ingress-id']
+        return SimpleNamespace(stdout='{"ID":"seat-id","CPUPerc":"12.5%"}\n{"ID":"proxy-id","CPUPerc":"1.5%"}\n{"ID":"ingress-id","CPUPerc":"0.5%"}\n')
     monkeypatch.setattr(experiment.subprocess,'run',run)
     experiment.main()
     row=json.loads(output.read_text())
-    assert [v['ID'] for v in row['containers']]==['seat-id','proxy-id']
+    assert [v['ID'] for v in row['containers']]==['seat-id','proxy-id','ingress-id']
     assert row['phase']=='three-active' and row['missing'] and waits==[1]
 
 

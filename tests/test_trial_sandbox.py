@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from ioalab_trial.sandbox import DockerSandbox
+from ioalab_trial.profile import RESOURCE_LAYOUT, INGRESS_CAPABILITY
 
 
 EPOCH='a'*32
@@ -27,34 +28,64 @@ class Docker:
         self.fail=None
         self.container_override={}
         self.proxy_override={}
+        self.ingress_override={}
+        self.image_override={}
+        self.image=sandbox.config['image']
         self.secret=str(sandbox.secret_path)
         self.network_override={}
         self.volume_label=self.name
         self.remaining_volume=''
 
+    def labels(self,role):
+        return {'ioalab.trial.owner':self.name,'ioalab.trial.role':role,'ioalab.trial.resource_layout':RESOURCE_LAYOUT}
+
+    def row(self,role):
+        suffix='' if role=='seat' else '-'+role
+        stopped=self.stopped or self.name+suffix in self.stopped_names
+        labels=self.labels(role)
+        if role=='ingress':labels.update({'ioalab.trial.seat_id':'seat-id','ioalab.trial.seat_address':'172.18.0.1'})
+        networks={self.name+'-net':{'NetworkID':'inner-id','Aliases':['seat'] if role=='seat' else ['model-egress'] if role=='model' else [],'IPAddress':'' if stopped else '172.18.0.1','GlobalIPv6Address':'','IPv6Gateway':''}}
+        if role!='seat':networks['bridge']={'NetworkID':'outer-id','GlobalIPv6Address':'','IPv6Gateway':''}
+        ports={'8080/tcp':[{'HostIp':'127.0.0.1','HostPort':'19002'}], '8767/tcp':[{'HostIp':'127.0.0.1','HostPort':'19003'}]} if role=='ingress' else {}
+        return {'Id':role+'-id','Name':'/'+self.name+suffix,
+            'Config':{'Labels':labels,'Image':self.image,'User':'65534:65534' if role=='ingress' else '',
+                'Entrypoint':['/opt/participant/bin/python','-m','ioalab_trial.agent'] if role=='seat' else ['/opt/participant/bin/python'],
+                'Cmd':None if role=='seat' else ['-m','ioalab_trial.'+('model_egress' if role=='model' else 'ingress')]},
+            'HostConfig':{'ReadonlyRootfs':True,'Privileged':False,'CapDrop':['ALL'],
+                'CapAdd':['SETUID','SETGID','CHOWN','DAC_OVERRIDE'] if role=='seat' else [],
+                'SecurityOpt':['no-new-privileges'],'Sysctls':{'net.ipv6.conf.all.disable_ipv6':'1','net.ipv6.conf.default.disable_ipv6':'1'},
+                'PidMode':'','IpcMode':'private','PublishAllPorts':False,'PortBindings':ports,
+                'ExtraHosts':['seat:172.18.0.1'] if role=='ingress' else None,
+                'Memory':128*1024**2 if role=='ingress' else 0,'NanoCpus':500000000 if role=='ingress' else 0,'PidsLimit':64},
+            'Mounts':([{'Type':'volume','Name':self.name,'Source':'/volumes/'+self.name,'Destination':'/epoch','RW':True}] if role=='seat' else
+                [{'Type':'bind','Source':self.secret,'Destination':'/run/model/provider.json','RW':False}] if role=='model' else []),
+            'NetworkSettings':{'Networks':networks,'Ports':ports if not stopped else {}},
+            'State':{'Running':not stopped,'Pid':0 if stopped else 10,'Status':'exited' if stopped else 'running','ExitCode':0}}
+
     def __call__(self,argv,**kwargs):
-        assert argv[0]=='docker' and kwargs['timeout']==90 and kwargs['capture_output']
-        args=argv[1:];self.calls.append(args)
+        assert argv[:3]==['docker','--host','unix:///var/run/docker.sock'] and kwargs['timeout']==90 and kwargs['capture_output']
+        args=argv[3:];self.calls.append(args)
         if self.fail and args[:len(self.fail)]==self.fail:
             return SimpleNamespace(returncode=1,stdout='',stderr='private Docker error')
         output=''
-        if args[:2]==['container','inspect']:
-            stopped=self.stopped or args[2] in self.stopped_names
-            value={'Config':{'Labels':{'ioalab.trial.owner':self.name}},
-                'Mounts':[{'Name':self.name,'Destination':'/epoch'}],
-                'State':{'Running':not stopped,'Pid':0 if stopped else 10,'Status':'exited' if stopped else 'running'}}
+        if args[:2]==['image','inspect']:
+            output=json.dumps([{'Config':{'Entrypoint':['/opt/participant/bin/python','-m','ioalab_trial.agent'],
+                'Labels':{'ioalab.trial.resource_layout':RESOURCE_LAYOUT,'ioalab.trial.ingress':INGRESS_CAPABILITY}},**self.image_override}])
+        elif args[:2]==['container','inspect']:
             if args[2].endswith('-model'):
-                value['Config']['Labels']['ioalab.trial.role']='model'
-                value['Mounts']=[{'Type':'bind','Source':self.secret,'Destination':'/run/model/provider.json','RW':False}]
-                value.update(self.proxy_override)
-            else:value.update(self.container_override)
+                value={**self.row('model'),**self.proxy_override}
+            elif args[2].endswith('-ingress'):value={**self.row('ingress'),**self.ingress_override}
+            else:value={**self.row('seat'),**self.container_override}
             output=json.dumps([value])
         elif args[:2]==['network','inspect']:
-            value={'Labels':{'ioalab.trial.owner':self.name},'Internal':True,'Driver':'bridge',**self.network_override}
+            members={row['Id']:{'Name':row['Name'].lstrip('/')} for row in [self.row(role) for role in ('seat','model','ingress')] if row['State']['Running']}
+            value={'Id':'inner-id','Labels':self.labels('network'),'Internal':True,'Driver':'bridge',
+                'EnableIPv6':False,'Options':{'com.docker.network.bridge.gateway_mode_ipv4':'isolated'},
+                'IPAM':{'Config':[{'Subnet':'172.18.0.0/16'}]},'Containers':members,**self.network_override}
             if args[2]=='bridge':value={'Driver':'bridge','Internal':False}
             output=json.dumps([value])
         elif args[:2]==['volume','inspect']:
-            output=json.dumps([{'Labels':{'ioalab.trial.owner':self.volume_label}}])
+            output=json.dumps([{'Labels':{**self.labels('data'),'ioalab.trial.owner':self.volume_label},'Driver':'local','Scope':'local','Options':None,'Mountpoint':'/volumes/'+self.name}])
         elif args[0]=='wait':self.stopped_names.add(args[1])
         elif args[:2]==['volume','ls']:output=self.remaining_volume
         return SimpleNamespace(returncode=0,stdout=output,stderr='')
@@ -81,14 +112,15 @@ def test_prepare_has_epoch_network_readonly_root_and_one_owned_volume(sandbox):
     target.prepare(1,EPOCH)
     name=target.identity(1,EPOCH)
     create=next(call for call in docker.calls if call[:2]==['network','create'])
-    assert create==['network','create','--internal','--label','ioalab.trial.owner='+name,name+'-net']
+    assert '--internal' in create and '--ipv6=false' in create
+    assert 'com.docker.network.bridge.gateway_mode_ipv4=isolated' in create
     assert ['network','connect','--alias','model-egress',name+'-net',name+'-model'] in docker.calls
     run=next(call for call in docker.calls if call[0]=='run' and call[call.index('--name')+1]==name)
     assert run[run.index('--network')+1]==name+'-net'
     assert '--read-only' in run and '--cap-drop=ALL' in run and '--security-opt=no-new-privileges' in run
     assert run.count('--mount')==1 and run[run.index('--mount')+1]=='type=volume,src='+name+',dst=/epoch'
     bindings=[run[i+1] for i,value in enumerate(run) if value=='-p']
-    assert bindings==['127.0.0.1:19002:8080','127.0.0.1:19003:8767']
+    assert bindings==[] and run[run.index('--network-alias')+1]=='seat'
     assert not any('docker.sock' in arg or 'host'==arg for arg in run)
     assert str(target.secret_path) not in ' '.join(run) and 'private-provider-key' not in ' '.join(run)
     proxy=next(call for call in docker.calls if call[0]=='run' and call[call.index('--name')+1]==name+'-model')
@@ -97,6 +129,12 @@ def test_prepare_has_epoch_network_readonly_root_and_one_owned_volume(sandbox):
     assert target.model_key(1,EPOCH)!=target.model_key(2,EPOCH)!=target.model_key(1,'c'*32)
     assert target.model_key(1,EPOCH)!=target.key(1,EPOCH)
     assert target.identity(2,EPOCH)!=name and target.identity(1,'c'*32)!=name
+    ingress=next(call for call in docker.calls if call[0]=='run' and call[call.index('--name')+1]==name+'-ingress')
+    assert [ingress[i+1] for i,value in enumerate(ingress) if value=='-p']==['127.0.0.1:19002:8080','127.0.0.1:19003:8767']
+    assert ingress[ingress.index('--user')+1]=='65534:65534' and '--mount' not in ingress
+    assert ingress[ingress.index('--add-host')+1]=='seat:172.18.0.1'
+    assert 'private-provider-key' not in ' '.join(ingress) and target.model_key(1,EPOCH) not in ' '.join(ingress)
+    assert ['network','connect',name+'-net',name+'-ingress'] in docker.calls
 
 
 def test_invalid_secret_metadata_rejected_before_any_docker_resource(sandbox,monkeypatch):
@@ -144,10 +182,11 @@ def test_revoke_stop_exit_then_full_volume_and_network_destroy(sandbox):
     calls=docker.calls;name=target.identity(1,EPOCH)
     positions=[next(i for i,call in enumerate(calls) if call[:len(prefix)]==prefix)
                for prefix in (['kill','--signal=TERM',name+'-model'],['wait',name+'-model'],['http'],
-                              ['kill','--signal=TERM',name],['wait',name],['rm',name],['rm',name+'-model'],['volume','rm'],['network','rm'])]
+                              ['kill','--signal=TERM',name],['wait',name],['kill','--signal=TERM',name+'-ingress'],
+                              ['wait',name+'-ingress'],['rm',name],['rm',name+'-model'],['rm',name+'-ingress'],['volume','rm'],['network','rm'])]
     assert positions==sorted(positions)
     assert calls[positions[0]]==['kill','--signal=TERM',name+'-model']
-    assert calls[positions[7]]==['volume','rm',name]
+    assert calls[positions[10]]==['volume','rm',name]
     assert not any('KILL' in item for call in calls for item in call)
 
 
@@ -230,3 +269,42 @@ def test_proxy_is_stopped_even_when_seat_control_is_offline(sandbox,monkeypatch)
     assert docker.name+'-model' in docker.stopped_names
     assert docker.name not in docker.stopped_names
     assert not any(call[0]=='rm' for call in docker.calls)
+
+
+def test_complete_preflight_rejects_layout_target_and_foreign_resources_before_term_or_bearer(sandbox):
+    target,docker=sandbox
+    for failure in ('volume','member','seat-id','seat-ip','publication','entrypoint','mount'):
+        docker.calls.clear();docker.volume_label=docker.name;docker.network_override={};docker.ingress_override={}
+        row=docker.row('ingress')
+        if failure=='volume':docker.volume_label='other-business'
+        elif failure=='member':docker.network_override={'Containers':{'foreign':{'Name':'other-epoch'}}}
+        elif failure=='seat-id':row['Config']['Labels']['ioalab.trial.seat_id']='replaced-seat'
+        elif failure=='seat-ip':row['Config']['Labels']['ioalab.trial.seat_address']='172.18.0.99'
+        elif failure=='publication':row['HostConfig']['PortBindings']['8767/tcp'][0]['HostPort']='19999'
+        elif failure=='entrypoint':row['Config']['Cmd']=['-m','arbitrary_proxy']
+        else:row['Mounts']=[{'Source':'/formal/private'}]
+        docker.ingress_override=row
+        with pytest.raises(RuntimeError):target.stop(1,EPOCH)
+        with pytest.raises(RuntimeError):target.control(1,EPOCH,'confirmations',{})
+        assert not any(call[0] in ('kill','rm','http') for call in docker.calls)
+
+
+def test_exited_dynamic_ip_is_not_required_but_fixed_target_metadata_is(sandbox):
+    target,docker=sandbox;docker.stopped=True
+    assert docker.row('seat')['NetworkSettings']['Networks'][docker.name+'-net']['IPAddress']==''
+    target.stop(1,EPOCH);target.wipe(1,EPOCH)
+    assert not any(call[0] in ('http','kill') for call in docker.calls)
+    docker.calls.clear();row=docker.row('ingress');row['HostConfig']['ExtraHosts']=['seat:172.18.0.99'];docker.ingress_override=row
+    with pytest.raises(RuntimeError):target.wipe(1,EPOCH)
+    assert not any(call[0]=='rm' for call in docker.calls)
+
+
+def test_image_capability_and_post_preflight_user_guard_fail_before_effects(sandbox):
+    target,docker=sandbox
+    docker.image_override={'Config':{'Labels':{}}}
+    with pytest.raises(RuntimeError,match='capability'):target.validate_image()
+    assert not any(call[0]=='run' for call in docker.calls)
+    docker.image_override={}
+    def revoked():raise PermissionError('Revoked during inspection')
+    with pytest.raises(PermissionError):target.control(1,EPOCH,'confirmations',{},before_send=revoked)
+    assert not any(call[0]=='http' for call in docker.calls)
