@@ -2,6 +2,8 @@
 
 **面向智能体互联网的仿真验证与开放体验平台。**
 
+应用主仓：[GitCode · WeiZheng96/jiuwen-IoA-lab](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab)。本页及组件说明使用仓内相对链接，在主仓打开即可访问相应代码和资料。
+
 ## 项目介绍
 
 ### 什么是智能体互联网？
@@ -70,3 +72,16 @@
 ## 详细设计
 
 项目详细设计文档见[设计索引](设计/README.md)，包括整体架构、交互流程、组件、接入方式与界面规范。
+
+## 维护同步
+
+开发迭代继续使用 GitHub。先按仓库约定提交并推送 `origin/main` 及对应设计标签，再在已提交的 `main` 工作区运行：
+
+```powershell
+python tools/sync_gitcode.py --dry-run
+python tools/sync_gitcode.py
+```
+
+脚本只向 GitCode 快进同步已发布的 `main` 和其可达设计标签，保留目标其他分支、标签；遇到工作区修改、历史私有路径、分叉或同名标签冲突时停止。首次推送需要本机 Git 凭据助手已获得 GitCode 仓库写权限；用户名和提交邮箱不能代替认证。`--dry-run` 只核对同步计划，不验证推送权限。
+
+GitCode 始终使用命令级直连并校验 TLS。GitHub 默认沿用本机 Git 传输设置；需要代理时，在上述两条命令末尾加 `--github-proxy http://127.0.0.1:7897`，仅影响本次 GitHub 请求。同步不修改全局代理或 Git 配置。

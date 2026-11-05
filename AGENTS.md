@@ -87,6 +87,8 @@ CI 的 push/PR 只运行 A 及 `tools/check_scope.py` 按路径选择的 B；本
 
 ## Git 与交付
 
+- GitCode（`gitcode.com`）及部署服务器连接必须直连。GitCode 命令或对应 remote 显式禁用代理，可直接使用 `python tools/sync_gitcode.py`；服务器 SSH 不使用 `ProxyCommand`/`ProxyJump`，HTTP 客户端对服务器显式绕过代理。
+- GitHub 按实际需要使用命令级代理；不修改系统或全局代理，不因直连失败自动改走代理。TUN 或路由发生变化时须重新核对实际路径，仅设置 `NO_PROXY` 不能证明已直连。
 - 后续直接在本仓 `main` 分支开发、验证、提交并推送；不自动改用开发分支或其他工作区。大改先保留已提交的回退检查点，尚未验证的改动如实保持进行中。
 - 每项修改验证后在对应仓提交并推送；两个仓独立管理版本，跨仓修改前先读对方 AGENTS.md。
 - 提交前核对 diff 与暂存清单，只纳入本任务文件；保留既有未跟踪草稿和运行数据。
