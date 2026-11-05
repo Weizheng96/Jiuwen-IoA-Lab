@@ -72,6 +72,7 @@ CI 的 push/PR 只运行 A 及 `tools/check_scope.py` 按路径选择的 B；本
 | [develop](.agents/skills/develop/SKILL.md) | 按设计开发、重构和修复代码；设计问题先修规范，验证公开闭环与恢复 |
 | [jiuwen-swarm](.agents/skills/jiuwen-swarm/SKILL.md) | 复用已有九问的配置、公开接口、原生扩展、会话及排错经验；独立于产品接入技能 |
 | [demo-video](.agents/skills/demo-video/SKILL.md) | Demo 剧本与旁白、真实原生录屏、剪辑和成片验收；不承担核心开发或产品规范定义 |
+| [gitcode-sync](.agents/skills/gitcode-sync/SKILL.md) | 将本仓已发布的 main 与可达设计标签同步至 GitCode 主仓；复用同步脚本，不替查询请求推送 |
 
 以下约定适用于本仓所有 Codex 开发技能，包括后续新增的代码开发、Demo 制作等技能。
 
