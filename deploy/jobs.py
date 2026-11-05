@@ -17,7 +17,7 @@ SOURCE_DIRECTORIES=('deploy','tools','src','vendor')
 SOURCE_FILES=('vendor/jiuwen/requirements-swarm.lock','vendor/jiuwen/swarm.lock.json')
 
 
-def source_identity(root):
+def source_files(root):
     root=path_without_links(root)
     result={}
     for name in SOURCE_DIRECTORIES:
@@ -32,7 +32,13 @@ def source_identity(root):
         path=path_without_links(root/name)
         if not path.is_file():raise ValueError('Use the complete local deployment source')
         result[name]=sha(path)
-    return {'root':str(root),'digest':digest(result),'files':len(result)}
+    return result
+
+
+def source_identity(root):
+    root=path_without_links(root)
+    files=source_files(root)
+    return {'root':str(root),'digest':digest(files),'files':len(files)}
 
 
 class Job:
@@ -44,11 +50,14 @@ class Job:
         self.folder=path_without_links(layout.private/'jobs'/operation)
         self.system=Systemd(self.owner,{},lambda:None)
 
-    def create(self,action,source,input_digest):
-        if action not in ('install','upgrade'):raise ValueError('Use install or upgrade')
+    def create(self,action,source,input_digest,*,repair=None):
+        if action not in ('install','upgrade','repair-bootstrap'):raise ValueError('Use an explicit installation action')
+        if (action=='repair-bootstrap')!=isinstance(repair,dict):
+            raise ValueError('Only a bootstrap repair carries an explicit original operation')
         self.folder.mkdir(mode=0o700,parents=True,exist_ok=True)
         value={'format':'ioalab.installation-job/1','deploymentId':self.owner,'operationId':self.operation,
                'action':action,'source':source,'inputDigest':input_digest}
+        if repair is not None:value['repair']=repair
         write_initial(self.folder/'request.json',(json.dumps(value,sort_keys=True)+'\n').encode())
         return value
 

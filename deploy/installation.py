@@ -124,7 +124,6 @@ class Installation:
     def __init__(self,job,configuration):
         self.job,self.layout,self.config=job,job.layout,configuration
         self.request=job.request();self.progress_path=job.folder/'progress.json'
-        self.progress=read_json(self.progress_path) if self.progress_path.exists() else {'stage':'candidate'}
         self.metadata_path=self.layout.private/'installation.json'
         self.metadata=read_json(self.metadata_path) if self.metadata_path.exists() else {
             'deploymentId':job.owner,'units':{},'accounts':{},'paths':{}}
@@ -134,6 +133,8 @@ class Installation:
         self.manager=Systemd(job.owner,self.metadata['units'],self.save_metadata)
         self.plans=units.plans(self.layout,administrator=self.config.input['admin_assistant']['enabled'])
         self.contents=units.render(self.layout,job.owner,self.plans)
+        from .repair import initial_progress
+        self.progress=read_json(self.progress_path) if self.progress_path.exists() else initial_progress(self.request,self.plans)
 
     def save_metadata(self):save(self.metadata_path,self.metadata)
     def saved(self,**values):self.progress.update(values);save(self.progress_path,self.progress)
@@ -313,7 +314,7 @@ print(json.dumps(r,ensure_ascii=False))
                            and item['current'].get('localExecution',{}).get('executionReady')
                            and item['current'].get('admissionPolicy',{}).get('accepting')) for item in services)
             report['official']={'connectedAccounts':len(rows),'services':len(services),'availableServices':ready}
-            if self.request['action']=='install' and not self.progress.get('recheck') and ready!=sum(map(len,expected.values())):
+            if self.request['action'] in ('install','repair-bootstrap') and not self.progress.get('recheck') and ready!=sum(map(len,expected.values())):
                 raise RuntimeError('Initial official service publication/index is not ready')
         if 'swarm-web' in required:
             env=read_environment(self.layout.config/'agents/swarm-admin.env')
@@ -350,7 +351,10 @@ print(json.dumps(r,ensure_ascii=False))
             else:
                 self.saved(stage='bootstrap',candidate=candidate,requiredRunning=list(self.plans))
         if self.progress['stage']=='bootstrap':
-            activation.activate(self.layout,self.progress['candidate'],None)
+            if self.request['action']!='repair-bootstrap':
+                activation.activate(self.layout,self.progress['candidate'],None)
+            elif activation.current(self.layout)!=self.progress['candidate']:
+                raise RuntimeError('The original repair candidate changed; no activation will be attempted')
             self.bootstrap();self.saved(stage='verifying')
         if self.progress['stage']=='upgrade':
             flow=Upgrade(self.layout,self.job.operation,self.progress['candidate'],self.manager,self.plans,self.contents,

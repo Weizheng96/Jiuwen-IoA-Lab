@@ -63,6 +63,10 @@ HELPER_CASES = {
 }
 # Exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
+    'deploy/repair.py': ('deployment_repair', 'deployment_jobs', 'deployment_entry', 'deployment_layout', 'deployment_activation'),
+    'deploy/jobs.py': ('deployment_repair', 'deployment_jobs', 'deployment_entry'),
+    'deploy/__main__.py': ('deployment_repair', 'deployment_entry', 'deployment_jobs'),
+    'deploy/installation.py': ('deployment_repair', 'deployment_entry', 'deployment_upgrade_flow'),
     'deploy/linux.py': ('linux_service_management', 'deployment_layout'),
     'deploy/windows_local.py': ('windows_local', 'windows_local_owner', 'deployment_configs', 'owned_workspace'),
     'src/official/admin-assistant/ioalab_admin_assistant/deployment.py': ('admin_assistant_preparation', 'windows_local_owner'),

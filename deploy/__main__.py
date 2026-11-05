@@ -84,6 +84,8 @@ def worker(args):
         if request['inputDigest']!=config.owner['inputDigest']:
             raise RuntimeError('Restore the original installation input')
         from .installation import Installation
+        from .repair import worker_admission
+        worker_admission(job,request)
         installer=Installation(job,config)
         try:return installer.run()
         except Exception as error:
@@ -93,20 +95,27 @@ def worker(args):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    commands=parser.add_subparsers(dest='command',required=True,metavar='{install,upgrade,status}')
+    commands=parser.add_subparsers(dest='command',required=True,metavar='{install,upgrade,repair-bootstrap,status}')
     for name in ('install','upgrade'):
         item=commands.add_parser(name)
         item.add_argument('--config',type=Path,required=True)
         item.add_argument('--root',type=Path,default=Path('/opt/ioalab-runtime'))
         item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
         item.add_argument('--config-dir',type=Path,default=Path('/etc/ioalab'))
+    item=commands.add_parser('repair-bootstrap')
+    item.add_argument('--state',type=Path,required=True)
+    item.add_argument('--operation',required=True)
     item=commands.add_parser('status');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
     item=commands.add_parser('_worker');item.add_argument('--state',type=Path,required=True)
     item.add_argument('--operation',required=True);item.add_argument('--attempt',type=int,required=True)
     args=parser.parse_args(argv)
     try:
         require_host()
-        answer=status(existing(args.state)) if args.command=='status' else worker(args) if args.command=='_worker' else submit(args)
+        if args.command=='repair-bootstrap':
+            from .repair import submit as repair_submit
+            answer=repair_submit(existing(args.state),Path(__file__).resolve().parent.parent,args.operation)
+        else:
+            answer=status(existing(args.state)) if args.command=='status' else worker(args) if args.command=='_worker' else submit(args)
         print(json.dumps(answer,ensure_ascii=False))
         return 0 if answer['status'] in ('completed','waiting') else 1
     except Exception as error:
