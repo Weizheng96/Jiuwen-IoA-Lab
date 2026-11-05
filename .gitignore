@@ -36,3 +36,4 @@ Thumbs.db
 # 开发模型源与复用私有数据
 /.agents/data/
 /.agents/llm_apikey
+/.agents/server-connection.json

@@ -291,9 +291,154 @@ def test_setup_failure_retains_supervisor_until_explicit_stop(tmp_path,monkeypat
     stopped=[]
     def shutdown(value):
         assert value['phase']=='failed'
-        assert value['failure']=={'type':'RuntimeError','stage':'fixed-public-prepare'}
+        assert value['failure']['type']=='RuntimeError' and value['failure']['stage']=='fixed-public-prepare'
+        assert value['failure']['code']=='local_operation_failed'
         assert value['processes'][0]['job']=='still-owned'
         stopped.append(True)
     monkeypatch.setattr(local,'shutdown',shutdown)
     local.serve()
     assert stopped==[True]
+
+
+def test_shutdown_failure_retains_jobs_and_waits_for_fresh_public_stop(tmp_path,monkeypatch):
+    from deploy.windows_local import LocalFailure
+    local=Local(tmp_path/'local');local.layout.private.mkdir(parents=True)
+    record={'phase':'installed','deploymentId':'same-owner','processes':[{'pid':1,'role':'core','job':'original'}]}
+    class Processes:
+        jobs={'original':'held-kernel-handle'}
+        def descendants(self,rows):return rows
+        def members(self,name):return [1]
+        def alive(self,row):return True
+    local.api=Processes();monkeypatch.setattr(local,'read',lambda:record)
+    monkeypatch.setattr(local,'require_empty',lambda value:None)
+    monkeypatch.setattr(local,'prepare',lambda value:value.update(processes=[{'pid':1,'role':'core','job':'original'}]))
+    monkeypatch.setattr(local,'readiness',lambda value:{'ready':True})
+    path=local.layout.private/'stop-request.json';path.write_text('{"deploymentId":"same-owner"}')
+    original=local.refresh;resubmitted=[];calls=[]
+    def refresh(value):
+        original(value)
+        if value.get('failure') and not resubmitted:
+            assert local.api.jobs['original']=='held-kernel-handle'
+            assert path.exists() and value['processes']
+            old=path.stat().st_mtime_ns
+            path.write_text('{"deploymentId":"same-owner"}')
+            os.utime(path,ns=(old+10000000,old+10000000));resubmitted.append(True)
+    monkeypatch.setattr(local,'refresh',refresh)
+    def shutdown(value):
+        calls.append(True)
+        if len(calls)==1:
+            value['stage']='console.interrupt:core'
+            raise LocalFailure('console_attach_failed',role='core',win32=6)
+        assert value['failure']['code']=='console_attach_failed'
+        assert value['failure']['jobs']==[{'role':'core','members':[1]}]
+        value.update(phase='stopped',processes=[],allOwnedJobsEmpty=True)
+    monkeypatch.setattr(local,'shutdown',shutdown)
+    class WatchdogExpired(BaseException):pass
+    sleeps=[]
+    def bounded_sleep(seconds):
+        sleeps.append(seconds)
+        if len(sleeps)>10:raise WatchdogExpired('Supervisor test did not converge')
+    monkeypatch.setattr(time,'sleep',bounded_sleep)
+    local.serve()
+    assert len(calls)==2 and resubmitted and record['allOwnedJobsEmpty']
+
+
+@pytest.mark.parametrize('drain_fails',[False,True])
+def test_component_exit_drains_once_and_retains_supervisor_on_failure(tmp_path,monkeypatch,drain_fails):
+    local=Local(tmp_path/'local');local.layout.private.mkdir(parents=True)
+    record={'phase':'installed','deploymentId':'same-owner','processes':[]}
+    class Processes:
+        jobs={'core':'original-core-handle','official':'original-official-handle'}
+        def descendants(self,rows):return rows
+        def members(self,name):return [1] if name=='core' else [2]
+        def alive(self,row):return row['role']!='core'
+    local.api=Processes();monkeypatch.setattr(local,'read',lambda:record)
+    monkeypatch.setattr(local,'require_empty',lambda value:None)
+    def prepare(value):
+        value['processes']=[{'pid':1,'role':'core','job':'core'}, {'pid':2,'role':'official','job':'official'}]
+    monkeypatch.setattr(local,'prepare',prepare)
+    monkeypatch.setattr(local,'wait',lambda value,query:{'ready':True})
+    calls=[];sleeps=[]
+    def shutdown(value):
+        calls.append(True)
+        assert value['runtimeFailure']=={'code':'owned_component_exited','roles':['core']}
+        assert local.api.jobs['official']=='original-official-handle'
+        if drain_fails and len(calls)==1:raise RuntimeError('Draining remains pending')
+        value.update(phase='stopped',processes=[],allOwnedJobsEmpty=True)
+    monkeypatch.setattr(local,'shutdown',shutdown)
+    def sleep(seconds):
+        sleeps.append(seconds)
+        assert len(calls)==1, 'Unclassified failure was automatically retried'
+        if len(sleeps)==3:
+            (local.layout.private/'stop-request.json').write_text('{"deploymentId":"same-owner"}')
+        if len(sleeps)>5:raise AssertionError('Supervisor did not converge')
+    monkeypatch.setattr(time,'sleep',sleep)
+    local.serve()
+    assert len(calls)==(2 if drain_fails else 1) and record['allOwnedJobsEmpty']
+
+
+def test_console_host_alone_does_not_keep_component_alive(tmp_path):
+    local=Local(tmp_path/'local')
+    class Processes:
+        def alive(self,row):return row['pid']==2
+    local.api=Processes()
+    record={'processes':[{'pid':1,'role':'core','executable':'python.exe'},
+                         {'pid':2,'role':'core','executable':'conhost.exe'}]}
+    assert not local.components_alive(record)
+
+
+@pytest.mark.parametrize('exited',[True,False])
+def test_console_attach_failure_distinguishes_observed_exit_without_signal(monkeypatch,exited):
+    from deploy.windows_local import LocalFailure
+    import ctypes
+    api=object.__new__(WindowsProcesses)
+    row={'pid':12,'created':1,'executable':'owned.exe'};queries=iter([row,None if exited else row])
+    api.identity=lambda pid:next(queries)
+    class Kernel:
+        def FreeConsole(self):pass
+        def AttachConsole(self,pid):return False
+        def GenerateConsoleCtrlEvent(self,*args):pytest.fail('No signal after failed attach')
+    api.api=Kernel();monkeypatch.setattr(ctypes,'get_last_error',lambda:6,raising=False)
+    if exited:assert api._console_interrupt(row)=={'code':'process_exited','signalSent':False}
+    else:
+        with pytest.raises(LocalFailure) as error:api._console_interrupt(row)
+        assert error.value.diagnostic=={'code':'console_attach_failed','win32':6}
+
+
+def test_failure_receipt_omits_exception_text_and_preserves_unknown_job(tmp_path):
+    local=Local(tmp_path/'local');local.layout.private.mkdir(parents=True)
+    class Processes:
+        def members(self,name):raise RuntimeError('unknown original job')
+    local.api=Processes();record={'processes':[{'role':'core','job':'unknown'}]}
+    local.failure(record,RuntimeError('SECRET-PRIVATE-UPSTREAM'),stage='fixed-stage',started=time.monotonic())
+    text=local.record_path.read_text()
+    assert 'SECRET' not in text and record['failure']['jobs']==[{'role':'core','membership':'unknown'}]
+    assert record['failure']['elapsedSeconds']>=0 and record['phase']=='failed'
+
+
+def test_readiness_timeout_records_observation_and_keeps_owned_processes(tmp_path,monkeypatch):
+    from deploy.windows_local import LocalFailure
+    local=Local(tmp_path/'local');local.layout.private.mkdir(parents=True)
+    record={'processes':[{'pid':1,'role':'core','job':'held'}],'stage':'public.status'}
+    monkeypatch.setattr(local,'refresh',lambda value:None)
+    def pending():raise LocalFailure('public_command_not_ready')
+    with pytest.raises(LocalFailure) as error:local.wait(record,pending,seconds=0)
+    assert error.value.diagnostic['code']=='readiness_observation_timeout'
+    assert record['lastReadinessObservation']['attempts']==1 and record['processes'][0]['job']=='held'
+    assert record['lastReadinessObservation']['code']=='public_command_not_ready'
+
+
+@pytest.mark.parametrize('outcome',['completed','unknown'])
+def test_public_stop_receipt_retains_operation_and_safe_code(tmp_path,monkeypatch,outcome):
+    from types import SimpleNamespace
+    from deploy.windows_local import LocalFailure
+    local=Local(tmp_path/'local');local.layout.private.mkdir(parents=True)
+    record={'environments':{'participant':{'python':sys.executable}}}
+    receipt={'status':outcome,'error':{'code':'unknown_result','message':'SECRET-UPSTREAM'}}
+    monkeypatch.setattr(subprocess,'run',lambda *a,**kw:SimpleNamespace(returncode=0 if outcome=='completed' else 1,stdout=json.dumps(receipt)))
+    if outcome=='completed':assert local.run(record,'ioalab_sdk.runtime','call','runtime.stop')==receipt
+    else:
+        with pytest.raises(LocalFailure) as error:local.run(record,'ioalab_sdk.runtime','call','runtime.stop')
+        assert error.value.diagnostic['code']=='public_command_unknown_result'
+        assert 'SECRET' not in str(error.value)
+    assert record['stage']=='ioalab_sdk.runtime:call:runtime.stop'

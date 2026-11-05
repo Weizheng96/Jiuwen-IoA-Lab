@@ -5,7 +5,6 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from a2c.errors import A2CError
 from starlette.requests import Request
 
 from ioalab.app import Platform
@@ -33,7 +32,7 @@ def test_browser_admin_configuration_roundtrip_and_denied_writes(configured):
     async def scenario():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(platform)),base_url='http://localhost') as client:
             assert (await client.get('/api/admin/configuration')).status_code==401
-            assert (await client.post('/api/admin/login',json={'password':'admin1234'})).status_code==400
+            assert (await client.post('/api/admin/login',json={'password':'admin1234'})).status_code==401
             response=await client.post('/api/admin/login',json={'username':'operator','password':'admin1234'})
             assert response.status_code==200
             view=(await client.get('/api/admin/configuration')).json()
@@ -59,6 +58,30 @@ def test_browser_admin_configuration_roundtrip_and_denied_writes(configured):
     asyncio.run(scenario())
 
 
+def test_https_ip_session_uses_one_host_cookie_and_logout_removes_it(configured,monkeypatch):
+    platform,_=configured
+    monkeypatch.setattr(platform.s,'public_url_env','https://192.0.2.10')
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(platform)),base_url='https://192.0.2.10') as client:
+            response=await client.post('/api/admin/login',json={'username':'operator','password':'admin1234'})
+            assert response.status_code==200
+            value=response.headers['set-cookie']
+            assert value.startswith('__Host-ioalab_session=')
+            assert all(flag in value for flag in ('HttpOnly','Secure','Path=/')) and 'Domain=' not in value
+            assert (await client.get('/api/admin/configuration')).status_code==200
+            assert (await client.post('/api/auth/logout',headers={'Origin':'http://192.0.2.10'})).status_code==403
+            assert (await client.get('/api/admin/configuration')).status_code==200
+            client.cookies.clear();client.cookies.set('ioalab_session',platform.auth.token('admin'))
+            assert (await client.get('/api/admin/configuration')).status_code==401
+            client.cookies.clear()
+            await client.post('/api/admin/login',json={'username':'operator','password':'admin1234'})
+            response=await client.post('/api/auth/logout',json={})
+            value=response.headers['set-cookie']
+            assert value.startswith('__Host-ioalab_session=') and 'Max-Age=0' in value and 'Secure' in value
+            assert (await client.get('/api/admin/configuration')).status_code==401
+    asyncio.run(scenario())
+
+
 def test_source_spoofing_and_explicit_distinct_proxy_contract():
     settings=Settings(trusted_proxy_addresses=('127.0.0.2',))
     def request(peer,headers):
@@ -75,15 +98,15 @@ def test_default_failure_budget_and_local_exemption_still_verify_password(config
     platform,config=configured
     auth=platform.auth
     for _ in range(40):
-        with pytest.raises(A2CError,match='口令错误'):auth.admin_login('wrong',username='operator',ip='203.0.113.5')
-    with pytest.raises(A2CError,match='频繁'):auth.admin_login('admin1234',username='operator',ip='203.0.113.5')
+        with pytest.raises(LabError,match='口令错误'):auth.admin_login('wrong',username='operator',ip='203.0.113.5')
+    with pytest.raises(LabError,match='频繁'):auth.admin_login('admin1234',username='operator',ip='203.0.113.5')
     for ip in ('127.0.0.1','::1'):
         for _ in range(41):
-            with pytest.raises(A2CError,match='口令错误'):auth.admin_login('wrong',username='operator',ip=ip)
+            with pytest.raises(LabError,match='口令错误'):auth.admin_login('wrong',username='operator',ip=ip)
         assert auth.verify(auth.admin_login('admin1234',username='operator',ip=ip))=='admin'
     config.update(1,{'authentication':{'max_failures':1}})
-    with pytest.raises(A2CError,match='口令错误'):auth.admin_login('wrong',username='operator',ip='198.51.100.1')
-    with pytest.raises(A2CError,match='频繁'):auth.admin_login('admin1234',username='operator',ip='198.51.100.1')
+    with pytest.raises(LabError,match='口令错误'):auth.admin_login('wrong',username='operator',ip='198.51.100.1')
+    with pytest.raises(LabError,match='频繁'):auth.admin_login('admin1234',username='operator',ip='198.51.100.1')
 
 
 def test_configuration_concurrent_writers_publish_one_revision(configured):
@@ -107,12 +130,12 @@ def test_sdk_http_source_keeps_public_proxy_clients_out_of_loopback_exemption(co
             assert (await client.post('/api/v1/token',json={'username':'source-user','password':'test-password'})).status_code==403
             headers={'x-ioalab-client-ip':'203.0.113.77','x-forwarded-for':'127.0.0.1'}
             bad={'username':'source-user','password':'wrong','operationId':'remote-bad'}
-            assert (await client.post('/api/v1/token',json=bad,headers=headers)).status_code==400
+            assert (await client.post('/api/v1/token',json=bad,headers=headers)).status_code==401
             good={'username':'source-user','password':'test-password','operationId':'remote-good'}
             denied=await client.post('/api/v1/token',json=good,headers=headers)
-            assert denied.status_code==400 and '频繁' in denied.json()['error']['message']
+            assert denied.status_code==429 and '频繁' in denied.json()['error']['message']
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app,client=('127.0.0.1',1234)),base_url='http://localhost') as local:
             for i in range(2):
-                assert (await local.post('/api/v1/token',json={**bad,'operationId':f'local-bad-{i}'})).status_code==400
+                assert (await local.post('/api/v1/token',json={**bad,'operationId':f'local-bad-{i}'})).status_code==401
             assert (await local.post('/api/v1/token',json={**good,'operationId':'local-good'})).status_code==200
     asyncio.run(scenario())

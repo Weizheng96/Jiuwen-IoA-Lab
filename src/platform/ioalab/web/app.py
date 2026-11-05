@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from urllib.parse import urlsplit
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -25,11 +26,12 @@ from ..observation import event_view
 
 log = logging.getLogger("ioalab.web")
 STATIC = Path(__file__).parent / "static"
-COOKIE = "ioalab_session"
+from .cookies import session_cookie_name, session_cookie_options
 
 
 def create_app(platform: Platform) -> FastAPI:
     s = platform.s
+    cookie = session_cookie_name(s.public_url)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -47,7 +49,7 @@ def create_app(platform: Platform) -> FastAPI:
             if request.method in ("POST", "PUT", "DELETE") and request.url.path.startswith("/api/"):
                 origin = request.headers.get("origin") or request.headers.get("referer") or ""
                 host = request.headers.get("host", "")
-                if origin and host and __import__("urllib.parse",fromlist=["urlsplit"]).urlsplit(origin).netloc != host:
+                if origin and (urlsplit(origin).netloc != host or urlsplit(origin).scheme != urlsplit(s.public_url).scheme):
                     return JSONResponse({'error':LabError('forbidden','跨站请求被拒绝').public()},status_code=403)
             return await call_next(request)
 
@@ -91,7 +93,7 @@ def create_app(platform: Platform) -> FastAPI:
     def subject(request: Request) -> str | None:
         auth = request.headers.get("authorization", "")
         bearer = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
-        return platform.auth.verify(request.cookies.get(COOKIE) or bearer or request.headers.get("x-ioalab-token"))
+        return platform.auth.verify(request.cookies.get(cookie) or bearer or request.headers.get("x-ioalab-token"))
 
     def current_user(request: Request) -> str:
         sub = subject(request)
@@ -111,7 +113,7 @@ def create_app(platform: Platform) -> FastAPI:
         return operator
 
     def set_cookie(resp: Response, token: str) -> None:
-        resp.set_cookie(COOKIE, token, httponly=True, samesite="lax", secure=s.public_url.startswith("https://"), max_age=7 * 86400)
+        resp.set_cookie(cookie, token, **session_cookie_options(s.public_url), max_age=7 * 86400)
 
     def ip(request: Request) -> str:
         from .source import client_ip
@@ -159,7 +161,7 @@ def create_app(platform: Platform) -> FastAPI:
     @app.post("/api/auth/logout")
     async def logout():
         resp = JSONResponse({"ok": True})
-        resp.delete_cookie(COOKIE)
+        resp.delete_cookie(cookie, **session_cookie_options(s.public_url))
         return resp
 
     @app.get("/api/me")
@@ -224,7 +226,7 @@ def create_app(platform: Platform) -> FastAPI:
         return resp
 
     from .configuration import build_router as configuration_router
-    app.include_router(configuration_router(platform,require_admin,COOKIE))
+    app.include_router(configuration_router(platform,require_admin,cookie))
 
     @app.get("/api/admin/stats")
     async def stats(_: str = Depends(require_admin)):
@@ -340,24 +342,37 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.websocket("/ws/admin")
     async def ws_admin(ws: WebSocket):
-        if not platform.auth.is_admin(platform.auth.verify(ws.cookies.get(COOKIE))):
+        if not platform.auth.is_admin(platform.auth.verify(ws.cookies.get(cookie))):
             await ws.close(code=4401)
             return
         origin, host = ws.headers.get("origin", ""), ws.headers.get("host", "")
-        if origin and __import__("urllib.parse",fromlist=["urlsplit"]).urlsplit(origin).netloc != host:
+        if origin and (urlsplit(origin).netloc != host or urlsplit(origin).scheme != urlsplit(s.public_url).scheme):
             await ws.close(code=4403)
             return
         await ws.accept()
         q = platform.bus.subscribe()
-        try:
+        async def send_events():
             for ev in platform.bus.recent(100):
                 await ws.send_text(json.dumps(event_view(ev), ensure_ascii=False))
             while True:
                 ev = await q.get()
                 await ws.send_text(json.dumps(event_view(ev), ensure_ascii=False))
-        except (WebSocketDisconnect, RuntimeError):
+
+        async def receive_disconnect():
+            while (await ws.receive())["type"] != "websocket.disconnect":
+                pass
+
+        tasks = (asyncio.create_task(send_events()), asyncio.create_task(receive_disconnect()))
+        try:
+            done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                await task
+        except (WebSocketDisconnect, RuntimeError, OSError):
             pass
         finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             platform.bus.unsubscribe(q)
 
     # ── 页面 ──────────────────────────────────────────────────────────

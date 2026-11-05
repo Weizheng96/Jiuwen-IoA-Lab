@@ -96,7 +96,7 @@ def test_lost_response_recovers_same_operation_without_second_credit(platform,tm
     assert platform.wallets.balance(user['id'])==100
 
 
-@pytest.mark.parametrize('status',[409,429,500])
+@pytest.mark.parametrize('status',[400,401,409,429,500])
 def test_unverified_http_result_stays_pending_and_keeps_original_input(platform,tmp_path,monkeypatch,status):
     config,user=configuration(platform,tmp_path,service=False);sent=[]
     def fail(client,url,*args,**kwargs):
@@ -111,6 +111,23 @@ def test_unverified_http_result_stays_pending_and_keeps_original_input(platform,
     restored=login(config)
     assert restored['data']['operationId']==sent[0] and not restored['data']['newLogin']
     assert platform.wallets.balance(user['id'])==100
+
+
+def test_rate_limit_keeps_original_login_and_does_not_poison_credentials(platform,tmp_path,monkeypatch):
+    config,user=configuration(platform,tmp_path,service=False);sent=[]
+    def limited(client,url,*args,**kwargs):
+        sent.append(kwargs['json']['operationId'])
+        return httpx.Response(429,json={'error':{'code':'rate_limited','recovery':'wait_rate_limit'}},request=httpx.Request('POST',url))
+    with monkeypatch.context() as patch:
+        patch.setattr(httpx.Client,'post',limited)
+        with pytest.raises(RuntimeFault) as error:login(config)
+        assert error.value.code=='rate_limited' and error.value.operation_id==sent[0]
+        account=session_at(config)
+        try:assert account.cache.get('session','pending')['phase']=='pending'
+        finally:account.close()
+    recovered=login(config)
+    assert recovered['data']['operationId']==sent[0] and not recovered['data']['newLogin']
+    assert platform.wallets.balance(user['id'])==100 and len(sent)==1
 
 
 def test_changed_pending_credentials_never_reach_server(platform,tmp_path,monkeypatch):

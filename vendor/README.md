@@ -21,3 +21,5 @@
 检查：`python tools/check_vendor.py`、`python deploy/install_swarm.py --verify-only`。摘要不匹配、安装包缺网页或锁文件含远端VCS项均拒绝通过。新部署的专用九问工作区关闭自动更新；已有配置和技能账号保留。
 
 实测结果见[部署依赖验证](../设计/工程/实施资料/部署发行.md#历史验证资料归档)。
+
+容器基础镜像原件归[container-images/](container-images/README.md)，固定来源、平台、RepoDigest及压缩/原始归档SHA256。部署使用`python tools/container_images.py load`校验并导入仓内原件，不依赖操作者缓存或Docker Hub在线拉取；普通PyPI锁依赖仍按教程从可达镜像取得，与完全离线部署分别说明。

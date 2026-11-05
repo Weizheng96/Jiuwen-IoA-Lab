@@ -6,13 +6,15 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 from ..identity.trial import entry
+from .cookies import session_cookie_name
 
 
 def build_router(platform):
     router = APIRouter()
+    cookie = session_cookie_name(platform.s.public_url)
 
     def owner(request):
-        actor = platform.auth.verify(request.cookies.get('ioalab_session'))
+        actor = platform.auth.verify(request.cookies.get(cookie))
         if not actor or actor == 'admin' or actor.startswith('assistant:'):
             raise HTTPException(401, '请使用网页登录账号进入试用')
         if not platform.account_views.exists(actor):

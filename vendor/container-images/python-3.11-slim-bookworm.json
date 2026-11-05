@@ -1,0 +1,21 @@
+{
+  "format": "ioalab.container-image/1",
+  "source": "https://hub.docker.com/_/python",
+  "reference": "docker.io/library/python:3.11-slim-bookworm",
+  "repoDigest": "python@sha256:94a8fee35252d06ab75856f15f12c7bae67b10e8a6da93c7fded82b2610926cd",
+  "platform": "linux/amd64",
+  "compression": "gzip",
+  "archiveSha256": "bdfc8c8b4e8e44b2ed4d6f3cafb8f15b78de52f6adee6b719ca48f1eccb3a1d0",
+  "archiveBytes": 47699855,
+  "uncompressedSha256": "73cc4149dd06a12f969df8a1ca96b5f3e69e215f047838b03058504a2200db95",
+  "uncompressedBytes": 50292736,
+  "parts": [
+    {
+      "file": "python-3.11-slim-bookworm.docker.tar.gz",
+      "bytes": 47699855,
+      "sha256": "bdfc8c8b4e8e44b2ed4d6f3cafb8f15b78de52f6adee6b719ca48f1eccb3a1d0"
+    }
+  ],
+  "indexDigest": "sha256:94a8fee35252d06ab75856f15f12c7bae67b10e8a6da93c7fded82b2610926cd",
+  "configDigest": "sha256:65dc71ea3f90f9df522590028b8ee3e562f5e6b0d55c657f99ab71ad1426821c"
+}

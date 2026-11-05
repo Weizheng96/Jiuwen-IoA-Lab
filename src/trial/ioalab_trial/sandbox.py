@@ -299,12 +299,17 @@ class DockerSandbox:
         if state.get('Running') or state.get('Pid')!=0 or state.get('Status')!='exited' or state.get('ExitCode')!=0:
             raise RuntimeError('Sandbox process namespace did not exit successfully')
 
-    def wipe(self, seat, epoch):
-        name = self.identity(seat,epoch)
+    def verify_stopped(self,seat,epoch):
+        """Current resource proof, without stopping or deleting anything."""
         rows=self.checked_resources(seat,epoch)
         if any(value['State'].get('Running') or value['State'].get('Pid')!=0 or value['State'].get('Status')!='exited'
                or value['State'].get('ExitCode')!=0 for value in rows.values()):
             raise RuntimeError('Cannot destroy an unreleased sandbox')
+        return True
+
+    def wipe(self, seat, epoch):
+        name = self.identity(seat,epoch)
+        self.verify_stopped(seat,epoch)
         # Validate ALL ownership before the first destructive action.
         self.command('rm',name)
         self.command('rm',name+'-model')

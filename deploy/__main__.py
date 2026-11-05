@@ -40,9 +40,13 @@ def status(layout):
     pointer=layout.private/'current-job.json'
     task=Job(layout,read_json(regular(pointer))['operationId']).observe() if pointer.exists() else {'status':'not_started'}
     current=activation.current(layout)
-    return {'status':'completed','deploymentId':layout.inspect()['deploymentId'],'task':task,
+    result={'status':'completed','deploymentId':layout.inspect()['deploymentId'],'task':task,
         'currentSet':current['setId'] if current else None,'units':units,
         'lastReadiness':value.get('lastReadiness'),'lastVerifiedAt':value.get('verifiedAt')}
+    if value.get('initialized'):
+        from . import lifecycle
+        result['runtime']=lifecycle.status(layout)
+    return result
 
 
 def submit(args):
@@ -50,7 +54,8 @@ def submit(args):
     if stat.S_IMODE(args.config.stat().st_mode)&0o077:
         raise ValueError('Protect the initial deployment JSON with private owner-only permissions')
     source=Path(__file__).resolve().parent.parent
-    layout=Layout(args.root,args.state,args.config_dir)
+    layout=Layout(args.root,args.state,args.config_dir,
+                  core_user=getattr(args,'core_user','ioalab-core'),agents_user=getattr(args,'agents_user','ioalab-agents'))
     if any(path.is_relative_to(source) or source.is_relative_to(path) for path in (layout.root,layout.state,layout.config)):
         raise ValueError('Source, runtime, state and configuration roots must be disjoint')
     identity=layout.claim()
@@ -94,23 +99,32 @@ def worker(args):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    commands=parser.add_subparsers(dest='command',required=True,metavar='{install,upgrade,repair-bootstrap,status}')
+    commands=parser.add_subparsers(dest='command',required=True,metavar='{install,upgrade,repair-bootstrap,start,stop,status}')
     for name in ('install','upgrade'):
         item=commands.add_parser(name)
         item.add_argument('--config',type=Path,required=True)
         item.add_argument('--root',type=Path,default=Path('/opt/ioalab-runtime'))
         item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
         item.add_argument('--config-dir',type=Path,default=Path('/etc/ioalab'))
+        item.add_argument('--core-user',default='ioalab-core')
+        item.add_argument('--agents-user',default='ioalab-agents')
     item=commands.add_parser('repair-bootstrap')
     item.add_argument('--state',type=Path,required=True)
     item.add_argument('--operation',required=True)
     item=commands.add_parser('status');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
+    for name in ('start','stop'):
+        item=commands.add_parser(name);item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
+        if name=='stop':item.add_argument('--wait-seconds',type=float,default=30)
     item=commands.add_parser('_worker');item.add_argument('--state',type=Path,required=True)
     item.add_argument('--operation',required=True);item.add_argument('--attempt',type=int,required=True)
     args=parser.parse_args(argv)
     try:
         require_host()
-        if args.command=='repair-bootstrap':
+        if args.command in ('start','stop'):
+            from . import lifecycle
+            layout=existing(args.state)
+            answer=lifecycle.start(layout) if args.command=='start' else lifecycle.stop(layout,wait_seconds=args.wait_seconds)
+        elif args.command=='repair-bootstrap':
             from .repair import submit as repair_submit
             answer=repair_submit(existing(args.state),Path(__file__).resolve().parent.parent,args.operation)
         else:

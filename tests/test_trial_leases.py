@@ -28,6 +28,30 @@ def ready(coordinator):
             db.execute("UPDATE seats SET state='ready',epoch=? WHERE id=?", (str(seat)*32,seat))
 
 
+def test_deployment_shutdown_stops_without_wiping_and_fences_admission(trial):
+    from types import SimpleNamespace
+    coordinator,_=trial;ready(coordinator);calls=[]
+    coordinator.enqueue('alice')
+    sandbox=SimpleNamespace(stop=lambda seat,epoch:calls.append((seat,epoch)),
+                            wipe=lambda *a:pytest.fail('Deployment shutdown must retain volumes'))
+    coordinator.shutdown(sandbox)
+    assert len(calls)==3 and coordinator.shutdown_verified
+    assert all(row['state']=='revoking' and row['epoch'] for row in coordinator.store.seats())
+    with pytest.raises(Denied):coordinator.enqueue('bob')
+    coordinator.reconcile(sandbox)
+    assert len(calls)==3
+
+
+def test_deployment_shutdown_failure_keeps_epoch_quarantined(trial):
+    from types import SimpleNamespace
+    coordinator,_=trial;ready(coordinator)
+    def failure(*args):raise RuntimeError('unverified resources')
+    with pytest.raises(RuntimeError,match='unverified'):
+        coordinator.shutdown(SimpleNamespace(stop=failure))
+    assert not coordinator.shutdown_verified
+    assert all(row['state']=='quarantined' and row['epoch'] for row in coordinator.store.seats())
+
+
 def ticket(coordinator, **updates):
     value = {'v':1,'owner':'alice','aud':'https://trial.test','iat':1000,'exp':1060,'jti':'one'}
     value.update(updates)

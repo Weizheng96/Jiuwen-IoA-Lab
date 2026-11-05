@@ -6,6 +6,7 @@ import json
 import secrets
 import time
 import uuid
+import threading
 
 
 class Denied(ValueError):
@@ -21,8 +22,32 @@ class Coordinator:
         self.confirm_audience = confirm_audience.rstrip('/') if confirm_audience else None
         self.lease, self.grace, self.clock = lease_seconds, grace_seconds, clock
         self.listeners = set()
+        self.stopping = threading.Event()
+
+    def begin_shutdown(self):
+        """Fence browser access before draining; preserve every epoch and volume."""
+        self.stopping.set()
+        with self.store.transaction() as db:
+            db.execute('DELETE FROM sessions')
+            db.execute('DELETE FROM queue')
+            db.execute("UPDATE seats SET state='revoking',reason='deployment_stopped' WHERE epoch IS NOT NULL AND state!='quarantined'")
+        for row in self.store.seats():
+            for listener in tuple(self.listeners):listener(row['id'])
+
+    def shutdown(self,sandbox):
+        self.shutdown_verified=False
+        self.begin_shutdown()
+        failed=[]
+        for row in self.store.seats():
+            if not row['epoch']:continue
+            try:sandbox.stop(row['id'],row['epoch'])
+            except Exception:
+                self._state(row['id'],'quarantined');failed.append(row['id'])
+        if failed:raise RuntimeError('Trial shutdown is unverified; original epochs were preserved')
+        self.shutdown_verified=True
 
     def consume(self, ticket, *, audience=None):
+        if self.stopping.is_set():raise Denied('Trial deployment is stopping')
         audience = audience or self.audience
         if audience not in (self.audience,self.confirm_audience):
             raise Denied('Unknown admission audience')
@@ -45,6 +70,7 @@ class Coordinator:
             raise Denied('Invalid admission') from exc
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         with self.store.transaction() as db:
+            if self.stopping.is_set():raise Denied('Trial deployment is stopping')
             bound = None
             if purpose == 'confirm':
                 bound = db.execute('SELECT * FROM seats WHERE owner=?',(data['owner'],)).fetchone()
@@ -71,13 +97,16 @@ class Coordinator:
         return dict(row)
 
     def enqueue(self, owner):
+        if self.stopping.is_set():raise Denied('Trial deployment is stopping')
         with self.store.transaction() as db:
+            if self.stopping.is_set():raise Denied('Trial deployment is stopping')
             if not db.execute('SELECT 1 FROM seats WHERE owner=?', (owner,)).fetchone():
                 db.execute('INSERT OR IGNORE INTO queue VALUES(?,?)', (owner, self.clock()))
             self._assign(db)
         return self.status(owner)
 
     def _assign(self, db):
+        if self.stopping.is_set():return
         for seat in db.execute("SELECT id FROM seats WHERE state='ready' ORDER BY id").fetchall():
             owner = db.execute('SELECT owner FROM queue ORDER BY created,owner LIMIT 1').fetchone()
             if not owner:
@@ -98,6 +127,7 @@ class Coordinator:
                 'position':queue.index(owner) + 1 if owner in queue else None}
 
     def access(self, owner, epoch, *, touch=False):
+        if self.stopping.is_set():raise Denied('Trial deployment is stopping')
         with self.store.transaction() as db:
             row = db.execute('SELECT * FROM seats WHERE owner=?', (owner,)).fetchone()
             now = self.clock()
@@ -135,14 +165,17 @@ class Coordinator:
 
     def reconcile(self, sandbox):
         """One coordinator worker calls this serially. No user request runs Docker."""
+        if self.stopping.is_set():return
         self.tick()
         for row in self.store.seats():
+            if self.stopping.is_set():return
             seat, epoch = row['id'], row['epoch']
             try:
                 state = row['state']
                 if state in ('revoking','stopping','wiping'):
                     self._state(seat,'stopping')
                     sandbox.stop(seat,epoch)
+                    if self.stopping.is_set():return
                     self._state(seat,'wiping')
                     sandbox.wipe(seat,epoch)
                     self._state(seat,'preparing',clear=True)
@@ -154,8 +187,10 @@ class Coordinator:
                         with self.store.transaction() as db:
                             db.execute('UPDATE seats SET epoch=? WHERE id=?', (epoch,seat))
                     sandbox.prepare(seat,epoch)
+                    if self.stopping.is_set():return
                     sandbox.healthy(seat,epoch)
                     with self.store.transaction() as db:
+                        if self.stopping.is_set():return
                         db.execute("UPDATE seats SET state='ready',owner=NULL,reason=NULL WHERE id=?", (seat,))
                         self._assign(db)
             except Exception:

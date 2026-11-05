@@ -63,6 +63,9 @@ HELPER_CASES = {
 }
 # Exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
+    'tools/container_images.py': ('container_images',),
+    'deploy/lifecycle.py': ('deployment_lifecycle', 'linux_service_management', 'trial_leases', 'trial_gateway', 'trial_sandbox'),
+    'deploy/units.py': ('deployment_lifecycle', 'linux_service_management', 'deployment_configs'),
     'deploy/repair.py': ('deployment_repair', 'deployment_jobs', 'deployment_entry', 'deployment_layout', 'deployment_activation'),
     'deploy/jobs.py': ('deployment_repair', 'deployment_jobs', 'deployment_entry'),
     'deploy/__main__.py': ('deployment_repair', 'deployment_entry', 'deployment_jobs'),

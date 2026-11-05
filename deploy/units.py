@@ -1,6 +1,7 @@
 """The six managed runtime units use installed packages and explicit role contexts."""
 import json
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, Path
+import os
 import uuid
 
 
@@ -26,7 +27,24 @@ def directive_path(value):
     return value
 
 
-def plans(layout, *, administrator):
+def trial_binding(value):
+    """References only; trial configuration remains owned by the trial app."""
+    if value is None:return None
+    if not isinstance(value,dict) or set(value)!={'config','controller_python'}:
+        raise ValueError('Trial requires config and controller_python references')
+    result={key:directive_path(value[key]) for key in value}
+    for key,name in result.items():
+        path=Path(name)
+        if not path.is_file() or (key=='config' and (path.is_symlink() or path.resolve()!=path.absolute())):
+            raise ValueError('Trial references must name installed regular files without links')
+        if key=='controller_python' and not os.access(path,os.X_OK):
+            raise ValueError('Trial controller interpreter is not executable')
+        if key=='controller_python' and not (path.parent.parent/'pyvenv.cfg').is_file():
+            raise ValueError('Trial controller interpreter must belong to an installed virtual environment')
+    return result
+
+
+def plans(layout, *, administrator, trial=None):
     stable=layout.environments/'current'
     participant=stable/'participant/bin/python'
     swarm=stable/'swarm/bin/python'
@@ -56,6 +74,12 @@ def plans(layout, *, administrator):
             'directory':agents/'admin-assistant','environment':configuration/'assistant.env',
             'after':['core','swarm-web'],'command':python(participant,'ioalab_jiuwen','serve','--config',runtime),
             'pre':[python(participant,'ioalab_sdk.runtime','login','--config',runtime)]}
+    if trial:
+        # Admission/epochs/model secrets remain in this one trial-owned config.
+        # The controller needs the Docker socket; never give it to seat users.
+        rows['trial']={'unit':'ioalab-trial.service','user':'root','directory':layout.state,
+            'environment':None,'after':['core'],
+            'command':python(trial['controller_python'],'ioalab_trial','--config',trial['config']), 'pre':[]}
     return rows
 
 
@@ -64,19 +88,21 @@ def render(layout, deployment_id, plans):
         raise ValueError('Use the recorded deployment UUID')
     result={}
     for key,row in plans.items():
-        after=['network-online.target',*[plans[name]['unit'] for name in row['after']]]
+        dependencies=list(dict.fromkeys((['core'] if key!='core' else [])+row['after']))
+        after=['network-online.target',*[plans[name]['unit'] for name in dependencies]]
         lines=['# ioalab-deployment:'+deployment_id,'[Unit]',
             'Description=Jiuwen IoA Lab '+key,'After='+' '.join(after),
+            *(['BindsTo='+plans['core']['unit']] if key!='core' else []),
             '[Service]','Type=exec','User='+row['user'],'Group='+row['user'],
             'WorkingDirectory='+directive_path(row['directory']),
             *(['EnvironmentFile='+directive_path(row['environment'])] if row['environment'] else []),'UMask=0077','NoNewPrivileges=yes','PrivateTmp=yes',
             *('ExecStartPre='+command(argv) for argv in row['pre']),
             'ExecStart='+command(row['command']),
             'KillMode='+row.get('kill_mode','mixed'),'SendSIGKILL=no','TimeoutStartSec=infinity','TimeoutStopSec=infinity',
-            'Restart=on-failure','RestartSec=5','[Install]','WantedBy=multi-user.target','']
+            'Restart=no','[Install]','WantedBy=multi-user.target','']
         result[row['unit']]='\n'.join(lines)
     return result
 
 
-STOP_GROUPS=(('official','assistant'),('swarm-web','swarm-gateway','swarm-agent'),('core',))
-START_ORDER=('core','swarm-agent','swarm-gateway','swarm-web','official','assistant')
+STOP_GROUPS=(('trial',),('official','assistant'),('swarm-web','swarm-gateway','swarm-agent'),('core',))
+START_ORDER=('core','swarm-agent','swarm-gateway','swarm-web','official','assistant','trial')

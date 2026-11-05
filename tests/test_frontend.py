@@ -43,7 +43,7 @@ def test_actual_login_cookie_logout_and_admin_permissions(client,platform):
     assert client.get('/admin').status_code==403
     assert client.post('/api/auth/logout',json={}).status_code==200
     assert client.get('/workbench',follow_redirects=False).status_code==303
-    assert client.post('/api/auth/login',json={'username':name,'password':'wrong'}).status_code==400
+    assert client.post('/api/auth/login',json={'username':name,'password':'wrong'}).status_code==401
     request={'username':name,'password':PASSWORD,'operationId':'web-login'}
     assert client.post('/api/auth/login',json=request).status_code==200
     first=client.get('/api/me').json()['wallet']

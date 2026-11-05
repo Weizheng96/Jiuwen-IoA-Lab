@@ -45,7 +45,7 @@ def seed_accounts(base, password, *, username='admin'):
         with opener.open(request, timeout=15) as response:
             return json.load(response)
     post('/api/admin/login', {'username':username,'password':password})
-    if not any(cookie.name == 'ioalab_session' for cookie in cookies):
+    if not any(cookie.name == ('__Host-ioalab_session' if base.startswith('https://') else 'ioalab_session') for cookie in cookies):
         raise RuntimeError('Bootstrap administrator did not receive its required session cookie')
     return post('/api/admin/seed', {})
 
@@ -138,7 +138,7 @@ def exercise(layout, release, installations, report):
             user = 'deployment-verification-' + uuid.uuid4().hex[:10]
             registered = http(base, '/api/auth/register', {'username':user, 'password':'verification-password',
                                                          'operationId':str(uuid.uuid4())})
-            cookie = 'ioalab_session=' + registered['token']
+            cookie = ('__Host-ioalab_session=' if base.startswith('https://') else 'ioalab_session=') + registered['token']
             config = layout.config/'resident.json'
             save(config, {'platform_url':base, 'username':user, 'password':'verification-password',
                           'data_dir':str(home), 'identities':[{'key':'personal', 'role':'assistant',

@@ -33,6 +33,14 @@ FORMAT = 'ioalab.windows-local/1'
 ROLES = ('core', 'swarm-agent', 'swarm-gateway', 'swarm-web', 'official', 'assistant')
 
 
+class LocalFailure(RuntimeError):
+    """Only fixed codes cross the diagnostic boundary; never upstream text."""
+    def __init__(self, code, *, stage=None, role=None, win32=None):
+        super().__init__(code)
+        self.diagnostic = {'code':code, **({'stage':stage} if stage else {}),
+                           **({'role':role} if role else {}), **({'win32':win32} if win32 is not None else {})}
+
+
 def process_key(value):
     return tuple(value[name] for name in ('pid','created','executable'))
 
@@ -272,26 +280,47 @@ class WindowsProcesses:
             return
         result = subprocess.run([sys.executable, '-c',
                     'import json,sys; from deploy.windows_local import WindowsProcesses; '
-                    'WindowsProcesses()._console_interrupt(json.loads(sys.argv[1]))', json.dumps(record)],
+                    '\ntry:\n'
+                    ' result=WindowsProcesses()._console_interrupt(json.loads(sys.argv[1])); print(json.dumps(result))\n'
+                    'except Exception as error:\n'
+                    ' print(json.dumps(getattr(error,"diagnostic",{"code":"console_helper_unknown"}))); sys.exit(1)', json.dumps(record)],
                     cwd=Path(__file__).resolve().parents[1], env=child_environment(),
-                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                     timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
-        if result.returncode:
-            raise RuntimeError('Owned process has no controllable console; it was not killed')
+        try:receipt=json.loads(result.stdout)
+        except ValueError:receipt={}
+        if not isinstance(receipt,dict):receipt={}
+        if result.returncode or receipt.get('code') not in ('signal_sent','process_exited'):
+            code=receipt.get('code')
+            if code not in ('console_attach_failed','console_event_failed','console_identity_changed'):
+                code='console_helper_unknown'
+            raise LocalFailure(code,stage='console.interrupt',role=record.get('role'),
+                               win32=receipt.get('win32') if type(receipt.get('win32')) is int else None)
 
     def _console_interrupt(self, record):
         if not self.alive(record):
-            return
+            return {'code':'process_exited','signalSent':False}
+        if record.get('job'):
+            current=self.identity(record['pid'],job=record['job'])
+            if current is None or process_key(current)!=process_key(record):
+                raise LocalFailure('console_identity_changed')
         # Every root is started in its own hidden console. No host/user console
         # is attached here; never send a console-wide event to an unknown PID.
         self.api.FreeConsole()
         if not self.api.AttachConsole(record['pid']):
-            raise RuntimeError('Owned process has no controllable console; it was not killed')
+            error=ctypes.get_last_error()
+            if self.identity(record['pid']) is None:
+                return {'code':'process_exited','signalSent':False}
+            raise LocalFailure('console_attach_failed',win32=error)
         try:
+            current=self.identity(record['pid'],job=record.get('job'))
+            if current is None or process_key(current)!=process_key(record):
+                raise LocalFailure('console_identity_changed')
             self.api.SetConsoleCtrlHandler(None, True)
             if not self.api.GenerateConsoleCtrlEvent(0, 0):  # CTRL_C_EVENT, attached console only
-                raise RuntimeError('Owned process did not accept a console interrupt')
+                raise LocalFailure('console_event_failed',win32=ctypes.get_last_error())
             time.sleep(.1)
+            return {'code':'signal_sent','signalSent':True}
         finally:
             self.api.FreeConsole()
             self.api.SetConsoleCtrlHandler(None, False)
@@ -316,6 +345,18 @@ class Local:
 
     def write(self, value):
         save(self.record_path, value)
+
+    def failure(self, record, error, *, stage, started):
+        detail={'code':'local_operation_failed','stage':stage,'type':type(error).__name__,
+                'elapsedSeconds':round(max(0,time.monotonic()-started),3)}
+        detail.update(getattr(error,'diagnostic',{}))
+        jobs=[]
+        for row in record['processes']:
+            if 'job' not in row:continue
+            try:jobs.append({'role':row['role'],'members':sorted(self.api.members(row['job']))})
+            except (OSError,RuntimeError):jobs.append({'role':row['role'],'membership':'unknown'})
+        detail['jobs']=jobs
+        record.update(phase='failed',failure=detail);self.write(record)
 
     def install(self, release, environments, configuration, *, retry_failed=False):
         document = load(release, require_target=True)
@@ -383,6 +424,8 @@ class Local:
 
     def run(self, record, module, *args, environment=None, accepted=('completed',)):
         record['stage'] = module + ':' + str(args[0]); self.write(record)
+        if args[0]=='call' and len(args)>1:
+            record['stage']+=':'+str(args[1]);self.write(record)
         result = subprocess.run(self.command(record, 'participant', module, *args),
                                 cwd=self.layout.state, env={**child_environment(), **(environment or {})},
                                 capture_output=True, text=True, encoding='utf-8',
@@ -393,9 +436,9 @@ class Local:
             raise RuntimeError('Public deployment command returned no valid receipt: ' + module) from None
         if result.returncode not in (0, 2) or answer.get('status') not in accepted:
             code = (answer.get('error') or {}).get('code')
-            if code not in ('authenticate', 'not_ready', 'forbidden', 'configuration_changed', 'identity_conflict'):
+            if code not in ('authenticate', 'not_ready', 'forbidden', 'configuration_changed', 'identity_conflict','unknown_result','instance_changed'):
                 code = 'rejected'
-            raise RuntimeError('Public deployment command is not ready: ' + module + ' (' + code + ')')
+            raise LocalFailure('public_command_'+code,stage=record['stage'])
         return answer
 
     def plans(self, record):
@@ -462,7 +505,8 @@ class Local:
             raise
 
     def role_alive(self,record,role):
-        return any(self.alive(record,row) for row in record['processes'] if row['role']==role)
+        return any(self.alive(record,row) for row in record['processes'] if row['role']==role
+                   and Path(row.get('executable','')).name.lower()!='conhost.exe')
 
     def components_alive(self,record):
         roles={row['role'] for row in record['processes'] if 'parent' not in row}
@@ -477,14 +521,19 @@ class Local:
             raise RuntimeError('Owned local processes are still present; inspect or stop the original instance')
 
     def wait(self, record, query, *, seconds=180):
-        deadline = time.monotonic() + seconds
+        started=time.monotonic();deadline = started + seconds;attempts=0
         while True:
             self.refresh(record)
             try:
                 return query()
-            except (OSError, ValueError, RuntimeError):
+            except (OSError, ValueError, RuntimeError) as error:
+                attempts+=1
+                record['lastReadinessObservation']={'elapsedSeconds':round(time.monotonic()-started,3),
+                    'attempts':attempts,'stage':record.get('stage'),'errorType':type(error).__name__,
+                    'code':getattr(error,'diagnostic',{}).get('code','readiness_pending')}
+                self.write(record)
                 if time.monotonic() >= deadline:
-                    raise RuntimeError('Local readiness is not verified; data and owned processes are preserved') from None
+                    raise LocalFailure('readiness_observation_timeout',stage=record.get('stage')) from None
                 time.sleep(.5)
 
     def core_ready(self, config, record):
@@ -556,6 +605,14 @@ class Local:
         official = self.run(record, 'ioalab_services', 'status', '--config', self.layout.config / 'agents/official.json')
         expected = official_catalog(self.assets(record), load(self.assets(record)))
         rows = official.get('accounts')
+        observed=[row for row in rows if isinstance(row,dict)] if isinstance(rows,list) else []
+        services=[item.get('current',{}) for row in observed for item in row.get('services',[]) if isinstance(item,dict)]
+        record['officialReadinessProgress']={'observedAt':time.time(),'accounts':len(observed),'expectedAccounts':len(expected),
+            'connected':sum(bool(row.get('runtime',{}).get('platformConnected')) for row in observed),
+            'hostAvailable':sum(bool(row.get('runtime',{}).get('host',{}).get('available')) for row in observed),
+            'services':len(services),'indexReady':sum(bool(item.get('indexReady')) for item in services),
+            'executionReady':sum(bool(item.get('localExecution',{}).get('executionReady')) for item in services)}
+        self.write(record)
         if (not isinstance(rows, list) or sorted(row.get('account', '') for row in rows) != sorted(expected)
                 or any(row.get('error') or not row.get('runtime', {}).get('platformConnected')
                        or not row.get('runtime', {}).get('host', {}).get('available') for row in rows)):
@@ -606,42 +663,65 @@ class Local:
             record = self.read()
             self.require_empty(record)
             record.update(processes=[], phase='starting', readiness=None, assistantBootId=None,
-                          allOwnedJobsEmpty=False, failure=None); self.write(record)
+                          allOwnedJobsEmpty=False, failure=None, lastReadinessObservation=None,
+                          officialReadinessProgress=None, runtimeFailure=None); self.write(record)
             stop = False
             def request(*_):
                 nonlocal stop
                 stop = True
             previous = signal.signal(signal.SIGINT, request)
+            started=time.monotonic(); startup_ready=False
             try:
                 self.prepare(record)
                 record['readiness'] = self.wait(record, lambda: self.readiness(record))
                 record['initialReadinessVerified'] = True
+                record['startupElapsedSeconds']=round(time.monotonic()-started,3)
                 record['phase'] = 'running'; self.write(record)
+                startup_ready=True
             except Exception as error:
-                record.update(phase='failed', failure={'type': type(error).__name__, 'stage': record.get('stage')})
-                self.write(record)
+                self.failure(record,error,stage=record.get('stage'),started=started)
                 # Keep the original Job handles while the operator inspects a
                 # failed setup. Missing handles are never proof of empty jobs.
+            failed_request=None; fault_stop_attempted=False
             try:
-                while not stop:
-                    self.refresh(record)
-                    if not self.components_alive(record):
-                        record['phase'] = 'failed'; self.write(record)
-                    if (self.layout.private / 'stop-request.json').exists():
-                        request_record = read_json(self.layout.private / 'stop-request.json')
-                        if request_record == {'deploymentId': record['deploymentId']}:
-                            stop = True
-                    if not stop:
-                        time.sleep(.25)
-            except BaseException:
-                record['phase'] = 'failed'; self.write(record)
-                raise
+                while True:
+                    try:
+                        self.refresh(record)
+                        if (startup_ready and not fault_stop_attempted
+                                and not self.components_alive(record)):
+                            failed_roles=sorted({p['role'] for p in record['processes'] if 'parent' not in p
+                                                 and not self.role_alive(record,p['role'])})
+                            record['runtimeFailure']={'code':'owned_component_exited','roles':failed_roles}
+                            self.failure(record,LocalFailure('owned_component_exited'),
+                                         stage='runtime.monitor',started=started)
+                            # Use the same owner-fenced drain exactly once. If it
+                            # fails, retain this supervisor and its Job handles
+                            # until an explicit fresh stop request arrives.
+                            fault_stop_attempted=True;stop=True
+                    except Exception as error:
+                        self.failure(record,error,stage='ownership.monitor',started=started)
+                    path=self.layout.private/'stop-request.json'
+                    stamp=None
+                    if path.exists():
+                        try:
+                            request_record=read_json(path);stamp=path.stat().st_mtime_ns
+                            if request_record=={'deploymentId':record['deploymentId']} and stamp!=failed_request:stop=True
+                        except (OSError,ValueError) as error:
+                            self.failure(record,error,stage='stop.request',started=started)
+                    if stop:
+                        shutdown_started=time.monotonic()
+                        try:
+                            self.shutdown(record)
+                            break
+                        except Exception as error:
+                            self.failure(record,error,stage=record.get('stage') or 'shutdown',started=shutdown_started)
+                            # Keep the same supervisor, Job handles and request.
+                            # A fresh public stop rewrites that request; no busy
+                            # automatic retry of an unclassified outcome.
+                            failed_request=stamp;stop=False
+                    time.sleep(.25)
             finally:
                 signal.signal(signal.SIGINT, previous)
-                # Never kill or delete data on a setup failure. Explicit stop can
-                # resume shutdown after an operator inspects the original state.
-                if stop:
-                    self.shutdown(record)
 
     def shutdown(self, record):
         record['phase'] = 'stopping'; self.refresh(record)
@@ -685,7 +765,9 @@ class Local:
             for process in record['processes']:
                 if (process['role'] in roles and Path(process['executable']).name.lower() != 'conhost.exe'
                         and self.alive(record, process)):
-                    self.api.interrupt(process)
+                    record['stage']='console.interrupt:'+process['role'];self.write(record)
+                    root=next(row for row in record['processes'] if row['role']==process['role'] and 'job' in row)
+                    self.api.interrupt({**process,'job':root['job']})
             deadline = time.monotonic() + 30
             while any(self.alive(record, p) for p in record['processes'] if p['role'] in roles):
                 self.refresh(record)

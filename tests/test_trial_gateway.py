@@ -26,7 +26,7 @@ def gateway(tmp_path, monkeypatch):
     coordinator=Coordinator(store,audience='https://trial.test',admission_key='k'*40,
                             lease_seconds=100,grace_seconds=20,clock=lambda:1000)
     monkeypatch.setattr(coordinator,'reconcile',lambda sandbox:None)
-    sandbox=SimpleNamespace(ui=lambda seat,epoch:f'http://127.0.0.1:{19000+seat*2}')
+    sandbox=SimpleNamespace(ui=lambda seat,epoch:f'http://127.0.0.1:{19000+seat*2}',stop=lambda *args:None)
     app=create_app(coordinator,sandbox,confirm_origin='https://confirm.trial.test')
     with TestClient(app,base_url='https://trial.test',raise_server_exceptions=False) as client:
         with store.transaction() as db:
@@ -71,7 +71,7 @@ def test_confirmation_origin_is_separate_and_bound_to_current_epoch(gateway):
     assert client.post('/trial/api/confirmations',json={'method':'list'},headers=native).status_code==403
     assert client.get(trusted+'/files/anything').status_code==403
     assert client.post(trusted+'/trial/api/join',json={},headers=confirmation).status_code==403
-    assert client.get(trusted+'/trial/user/api',headers={'Cookie':'__Host-ioa_trial='+native_cookie}).status_code==403
+    assert client.get(trusted+'/trial/user/api',headers={'Cookie':'__Host-ioa_trial_native='+native_cookie}).status_code==403
     assert client.get('/trial/api/status',headers={'Host':'unknown.test'}).status_code==403
     with pytest.raises(WebSocketDisconnect):
         with client.websocket_connect('wss://confirm.trial.test/ws',headers={'Origin':trusted}):pass
@@ -80,7 +80,7 @@ def test_confirmation_origin_is_separate_and_bound_to_current_epoch(gateway):
         db.execute("UPDATE seats SET state='ready',owner=NULL,epoch=? WHERE id=?",('e'*32,first['id']))
     fresh=login('alice')
     assert client.post('/trial/api/join',json={},headers=fresh).status_code==200
-    assert client.get(trusted+'/trial/user/api',headers={'Cookie':'__Host-ioa_trial='+confirm_cookie}).status_code==403
+    assert client.get(trusted+'/trial/user/api',headers={'Cookie':'__Host-ioa_trial_native='+confirm_cookie}).status_code==403
 
 
 def test_entry_and_confirmation_inputs_are_bounded(gateway):
@@ -155,11 +155,82 @@ def test_confirmation_origin_cannot_share_native_hostname(tmp_path,origin):
     finally:store.close()
 
 
+def test_ip_ports_keep_http_only_sessions_and_strip_cookies_at_real_upstream(tmp_path,monkeypatch):
+    from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
+    seen=[]
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(dict(self.headers));self.send_response(200)
+            self.send_header('Set-Cookie','__Host-ioa_trial_confirm=attacker; Secure; Path=/')
+            self.send_header('Clear-Site-Data','"cookies", "storage"')
+            self.end_headers();self.wfile.write(b'native content')
+        def log_message(self,*args):pass
+    upstream=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+    thread=threading.Thread(target=upstream.serve_forever,daemon=True);thread.start()
+    native='https://127.0.0.1:8443';confirm='https://127.0.0.1:9443'
+    store=Store(tmp_path/'control.sqlite',deployment_profile='linux-server')
+    coordinator=Coordinator(store,audience=native,admission_key='k'*40,clock=lambda:1000)
+    monkeypatch.setattr(coordinator,'reconcile',lambda sandbox:None)
+    sandbox=SimpleNamespace(ui=lambda *a:f'http://127.0.0.1:{upstream.server_port}',stop=lambda *a:None)
+    try:
+        app=create_app(coordinator,sandbox,confirm_origin=confirm,formal_origin='https://127.0.0.1')
+        with TestClient(app,base_url=native) as client:
+            with store.transaction() as db:
+                db.execute("UPDATE seats SET state='ready',epoch='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'")
+            def login(audience):
+                value={'v':1,'owner':'alice','aud':audience,'iat':1000,'exp':1060,'jti':uuid.uuid4().hex}
+                payload=base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip('=')
+                ticket=payload+'.'+hmac.new(coordinator.key.encode(),payload.encode(),hashlib.sha256).hexdigest()
+                response=client.post(audience+'/trial/api/entry',json={'ticket':ticket},headers={'Origin':audience})
+                assert response.status_code==200
+                assert all(flag in response.headers['set-cookie'].lower() for flag in ('httponly','secure','samesite=strict'))
+                return {'Origin':audience,'X-Trial-Csrf':response.json()['csrf']}
+            nheaders=login(native);client.post('/trial/api/join',json={},headers=nheaders)
+            cheaders=login(confirm)
+            assert client.get(confirm+'/trial/confirm').status_code==200
+            cookies={cookie.name:cookie.value for cookie in client.cookies.jar}
+            assert set(cookies)=={'__Host-ioa_trial_native','__Host-ioa_trial_confirm'}
+            native_response=client.get('/native')
+            assert native_response.content==b'native content' and 'clear-site-data' not in native_response.headers
+            assert not any(key.lower() in ('cookie','authorization') for key in seen[0])
+            assert client.cookies.get('__Host-ioa_trial_confirm')==cookies['__Host-ioa_trial_confirm']
+            response=client.post(confirm+'/trial/user/decision',json={},headers=nheaders)
+            assert response.status_code==403 and 'access-control-allow-origin' not in response.headers
+            assert client.get('/trial/confirm').status_code==403
+            assert client.get('/trial/api/status',headers={'Host':'127.0.0.1:443'}).status_code==403
+    finally:
+        store.close();upstream.shutdown();upstream.server_close();thread.join()
+
+
+@pytest.mark.parametrize('state',['leased','queued'])
+def test_ticket_entry_automatically_joins_and_opens_original_swarm(state):
+    import shutil,subprocess
+    from importlib.resources import files
+    node=shutil.which('node')
+    if not node:pytest.skip('JavaScript runtime required for original entry flow')
+    script=files('ioalab_trial').joinpath('trial.html').read_text('utf-8').split('<script>')[1].split('</script>')[0]
+    harness=r'''
+const fs=require('fs'),vm=require('vm'),input=JSON.parse(fs.readFileSync(0,'utf8'));
+const calls=[],nodes={};for(const id of ['#status','#native','#join','#end'])nodes[id]={hidden:true,removeAttribute(k){delete this[k]}};
+const data={capacity:3,state:input.state,epoch:'original-epoch',expires:2000,position:1,csrf:'csrf'};
+const context={document:{querySelector:id=>nodes[id]},location:{hash:'#signed-ticket'},history:{replaceState(){}},
+setInterval(){return 1},clearInterval(){},Date,fetch:async(path,options)=>{calls.push([path,options]);return {ok:true,json:async()=>path.endsWith('/entry')?{csrf:'csrf'}:data}}};
+vm.runInNewContext(input.script,context);
+setImmediate(()=>process.stdout.write(JSON.stringify({calls:calls.map(c=>c[0]),frame:nodes['#native']})));
+'''
+    result=subprocess.run([node,'-e',harness],input=json.dumps({'script':script,'state':state}),
+                          capture_output=True,text=True,check=True)
+    observed=json.loads(result.stdout)
+    assert observed['calls']==['/trial/api/entry','/trial/api/join','/trial/api/status']
+    if state=='leased':assert observed['frame']['src']=='/?user_id=trial' and not observed['frame']['hidden']
+    else:assert observed['frame']['hidden'] and 'src' not in observed['frame']
+
+
 def test_owner_and_old_cookie_cannot_select_another_seat(gateway,monkeypatch):
     client,coordinator,sandbox,login=gateway
     alice=login('alice')
     original=client.post('/trial/api/join',json={},headers=alice).json()
-    cookie=client.cookies.get('__Host-ioa_trial')
+    cookie=client.cookies.get('__Host-ioa_trial_native')
     bob=login('bob')
     current=client.post('/trial/api/join',json={},headers=bob).json()
     assert current['id']!=original['id']
@@ -178,7 +249,7 @@ def test_owner_and_old_cookie_cannot_select_another_seat(gateway,monkeypatch):
     assert 'authorization' not in observed[0][1]['headers']
     coordinator.end('alice')
     client.cookies.clear()
-    client.cookies.set('__Host-ioa_trial',cookie)
+    client.cookies.set('__Host-ioa_trial_native',cookie)
     assert client.get('/native/query').status_code==403
 
 

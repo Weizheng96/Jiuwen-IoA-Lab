@@ -6,7 +6,8 @@ from pathlib import Path
 import re
 import subprocess
 import time
-from urllib.request import build_opener,ProxyHandler,HTTPRedirectHandler
+from urllib.request import build_opener,ProxyHandler,HTTPRedirectHandler,Request
+from urllib.parse import urlsplit
 
 from . import activation,backup,units
 from .builder import Builder
@@ -131,7 +132,7 @@ class Installation:
             raise RuntimeError('Restore the original installation ownership')
         self.accounts=Accounts(self.layout,job.owner,self.metadata,self.save_metadata)
         self.manager=Systemd(job.owner,self.metadata['units'],self.save_metadata)
-        self.plans=units.plans(self.layout,administrator=self.config.input['admin_assistant']['enabled'])
+        self.plans=units.plans(self.layout,administrator=self.config.input['admin_assistant']['enabled'],trial=self.config.input.get('trial'))
         self.contents=units.render(self.layout,job.owner,self.plans)
         from .repair import initial_progress
         self.progress=read_json(self.progress_path) if self.progress_path.exists() else initial_progress(self.request,self.plans)
@@ -330,6 +331,14 @@ print(json.dumps(r,ensure_ascii=False))
             self.sdk('assistant.messaging.interfaces',{'account':'ISC_001'})
             report['administrator']={'connected':True,'hostAvailable':True,'currentInterfaceQuerySucceeded':True,
                 'meetingConfigured':self.config.input['admin_assistant']['notification'] is not None}
+        if 'trial' in required:
+            value=read_json(Path(self.config.input['trial']['config']))
+            request=Request(local_url('127.0.0.1',value.get('port',8766))+'/health',
+                            headers={'Host':urlsplit(value['origin']).netloc})
+            health=http_json(request)
+            if health.get('ready') is not True or health.get('capacity')!=3:
+                raise RuntimeError('The complete three-seat trial gateway is not ready')
+            report['trial']={'ready':True,'capacity':3,'origin':value['origin']}
         report['runtimeReady']=True
         return report
 

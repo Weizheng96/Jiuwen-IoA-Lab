@@ -5,6 +5,7 @@ from importlib.resources import files
 import secrets
 import time
 import threading
+import ipaddress
 from urllib.parse import urlsplit
 
 import httpx
@@ -15,22 +16,31 @@ import websockets
 from .coordinator import Denied
 
 
-COOKIE = '__Host-ioa_trial'
+COOKIE = '__Host-ioa_trial_native'
 HOP = {'connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade',
-       'host','cookie','authorization','content-length','content-encoding','set-cookie','origin'}
+       'host','cookie','authorization','content-length','content-encoding','set-cookie','clear-site-data','origin'}
 
 
 def create_app(coordinator, sandbox, *, secure=True, confirm_origin=None, formal_origin=None):
     confirm_origin = (confirm_origin or coordinator.confirm_audience or '').rstrip('/')
     native = urlsplit(coordinator.audience)
     confirm = urlsplit(confirm_origin)
-    if (native.scheme != 'https' or not native.hostname or confirm.scheme != 'https' or not confirm.hostname or confirm.hostname == native.hostname
-            or confirm.path not in ('','/') or confirm.query or confirm.fragment or confirm.username or confirm.password):
-        raise ValueError('Trusted confirmation requires a different HTTPS hostname')
+    def origin_key(value):
+        if (value.scheme!='https' or not value.hostname or value.path not in ('','/')
+                or value.query or value.fragment or value.username or value.password):
+            raise ValueError('Use an explicit HTTPS origin')
+        return value.hostname.lower(),value.port or 443
+    native_key,confirm_key=origin_key(native),origin_key(confirm)
+    if native_key==confirm_key:raise ValueError('Trusted confirmation requires a different HTTPS origin')
+    if native_key[0]==confirm_key[0]:
+        try:ipaddress.ip_address(native_key[0])
+        except ValueError:raise ValueError('Shared hostname is allowed only for an explicit IP and distinct HTTPS ports') from None
     coordinator.confirm_audience = confirm_origin
     origins = {native.netloc.lower():coordinator.audience,confirm.netloc.lower():confirm_origin}
     if formal_origin:
         formal = urlsplit(formal_origin)
+        if origin_key(formal) in (native_key,confirm_key):
+            raise ValueError('Formal, native and confirmation origins must be distinct')
         if (formal.scheme != 'https' or not formal.hostname or formal.path not in ('','/')
                 or formal.query or formal.fragment or formal.username or formal.password):
             raise ValueError('Formal origin must be a fixed HTTPS origin')
@@ -58,16 +68,24 @@ def create_app(coordinator, sandbox, *, secure=True, confirm_origin=None, formal
         try:
             yield
         finally:
+            coordinator.begin_shutdown()
             stopping.set()
             await asyncio.to_thread(thread.join)
-            coordinator.listeners.discard(revoke)
-            for row in coordinator.store.seats():
-                if row['state'] in ('ready','leased','reconnect_grace'):
-                    coordinator.revoke(row['id'],'gateway_stopped')
             await asyncio.gather(*tasks,return_exceptions=True)
+            try:await asyncio.to_thread(coordinator.shutdown,sandbox)
+            finally:coordinator.listeners.discard(revoke)
 
     app = FastAPI(lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
-    cookie_name = COOKIE if secure else 'ioa_trial_dev'
+    def cookie_name(target):
+        purpose='confirm' if target==confirm_origin else 'native'
+        return ('__Host-ioa_trial_' if secure else 'ioa_trial_dev_')+purpose
+
+    @app.get('/health')
+    def health():
+        rows=coordinator.store.seats()
+        ready=(not coordinator.stopping.is_set() and len(rows)==coordinator.store.capacity and
+               all(row['state'] in ('ready','leased','reconnect_grace') and row['epoch'] for row in rows))
+        return JSONResponse({'ready':bool(ready),'capacity':coordinator.store.capacity},status_code=200 if ready else 503)
 
     @app.exception_handler(Denied)
     async def denied(request,exc):
@@ -101,7 +119,7 @@ def create_app(coordinator, sandbox, *, secure=True, confirm_origin=None, formal
 
     def session(request, *, write=False):
         target = audience(request)
-        record = coordinator.session(request.cookies.get(cookie_name,''),audience=target)
+        record = coordinator.session(request.cookies.get(cookie_name(target),''),audience=target)
         if write and (request.headers.get('origin') != target
                 or not secrets.compare_digest(request.headers.get('x-trial-csrf',request.headers.get('x-ioa-csrf','')),record['csrf'])):
             raise Denied('Real same-origin browser action required')
@@ -155,7 +173,7 @@ def create_app(coordinator, sandbox, *, secure=True, confirm_origin=None, formal
             raise Denied('Invalid admission body')
         token, csrf = coordinator.consume(value['ticket'],audience=audience(request))
         response = JSONResponse({'csrf':csrf})
-        response.set_cookie(cookie_name,token,httponly=True,secure=secure,samesite='strict',path='/',max_age=coordinator.lease + coordinator.grace)
+        response.set_cookie(cookie_name(audience(request)),token,httponly=True,secure=secure,samesite='strict',path='/',max_age=coordinator.lease + coordinator.grace)
         return response
 
     @app.get('/trial/api/status')

@@ -130,16 +130,18 @@ def platform(path):
 
 
 def validate(value):
-    allowed={'platform_config','pypi_index','max_model_runs','admin_assistant','swarm_ports'}
+    allowed={'platform_config','pypi_index','max_model_runs','admin_assistant','swarm_ports','trial'}
     if not isinstance(value,dict) or 'platform_config' not in value or set(value)-allowed:
         raise ValueError('Use platform_config and the documented installation-only fields')
     path=text(value['platform_config'],'platform_config')
     source=platform(path)
     index=value.get('pypi_index','https://pypi.tuna.tsinghua.edu.cn/simple')
+    from .units import trial_binding
     return {'platform_config':str(Path(path).absolute()),'pypi_index':mirror(url(index,'pypi_index')),
         'max_model_runs':integer(value.get('max_model_runs',2),'max_model_runs',1,64),
         'admin_assistant':admin_assistant(value.get('admin_assistant'),mode=source['mode']),
-        'swarm_ports':swarm_ports(value.get('swarm_ports'),source['port'])}
+        'swarm_ports':swarm_ports(value.get('swarm_ports'),source['port']),
+        'trial':trial_binding(value.get('trial'))}
 
 
 def load(path):

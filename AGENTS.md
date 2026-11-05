@@ -23,7 +23,7 @@
 
 ## 5. 部署
 
-按[deployment](.agents/skills/deployment/SKILL.md)选择Windows或Linux公开入口；部署、恢复、连接及进程归属规则由该技能维护。
+常规部署只读[部署教程](设计/工程/部署.md)，选择Windows本地或Linux服务器部分；[deployment](.agents/skills/deployment/SKILL.md)提供异常处理及专项入口。现行安装、进程归属与数据保留规则归[安装与升级](设计/工程/安装与升级.md)。
 
 ## 6. 模型
 

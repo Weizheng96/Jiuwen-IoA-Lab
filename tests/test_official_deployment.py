@@ -292,12 +292,15 @@ def test_existing_user_confirmation_cannot_be_bypassed_in_strict_mode(platform,d
         assert len(runtime.confirmations.list())==1
 
 
-def test_administrator_login_uses_existing_cookie_without_persisting_credentials(deployment,monkeypatch):
+@pytest.mark.parametrize('https',[False,True])
+def test_administrator_login_uses_existing_cookie_without_persisting_credentials(deployment,monkeypatch,https):
+    if https:deployment.value['platform_url']='https://192.0.2.10'
+    cookie='__Host-ioalab_session' if https else 'ioalab_session'
     from ioalab_services.authorization import administrator_session
     requests=[];original=httpx.Client
     def respond(request):
         requests.append(request)
-        return httpx.Response(200,json={'ok':True},headers={'set-cookie':'ioalab_session=fixture-web-session; Path=/; HttpOnly'})
+        return httpx.Response(200,json={'ok':True},headers={'set-cookie':cookie+'=fixture-web-session; Path=/; HttpOnly'+('; Secure' if https else '')})
     def client(**kwargs):return original(**kwargs,transport=httpx.MockTransport(respond))
     monkeypatch.setattr(httpx,'Client',client)
     assert administrator_session(deployment,'custom-admin','fixture-admin-password')=='fixture-web-session'

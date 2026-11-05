@@ -63,6 +63,35 @@ def test_accepted_background_install_does_not_look_like_a_shell_failure(monkeypa
     assert result=={'status':'waiting','operationId':'original'}
 
 
+def test_public_stop_preserves_waiting_and_uses_original_layout(monkeypatch,capsys):
+    from deploy import lifecycle
+    layout=object();seen=[]
+    monkeypatch.setattr(entry,'require_host',lambda:None)
+    monkeypatch.setattr(entry,'existing',lambda state:layout)
+    monkeypatch.setattr(lifecycle,'stop',lambda selected,wait_seconds:seen.append((selected,wait_seconds)) or
+                        {'status':'waiting','phase':'stopping','allOwnedGroupsEmpty':False})
+    assert entry.main(['stop','--state','/original/state','--wait-seconds','0'])==0
+    result=json.loads(capsys.readouterr().out)
+    assert seen==[(layout,0)] and result['status']=='waiting' and result['allOwnedGroupsEmpty'] is False
+
+
+def test_trial_readiness_cannot_promote_incomplete_or_wrong_capacity(monkeypatch,tmp_path):
+    import pytest
+    import deploy.installation as module
+    config=tmp_path/'trial.json';config.write_text(json.dumps({'origin':'https://trial.example','port':8766}))
+    selected=object.__new__(Installation)
+    selected.progress={'requiredRunning':['trial']};selected.plans={'trial':{'unit':'ioalab-trial.service'}}
+    selected.manager=SimpleNamespace(ready=lambda _: {'ActiveState':'active','UnitFileState':'disabled'})
+    selected.config=SimpleNamespace(input={'trial':{'config':str(config)}})
+    for health in ({'ready':False,'capacity':3},{'ready':True,'capacity':1}):
+        monkeypatch.setattr(module,'http_json',lambda _,value=health:value)
+        with pytest.raises(RuntimeError,match='three-seat'):selected.readiness()
+    requests=[]
+    monkeypatch.setattr(module,'http_json',lambda request:requests.append(request) or {'ready':True,'capacity':3})
+    assert selected.readiness()['trial']['ready'] is True
+    assert requests[0].get_header('Host')=='trial.example'
+
+
 def test_installed_preparation_does_not_require_access_to_private_source_directory(tmp_path,monkeypatch):
     import deploy.installation as module
     layout=Layout(tmp_path/'runtime',tmp_path/'state',tmp_path/'config');layout.claim()

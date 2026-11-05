@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from a2c.errors import A2CError
+from ioalab.errors import LabError
 
 from _support import COOKIE, PASSWORD, username
 
@@ -30,7 +31,7 @@ def test_register_login_me_and_each_login_credit(platform, client):
     assert client.post("/api/auth/register", json={"username": username(), "password": "123"}).status_code == 400
     # 失败认证不发放；同日第二次成功认证再赠100。
     with httpx.Client(base_url=platform.s.base_url, trust_env=False) as c2:
-        assert c2.post("/api/auth/login", json={"username": name, "password": "wrong"}).status_code == 400
+        assert c2.post("/api/auth/login", json={"username": name, "password": "wrong"}).status_code == 401
         r = c2.post("/api/auth/login", json={"username": name, "password": PASSWORD})
         assert r.status_code == 200 and COOKIE in c2.cookies and r.json()["token"]
         assert c2.get("/api/me").json()["id"] == me.json()["id"]
@@ -65,14 +66,14 @@ def test_admin_requires_password_and_rate_limit(platform):
             for path in ("/api/admin/stats", "/api/admin/users", "/api/admin/registry", "/api/admin/runs"):
                 assert c.get(path).status_code == 401, path
             assert c.post("/api/admin/wallet", json={"user_id": "x", "delta": "1"}).status_code == 401
-            # 错口令 400；5 次之后同一 IP 被限速（仍是 400，但理由不同）
+            # 错口令401；5次之后同一IP限流429。
             for _ in range(5):
                 r = c.post("/api/admin/login", json={"username":"admin","password": "wrong"})
-                assert r.status_code == 400 and "口令错误" in r.json()["error"]["message"]
+                assert r.status_code == 401 and "口令错误" in r.json()["error"]["message"]
             r = c.post("/api/admin/login", json={"username":"admin","password": "wrong"})
-            assert r.status_code == 400 and "频繁" in r.json()["error"]["message"]
+            assert r.status_code == 429 and "频繁" in r.json()["error"]["message"]
             r = c.post("/api/admin/login", json={"username":"admin","password": "test"})       # 限速期间对的口令也进不去
-            assert r.status_code == 400 and "频繁" in r.json()["error"]["message"]
+            assert r.status_code == 429 and "频繁" in r.json()["error"]["message"]
             pf.auth.rate.hits.clear()
             r = c.post("/api/admin/login", json={"username":"admin","password": "test"})
             assert r.status_code == 200 and COOKIE in c.cookies
@@ -109,14 +110,14 @@ def test_trial_invite_registration():
     with pytest.raises(A2CError, match="邀请码"):
         auth.register("bob", "longpassword1", invite=code, ip="1.2.3.5")
     # 登录只认密码
-    with pytest.raises(A2CError, match="密码"):
+    with pytest.raises(LabError, match="密码"):
         auth.login("alice", "wrong", ip="1.2.3.6")
     tok = auth.login("alice", "longpassword1", ip="1.2.3.6")["token"]
     assert auth.verify(tok) == u["id"]
     # 注册独立按请求限速，成功注册也计：已用4次，第5次校验邀请码，第6次限速。
     with pytest.raises(A2CError, match="邀请码"):
         auth.register("carol", "longpassword1", invite="x", ip="1.2.3.4")
-    with pytest.raises(A2CError, match="频繁"):
+    with pytest.raises(LabError, match="频繁"):
         auth.register("carol", "longpassword1", invite="x", ip="1.2.3.4")
     # 内部账号不受邀请码与限速约束，密码可短
     assert auth.register("ISP_001", "001", kind="isp", display_name="内部服务方 · 测试")["kind"] == "isp"

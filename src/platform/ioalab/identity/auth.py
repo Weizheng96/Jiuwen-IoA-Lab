@@ -20,6 +20,7 @@ from collections import defaultdict, deque
 
 from a2c.errors import CARD_INVALID, fail
 
+from ..errors import LabError
 from ..config import Settings
 from ..storage import DB, now
 
@@ -57,7 +58,7 @@ class RateLimit:
         window=self.per if per is None else per
         limit=self.n if n is None else n
         if sum(hit>t-window for hit in q) >= limit:
-            fail(CARD_INVALID, "操作过于频繁，请稍后再试")
+            raise LabError('rate_limited', '操作过于频繁，请稍后再试', status=429, recovery='wait_rate_limit')
         return q
 
     def check(self, key: str, *, n=None, per=None) -> None:
@@ -138,7 +139,7 @@ class Auth:
         policy=self.s.policy(); auth=policy['authentication']
         verify=lambda: username==self.s.admin_username and _check_pw(password,self.admin_hash)
         valid=verify() if self.local_frequency_exempt(ip,policy) else self.rate.check_failure('admin:'+ip,verify,n=auth['max_failures'],per=auth['window_seconds'])
-        if not valid:fail(CARD_INVALID,"口令错误")
+        if not valid:raise LabError('authenticate','口令错误',status=401,recovery='account.login')
         return self.token('admin')
 
     def configuration_csrf(self, token: str) -> str:
@@ -202,15 +203,15 @@ class Auth:
         policy=policy or self.s.policy(); limits=policy["authentication"]
         valid = self.rate.check_failure("login:" + ip, verify,n=limits["max_failures"],per=limits["window_seconds"]) if self.s.open and not self.local_frequency_exempt(ip,policy) else verify()
         if not row:
-            fail(CARD_INVALID, "账号不存在")
+            raise LabError('authenticate', '账号或密码错误', status=401, recovery='account.login')
         if not valid:
-            fail(CARD_INVALID, "密码错误")
+            raise LabError('authenticate', '账号或密码错误', status=401, recovery='account.login')
         return row
 
     def login_in(self,conn,verified):
         current=conn.execute('SELECT pw_hash FROM users WHERE id=?',(verified['id'],)).fetchone()
         if not current or current['pw_hash']!=verified['pw_hash']:
-            fail(CARD_INVALID,'账号凭据已变更，请重新登录')
+            raise LabError('authenticate','账号凭据已变更，请重新登录',status=401,recovery='account.login')
         conn.execute('UPDATE users SET last_login=? WHERE id=?',(now(),verified['id']))
         return self.public_user(verified)
 

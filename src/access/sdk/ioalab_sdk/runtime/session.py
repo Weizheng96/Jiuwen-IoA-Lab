@@ -154,8 +154,10 @@ class AccountSession:
         except httpx.HTTPStatusError:
             try:error=response.json().get('error',{})
             except (ValueError,AttributeError):error={}
-            known=(response.status_code==400 and isinstance(error,dict) and error.get('code')=='invalid_input'
-                   or response.status_code==401 and isinstance(error,dict) and error.get('code') in ('authenticate','forbidden'))
+            if response.status_code==429 and isinstance(error,dict) and error.get('code')=='rate_limited':
+                raise RuntimeFault('rate_limited','Login rate limit reached; wait before resuming the original operation',
+                                   'wait_rate_limit',operation_id=pending['operationId']) from None
+            known=(response.status_code==401 and isinstance(error,dict) and (error.get('code')=='authenticate' or error.get('code')=='forbidden' and error.get('recovery')=='authenticate'))
             if known:
                 with self.cache.transaction():
                     if self.cache.get('session','pending')==pending:
