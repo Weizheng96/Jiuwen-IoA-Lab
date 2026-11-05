@@ -73,7 +73,7 @@
 
   <div class="view" id="view-messages"><div class="toolbar"><span class="mute">全局活动仅显示元数据；查看正文会记录管理员审计事件。</span></div><div id="adminMessages"></div></div>
   <div class="view" id="view-configuration">
-    <div class="panel"><h2>平台配置</h2><p class="hint">保存后即时生效。赠币规则只影响后续操作，历史账本不变；按北京时间划分每日领取资格。账号、模型和地址需修改部署配置并重启。</p>
+    <div class="panel"><h2>平台配置</h2><p class="hint">认证与赠币策略保存后即时生效，历史账本不变。试用端口保存后需由部署负责人应用，未验证公网可达；正式身份地址与核心监听只读。</p>
       <form id="configurationForm" class="form">
         <label for="cfgFailures">每 IP 密码失败上限</label><input id="cfgFailures" type="number" min="1" max="10000" required>
         <label for="cfgWindow">失败窗口（秒）</label><input id="cfgWindow" type="number" min="1" max="86400" required>
@@ -83,6 +83,10 @@
         <label for="cfgInitial">新账号初始虚拟币</label><input id="cfgInitial" type="number" min="0" step="0.01" required>
         <label for="cfgLogin">登录赠送虚拟币</label><input id="cfgLogin" type="number" min="0" step="0.01" required>
         <label for="cfgRepeat">同日重复登录可再次领取</label><input id="cfgRepeat" type="checkbox">
+        <p id="cfgNetworkCurrent" class="full hint"></p>
+        <label for="cfgNativePort">原生试用公网HTTPS端口</label><input id="cfgNativePort" type="number" min="1" max="65535" step="1">
+        <label for="cfgConfirmPort">可信确认公网HTTPS端口</label><input id="cfgConfirmPort" type="number" min="1" max="65535" step="1">
+        <p id="cfgNetworkStatus" class="full hint" role="status"></p>
         <div class="full"><button class="btn primary" type="submit">保存配置</button><button class="btn" type="button" id="cfgReload">重新读取</button></div>
         <p id="cfgStatus" class="full hint" role="status"></p>
       </form>
@@ -168,6 +172,6 @@
 <script src="/static/network-map.js?sha256=fc66c03f6ab5c567"></script>
 <script>NetworkMap.mount(document.querySelector("#pn .pn-mid"));</script>
 <script src="/static/panorama.js?sha256=ed6dfe751320e1ad"></script>
-<script src="/static/admin.js?sha256=48c8ea93a9f76f84"></script><script src="/static/admin_messages.js?sha256=27cdeef36e039577"></script>
+<script src="/static/admin.js?sha256=1064bebc6368c8f3"></script><script src="/static/admin_messages.js?sha256=27cdeef36e039577"></script>
 </body>
 </html>

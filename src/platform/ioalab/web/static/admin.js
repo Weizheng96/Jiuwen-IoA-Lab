@@ -78,6 +78,12 @@ function showTab(name) {
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
 let configurationView=null;
+function trialPort(value){if(!value)return '';const u=new URL(value);return u.port||443;}
+function trialPortUrl(value,port){
+  const p=Number(port);if(!Number.isInteger(p)||p<1||p>65535)throw new Error('请输入1–65535的整数HTTPS端口');
+  const u=new URL(value);if(u.protocol!=='https:')throw new Error('请先配置正式HTTPS入口及独立试用hostname');
+  u.port=String(p);return u.origin;
+}
 async function loadConfiguration(){
   if(REPLAY){$('cfgStatus').textContent='回放不提供配置修改。';return;}
   try{
@@ -87,6 +93,10 @@ async function loadConfiguration(){
     $('cfgFailures').value=a.max_failures;$('cfgWindow').value=a.window_seconds;$('cfgLocal').checked=a.local_unlimited;
     $('cfgRegistrations').value=a.registration_limit;$('cfgRegistrationWindow').value=a.registration_window_seconds;
     $('cfgInitial').value=c.initial;$('cfgLogin').value=c.login;$('cfgRepeat').checked=c.repeat_daily;
+    const n=value.network, saved=n.saved, active=n.active;
+    $('cfgNativePort').value=trialPort(saved.trial_url);$('cfgConfirmPort').value=trialPort(saved.trial_confirm_url);
+    $('cfgNetworkCurrent').textContent=`正式地址（只读）：${saved.public_url||'未配置'} · 核心监听（只读）：${saved.bind}:${saved.port}`;
+    $('cfgNetworkStatus').textContent=`已保存原生：${saved.trial_url||'未配置'}；确认：${saved.trial_confirm_url||'未配置'}。当前核心使用原生：${active?.trial_url||'未配置'}；确认：${active?.trial_confirm_url||'未配置'}。${n.pending?'有待应用配置，需部署负责人撤权排空原轮次、同步反代与试用配置并正常重启。':'当前值仅表示核心进程读取的配置。'}未验证公网可达；准入密钥${n.admissionKeyConfigured?'已填写，仍需配对':'尚未配置，需部署负责人离线配置'}。`;
     $('cfgStatus').textContent=`修订 ${value.revision} · 管理员 ${value.restart.adminUsername} · 模型密钥${value.restart.llmKeyConfigured?'已配置':'未配置'}`;
   }catch(e){$('cfgStatus').textContent=e.message;}
 }
@@ -98,10 +108,18 @@ $('configurationForm').onsubmit=async event=>{
     const changes={authentication:{max_failures:Number($('cfgFailures').value),window_seconds:Number($('cfgWindow').value),local_unlimited:$('cfgLocal').checked,
       registration_limit:Number($('cfgRegistrations').value),registration_window_seconds:Number($('cfgRegistrationWindow').value)},
       credits:{initial:$('cfgInitial').value,login:$('cfgLogin').value,repeat_daily:$('cfgRepeat').checked}};
+    const saved=configurationView.network.saved, runtime={};
+    for(const [key,id] of [['trial_url','cfgNativePort'],['trial_confirm_url','cfgConfirmPort']]){
+      const input=$(id).value;
+      if(!input){if(saved[key])throw new Error('不能清空既有试用端口');continue;}
+      if(Number(input)===Number(trialPort(saved[key])))continue;
+      runtime[key]=trialPortUrl(saved[key]||saved.public_url,input);
+    }
+    if(Object.keys(runtime).length)changes.runtime=runtime;
     const response=await fetch('/api/admin/configuration',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json','X-IOALAB-CSRF':configurationView.csrf},
       body:JSON.stringify({revision:configurationView.revision,changes})});
     const value=await response.json();if(!response.ok)throw new Error(value.error?.message||'保存失败，请重新读取后确认');
-    await loadConfiguration();toast('配置已保存并生效','ok');
+    await loadConfiguration();toast(value.network?.pending?'端口已保存，需部署应用；未验证公网可达':'策略已保存，试用公网状态仍需部署验证','ok');
   }catch(e){$('cfgStatus').textContent=e.message;}finally{submit.disabled=false;}
 };
 

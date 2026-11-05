@@ -17,7 +17,9 @@ from .errors import LabError
 
 FORMAT='ioalab.platform-config/1'
 EDITABLE={'authentication':{'max_failures','window_seconds','registration_limit','registration_window_seconds','local_unlimited'},
-          'credits':{'initial','login','repeat_daily'}}
+          'credits':{'initial','login','repeat_daily'},
+          'runtime':{'trial_url','trial_confirm_url'}}
+TRIAL_ENDPOINTS=('trial_url','trial_confirm_url')
 _LOCKS={}
 _LOCK=threading.Lock()
 SPECIAL={'llm','agent_model','a2x_model','embedding_model','llm_concurrency','round1_attempts','arbitration_models',
@@ -112,6 +114,36 @@ def _digest(document):
     return hashlib.sha256(json.dumps(document,sort_keys=True,ensure_ascii=False,allow_nan=False).encode()).digest()
 
 
+def network_projection(runtime):
+    return {key:deepcopy(runtime[key]) for key in ('bind','port','public_url',*TRIAL_ENDPOINTS)}
+
+
+def validate_port_change(previous,candidate):
+    def fail(message):raise LabError('invalid_input',message)
+    def origin(value):
+        parsed=urlsplit(value)
+        if (parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.query
+                or parsed.fragment or parsed.path not in ('','/') or parsed.port==0):
+            fail('试用入口必须为固定HTTPS Origin和有效端口')
+        return parsed.scheme,parsed.hostname,parsed.port or 443
+    for key in TRIAL_ENDPOINTS:
+        before,after=previous[key],candidate[key]
+        if before==after:continue
+        if not after:fail('端口修改不能清除试用入口')
+        base=before or previous['public_url']
+        if not before:
+            try:ipaddress.ip_address(urlsplit(base).hostname)
+            except ValueError:fail('请先离线配置独立的试用原生和确认hostname')
+        if origin(base)[:2]!=origin(after)[:2]:fail('这里只能修改既有试用入口端口，不能更换hostname或scheme')
+    endpoints=[candidate[key] for key in TRIAL_ENDPOINTS]
+    if not all(endpoints):fail('请同时配置两个独立试用HTTPS端口')
+    native,confirm=map(origin,endpoints)
+    if len({native,confirm,origin(candidate['public_url'])})!=3:fail('正式、原生和确认入口必须使用三个独立HTTPS Origin')
+    if native[1]==confirm[1]:
+        try:ipaddress.ip_address(native[1])
+        except ValueError:fail('域名部署须预先配置独立的原生和确认hostname')
+
+
 class PlatformConfiguration:
     def __init__(self,path):
         self.path=Path(path).absolute()
@@ -119,6 +151,7 @@ class PlatformConfiguration:
         self._document=self._read()
         self._fingerprint=_digest(self._document)
         self.audit=None
+        self._active_network=None
 
     def _read(self):
         private(self.path.parent);private(self.path)
@@ -143,11 +176,15 @@ class PlatformConfiguration:
 
     def view(self):
         document=self._document
+        saved=network_projection(document['runtime']);active=deepcopy(self._active_network)
         return {'revision':document['revision'],'editable':{
             group:{key:deepcopy(document[group][key]) for key in keys} for group,keys in EDITABLE.items()},
             'restart':{'adminUsername':document['admin']['username'],'adminPasswordConfigured':bool(document['admin']['password']),
                        'llmKeyConfigured':bool(document['llm']['api_key']),
-                       'publicUrl':document['runtime']['public_url']}}
+                       'publicUrl':document['runtime']['public_url']},
+            'network':{'saved':saved,'active':active,'pending':active is not None and saved!=active,
+                       'admissionKeyConfigured':bool(document['runtime']['trial_admission_key']),
+                       'application':'deployment_required','publicReachability':'unverified'}}
 
     def update(self,expected_revision,changes,*,actor=''):
         if type(expected_revision) is not int or not isinstance(changes,dict) or not changes:invalid()
@@ -160,6 +197,7 @@ class PlatformConfiguration:
             candidate=deepcopy(disk)
             for group,values in changes.items():candidate[group].update(values)
             candidate['revision']+=1;candidate=validate(candidate)
+            if 'runtime' in changes:validate_port_change(disk['runtime'],candidate['runtime'])
             fd,name=tempfile.mkstemp(prefix='.platform-',suffix='.json',dir=self.path.parent)
             try:
                 with os.fdopen(fd,'w',encoding='utf-8') as stream:
@@ -177,6 +215,7 @@ class PlatformConfiguration:
 
     def settings(self):
         document=self._document
+        if self._active_network is None:self._active_network=network_projection(document['runtime'])
         runtime=deepcopy(document['runtime'])
         runtime['public_url_env']=runtime.pop('public_url')
         for name in ('data','bundles_dir','seed_file'):

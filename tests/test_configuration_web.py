@@ -82,6 +82,33 @@ def test_https_ip_session_uses_one_host_cookie_and_logout_removes_it(configured,
     asyncio.run(scenario())
 
 
+def test_admin_can_save_trial_ports_but_cannot_apply_or_change_core_identity(tmp_path):
+    from test_platform_configuration import network_configuration
+    config=network_configuration(tmp_path);platform=Platform(config.settings())
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(platform)),base_url='https://192.0.2.10') as client:
+            response=await client.post('/api/admin/login',json={'username':'admin','password':'admin1234'})
+            assert response.status_code==200
+            view=(await client.get('/api/admin/configuration')).json()
+            changes={'runtime':{'trial_url':'https://192.0.2.10:8000','trial_confirm_url':'https://192.0.2.10:8001'}}
+            body={'revision':view['revision'],'changes':changes}
+            assert (await client.put('/api/admin/configuration',json=body)).status_code==403
+            headers={'Origin':'https://192.0.2.10','X-IOALAB-CSRF':view['csrf']}
+            rejected=await client.put('/api/admin/configuration',json={'revision':1,'changes':{'runtime':{'port':9000}}},headers=headers)
+            assert rejected.status_code==400
+            result=await client.put('/api/admin/configuration',json=body,headers=headers)
+            assert result.status_code==200,result.text
+            assert result.json()['network']['pending'] is True
+            assert platform.s.trial_url=='https://192.0.2.10:8443'
+            assert 'PRIVATE-ADMISSION' not in result.text and 'admin1234' not in result.text
+            assert (await client.put('/api/admin/configuration',json=body,headers=headers)).status_code==409
+            user=platform.accounts.create_account('network-ordinary','test-password')
+            client.cookies.clear();client.cookies.set('__Host-ioalab_session',platform.auth.token(user['id']))
+            assert (await client.put('/api/admin/configuration',json=body,headers=headers)).status_code==401
+    try:asyncio.run(scenario())
+    finally:platform.close()
+
+
 def test_source_spoofing_and_explicit_distinct_proxy_contract():
     settings=Settings(trusted_proxy_addresses=('127.0.0.2',))
     def request(peer,headers):
@@ -116,7 +143,7 @@ def test_configuration_concurrent_writers_publish_one_revision(configured):
         except LabError as exc:return exc.status
     with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(update,['11.00','12.00']))
     assert sorted(results)==[2,409]
-    assert PlatformConfiguration(config.path).view()==config.view()
+    assert Settings.load(config.path)._configuration.view()==config.view()
 
 
 def test_sdk_http_source_keeps_public_proxy_clients_out_of_loopback_exemption(configured):

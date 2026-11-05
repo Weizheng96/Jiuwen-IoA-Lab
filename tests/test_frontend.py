@@ -32,6 +32,15 @@ def test_public_pages_and_server_side_workbench_gates(client):
     assert client.get('/workbench',follow_redirects=False).status_code==303
 
 
+def test_admin_settings_offer_only_trial_ports_and_describe_deployment_boundary(platform,client):
+    assert client.post('/api/admin/login',json={'username':'admin','password':'test'}).status_code==200
+    response=client.get('/admin')
+    assert response.status_code==200
+    assert 'id="cfgNativePort"' in response.text and 'id="cfgConfirmPort"' in response.text
+    assert 'id="cfgCorePort"' not in response.text
+    assert '保存后需由部署负责人应用' in response.text and '未验证公网可达' in response.text
+
+
 def test_actual_login_cookie_logout_and_admin_permissions(client,platform):
     name=username()
     registered=client.post('/api/auth/register',json={'username':name,'password':PASSWORD,'operationId':'web-register'})

@@ -68,6 +68,73 @@ def test_external_same_revision_edit_is_not_overwritten(configuration):
     assert json.loads(configuration.path.read_text('utf-8'))['credits']['initial']=='123.00'
 
 
+def network_configuration(tmp_path,*,domain=False,empty=False):
+    folder=tmp_path/'network-config';folder.mkdir();protect_new(folder,directory=True)
+    document=defaults();runtime=document['runtime'];runtime['public_url']='https://formal.example' if domain else 'https://192.0.2.10'
+    runtime.update(data=str(tmp_path/'network-state'),mode='dev',stub=True,autoseed=False)
+    runtime['trial_admission_key']='PRIVATE-ADMISSION-KEY-SENTINEL'*2
+    if not empty:
+        runtime['trial_url']='https://native.example:8443' if domain else 'https://192.0.2.10:8443'
+        runtime['trial_confirm_url']='https://confirm.example:9443' if domain else 'https://192.0.2.10:9443'
+    return PlatformConfiguration.create(folder/'platform.json',document)
+
+
+def test_trial_ports_are_saved_without_changing_active_audience_until_restart(tmp_path):
+    from ioalab.identity.trial import entry
+    authority=network_configuration(tmp_path);settings=authority.settings()
+    changes={'runtime':{'trial_url':'https://192.0.2.10:8000','trial_confirm_url':'https://192.0.2.10:8001'}}
+    result=authority.update(1,changes)
+    assert result['network']['pending'] and result['network']['publicReachability']=='unverified'
+    assert result['network']['active']['trial_url']=='https://192.0.2.10:8443'
+    assert result['network']['saved']['trial_url']=='https://192.0.2.10:8000'
+    assert entry(settings,'owner')['url'].startswith('https://192.0.2.10:8443/entry#')
+    assert entry(settings,'owner',confirmation=True)['url'].startswith('https://192.0.2.10:9443/entry#')
+    authority.settings()
+    assert authority.view()['network']['active']==result['network']['active']
+    restarted=Settings.load(authority.path)
+    assert entry(restarted,'owner')['url'].startswith('https://192.0.2.10:8000/entry#')
+    assert not restarted._configuration.view()['network']['pending']
+    assert restarted.port==settings.port and restarted.public_url==settings.public_url
+    assert 'PRIVATE-ADMISSION' not in json.dumps(result)
+    with pytest.raises(LabError) as error:authority.update(1,changes)
+    assert error.value.status==409
+
+
+@pytest.mark.parametrize('bad',[{'port':9000},{'bind':'0.0.0.0'},{'public_url':'https://changed.example'},
+    {'trial_admission_key':'changed'},{'trial_url':'https://foreign.example:8000'},
+    {'trial_url':'http://192.0.2.10:8000'},{'trial_url':'https://192.0.2.10:0'},
+    {'trial_url':'https://192.0.2.10:70000'},{'trial_url':False},
+    {'trial_url':'https://192.0.2.10'},{'trial_url':'https://192.0.2.10:9443'}])
+def test_trial_port_editor_rejects_other_startup_fields_and_unsafe_origins(tmp_path,bad):
+    authority=network_configuration(tmp_path);authority.settings();before=authority.path.read_bytes();view=authority.view()
+    with pytest.raises(LabError):authority.update(1,{'runtime':bad})
+    assert authority.path.read_bytes()==before and authority.view()==view
+
+
+@pytest.mark.parametrize('domain',[False,True])
+def test_empty_trial_hosts_can_only_initialize_from_formal_https_ip(tmp_path,domain):
+    authority=network_configuration(tmp_path,domain=domain,empty=True);authority.settings()
+    host='formal.example' if domain else '192.0.2.10'
+    changes={'runtime':{'trial_url':f'https://{host}:8000','trial_confirm_url':f'https://{host}:8001'}}
+    if domain:
+        with pytest.raises(LabError,match='hostname'):authority.update(1,changes)
+    else:
+        result=authority.update(1,changes)
+        assert result['network']['pending'] and result['network']['active']['trial_url']==''
+
+
+def test_saving_ports_does_not_claim_missing_admission_secret_is_configured(tmp_path):
+    from ioalab.identity.trial import entry
+    authority=network_configuration(tmp_path,empty=True)
+    document=json.loads(authority.path.read_text());document['runtime']['trial_admission_key']=''
+    authority.path.write_text(json.dumps(document),encoding='utf-8');authority=PlatformConfiguration(authority.path)
+    authority.settings()
+    result=authority.update(1,{'runtime':{'trial_url':'https://192.0.2.10:8000','trial_confirm_url':'https://192.0.2.10:8001'}})
+    assert result['network']['admissionKeyConfigured'] is False
+    with pytest.raises(LabError) as error:entry(Settings.load(authority.path),'owner')
+    assert error.value.code=='not_ready'
+
+
 def test_missing_and_hardlinked_private_configuration_are_rejected(configuration,tmp_path):
     with pytest.raises(FileNotFoundError):Settings.load(configuration.path.parent/'missing.json')
     alias=tmp_path/'configuration-alias.json';os.link(configuration.path,alias)
