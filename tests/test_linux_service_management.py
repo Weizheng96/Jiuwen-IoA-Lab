@@ -217,7 +217,7 @@ def test_owned_leaf_is_verified_without_recursive_permission_reset(tmp_path,monk
     assert child.read_text()=='preserve'
 
 
-@pytest.mark.parametrize('unknown_owner',[None,'directory','file'])
+@pytest.mark.parametrize('unknown_owner',[None,'core-owned','directory','file'])
 def test_only_core_configuration_leaf_is_writable_not_parent_or_agents(tmp_path,monkeypatch,unknown_owner):
     root=layout(tmp_path);directory=root.config/'core';directory.mkdir(parents=True)
     path=directory/'platform.json';path.write_text('{}')
@@ -226,7 +226,8 @@ def test_only_core_configuration_leaf_is_writable_not_parent_or_agents(tmp_path,
     ownership=[];permissions=[]
     original_stat=Path.stat
     known={directory:0,path:1201}
-    if unknown_owner:known[directory if unknown_owner=='directory' else path]=1001
+    if unknown_owner=='core-owned':known[directory]=1201
+    if unknown_owner in ('directory','file'):known[directory if unknown_owner=='directory' else path]=1001
     def owned_stat(subject,*args,**kwargs):
         value=original_stat(subject,*args,**kwargs)
         if subject not in known:return value
@@ -234,7 +235,7 @@ def test_only_core_configuration_leaf_is_writable_not_parent_or_agents(tmp_path,
     monkeypatch.setattr(Path,'stat',owned_stat)
     monkeypatch.setattr(linux.os,'chown',lambda p,uid,gid:ownership.append((p,uid,gid)),raising=False)
     monkeypatch.setattr(linux.os,'chmod',lambda p,mode:permissions.append((p,mode)))
-    if unknown_owner:
+    if unknown_owner in ('directory','file'):
         with pytest.raises(RuntimeError,match='root-owned'):accounts.configuration(path,'core')
         assert ownership==[] and permissions==[]
         return
@@ -242,6 +243,7 @@ def test_only_core_configuration_leaf_is_writable_not_parent_or_agents(tmp_path,
     assert ownership==[(directory,1201,1202),(path,1201,1202)]
     assert permissions==[(directory,0o700),(path,0o600)]
     extra=directory/'unrelated.json';extra.write_text('{}')
+    known[extra]=0
     with pytest.raises(RuntimeError,match='unique core'):accounts.configuration(extra,'core')
     assert len(ownership)==2 and root.config not in [item[0] for item in ownership]
 
