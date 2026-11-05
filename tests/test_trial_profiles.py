@@ -102,12 +102,16 @@ def test_old_or_mismatched_layout_preserves_database_and_business_references(tmp
         assert path.read_bytes()==before
 
 
-def test_windows_sandbox_cannot_target_other_seats():
+@pytest.mark.parametrize('seat',[2,3,True])
+@pytest.mark.parametrize('method',['identity','ui','prepare'])
+def test_invalid_seat_rejected_before_any_external_operation(monkeypatch,seat,method):
     from test_trial_sandbox import configuration,EPOCH
     sandbox=DockerSandbox(configuration(),deployment_profile='windows-wsl')
-    for seat in (2,3,True):
-        with pytest.raises(ValueError):sandbox.identity(seat,EPOCH)
-        with pytest.raises(ValueError):sandbox.ui(seat,EPOCH)
+    sandbox.run=lambda *a,**kw:pytest.fail('Invalid seat reached a Docker command')
+    monkeypatch.setattr('ioalab_trial.sandbox.httpx.post',lambda *a,**kw:pytest.fail('Invalid seat reached HTTP'))
+    with pytest.raises(ValueError,match='ownership'):
+        getattr(sandbox,method)(seat,EPOCH)
+    assert sandbox.image_validated is False
 
 
 @pytest.mark.parametrize('uid,gid,mode,ok',[(0,0,0o600,True),(1000,0,0o600,False),(0,1000,0o600,False),(0,0,0o644,False)])

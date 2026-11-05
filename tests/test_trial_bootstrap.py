@@ -36,6 +36,25 @@ def test_original_preparation_logs_stay_under_the_respective_uid_home(tmp_path,m
 IDS=['code-miniapp-reliable','code-miniapp-basic','code-website','code-android']
 
 
+def test_authorization_runs_as_service_owner_with_credentials_only_on_stdin(monkeypatch):
+    from ioalab_trial import bootstrap
+    import subprocess
+    calls=[];admin={'username':'admin','password':'fixture-private-password'}
+    def observe(argv,**kwargs):
+        calls.append((argv,kwargs))
+        assert kwargs['user']==kwargs['group']==10004 and kwargs['extra_groups']==[]
+        assert kwargs['cwd']==bootstrap.ROOT/'services'
+        assert kwargs['env']['HOME']=='/epoch/services' and kwargs['env']['TMPDIR']=='/epoch/services/tmp'
+        assert json.loads(kwargs['input'])==admin and kwargs['check'] is True
+        assert admin['password'] not in ' '.join(argv) and admin['password'] not in str(kwargs['env'])
+    monkeypatch.setattr(bootstrap.subprocess,'run',observe)
+    bootstrap.authorize_services_as_owner(admin)
+    assert calls[0][0][-1]=='authorize-services'
+    def fail(*args,**kwargs):raise subprocess.CalledProcessError(1,args[0])
+    monkeypatch.setattr(bootstrap.subprocess,'run',fail)
+    with pytest.raises(subprocess.CalledProcessError):bootstrap.authorize_services_as_owner(admin)
+
+
 def test_core_seed_has_only_four_public_summaries():
     value=public_seed(IDS)
     assert len(value['domains'])==1

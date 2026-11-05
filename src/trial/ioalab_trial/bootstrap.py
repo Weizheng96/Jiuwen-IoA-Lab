@@ -93,6 +93,15 @@ def deployment():
     return result
 
 
+def authorize_services_as_owner(admin):
+    """Only the service owner opens/modifies its deployment state and locks."""
+    subprocess.run([PYTHON,'-m','ioalab_trial.bootstrap','authorize-services'],
+        input=json.dumps(admin),text=True,
+        env={**os.environ,'HOME':'/epoch/services','TMPDIR':'/epoch/services/tmp'},
+        cwd=ROOT/'services',user=10004,group=10004,extra_groups=[],
+        check=True,timeout=90,stdout=subprocess.DEVNULL)
+
+
 def setup():
     model = json.loads(os.environ.pop('IOALAB_TRIAL_MODEL','{}'))
     if set(model) != {'name','base_url','api_key'} or not all(isinstance(v,str) and v for v in model.values()):
@@ -163,14 +172,10 @@ home=Path('/epoch/native/.ioalab');home.mkdir()
         write(ROOT/'control/probe-session.json',receipt,0)
         # Account/category bootstrap is the public core startup operation; no trial SQL.
         from ioalab_services.preparation import prepare
-        from ioalab_services.authorization import authorize,administrator_session
         # Resource preparation runs under service UID through this recipe's entry point.
         subprocess.run([PYTHON,'-m','ioalab_trial.bootstrap','prepare-services'],env={**os.environ,'HOME':'/epoch/services','TMPDIR':'/epoch/services/tmp'},cwd=ROOT/'services',
                        user=10004,group=10004,extra_groups=[],check=True,timeout=90,stdout=subprocess.DEVNULL)
-        dep = deployment()
-        authorize(dep,administrator_session(dep,core['admin']['username'],admin))
-        for item in (ROOT/'services/official').rglob('*'):
-            os.chown(item,10004,10004)
+        authorize_services_as_owner({'username':core['admin']['username'],'password':admin})
     finally:
         temporary.terminate()
         temporary.wait(timeout=30)
@@ -182,6 +187,12 @@ def main():
     elif mode == 'prepare-services':
         from ioalab_services.preparation import prepare
         prepare(deployment())
+    elif mode == 'authorize-services':
+        from ioalab_services.authorization import authorize,administrator_session
+        admin=json.load(sys.stdin)
+        if set(admin)!={'username','password'}:raise ValueError('Use the original administrator credential fields')
+        dep=deployment()
+        authorize(dep,administrator_session(dep,admin['username'],admin['password']))
     elif mode == 'core':
         env={**os.environ,'IOALAB_CONFIG':'/epoch/core/platform.json'}
         os.execve(CORE_PYTHON,[CORE_PYTHON,'-m','ioalab','serve'],env)

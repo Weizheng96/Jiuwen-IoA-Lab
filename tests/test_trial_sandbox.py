@@ -53,7 +53,7 @@ class Docker:
                 'Entrypoint':['/opt/participant/bin/python','-m','ioalab_trial.agent'] if role=='seat' else ['/opt/participant/bin/python'],
                 'Cmd':None if role=='seat' else ['-m','ioalab_trial.'+('model_egress' if role=='model' else 'ingress')]},
             'HostConfig':{'ReadonlyRootfs':True,'Privileged':False,'CapDrop':['ALL'],
-                'CapAdd':['SETUID','SETGID','CHOWN','DAC_OVERRIDE'] if role=='seat' else [],
+                'CapAdd':['SETUID','SETGID','CHOWN','DAC_OVERRIDE','KILL'] if role=='seat' else [],
                 'SecurityOpt':['no-new-privileges'],'Sysctls':{'net.ipv6.conf.all.disable_ipv6':'1','net.ipv6.conf.default.disable_ipv6':'1'},
                 'PidMode':'','IpcMode':'private','PublishAllPorts':False,'PortBindings':ports,
                 'ExtraHosts':['seat:172.18.0.1'] if role=='ingress' else None,
@@ -332,7 +332,7 @@ def test_image_capability_and_post_preflight_user_guard_fail_before_effects(sand
 
 def test_docker_capability_names_are_canonicalized_without_accepting_extra_privilege(sandbox):
     target,docker=sandbox;row=docker.row('seat')
-    row['HostConfig']['CapAdd']=['CAP_CHOWN','CAP_DAC_OVERRIDE','CAP_SETGID','CAP_SETUID']
+    row['HostConfig']['CapAdd']=['CAP_CHOWN','CAP_DAC_OVERRIDE','CAP_SETGID','CAP_SETUID','CAP_KILL']
     docker.container_override=row
     assert target.checked_resources(1,EPOCH)['seat']['Id']=='seat-id'
     row['HostConfig']['CapAdd'].append('CAP_NET_ADMIN')

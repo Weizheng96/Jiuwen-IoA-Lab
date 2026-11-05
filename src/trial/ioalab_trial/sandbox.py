@@ -130,7 +130,6 @@ class DockerSandbox:
         return network
 
     def checked_resources(self, seat, epoch):
-        self.validate_image()
         """One full preflight before control, the first TERM, or first removal."""
         name=self.identity(seat,epoch)
         self.validate_image()
@@ -160,7 +159,7 @@ class DockerSandbox:
             config=value.get('Config',{});host=value.get('HostConfig',{})
             entry=['/opt/participant/bin/python','-m','ioalab_trial.agent'] if role=='seat' else ['/opt/participant/bin/python']
             command=[] if role=='seat' else ['-m','ioalab_trial.'+('model_egress' if role=='model' else 'ingress')]
-            additions={'SETUID','SETGID','CHOWN','DAC_OVERRIDE'} if role=='seat' else set()
+            additions={'SETUID','SETGID','CHOWN','DAC_OVERRIDE','KILL'} if role=='seat' else set()
             if (config.get('Image')!=self.config['image'] or value.get('Image')!=self.image_id or config.get('Entrypoint')!=entry
                     or (config.get('Cmd') or [])!=command
                     or config.get('User','') not in (('','0','0:0') if role!='ingress' else ('65534:65534',))
@@ -246,7 +245,7 @@ class DockerSandbox:
         self.owned('volume',name)
         base = self.config['port_base'] + seat * 2
         self.command('run','-d','--name',name,*self.labels(name,'seat'),
-            '--read-only','--cap-drop=ALL','--cap-add=SETUID','--cap-add=SETGID','--cap-add=CHOWN','--cap-add=DAC_OVERRIDE','--security-opt=no-new-privileges',
+            '--read-only','--cap-drop=ALL','--cap-add=SETUID','--cap-add=SETGID','--cap-add=CHOWN','--cap-add=DAC_OVERRIDE','--cap-add=KILL','--security-opt=no-new-privileges',
             '--pids-limit','256','--memory',self.config.get('memory','6g'),
             '--cpus',str(self.config.get('cpus',2)),
             *ipv6,'--network',network_name,'--network-alias','seat',
@@ -297,6 +296,8 @@ class DockerSandbox:
         self.finish(seat,epoch,'ingress')
 
     def finish(self, seat, epoch, role):
+        if role not in ('model','seat','ingress'):
+            raise ValueError('Unknown sandbox resource role')
         rows=self.checked_resources(seat,epoch)
         name=self.identity(seat,epoch)+('' if role=='seat' else '-'+role)
         if rows[role]['State'].get('Running'):
