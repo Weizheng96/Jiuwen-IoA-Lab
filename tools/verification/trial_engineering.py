@@ -37,10 +37,11 @@ def run(action,config_path,state,inputs):
         if operation['phase']!='prepared':raise ValueError('Inspect partial engineering creation before proceeding')
         import httpx
         from websockets.sync.client import connect
+        from ioalab_trial.probe import has_assistant_skill
         ui=sandbox.ui(seat,epoch)
         response=httpx.get(ui+'/?user_id=trial',trust_env=False,timeout=10);response.raise_for_status()
         observations={'nativeHttp':{'status':response.status_code,'bodySha256':hashlib.sha256(response.content).hexdigest()}}
-        for method in ('skills.installed','config.get','session.list'):
+        for method in ('skills.list','config.get','session.list'):
             identifier=uuid.uuid4().hex
             with connect(ui.replace('http:','ws:',1)+'/ws?user_id=trial',open_timeout=5,close_timeout=2) as socket:
                 socket.send(json.dumps({'type':'req','id':identifier,'method':method,'params':{}}))
@@ -51,7 +52,9 @@ def run(action,config_path,state,inputs):
                     data=reply.get('payload',reply.get('data',{}))
                     observations[method]={'responseReceived':True}
                     if method=='config.get':observations[method]['a2uiEnabled']=data.get('a2ui_enabled') in (True,'true')
-                    if method=='skills.installed':observations[method]['assistantSkillPresent']='ioalab-delegate' in json.dumps(data)
+                    if method=='skills.list':
+                        if not has_assistant_skill(data):raise RuntimeError('Original local assistant Skill is absent, disabled or has an invalid public schema')
+                        observations[method]['assistantSkillPresent']=has_assistant_skill(data)
                     break
                 else:raise RuntimeError('No matching original native response')
         operation['engineeringObservations']=observations

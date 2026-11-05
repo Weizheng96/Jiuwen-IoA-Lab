@@ -58,14 +58,14 @@ def main():
         clean = orders.json() == [] and intents.json() == [] and stats.json()['payment']['transfers_total'] == 0
     response = httpx.get('http://127.0.0.1:8080/',timeout=3,trust_env=False)
     response.raise_for_status()
-    installed = query('skills.installed') if not runtime_mode else None
+    installed = query('skills.list') if not runtime_mode else None
     sessions = query('session.list')
     native_config = query('config.get') if not runtime_mode else None
     a2ui_enabled = isinstance(native_config,dict) and native_config.get('a2ui_enabled') in (True,'true')
     # Unexpected public schemas fail readiness, rather than assuming an empty list.
     native_sessions = sessions.get('sessions') if isinstance(sessions,dict) else None
     # Skill names are public metadata; do not read chat or configuration content.
-    skill_loaded = 'ioalab-delegate' in json.dumps(installed)
+    skill_loaded = has_assistant_skill(installed)
     # Physical/local readiness is distinct from Linux/browser acceptance. A deployment
     # must provide a reviewed acceptance receipt baked into the image after the
     # original UI/WS/A2UI and real Skill->SDK loop have actually passed.
@@ -87,6 +87,15 @@ def runtime_services_ready(value):
     rows=value.get('accounts',[])
     return len(rows)==1 and all(not row.get('error') and row.get('runtime',{}).get('platformConnected')
         and row.get('runtime',{}).get('ipcReady') and row.get('runtime',{}).get('host',{}).get('available') for row in rows)
+
+
+def has_assistant_skill(value):
+    """The pinned native skills.list schema, including copied local skills."""
+    if not isinstance(value,dict) or not isinstance(value.get('skills'),list):return False
+    rows=value['skills']
+    if any(not isinstance(row,dict) or not isinstance(row.get('name'),str) for row in rows):return False
+    return any(row['name']=='ioalab-delegate' and row.get('installed') is True
+               and row.get('enabled') is True and row.get('source')=='local' for row in rows)
 
 
 if __name__ == '__main__':main()

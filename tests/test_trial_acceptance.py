@@ -79,3 +79,36 @@ def test_engineering_epoch_is_never_allocated_and_partial_creation_not_retried(t
     monkeypatch.setattr(Sandbox,'prepare',fail)
     with pytest.raises(RuntimeError,match='partial'):tool.run('prepare',config,state,inputs)
     with pytest.raises(ValueError,match='already exist'):tool.run('prepare',config,state,inputs)
+
+
+def test_engineering_observe_uses_real_local_skill_list_contract(tmp_path,monkeypatch):
+    import httpx,websockets.sync.client
+    from ioalab_trial import sandbox
+    path=Path(__file__).parents[1]/'tools/verification/trial_engineering.py'
+    spec=importlib.util.spec_from_file_location('trial_engineering_observe_tool',path)
+    tool=importlib.util.module_from_spec(spec);spec.loader.exec_module(tool)
+    config=tmp_path/'engineering.json';config.write_text(json.dumps({'deployment_profile':'linux-server','sandbox':{'deployment':'ioa-engineering'}}))
+    inputs=tmp_path/'inputs.json';inputs.write_text(json.dumps({'sourceRevision':'a'*40,'contextSha256':'b'*64}))
+    state=tmp_path/'operation.json';methods=[]
+    class Sandbox:
+        image_id='sha256:'+'d'*64
+        def __init__(self,*a,**kw):pass
+        def prepare(self,*args):pass
+        def ui(self,*args):return 'http://127.0.0.1:29002'
+    monkeypatch.setattr(sandbox,'DockerSandbox',Sandbox)
+    tool.run('prepare',config,state,inputs)
+    monkeypatch.setattr(httpx,'get',lambda *a,**kw:httpx.Response(200,content=b'native',request=httpx.Request('GET','http://native/')))
+    payload={'skills':[{'name':'ioalab-delegate','installed':True,'enabled':True,'source':'local'}]}
+    class Socket:
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def send(self,raw):self.request=json.loads(raw);methods.append(self.request['method'])
+        def recv(self,**kwargs):
+            data=payload if self.request['method']=='skills.list' else {'a2ui_enabled':True}
+            return json.dumps({'type':'res','id':self.request['id'],'ok':True,'payload':data})
+    monkeypatch.setattr(websockets.sync.client,'connect',lambda *a,**kw:Socket())
+    result=tool.run('observe',config,state,inputs)
+    assert methods==['skills.list','config.get','session.list']
+    assert result['observations']['skills.list']['assistantSkillPresent'] is True
+    payload={'plugins':[{'name':'ioalab-delegate'}]}
+    with pytest.raises(RuntimeError,match='invalid public schema'):tool.run('observe',config,state,inputs)

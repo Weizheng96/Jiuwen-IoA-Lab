@@ -36,6 +36,20 @@ def test_original_preparation_logs_stay_under_the_respective_uid_home(tmp_path,m
 IDS=['code-miniapp-reliable','code-miniapp-basic','code-website','code-android']
 
 
+@pytest.mark.parametrize('reply,expected',[
+    ({'skills':[{'name':'ioalab-delegate','installed':True,'enabled':True,'source':'local'}]},True),
+    ({'plugins':[{'name':'ioalab-delegate'}]},False),
+    ({'skills':[{'name':'other','description':'ioalab-delegate'}]},False),
+    ({'skills':[{'name':'ioalab-delegate','installed':False,'enabled':True,'source':'local'}]},False),
+    ({'skills':[{'name':'ioalab-delegate','installed':True,'enabled':False,'source':'local'}]},False),
+    ({'skills':[{'name':'ioalab-delegate','installed':True,'enabled':True,'source':'marketplace'}]},False),
+    ({'skills':['ioalab-delegate']},False),
+    ({'skills':{'name':'ioalab-delegate'}},False)])
+def test_native_local_skill_readiness_uses_exact_public_list_schema(reply,expected):
+    from ioalab_trial.probe import has_assistant_skill
+    assert has_assistant_skill(reply) is expected
+
+
 def test_authorization_runs_as_service_owner_with_credentials_only_on_stdin(monkeypatch):
     from ioalab_trial import bootstrap
     import subprocess
