@@ -106,7 +106,7 @@ from pathlib import Path
 from jiuwenswarm.common.utils import prepare_workspace
 prepare_workspace(False,preferred_language='zh',workspace_dir=Path(os.environ['JIUWENSWARM_DATA_DIR']))
 """
-        subprocess.run([SWARM_PYTHON,'-c',source],env=native_env(name),user=uid,group=uid,extra_groups=[],check=True,timeout=60)
+        subprocess.run([SWARM_PYTHON,'-c',source],env=native_env(name),cwd=ROOT/name,user=uid,group=uid,extra_groups=[],check=True,timeout=60)
         source = """import json,sys
 from jiuwenswarm.common.config import upsert_model_resource,update_config
 value=json.load(sys.stdin)
@@ -117,7 +117,7 @@ def change(value):
  return value
 update_config(change)
 """
-        subprocess.run([SWARM_PYTHON,'-c',source],input=json.dumps(model),text=True,env=native_env(name),
+        subprocess.run([SWARM_PYTHON,'-c',source],input=json.dumps(model),text=True,env=native_env(name),cwd=ROOT/name,
                        user=uid,group=uid,extra_groups=[],check=True,timeout=30)
     admin,assistant = secrets.token_urlsafe(24),secrets.token_urlsafe(24)
     core = core_environment(model,admin)
@@ -143,12 +143,12 @@ home=Path('/epoch/native/.ioalab');home.mkdir()
 (home/'settings.local.json').write_text('{}',encoding='utf-8')
 (target/'scripts/ioalab.py').write_text('from ioalab_trial.model_bridge import main\nraise SystemExit(main())\n',encoding='utf-8')
 """
-    subprocess.run([SWARM_PYTHON,'-c',source],env=native_env('native'),user=10003,group=10003,extra_groups=[],check=True,timeout=30)
+    subprocess.run([SWARM_PYTHON,'-c',source],env=native_env('native'),cwd=ROOT/'native',user=10003,group=10003,extra_groups=[],check=True,timeout=30)
     # Initialization and publication are delegated to their existing public owners.
     core_env = {**os.environ,**core,'HOME':'/epoch/core','TMPDIR':'/epoch/core/tmp'}
-    subprocess.run([CORE_PYTHON,'-m','ioalab','init'],env=core_env,
+    subprocess.run([CORE_PYTHON,'-m','ioalab','init'],env=core_env,cwd=ROOT/'core',
                    user=10001,group=10001,extra_groups=[],check=True,timeout=60,stdout=subprocess.DEVNULL)
-    temporary = subprocess.Popen([CORE_PYTHON,'-m','ioalab','serve'],env=core_env,
+    temporary = subprocess.Popen([CORE_PYTHON,'-m','ioalab','serve'],env=core_env,cwd=ROOT/'core',
                    user=10001,group=10001,extra_groups=[],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     try:
         import httpx
@@ -164,7 +164,7 @@ home=Path('/epoch/native/.ioalab');home.mkdir()
         from ioalab_services.preparation import prepare
         from ioalab_services.authorization import authorize,administrator_session
         # Resource preparation runs under service UID through this recipe's entry point.
-        subprocess.run([PYTHON,'-m','ioalab_trial.bootstrap','prepare-services'],env={**os.environ,'HOME':'/epoch/services','TMPDIR':'/epoch/services/tmp'},
+        subprocess.run([PYTHON,'-m','ioalab_trial.bootstrap','prepare-services'],env={**os.environ,'HOME':'/epoch/services','TMPDIR':'/epoch/services/tmp'},cwd=ROOT/'services',
                        user=10004,group=10004,extra_groups=[],check=True,timeout=90,stdout=subprocess.DEVNULL)
         dep = deployment()
         authorize(dep,administrator_session(dep,admin))

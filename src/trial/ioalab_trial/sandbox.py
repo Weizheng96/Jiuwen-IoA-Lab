@@ -158,7 +158,8 @@ class DockerSandbox:
                     or (config.get('Cmd') or [])!=command
                     or config.get('User','') not in (('','0','0:0') if role!='ingress' else ('65534:65534',))
                     or host.get('ReadonlyRootfs') is not True or host.get('Privileged') is not False
-                    or set(host.get('CapDrop') or [])!={'ALL'} or set(host.get('CapAdd') or [])!=additions
+                    or {value.removeprefix('CAP_') for value in host.get('CapDrop') or []}!={'ALL'}
+                    or {value.removeprefix('CAP_') for value in host.get('CapAdd') or []}!=additions
                     or set(host.get('SecurityOpt') or [])!={'no-new-privileges'}
                     or host.get('Sysctls')!={'net.ipv6.conf.all.disable_ipv6':'1','net.ipv6.conf.default.disable_ipv6':'1'}
                     or host.get('PidMode','') or host.get('IpcMode') not in ('private','')

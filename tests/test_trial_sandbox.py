@@ -308,3 +308,13 @@ def test_image_capability_and_post_preflight_user_guard_fail_before_effects(sand
     def revoked():raise PermissionError('Revoked during inspection')
     with pytest.raises(PermissionError):target.control(1,EPOCH,'confirmations',{},before_send=revoked)
     assert not any(call[0]=='http' for call in docker.calls)
+
+
+def test_docker_capability_names_are_canonicalized_without_accepting_extra_privilege(sandbox):
+    target,docker=sandbox;row=docker.row('seat')
+    row['HostConfig']['CapAdd']=['CAP_CHOWN','CAP_DAC_OVERRIDE','CAP_SETGID','CAP_SETUID']
+    docker.container_override=row
+    assert target.checked_resources(1,EPOCH)['seat']['Id']=='seat-id'
+    row['HostConfig']['CapAdd'].append('CAP_NET_ADMIN')
+    with pytest.raises(RuntimeError):target.stop(1,EPOCH)
+    assert not any(call[0] in ('kill','rm','http') for call in docker.calls)

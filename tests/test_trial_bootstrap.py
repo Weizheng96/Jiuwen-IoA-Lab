@@ -9,6 +9,30 @@ from ioalab_trial.bootstrap import public_seed,core_environment,register_assista
 from ioalab_trial.probe import sample_budget
 
 
+def test_original_preparation_logs_stay_under_the_respective_uid_home(tmp_path,monkeypatch):
+    from ioalab_trial import bootstrap
+    import subprocess
+    import sys
+    root=tmp_path/'epoch';root.mkdir()
+    for name in ('native','assistant','services','core'):(root/name).mkdir()
+    monkeypatch.setattr(bootstrap,'ROOT',root)
+    monkeypatch.setattr(bootstrap.os,'chown',lambda *args:None,raising=False)
+    monkeypatch.setenv('IOALAB_TRIAL_MODEL',json.dumps({'name':'model','base_url':'http://model-egress/v1','api_key':'opaque-epoch-only'}))
+    original_run=subprocess.run;calls=[]
+    class Prepared(Exception):pass
+    def run(command,**kwargs):
+        owner={10003:'native',10002:'assistant',10004:'services'}[kwargs['user']]
+        cwd=kwargs.get('cwd',root)
+        assert cwd.resolve().is_relative_to(root)
+        original_run([sys.executable,'-c',"from pathlib import Path; Path('logs').mkdir(exist_ok=True); Path('logs/owner').write_text('owned')"],cwd=cwd,check=True)
+        calls.append(owner)
+        if len(calls)==6:raise Prepared()
+    monkeypatch.setattr(bootstrap.subprocess,'run',run)
+    with pytest.raises(Prepared):bootstrap.setup()
+    assert not (root/'logs').exists()
+    for name in set(calls):assert (root/name/'logs/owner').read_text()=='owned'
+
+
 IDS=['code-miniapp-reliable','code-miniapp-basic','code-website','code-android']
 
 
