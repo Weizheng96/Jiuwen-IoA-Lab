@@ -1,0 +1,107 @@
+{
+  "date": "2026-11-05",
+  "status": "scoped-independent-acceptance-passed",
+  "scope": "Component-owned transactional DDL/upgrades, authorized read queries and original HTTP response contracts; no new protocol state or compatibility execution path",
+  "baselineCommit": "164f1882ba7c676bbadcce153bf965f0817cde0a",
+  "reviewedBaseCommit": "78d439b90c7a3df5f25415ffbb6cb761b3eabb68",
+  "initialIndependentReview": {
+    "report": "temp/checks/component-decoupling-independent-20261105/report.json",
+    "reportSha256": "963a9982ad0a819f90f5804b49bc42fbe21854300a23e4bb7d96adc3226510fc",
+    "result": "37 passed in 30.98s",
+    "exitCode": 0,
+    "testStageSeconds": 32.954,
+    "probe": "temp/checks/component-decoupling-independent-20261105/independent-probe.json",
+    "schemaComparison": {
+      "literalCreateScripts": 19,
+      "tables": 62,
+      "structureEqual": true,
+      "scope": "Columns, primary keys, foreign keys and indexes; additive upgrades and row preservation covered by separate focused tests"
+    },
+    "findings": [
+      {
+        "id": "web-v1-query-ownership",
+        "severity": "P2",
+        "observed": "api_v1 /me still composed account/wallet facts; search and provider/mine still selected agents directly",
+        "resolution": "sdk_me moved to AccountQueries with explicit identity dependency; search_actor and services_owned moved to IdentityDirectory; original disabled/fallback and response fields preserved",
+        "status": "closed-after-independent-followup"
+      },
+      {
+        "id": "original-not-found-response",
+        "severity": "P2",
+        "observed": "Missing history/replay remained HTTP 404 but changed the original not_found machine code to not_ready; replay also changed its message",
+        "resolution": "Restored original status/code/message/recovery; added real HTTP regression assertions",
+        "status": "closed-after-independent-followup"
+      }
+    ],
+    "limits": "Passing focused tests did not establish absence of these two independently discovered issues"
+  },
+  "repairVerification": {
+    "report": "temp/checks/component-decoupling-fix-20261105/report.json",
+    "reportSha256": "738251eaa76cac3fedd1910c4ee95198158db5b4b37514853642d714ba06d95d",
+    "result": "10 passed in 14.16s",
+    "exitCode": 0,
+    "testStageSeconds": 15.812,
+    "scope": "Account read shape/ownership, SDK credential restriction, administrator API and adjacent frontend authentication/privacy"
+  },
+  "independentFollowup": {
+    "report": "temp/checks/component-decoupling-independent-followup-20261105/report.json",
+    "reportSha256": "cd479b71dd71f239738d13ab1b5f065681963fa86fbdf07337e0db9452e56d00",
+    "result": "3 passed in 4.16s",
+    "exitCode": 0,
+    "testStageSeconds": 5.516,
+    "probe": "temp/checks/component-decoupling-independent-followup-20261105/response-probe.json",
+    "sameInputResponseComparison": {
+      "responsesEqual": true,
+      "method": "Actual selected route ASTs and unchanged platform error handlers via ASGI; synthetic authenticated actors and missing database results",
+      "history": {
+        "status": 404,
+        "error": {
+          "code": "not_found",
+          "message": "用户不存在",
+          "recovery": "correct_input"
+        }
+      },
+      "replay": {
+        "status": 404,
+        "error": {
+          "code": "not_found",
+          "message": "Not Found",
+          "recovery": "correct_input"
+        }
+      }
+    }
+  },
+  "finalReviewedInputsSha256": {
+    "src/platform/ioalab/app.py": "f7d1dc7d39ec92c5ea8cb3b342c6ce89869ff3871ce33f19217e18dc845abeb1",
+    "src/platform/ioalab/identity/__init__.py": "1622a730c96c45c2f7abdfd13d3de6378932af45d3581905e4b7acf7de729c39",
+    "src/platform/ioalab/observation/accounts.py": "f561967648e347b6165c60ca2f16814ad56d27ef0eaacddc8c00cd6d0bcaf921",
+    "src/platform/ioalab/web/api_v1.py": "36434ff8d65c759f9c0aaa9005ae73ad0688d7578cccf8ed3e1cbfdb53279725",
+    "tests/test_account_views.py": "996413032394a9ef20a670adbd9032ce71c51d708fcc3394f46b93a0e124fcd7"
+  },
+  "reuseAndLimits": [
+    "Initial migration/schema, original-record preservation, failure rollback and ownership-lock results apply to their unchanged source inputs; final response fixes are verified separately",
+    "The three runs overlap; their case counts must not be added as a distinct-test total",
+    "Local report paths identify original logs/XML and hashes; this checked-in summary contains no credentials, private messages or real business data",
+    "No real data database was read or modified; all tests/probes use isolated synthetic data",
+    "No default full regression, selfcheck, Linux installation, native Swarm, real model, three-seat isolation/resource or deployment acceptance is claimed",
+    "No product or design VERSION is advanced; this repair implements the existing design"
+  ],
+  "committedInputsSha256": {
+    "src/platform/ioalab/app.py": "02f0c4d79395f097f37af2f6ba104880bd47a4dbd07014b408d740fcb0c0c34b",
+    "src/platform/ioalab/identity/__init__.py": "d6f6c887d6f9aa0e1c92da1c14c16f95de1e337010f80d1a921d27bbb7dca328",
+    "src/platform/ioalab/observation/accounts.py": "f561967648e347b6165c60ca2f16814ad56d27ef0eaacddc8c00cd6d0bcaf921",
+    "src/platform/ioalab/web/api_v1.py": "1482177c283e70435c205875aa4f9bd82a9f27814e03c1e335116b4fae4462f7",
+    "tests/test_account_views.py": "996413032394a9ef20a670adbd9032ce71c51d708fcc3394f46b93a0e124fcd7"
+  },
+  "publicationByteCheck": {
+    "reviewedHashKind": "SHA256 of original independently reviewed worktree bytes",
+    "committedHashKind": "SHA256 of staged Git blob bytes",
+    "normalizedFiles": [
+      "src/platform/ioalab/app.py",
+      "src/platform/ioalab/identity/__init__.py",
+      "src/platform/ioalab/web/api_v1.py"
+    ],
+    "verifiedDifference": "Only CRLF to LF normalization; normalized bytes and Python ASTs equal for all five reviewed files",
+    "codeTestsReused": "Source content unchanged; original reviewed-byte hashes retained separately rather than falsely equated with committed-byte hashes"
+  }
+}

@@ -27,9 +27,7 @@ def build_router(platform, current_user):
 
     @router.get("/me")
     def me(uid=Depends(sdk_user)):
-        user = platform.db.one("SELECT id,username,display_name,kind FROM users WHERE id=?", uid)
-        return {**user, "wallet": str(platform.wallets.balance(uid)),
-                "roles":platform.auth.roles(uid), "identities":platform.identities.list_owned(uid)}
+        return platform.account_views.sdk_me(uid)
 
 
     @router.post('/files/{agentId}')
@@ -78,9 +76,8 @@ def build_router(platform, current_user):
 
     @router.post("/search")
     def search(body: dict, uid=Depends(current_user)):
-        actor = platform.db.one("SELECT id FROM agents WHERE owner_id=? AND role='assistant'", uid)
         return {"hits": platform.discovery_operations.search(str(body.get("query", ""))[:2000], max(1, min(20, int(body.get("top_k", 8)))),
-                                         by=actor["id"] if actor else uid), "mode": platform.discovery.last_mode}
+                                         by=platform.identities.search_actor(uid)), "mode": platform.discovery.last_mode}
 
     @router.get("/providers/reputation")
     def reputation(provider: str, uid=Depends(current_user)):
@@ -98,7 +95,7 @@ def build_router(platform, current_user):
 
     @router.get("/provider/mine")
     def mine(uid=Depends(current_user)):
-        return platform.db.rows("SELECT id,name,status,meta FROM agents WHERE owner_id=? AND role='service'", uid)
+        return platform.identities.services_owned(uid)
 
     @router.post("/provider/packages")
     def packages(body: dict, uid=Depends(current_user)):

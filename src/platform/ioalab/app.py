@@ -195,7 +195,7 @@ class Platform:
         from .observation.accounts import AccountQueries
         from .observation.workbench import WorkbenchQueries
         self.account_views=AccountQueries(self.db,auth=self.auth,wallets=self.wallets,contracts=self.contract_views,
-            services=self.service_views,messages=self.message_views,bus=self.bus)
+            services=self.service_views,messages=self.message_views,bus=self.bus,identities=self.identities)
         self.workbench_views=WorkbenchQueries(self.db,auth=self.auth,wallets=self.wallets,contracts=self.contract_views,
             services=self.service_views,discovery=self.discovery,messages=self.message_views,interfaces=self.interface_directory)
         from .operations import DiscoveryOperations

@@ -94,6 +94,15 @@ class IdentityDirectory:
             result.append({**row,'protocolId':meta.get('protocolId',meta.get('url',row['id']))})
         return result
 
+    def search_actor(self,owner):
+        """Preserve the discovery audit actor, including historical identities."""
+        row=self.db.one("SELECT id FROM agents WHERE owner_id=? AND role='assistant'",owner)
+        return row['id'] if row else owner
+
+    def services_owned(self,owner):
+        """Owner-only provider metadata in its original HTTP representation."""
+        return self.db.rows("SELECT id,name,status,meta FROM agents WHERE owner_id=? AND role='service'",owner)
+
     def bearer(self,authorization):
         if not isinstance(authorization,str) or not authorization.startswith('Bearer '):
             raise LabError('forbidden','SDK Bearer authentication is required',status=401)
