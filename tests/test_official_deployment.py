@@ -300,11 +300,11 @@ def test_administrator_login_uses_existing_cookie_without_persisting_credentials
         return httpx.Response(200,json={'ok':True},headers={'set-cookie':'ioalab_session=fixture-web-session; Path=/; HttpOnly'})
     def client(**kwargs):return original(**kwargs,transport=httpx.MockTransport(respond))
     monkeypatch.setattr(httpx,'Client',client)
-    assert administrator_session(deployment,'fixture-admin-password')=='fixture-web-session'
+    assert administrator_session(deployment,'custom-admin','fixture-admin-password')=='fixture-web-session'
     assert requests[0].url.path=='/api/admin/login'
-    assert json.loads(requests[0].content)=={'password':'fixture-admin-password'}
+    assert json.loads(requests[0].content)=={'username':'custom-admin','password':'fixture-admin-password'}
     assert not deployment.home.exists()
-    with pytest.raises(RuntimeFault,match='unavailable'):administrator_session(deployment,None)
+    with pytest.raises(RuntimeFault,match='unavailable'):administrator_session(deployment,'custom-admin',None)
 
 
 def test_sanitized_child_can_identify_architecture_and_import_real_wasmtime(deployment):

@@ -3,6 +3,7 @@
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS wallets (user_id TEXT PRIMARY KEY, balance TEXT NOT NULL DEFAULT '0', payer_thumbprint TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS wallet_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL, user_id TEXT, delta TEXT, balance TEXT, kind TEXT, ref TEXT, by TEXT, note TEXT);
+CREATE TABLE IF NOT EXISTS login_reward_days(user_id TEXT NOT NULL,day TEXT NOT NULL,operation TEXT NOT NULL,created REAL NOT NULL,PRIMARY KEY(user_id,day));
 CREATE TABLE IF NOT EXISTS paid (ref TEXT, purpose TEXT, period INTEGER, at REAL, PRIMARY KEY (ref, purpose, period));
 CREATE TABLE IF NOT EXISTS transfers (id INTEGER PRIMARY KEY AUTOINCREMENT, at REAL, payer_id TEXT, payee_id TEXT, amount TEXT, purpose TEXT, ref TEXT, payment_id TEXT);
 
@@ -35,3 +36,11 @@ CREATE TABLE IF NOT EXISTS delegation_payment_operations(
 def migrate(conn):
     from ..migrations import execute
     execute(conn, SCHEMA)
+    # Existing positive login grants establish day eligibility; never mint money
+    # or alter old receipts while bringing historical records into the new rule.
+    conn.execute("""INSERT OR IGNORE INTO login_reward_days(user_id,day,operation,created)
+      SELECT w.user_id,strftime('%Y-%m-%d',w.at,'unixepoch','+8 hours'),w.ref,w.at
+      FROM wallet_log w WHERE w.id IN (
+        SELECT MIN(id) FROM wallet_log WHERE kind='login' AND CAST(delta AS REAL)>0
+          AND strftime('%Y-%m-%d',at,'unixepoch','+8 hours') IS NOT NULL
+        GROUP BY user_id,strftime('%Y-%m-%d',at,'unixepoch','+8 hours'))""")

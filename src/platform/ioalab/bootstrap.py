@@ -25,7 +25,7 @@ def run_with_server(pf, fn: Callable[[], T], timeout: float = 30.0) -> T:
         pf.close()
         raise SystemExit(f"[ioalab] 端口 {s.port} 已被占用：平台正在运行？请先停服，或用管理员接口完成本操作")
     app = create_app(pf)
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=s.port, log_level="warning"))
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=s.port, log_level="warning",proxy_headers=False))
     th = threading.Thread(target=server.run, daemon=True)
     th.start()
     try:

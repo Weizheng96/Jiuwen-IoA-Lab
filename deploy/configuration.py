@@ -106,41 +106,43 @@ def swarm_ports(value, core_port):
     return result
 
 
-def validate(value):
-    allowed = {'public_url', 'bind', 'port', 'mode', 'pypi_index', 'model', 'admin_password', 'max_model_runs', 'isc_count', 'admin_assistant', 'swarm_ports'}
-    if not isinstance(value, dict) or 'public_url' not in value or set(value) - allowed:
-        raise ValueError('Use the documented deployment JSON fields')
-    result = {'public_url': url(value['public_url'], 'public_url', root=True),
-              'port': integer(value.get('port', 8750), 'port', 1, 65535),
-              'mode': value.get('mode', 'trial'), 'bind': value.get('bind', '127.0.0.1'),
-              'max_model_runs': integer(value.get('max_model_runs', 2), 'max_model_runs', 1, 64),
-              'isc_count': integer(value.get('isc_count', 10), 'isc_count', 1, 10000),
-              'model': model(value.get('model')), 'admin_password': value.get('admin_password', '')}
-    if result['mode'] not in ('trial', 'dev'):
-        raise ValueError('Invalid deployment mode')
-    if not isinstance(result['bind'], str):
-        raise ValueError('Deployment bind must be an IP address')
-    try:
-        ipaddress.ip_address(result['bind'])
-    except (ValueError, TypeError):
-        raise ValueError('Deployment bind must be an IP address') from None
-    index = value.get('pypi_index', 'https://pypi.tuna.tsinghua.edu.cn/simple')
-    result['pypi_index'] = mirror(url(index, 'pypi_index'))
-    if result['admin_password']:
-        text(result['admin_password'], 'admin_password')
-        if result['mode'] == 'trial' and len(result['admin_password']) < 12:
-            raise ValueError('Trial administrator password requires at least 12 characters')
-    elif not isinstance(result['admin_password'], str):
-        raise ValueError('Invalid deployment field: admin_password')
-    result['admin_assistant'] = admin_assistant(value.get('admin_assistant'), mode=result['mode'])
-    result['swarm_ports'] = swarm_ports(value.get('swarm_ports'), result['port'])
+def platform(path):
+    """Deployment reads only its needed projection; core validates its complete schema."""
+    path=Path(path)
+    if not path.is_absolute() or path.is_symlink() or path.resolve()!=path.absolute() or not path.is_file():
+        raise ValueError('Use the absolute regular private platform configuration file')
+    value=read_json(path)
+    if not isinstance(value,dict) or value.get('format')!='ioalab.platform-config/1' or type(value.get('revision')) is not int:
+        raise ValueError('Use the documented platform configuration format')
+    runtime=value.get('runtime');admin=value.get('admin');llm=value.get('llm')
+    if any(not isinstance(group,dict) for group in (runtime,admin,llm)):
+        raise ValueError('Provide the complete platform deployment fields')
+    result={'public_url':url(runtime.get('public_url'),'runtime.public_url',root=True),
+        'port':integer(runtime.get('port'),'runtime.port',1,65535),
+        'bind':text(runtime.get('bind'),'runtime.bind'),'mode':runtime.get('mode'),
+        'isc_count':integer(runtime.get('isc_count'),'runtime.isc_count',1,10000),
+        'model':model({'name':llm.get('model'),'base_url':llm.get('base_url'),'api_key':llm.get('api_key')}),
+        'admin_username':text(admin.get('username'),'admin.username'),'admin_password':text(admin.get('password'),'admin.password')}
+    if result['mode'] not in ('trial','dev'):raise ValueError('Invalid deployment mode')
+    try:ipaddress.ip_address(result['bind'])
+    except (ValueError,TypeError):raise ValueError('Deployment bind must be an IP address') from None
     return result
 
 
+def validate(value):
+    allowed={'platform_config','pypi_index','max_model_runs','admin_assistant','swarm_ports'}
+    if not isinstance(value,dict) or 'platform_config' not in value or set(value)-allowed:
+        raise ValueError('Use platform_config and the documented installation-only fields')
+    path=text(value['platform_config'],'platform_config')
+    source=platform(path)
+    index=value.get('pypi_index','https://pypi.tuna.tsinghua.edu.cn/simple')
+    return {'platform_config':str(Path(path).absolute()),'pypi_index':mirror(url(index,'pypi_index')),
+        'max_model_runs':integer(value.get('max_model_runs',2),'max_model_runs',1,64),
+        'admin_assistant':admin_assistant(value.get('admin_assistant'),mode=source['mode']),
+        'swarm_ports':swarm_ports(value.get('swarm_ports'),source['port'])}
+
+
 def load(path):
-    path = Path(path)
-    if path.is_symlink():
-        raise ValueError('Deployment input must be a regular private JSON file')
-    if not path.is_file():
-        raise ValueError('Deployment input must be a regular private JSON file')
+    path=Path(path)
+    if path.is_symlink() or not path.is_file():raise ValueError('Deployment input must be a regular private JSON file')
     return validate(read_json(path))

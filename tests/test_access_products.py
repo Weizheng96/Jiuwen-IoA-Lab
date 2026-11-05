@@ -148,6 +148,30 @@ def test_both_real_product_bundles_have_one_manifest_and_generated_entry(tmp_pat
         assert archive.read('ioalab-delegate/assets/runtime.json')==manifests[0]
 
 
+@pytest.mark.parametrize('invalid',[False,True])
+def test_deployed_product_reuses_bound_settings_and_never_falls_back_to_install(tmp_path,monkeypatch,capsys,invalid):
+    from types import SimpleNamespace
+    module=bootstrap();root=tmp_path/'skill';(root/'assets').mkdir(parents=True);(root/'scripts').mkdir()
+    (root/'assets/skill.json').write_text('{"role":"assistant"}')
+    (root/'scripts/deployment.local.json').write_text('opaque fixture; only installer may inspect')
+    module.__file__=str(root/'scripts/ioalab.py');python=tmp_path/'participant-python';config=tmp_path/'original-settings.json'
+    def deployed(*args):
+        if invalid:raise RuntimeError('Original binding changed')
+        return {'status':'completed','data':{'python':str(python),'configuration':str(config)}}
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(deployed=deployed,
+        prepare=lambda *a,**k:pytest.fail('deployed product launched another installation')))
+    calls=[]
+    def invoke(actual,command):
+        calls.append((actual,command));return SimpleNamespace(stdout='{"status":"completed","data":{"bootId":"original"}}',stderr='',returncode=0)
+    monkeypatch.setattr(module,'invoke',invoke)
+    assert module.main(['runtime.status'])==(1 if invalid else 0)
+    value=json.loads(capsys.readouterr().out)
+    if invalid:assert value['status']=='rejected' and not calls
+    else:
+        assert calls==[(python,['-m','ioalab_sdk.runtime','call','runtime.status','--config',str(config.resolve())])]
+        assert value['data']['bootId']=='original'
+
+
 
 def test_new_downloads_only_serve_fixed_product_names(platform,client,tmp_path,monkeypatch):
     monkeypatch.setattr(platform.s,'bundles_dir',tmp_path)

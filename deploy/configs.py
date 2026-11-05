@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import secrets
 
-from .configuration import validate
+from .configuration import validate, platform
 from .layout import environment_text, read_environment, write_initial
 from .release import digest, read_json
 from .workspace import path_without_links, save
@@ -21,26 +21,22 @@ class Configuration:
     def __init__(self,layout,identity,value,*,assets=None):
         self.layout,self.identity=layout,identity
         self.assets = path_without_links(assets) if assets is not None else layout.environments/'current/release'
-        self.input=validate(value)
-        if self.input['model'] is None:
-            raise ValueError('Default deployment requires a complete real model configuration')
+        self.options=validate(value)
+        if Path(self.options['platform_config'])!=layout.config/'core/platform.json':
+            raise ValueError('The unique platform configuration must be in this deployment core leaf')
+        self.input={**self.options,**platform(self.options['platform_config'])}
         self.path=path_without_links(layout.private/'initial.json')
-        self.owner={'format':FORMAT,'deploymentId':identity['deploymentId'],'inputDigest':digest(self.input)}
+        self.owner={'format':FORMAT,'deploymentId':identity['deploymentId'],'inputDigest':digest(self.options)}
         if self.path.exists():
             self.record=read_json(self.path)
-            if (any(self.record.get(k)!=v for k,v in self.owner.items()) or self.record.get('input')!=self.input
+            if (any(self.record.get(k)!=v for k,v in self.owner.items()) or self.record.get('input')!=self.options
                     or not isinstance(self.record.get('files'),dict)):
                 raise ValueError('Initial deployment input changed; edit the existing role configuration explicitly')
-            credentials=self.record.get('credentials',{})
-            if set(credentials)!={'secret','admin_password','assistant_password'} or any(not isinstance(v,str) or not v for v in credentials.values()):
-                raise RuntimeError('Restore the original generated deployment credentials')
+
         else:
-            if (layout.config/'core/core.env').exists() or (layout.config/'agents/official.json').exists():
+            if (layout.config/'agents/official.env').exists() or (layout.config/'core/core.env').exists() or (layout.config/'agents/official.json').exists():
                 raise RuntimeError('Restore the missing original initial configuration before continuing')
-            self.record={**self.owner,'input':self.input,'files':{},'credentials':{
-                'secret':secrets.token_hex(32),
-                'admin_password':self.input['admin_password'] or secrets.token_urlsafe(24),
-                'assistant_password':secrets.token_urlsafe(24)}}
+            self.record={**self.owner,'input':self.options,'files':{}}
             self.persist()
 
     def persist(self):save(self.path,self.record)
@@ -66,18 +62,9 @@ class Configuration:
 
     def base(self):
         layout,value=self.layout,self.input
-        secret=self.record['credentials'];assets=self.assets
-        core={'IOALAB_MODE':value['mode'],'IOALAB_BIND':value['bind'],'IOALAB_PORT':str(value['port']),
-            'IOALAB_PUBLIC_URL':value['public_url'],'IOALAB_DATA':str(layout.state/'core'),
-            'IOALAB_SECRET':secret['secret'],'IOALAB_ADMIN_PASSWORD':secret['admin_password'],
-            'IOALAB_ASSISTANT_PASSWORD':secret['assistant_password'],
-            'IOALAB_ISC_COUNT':str(value['isc_count']),'IOALAB_AUTOSEED':'1','IOALAB_TRAFFIC':'off',
-            'IOALAB_SEED_FILE':str(assets/'seed.json'),
-            'IOALAB_BUNDLES_DIR':str(assets/'skills'),
-            'IOALAB_LLM_API_KEY':value['model']['api_key'],'IOALAB_LLM_BASE_URL':value['model']['base_url'],
-            'IOALAB_LLM_MODEL':value['model']['name'],'IOALAB_A2X_MODEL':value['model']['name'],
-            'A2C_CACHE_DIR':str(layout.state/'cache/core'),'PYTHONUTF8':'1'}
-        self.file(layout.config/'core/core.env',core,environment=True)
+        # Runtime reads this exact authority, never a generated per-field environment.
+        self.record['files'].setdefault(str(layout.config/'core/platform.json'),{'phase':'ready'})
+        self.persist()
         common={'HOME':str(layout.state/'agents'),'A2C_CACHE_DIR':str(layout.state/'cache/agents'),
                 'PYTHONUTF8':'1','PYTHONNOUSERSITE':'1'}
         self.file(layout.config/'agents/official.env',common,environment=True)
@@ -86,6 +73,7 @@ class Configuration:
             self.file(layout.config/'agents/swarm-admin.env',{**common,
                 'JIUWENSWARM_DATA_DIR':str(workspace),'JIUWENSWARM_CONFIG_DIR':str(workspace/'config'),
                 'JIUWENSWARM_CLI_PORTS':'1',
+                'JIUWENSWARM_A2UI_ENABLED':'true',
                 'AGENT_SERVER_HOST':'127.0.0.1','AGENT_SERVER_PORT':str(ports['agent_server']),
                 'GATEWAY_HOST':'127.0.0.1','GATEWAY_PORT':str(ports['gateway']),
                 'WEB_HOST':'127.0.0.1','WEB_PORT':str(ports['web']),
@@ -95,10 +83,10 @@ class Configuration:
         return self.core()
 
     def core(self):
-        values=read_environment(self.layout.config/'core/core.env')
-        if values.get('IOALAB_PUBLIC_URL')!=self.input['public_url']:
+        value=read_json(self.options['platform_config'])
+        if value['runtime']['public_url']!=self.input['public_url']:
             raise ValueError('The established public platform identity cannot be changed by reinstalling')
-        return values
+        return value
 
     def host(self,workspace):
         if workspace.get('status')!='completed' or not workspace.get('model'):
@@ -115,7 +103,7 @@ class Configuration:
         options=self.input['admin_assistant'];notification,_=self.notification()
         return self.file(self.layout.private/'admin-assistant/config.json',{
             'deployment_id':self.identity['deploymentId'],'platform_url':self.input['public_url'],
-            'password':self.record['credentials']['assistant_password'],'host':self.host(workspace),
+            'password':self.core()['runtime']['assistant_password'],'host':self.host(workspace),
             'web_url':'ws://127.0.0.1:'+str(self.input['swarm_ports']['web'])+'/ws?user_id=ioa-admin',
             'recipient':options['recipient'],'notification':notification,'max_model_runs':self.input['max_model_runs']})
 

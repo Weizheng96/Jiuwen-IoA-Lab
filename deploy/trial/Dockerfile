@@ -14,6 +14,8 @@ RUN python -m venv /opt/core && python -m venv /opt/participant && python -m ven
  && /opt/swarm/bin/pip install --no-index --find-links=/opt/wheelhouse -r /opt/locks/swarm.lock \
  && python /opt/trial-build/install_swarm_wheels.py --root /opt/trial-build --python /opt/swarm/bin/python --constraints /opt/locks/swarm.lock \
  && /opt/core/bin/pip install --no-index --find-links=/opt/wheelhouse -c /opt/locks/core.lock ioalab \
+ && mkdir -p /opt/trial \
+ && /opt/core/bin/python -c 'import json; from ioalab.configuration import defaults; print(json.dumps(defaults()))' > /opt/trial/platform-template.json \
  && /opt/participant/bin/pip install --no-index --find-links=/opt/wheelhouse -c /opt/locks/core.lock -c /opt/locks/participant.lock ioalab-trial ioalab-jiuwen ioalab-official \
  && /opt/participant/bin/python -c 'import sys; from ioalab_trial.profile import RESOURCE_LAYOUT, INGRESS_CAPABILITY; assert RESOURCE_LAYOUT == sys.argv[1] and INGRESS_CAPABILITY == "fixed-seat-tcp-8080-8767"' "$TRIAL_RESOURCE_LAYOUT" \
  && useradd -u 10001 -M core && useradd -u 10002 -M assistant && useradd -u 10003 -M native && useradd -u 10004 -M services

@@ -32,7 +32,7 @@ def test_bootstrap_prepares_admin_extension_before_handoff_and_original_web_star
         handoff=lambda path,*args:events.append(('handoff',path.name)))
     configuration=SimpleNamespace(input={'admin_assistant':{'enabled':True}},
         official=lambda _:None,administrator=lambda _:layout.private/'admin-assistant/config.json',
-        core=lambda:{'IOALAB_ADMIN_PASSWORD':'bootstrap-only-sentinel'})
+        core=lambda:{'admin':{'username':'custom-admin','password':'bootstrap-only-sentinel'}})
     installed=[]
     def call(module,command,*args,**kwargs):
         events.append(('prepare',module,command));installed.append((module,command,kwargs))

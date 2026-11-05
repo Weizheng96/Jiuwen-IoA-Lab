@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 import threading
 import uuid
+from datetime import datetime, timezone, timedelta
 from a2c.errors import CARD_INVALID,fail
 from ..storage import DB,now
 
@@ -24,6 +25,35 @@ class Wallets:
             c.execute("INSERT OR IGNORE INTO wallets (user_id, balance) VALUES (?, '0')", (user_id,))
             if payer_thumbprint:
                 c.execute("UPDATE wallets SET payer_thumbprint=? WHERE user_id=?", (payer_thumbprint, user_id))
+
+    @staticmethod
+    def reward_day(timestamp):
+        return datetime.fromtimestamp(timestamp,timezone(timedelta(hours=8))).date().isoformat()
+
+    def initial_credit_in(self,conn,user_id,amount):
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Account grants need the owned transaction')
+        value=money(amount)
+        if not value.is_finite() or value<0:fail(CARD_INVALID,'Invalid account grant')
+        if conn.execute("SELECT 1 FROM wallet_log WHERE user_id=? AND kind='initial' AND ref=?",(user_id,user_id)).fetchone():return '0.00'
+        conn.execute("INSERT OR IGNORE INTO wallets(user_id,balance) VALUES(?,'0')",(user_id,))
+        if value>0:self.adjust_in(conn,user_id,value,by='platform',note='账号初始发放',kind='initial',ref=user_id)
+        return format(value,'.2f')
+
+    def login_credit_in(self,conn,user_id,operation,policy):
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Login grants need the owned transaction')
+        amount=money(policy['login']); current=now(); day=self.reward_day(current)
+        if not amount.is_finite() or amount<0:fail(CARD_INVALID,'Invalid login grant')
+        old=conn.execute("SELECT delta FROM wallet_log WHERE user_id=? AND kind='login' AND ref=?",(user_id,operation)).fetchall()
+        if old:return {'login':format(sum((money(row[0]) for row in old),Decimal('0')),'.2f'),'day':day,'reason':'restored'}
+        if amount<=0:return {'login':'0.00','day':day,'reason':'disabled'}
+        # A legacy grant without a verifiable day cannot justify a second grant.
+        if conn.execute("SELECT 1 FROM wallet_log WHERE user_id=? AND kind='login' AND CAST(delta AS REAL)>0 AND strftime('%Y-%m-%d',at,'unixepoch','+8 hours') IS NULL",(user_id,)).fetchone():
+            return {'login':'0.00','day':day,'reason':'history_unverified'}
+        already=conn.execute('SELECT 1 FROM login_reward_days WHERE user_id=? AND day=?',(user_id,day)).fetchone()
+        if already and not policy['repeat_daily']:return {'login':'0.00','day':day,'reason':'already_claimed'}
+        conn.execute('INSERT OR IGNORE INTO login_reward_days VALUES(?,?,?,?)',(user_id,day,operation,current))
+        self.adjust_in(conn,user_id,amount,by='platform',note='登录赠送',kind='login',ref=operation)
+        return {'login':format(amount,'.2f'),'day':day,'reason':'granted'}
 
     def balance(self, user_id: str) -> Decimal:
         row = self.db.one("SELECT balance FROM wallets WHERE user_id=?", user_id)

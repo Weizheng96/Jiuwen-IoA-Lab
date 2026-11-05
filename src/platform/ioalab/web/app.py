@@ -114,7 +114,8 @@ def create_app(platform: Platform) -> FastAPI:
         resp.set_cookie(COOKIE, token, httponly=True, samesite="lax", secure=s.public_url.startswith("https://"), max_age=7 * 86400)
 
     def ip(request: Request) -> str:
-        return request.client.host if request.client else ""
+        from .source import client_ip
+        return client_ip(request,s)
 
     async def body(request: Request) -> dict:
         try:
@@ -125,7 +126,9 @@ def create_app(platform: Platform) -> FastAPI:
     # ── 用户端 API ────────────────────────────────────────────────────
     @app.get("/api/config")
     async def config():
-        return {"mode": s.mode, "registration": s.registration, "loginCredit": s.login_credit, "currency": "虚拟币", "llm": platform.discovery_models.enabled,
+        credits=s.policy()['credits']
+        return {"mode": s.mode, "registration": s.registration, "loginCredit": credits['login'], "initialCredit": credits['initial'],
+                "repeatDailyCredit":credits['repeat_daily'],"creditDayTimezone":credits['day_timezone'],"currency": "虚拟币", "llm": platform.discovery_models.enabled,
                 "publicUrl": s.public_url, "market": platform.market_id, "pay": platform.pay_id,
                 "discovery": platform.discovery.last_mode or ("a2x-tree" if platform.discovery.llm_configured else "vector")}
 
@@ -215,11 +218,13 @@ def create_app(platform: Platform) -> FastAPI:
     @app.post("/api/admin/login")
     async def admin_login(request: Request):
         b = await body(request)
-        platform.auth.rate.check("admin:" + ip(request))
-        token = platform.auth.admin_login(b.get("password", ""))
+        token = platform.auth.admin_login(b.get("password", ""), username=b.get('username',''), ip=ip(request))
         resp = JSONResponse({"ok": True})
         set_cookie(resp, token)
         return resp
+
+    from .configuration import build_router as configuration_router
+    app.include_router(configuration_router(platform,require_admin,COOKIE))
 
     @app.get("/api/admin/stats")
     async def stats(_: str = Depends(require_admin)):

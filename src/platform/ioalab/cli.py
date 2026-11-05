@@ -1,8 +1,8 @@
 """命令行：ioalab check-config · init · serve · reset · backup。
 
-    ioalab check-config            # 核对环境变量（trial 模式的必填项），打印生效配置
+    ioalab --config <私有JSON> check-config  # 验证唯一文件，打印脱敏概要
     ioalab init [--no-seed]        # 幂等：建目录 · 建表 · 会话密钥 · A2X 凭据文件 · 记下 PUBLIC_URL · 创建空闲内部账号与分类
-    ioalab serve                   # 起平台（单进程单 worker；禁 --reload）；首次启动若未注入种子且 IOALAB_AUTOSEED=1，自动注入
+    ioalab serve                   # 同一配置路径；单进程单worker，禁--reload
     ioalab reset [--keep-keys]   # 停服后清 data/
     python tools/smoke.py                   # 核心、官方服务、本地SDK三进程闭环（显式桩，不调模型）
     ioalab backup [--out 目录]     # 停服后把 data/ 打成 tar.gz
@@ -54,13 +54,12 @@ def _require_ok(s) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="ioalab")
+    ap.add_argument('--config', help='私有平台 JSON 配置文件（或 IOALAB_CONFIG）')
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("check-config")
     ini = sub.add_parser("init")
     ini.add_argument("--no-seed", action="store_true")
     sv = sub.add_parser("serve")
-    sv.add_argument("--bind")
-    sv.add_argument("--port", type=int)
     rs = sub.add_parser("reset")
     rs.add_argument("--keep-keys", action="store_true")
     bk = sub.add_parser("backup")
@@ -68,7 +67,7 @@ def main(argv: list[str] | None = None) -> None:
     args = ap.parse_args(argv)
     _logging()
     from .config import Settings
-    s = Settings()
+    s = Settings.load(args.config)
     if args.cmd == 'init' and args.no_seed:
         s.autoseed = False
 
@@ -97,10 +96,6 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.cmd == "serve":
-        if args.bind:
-            s.bind = args.bind
-        if args.port:
-            s.port = args.port
         _require_ok(s)
         import uvicorn
         from .app import Platform
@@ -111,7 +106,7 @@ def main(argv: list[str] | None = None) -> None:
             app = create_app(pf)
             _print_config(s)
             print(f"[ioalab] 用户端 {s.public_url}/  管理员 {s.public_url}/admin")
-            uvicorn.run(app, host=s.bind, port=s.port, workers=1, log_level="warning")
+            uvicorn.run(app, host=s.bind, port=s.port, workers=1, log_level="warning", proxy_headers=False)
         finally:
             pf.close()
         return

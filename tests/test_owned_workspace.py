@@ -8,7 +8,7 @@ import uuid
 
 import pytest
 
-from deploy.configuration import load, validate
+from deploy.configuration import load, validate, platform as platform_projection, model as validate_model
 from deploy.environment import writer
 from deploy.release import digest
 from deploy.workspace import Workspace, read_json, save
@@ -71,33 +71,71 @@ class SimulatedWorkspace(Workspace):
         raise AssertionError(stage)
 
 
+def platform_input(tmp_path):
+    from conftest import write_platform_configuration
+    configuration=write_platform_configuration(tmp_path/'private-input',public_url='https://ioa.example/',isc_count=10)
+    document=json.loads(configuration.path.read_text('utf-8'))
+    document['llm'].update(model=MODEL['name'],base_url=MODEL['base_url'],api_key=MODEL['api_key'])
+    document['admin']['password']='literal$(anything)`text'
+    configuration.path.write_text(json.dumps(document),encoding='utf-8')
+    return configuration.path,document
+
+
 def test_deployment_inputs_are_data_and_do_not_accept_incomplete_models(tmp_path):
-    value = validate({'public_url': 'https://ioa.example/', 'model': MODEL, 'admin_password': 'literal$(anything)`text'})
-    assert value['public_url'] == 'https://ioa.example'
-    assert value['port'] == 8750 and value['max_model_runs'] == 2 and value['isc_count'] == 10
-    assert value['admin_password'] == 'literal$(anything)`text'
-    assert value['model']['provider'] == 'OpenAI'
+    path,document=platform_input(tmp_path)
+    value = validate({'platform_config':str(path)})
+    source=platform_projection(path)
+    assert source['public_url'] == 'https://ioa.example'
+    assert source['port'] == 8750 and value['max_model_runs'] == 2 and source['isc_count'] == 10
+    assert source['admin_password'] == 'literal$(anything)`text'
+    assert source['model']['provider'] == 'OpenAI'
+    assert MODEL['api_key'] not in json.dumps(value) and source['admin_password'] not in json.dumps(value)
     file = tmp_path / 'deployment.json'
-    file.write_text(json.dumps({'public_url': 'http://127.0.0.1:8750', 'model': MODEL}), encoding='utf-8')
-    assert load(file)['model']['api_key'] == MODEL['api_key']
-    file.write_text('{"public_url":"https://one","public_url":"https://two"}')
+    file.write_text(json.dumps({'platform_config':str(path)}), encoding='utf-8')
+    assert platform_projection(load(file)['platform_config'])['model']['api_key'] == MODEL['api_key']
+    file.write_text('{"platform_config":"one","platform_config":"two"}')
     with pytest.raises(ValueError, match='Duplicate JSON'):
         load(file)
+    path.write_text('{"llm":{},"llm":{}}',encoding='utf-8')
+    with pytest.raises(ValueError,match='Duplicate JSON'):validate({'platform_config':str(path)})
 
 
-@pytest.mark.parametrize('changes', [
-    {'unknown': True}, {'public_url': 'https://user:password@example.invalid'},
-    {'public_url': 'https://example.invalid/path'}, {'public_url': 'https://example.invalid?token=x'},
-    {'public_url': 'https://example.invalid:bad'}, {'public_url': 'https://example.invalid/#x'},
-    {'bind': ['127.0.0.1']}, {'bind': 123}, {'port': True}, {'port': 0}, {'max_model_runs': 65},
-    {'isc_count': 0}, {'mode': 'other'}, {'pypi_index': 'http://example.invalid/simple'},
-    {'admin_password': 'short'}, {'admin_password': False}, {'model': {'name': 'partial'}},
-    {'model': {**MODEL, 'provider': 'other'}}, {'model': {**MODEL, 'api_key': 'secret\nline'}},
+@pytest.mark.parametrize(('group','changes'), [
+    ('options',{'unknown': True}), ('runtime',{'public_url': 'https://user:password@example.invalid'}),
+    ('runtime',{'public_url': 'https://example.invalid/path'}), ('runtime',{'public_url': 'https://example.invalid?token=x'}),
+    ('runtime',{'public_url': 'https://example.invalid:bad'}), ('runtime',{'public_url': 'https://example.invalid/#x'}),
+    ('runtime',{'bind': ['127.0.0.1']}), ('runtime',{'bind': 123}), ('runtime',{'port': True}),
+    ('runtime',{'port': 0}), ('options',{'max_model_runs': 65}), ('runtime',{'isc_count': 0}),
+    ('runtime',{'mode': 'other'}), ('options',{'pypi_index': 'http://example.invalid/simple'}),
+    ('admin',{'password': ''}), ('admin',{'password': False}),
+    ('llm',{'model': ''}), ('llm',{'api_key': 'secret\nline'}),
 ])
-def test_invalid_configuration_never_reflects_model_secrets(changes):
+def test_invalid_configuration_never_reflects_model_secrets(tmp_path,group,changes):
+    path,document=platform_input(tmp_path)
+    options={'platform_config':str(path)}
+    # Every negative starts from a configuration that actually passes the new chain.
+    assert validate(options)['platform_config']==str(path)
+    if group=='options':options.update(changes)
+    else:
+        document[group].update(changes)
+        path.write_text(json.dumps(document),encoding='utf-8')
     with pytest.raises(ValueError) as error:
-        validate({'public_url': 'https://ioa.example', **changes})
+        validate(options)
     assert MODEL['api_key'] not in str(error.value)
+
+
+@pytest.mark.parametrize('field',['model','base_url','api_key'])
+def test_platform_model_projection_rejects_missing_fields_without_secret_reflection(tmp_path,field):
+    path,document=platform_input(tmp_path)
+    del document['llm'][field]
+    path.write_text(json.dumps(document),encoding='utf-8')
+    with pytest.raises(ValueError) as error:validate({'platform_config':str(path)})
+    assert MODEL['api_key'] not in str(error.value)
+
+
+def test_workspace_model_provider_and_complete_input_are_validated():
+    for value in ({'name':'partial'},{**MODEL,'provider':'other'}):
+        with pytest.raises(ValueError):validate_model(value)
 
 
 def test_missing_model_remains_pending_and_can_continue_same_preparation(installed, tmp_path):

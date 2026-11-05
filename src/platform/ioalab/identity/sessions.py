@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+from decimal import Decimal
 import time
 import uuid
 from datetime import datetime,timezone
@@ -40,9 +41,10 @@ class AccountSessions:
                 raise LabError('forbidden','Account credentials changed; start an explicit new login',status=401,recovery='authenticate')
             return self.render(json.loads(row['result']))
 
-    def save(self,conn,username,kind,operation,fingerprint,user,credential,audience):
+    def save(self,conn,username,kind,operation,fingerprint,user,credential,audience,*,credits=None):
         lifetime=30*86400 if audience=='sdk' else 7*86400
-        result={**user,'operationId':operation,'credited':True,'expires':int(time.time())+lifetime,'audience':audience}
+        credits=credits or {'initial':'0.00','login':'0.00'}
+        result={**user,'operationId':operation,'credited':any(Decimal(credits.get(key,'0'))>0 for key in ('initial','login')),'credits':credits,'expires':int(time.time())+lifetime,'audience':audience}
         conn.execute('INSERT INTO account_operations VALUES(?,?,?,?,?,?,?,?)',
                      (username,kind,operation,fingerprint,user['id'],self.credential(credential),json.dumps(result),time.time()))
         return self.render(result)

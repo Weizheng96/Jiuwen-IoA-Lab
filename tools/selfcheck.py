@@ -10,7 +10,7 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 FORBIDDEN=('托管','代收代付','账户余额','清算','结算通道','按裁定强制划转','资金沉淀')
-ENV={**os.environ,'PYTHONUTF8':'1','IOALAB_STUB':'1','IOALAB_SEED_FILE':str(ROOT/'deploy/default-seed.json')}
+ENV={**os.environ,'PYTHONUTF8':'1'}
 
 
 def main():

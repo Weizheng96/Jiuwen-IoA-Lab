@@ -44,8 +44,8 @@ def main():
     with httpx.Client(base_url='http://127.0.0.1:8750',trust_env=False,timeout=3) as participant:
         sufficient=sample_budget(participant,receipt)
     with httpx.Client(base_url='http://127.0.0.1:8750',trust_env=False,timeout=3) as client:
-        core = json.loads((ROOT/'core/environment.json').read_text())
-        response = client.post('/api/admin/login',json={'password':core['IOALAB_ADMIN_PASSWORD']})
+        core = json.loads((ROOT/'core/platform.json').read_text())
+        response = client.post('/api/admin/login',json={'username':core['admin']['username'],'password':core['admin']['password']})
         response.raise_for_status()
         orders = client.get('/api/admin/orders');orders.raise_for_status()
         intents = client.get('/api/admin/delegation-intents');intents.raise_for_status()

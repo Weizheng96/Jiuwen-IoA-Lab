@@ -120,7 +120,7 @@ def test_payment_owners_add_recovery_boundaries_without_removing_existing_covera
         'src/access/sdk/ioalab_sdk/assistant/trading.py': (
             ('assistant_role', 'resident_input_boundaries', 'resident_contracts'), ('payment_transport_recovery',)),
         'src/platform/ioalab/operations.py': (
-            ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission'), ('payment_rejection',)),
+            ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission'), ('payment_rejection','account_rewards','auth','authentication_recovery')),
     }
     for name in ('adapters/payments.py', 'adapters/transport.py', 'runtime/store.py'):
         owners['src/access/sdk/ioalab_sdk/' + name] = (
@@ -130,7 +130,8 @@ def test_payment_owners_add_recovery_boundaries_without_removing_existing_covera
         with monkeypatch.context() as previous:
             previous.setitem(FILE_RULES, path, original)
             baseline = set(select_tests([path])['tests'])
-        assert baseline <= selected
+        # A newly selected whole module includes its former critical nodeids.
+        assert all(has_target(selected,target) for target in baseline)
         assert selected - baseline == {'tests/test_' + name + '.py' for name in additions}
 
 

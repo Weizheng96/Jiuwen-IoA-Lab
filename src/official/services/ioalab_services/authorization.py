@@ -6,10 +6,11 @@ from ioalab_sdk.runtime.files import private_json,read_json
 from ioalab_sdk.runtime.protocol import RuntimeFault
 
 
-def administrator_session(deployment,password):
+def administrator_session(deployment,username,password):
+    if not isinstance(username,str) or not username:raise RuntimeFault('forbidden','The configured administrator username is unavailable')
     if not isinstance(password,str) or not password:raise RuntimeFault('forbidden','The configured deployment administrator password is unavailable')
     with httpx.Client(base_url=deployment.value['platform_url'].rstrip('/'),trust_env=False,timeout=30) as http:
-        response=http.post('/api/admin/login',json={'password':password});response.raise_for_status()
+        response=http.post('/api/admin/login',json={'username':username,'password':password});response.raise_for_status()
         token=response.cookies.get('ioalab_session')
         if not token:raise RuntimeFault('protocol_error','The existing administrator login did not create its web session')
         return token

@@ -8,8 +8,22 @@ from pathlib import Path
 import pytest
 
 ROOT=Path(__file__).resolve().parents[1]
-os.environ.update(IOALAB_STUB='1',IOALAB_ADMIN_PASSWORD='test',IOALAB_AUTOSEED='1',
-                  IOALAB_SEED_FILE=str(ROOT/'deploy/default-seed.json'))
+
+
+def platform_settings(**values):
+    """Explicit legacy funding profile for protocol tests, separate from product defaults."""
+    from ioalab.config import Settings
+    return Settings(**{'autoseed':True,'stub':True,'admin_password':'test',
+        'seed_file':ROOT/'deploy/default-seed.json','initial_credit':'0','repeat_daily_credit':True,
+        'auth_max_failures':5,'auth_window_seconds':3600,'local_unlimited':False,**values})
+
+
+def write_platform_configuration(directory,**runtime):
+    from ioalab.configuration import PlatformConfiguration,defaults
+    from ioalab.configuration_permissions import protect_new
+    directory.mkdir();protect_new(directory,directory=True)
+    document=defaults();document['runtime'].update({'mode':'dev','stub':True,'autoseed':False,**runtime})
+    return PlatformConfiguration.create(directory/'platform.json',document)
 
 def free_port():
     with socket.socket() as s:
@@ -28,7 +42,9 @@ def platform(tmp_path_factory):
     from ioalab.config import Settings
     from ioalab.app import Platform
     from ioalab.web.app import create_app
-    pf=Platform(Settings(port=free_port(),data=tmp_path_factory.mktemp('core'),autoseed=True))
+    # This protocol fixture retains its deliberately funded-on-login profile.
+    # Default deployment awards and daily eligibility have their own tests.
+    pf=Platform(platform_settings(port=free_port(),data=tmp_path_factory.mktemp('core')))
     app=create_app(pf);pf.app=app
     server=uvicorn.Server(uvicorn.Config(app,host='127.0.0.1',port=pf.s.port,log_level='critical'))
     thread=threading.Thread(target=server.run,daemon=True);thread.start()

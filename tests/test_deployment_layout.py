@@ -76,27 +76,6 @@ def test_environment_data_has_no_shell_or_duplicate_value_fallback(tmp_path,data
     with pytest.raises(ValueError):read_environment(path)
 
 
-def test_notification_defaults_and_secret_validation():
-    config=validate({'public_url':'https://ioa.example','model':None})
-    assert config['admin_assistant']=={'enabled':True,'recipient':'zhengw.cc@outlook.com','notification':None}
-    complete=validate({'public_url':'https://ioa.example','admin_assistant':{'notification':{'transport':'agentmail','sender':'ioa@agentmail.to','api_key':'private-sentinel'}}})
-    assert complete['admin_assistant']['notification']['api_key']=='private-sentinel'
-    with pytest.raises(ValueError) as error:
-        validate({'public_url':'https://ioa.example','admin_assistant':{'notification':{'transport':'agentmail','sender':'ioa@agentmail.to','api_key':'private-sentinel','arbitrary':True}}})
-    assert 'private-sentinel' not in str(error.value)
-
-
-def test_ports_and_capture_are_explicit_and_do_not_redirect_credentials():
-    with pytest.raises(ValueError,match='distinct'):
-        validate({'public_url':'https://ioa.example','swarm_ports':{'frontend':8750}})
-    capture={'transport':'smtp-capture','sender':'ioa@example.com','host':'127.0.0.1','port':1025}
-    with pytest.raises(ValueError,match='development'):
-        validate({'public_url':'https://ioa.example','admin_assistant':{'notification':capture}})
-    assert validate({'public_url':'https://ioa.example','mode':'dev','admin_assistant':{'notification':capture}})['admin_assistant']['notification']['port']==1025
-    with pytest.raises(ValueError,match='loopback'):
-        validate({'public_url':'https://ioa.example','mode':'dev','admin_assistant':{'notification':{**capture,'host':'external.example'}}})
-
-
 @pytest.mark.parametrize('separator',['\u0085','\u2028','\u2029'])
 def test_literal_unicode_separators_roundtrip_as_data_not_physical_lines(tmp_path,separator):
     values={'MODEL_LABEL':'中文'+separator+'label','OWNER_WINDOWS_PATH':r'D:\demo\assistant'}
@@ -110,3 +89,30 @@ def test_literal_environment_control_characters_are_rejected_by_both_sides(tmp_p
     with pytest.raises(ValueError):environment_text({'VALUE':'a'+control+'b'})
     path=tmp_path/'bad-control.env';path.write_text('VALUE='+json.dumps('a'+control+'b')+'\n',encoding='utf-8')
     with pytest.raises(ValueError):read_environment(path)
+
+
+def test_notification_defaults_and_secret_validation(tmp_path):
+    from test_deployment_configs import fixture
+    _,_,base=fixture(tmp_path)
+    config=validate(base)
+    assert config['admin_assistant']=={'enabled':True,'recipient':'zhengw.cc@outlook.com','notification':None}
+    complete=validate({**base,'admin_assistant':{'notification':{'transport':'agentmail','sender':'ioa@agentmail.to','api_key':'private-sentinel'}}})
+    assert complete['admin_assistant']['notification']['api_key']=='private-sentinel'
+    with pytest.raises(ValueError) as error:
+        validate({**base,'admin_assistant':{'notification':{'transport':'agentmail','sender':'ioa@agentmail.to','api_key':'private-sentinel','arbitrary':True}}})
+    assert 'private-sentinel' not in str(error.value)
+
+
+def test_ports_and_capture_are_explicit_and_do_not_redirect_credentials(tmp_path):
+    from test_deployment_configs import fixture
+    layout,_,base=fixture(tmp_path)
+    with pytest.raises(ValueError,match='distinct'):
+        validate({**base,'swarm_ports':{'frontend':8750}})
+    capture={'transport':'smtp-capture','sender':'ioa@example.com','host':'127.0.0.1','port':1025}
+    with pytest.raises(ValueError,match='development'):
+        validate({**base,'admin_assistant':{'notification':capture}})
+    document=json.loads((layout.config/'core/platform.json').read_text());document['runtime']['mode']='dev'
+    (layout.config/'core/platform.json').write_text(json.dumps(document),encoding='utf-8')
+    assert validate({**base,'admin_assistant':{'notification':capture}})['admin_assistant']['notification']['port']==1025
+    with pytest.raises(ValueError,match='loopback'):
+        validate({**base,'admin_assistant':{'notification':{**capture,'host':'external.example'}}})

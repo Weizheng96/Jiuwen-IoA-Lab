@@ -90,6 +90,9 @@ class Platform:
         from .migrations import migrate
         migrate(self.db)
         self.bus = EventBus(self.db, settings.data / "runs")
+        if settings._configuration:
+            settings._configuration.audit=lambda actor,previous,revision,changed:self.bus.emit('configuration','configuration.update',sender=actor,
+                outcome='saved',detail={'previousRevision':previous,'revision':revision,'fields':changed})
         self.wallets, self.auth = Wallets(self.db), Auth(self.db, settings)
         from .operations import AccountOperations,LedgerOperations
         self.accounts=AccountOperations(self.db,self.auth,self.wallets,settings,self.bus.emit)
@@ -329,7 +332,7 @@ class Platform:
         if p.exists():
             old = p.read_text(encoding="utf-8").strip()
             if old and old != self.s.public_url:
-                raise SystemExit(f"[ioalab] IOALAB_PUBLIC_URL 已从 {old} 改为 {self.s.public_url}：参与方 id 内嵌旧地址，"
+                raise SystemExit(f"[ioalab] runtime.public_url 已从 {old} 改为 {self.s.public_url}：参与方 id 内嵌旧地址，"
                                  f"请改回，或 `ioalab reset` 后重新 init")
         else:
             p.write_text(self.s.public_url, encoding="utf-8")

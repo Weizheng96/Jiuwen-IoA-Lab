@@ -28,13 +28,13 @@ def test_manifest_source_digests_survive_checkout_newlines_but_detect_content_ch
 def test_configuration_reports_missing_initialization_input(tmp_path):
     from ioalab.config import Settings
     settings=Settings(data=tmp_path,autoseed=True,seed_file=None,stub=True)
-    assert any('IOALAB_SEED_FILE' in problem for problem in settings.check())
+    assert any('runtime.seed_file' in problem for problem in settings.check())
 
 
 def test_explicit_seedless_initialization_is_available(tmp_path):
-    env={**os.environ,'PYTHONUTF8':'1','IOALAB_DATA':str(tmp_path/'data'),
-         'IOALAB_STUB':'1','IOALAB_MODE':'dev','IOALAB_AUTOSEED':'1'}
-    env.pop('IOALAB_SEED_FILE',None)
+    from conftest import write_platform_configuration
+    configuration=write_platform_configuration(tmp_path/'configuration',data=str(tmp_path/'data'),autoseed=True)
+    env={**os.environ,'PYTHONUTF8':'1','IOALAB_CONFIG':str(configuration.path)}
     result=subprocess.run([sys.executable,'-m','ioalab','init','--no-seed'],cwd=tmp_path,
                           env=env,capture_output=True,text=True,encoding='utf-8',timeout=30)
     assert result.returncode==0,result.stdout+result.stderr
@@ -64,7 +64,7 @@ def test_explicit_manifest_works_from_another_directory(tmp_path, monkeypatch):
 def test_bad_initialization_does_not_fall_back_to_source(kind,tmp_path):
     data=json.loads((ROOT/'deploy/default-seed.json').read_text(encoding='utf-8'))
     if kind=='missing':
-        with pytest.raises(ValueError,match='IOALAB_SEED_FILE'):
+        with pytest.raises(ValueError,match='runtime.seed_file'):
             load_domains(None)
         return
     if kind=='empty':data['domains']=[]

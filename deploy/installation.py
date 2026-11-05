@@ -223,10 +223,10 @@ class Installation:
     def core_ready(self):
         values=self.config.core()
         import ipaddress
-        bind=values['IOALAB_BIND'];ipaddress.ip_address(bind)
-        port=int(values['IOALAB_PORT'])
+        bind=values['runtime']['bind'];ipaddress.ip_address(bind)
+        port=int(values['runtime']['port'])
         if not 1<=port<=65535:raise ValueError('Use a valid configured core port')
-        for url in (local_url(bind,port),values['IOALAB_PUBLIC_URL']):
+        for url in (local_url(bind,port),values['runtime']['public_url']):
             answer=http_json(url+'/api/config')
             if answer.get('publicUrl')!=self.config.input['public_url']:
                 raise RuntimeError('The actual core does not have this original public platform identity')
@@ -253,8 +253,9 @@ class Installation:
             self.installed('ioalab_services','prepare',*arguments,role='agents',environment=environment)
             self.metadata['officialPrepared']=True;self.save_metadata()
         if not self.metadata.get('officialAuthorized'):
-            self.installed('ioalab_services','authorize',*arguments,'--admin-password-env','IOALAB_BOOTSTRAP_ADMIN_PASSWORD',
-                role='agents',environment={**environment,'IOALAB_BOOTSTRAP_ADMIN_PASSWORD':self.config.core()['IOALAB_ADMIN_PASSWORD']})
+            admin=self.config.core()['admin']
+            self.installed('ioalab_services','authorize',*arguments,'--admin-username',admin['username'],'--admin-password-env','IOALAB_BOOTSTRAP_ADMIN_PASSWORD',
+                role='agents',environment={**environment,'IOALAB_BOOTSTRAP_ADMIN_PASSWORD':admin['password']})
             self.metadata['officialAuthorized']=True;self.save_metadata()
         if self.config.input['admin_assistant']['enabled']:
             admin=self.workspace('swarm-admin',defer_handoff=True)

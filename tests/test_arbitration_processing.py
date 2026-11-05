@@ -1,4 +1,5 @@
 """Actual Core/HTTP/WS/A2C processing; host and owner actions are explicit doubles."""
+from conftest import platform_settings
 from contextlib import contextmanager
 import json
 import threading
@@ -36,7 +37,7 @@ def core(settings):
 
 @pytest.fixture
 def platform(tmp_path):
-    with core(Settings(port=free_port(),data=tmp_path/'core',autoseed=True)) as value:
+    with core(platform_settings(port=free_port(),data=tmp_path/'core',autoseed=True)) as value:
         yield value
 
 
@@ -196,7 +197,7 @@ def test_request_only_ruling_has_one_reputation_result_and_no_fabricated_contrac
 
 @pytest.mark.parametrize('known',[False,True])
 def test_actual_previous_core_ends_before_unknown_or_known_result_recovery(tmp_path,monkeypatch,known):
-    settings=Settings(port=free_port(),data=tmp_path/'core',autoseed=True)
+    settings=platform_settings(port=free_port(),data=tmp_path/'core',autoseed=True)
     with core(settings) as first:
         monkeypatch.setattr(first.arbitration_cases,'process_one',lambda:False)
         with participants(first,tmp_path,formation='countersign',fee=0,template_terms=short_terms) as (p,a,host,t,task):

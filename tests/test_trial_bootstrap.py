@@ -5,7 +5,7 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from ioalab_trial.bootstrap import public_seed,core_environment,register_assistant
+from ioalab_trial.bootstrap import public_seed,core_configuration,register_assistant
 from ioalab_trial.probe import sample_budget
 
 
@@ -65,11 +65,12 @@ def test_seed_projection_drops_private_fields_even_if_input_contains_them():
 def test_trial_credit_is_explicit_and_does_not_copy_formal_override(monkeypatch):
     monkeypatch.setenv('IOALAB_LOGIN_CREDIT','3')
     model={'name':'trial-model','base_url':'http://model-egress:8081/v1','api_key':'epoch-only-token'}
-    config=core_environment(model,'private-admin')
-    assert config['IOALAB_LOGIN_CREDIT']=='1000' and config['IOALAB_MODE']=='trial'
-    assert config['IOALAB_DATA']=='/epoch/core/data' and config['IOALAB_REGISTRATION']=='open'
-    assert config['IOALAB_LLM_API_KEY']=='epoch-only-token'
-    assert config['IOALAB_ASSISTANT_PASSWORD']!='private-admin'
+    from ioalab.configuration import defaults
+    config=core_configuration(model,'private-admin',defaults())
+    assert config['credits']['login']=='1000.00' and config['credits']['initial']=='0.00' and config['runtime']['mode']=='trial'
+    assert config['runtime']['data']=='/epoch/core/data' and config['runtime']['registration']=='open'
+    assert config['llm']['api_key']=='epoch-only-token'
+    assert config['runtime']['assistant_password']!='private-admin'
 
 
 @pytest.mark.parametrize('role,cookie,valid',[('user',True,True),('admin',True,False),('user',False,False)])

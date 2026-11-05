@@ -12,6 +12,12 @@ import sys
 import tempfile
 import time
 import traceback
+import uuid
+import shutil
+from contextlib import ExitStack
+
+if __package__ in ('',None):
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import httpx
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json,read_json
@@ -72,29 +78,81 @@ def _stop_participant(rpc,state,child,home):
     with Lease(home/'client.lock',timeout=0):pass
 
 
+def _launch(command,**kwargs):
+    if os.name!='nt':return subprocess.Popen(command,**kwargs)
+    from deploy.windows_local import WindowsProcesses
+    # Assign the still-suspended launcher before it can create any descendants.
+    kwargs['creationflags']=kwargs.get('creationflags',0)|0x4
+    process=subprocess.Popen(command,**kwargs)
+    api=WindowsProcesses();name='ioa-smoke-'+uuid.uuid4().hex
+    try:
+        api.assign(name,process.pid)
+        process._smoke_job=(api,name)
+        api.resume(process.pid)
+    except BaseException:
+        if hasattr(process,'_smoke_job'):_terminate_windows(process)
+        else:process.kill();process.wait(timeout=10)
+        raise
+    return process
+
+
+def _terminate_windows(process,seconds=10):
+    import ctypes
+    from ctypes import wintypes
+    owned=getattr(process,'_smoke_job',None)
+    if owned is None:raise RuntimeError('Smoke process has no verified Windows job; no signal was sent')
+    api,name=owned
+    if api.members(name):
+        api.api.TerminateJobObject.argtypes=(wintypes.HANDLE,wintypes.UINT)
+        if not api.api.TerminateJobObject(api.jobs[name],1):
+            raise RuntimeError('Cannot stop this smoke job')
+    until=time.monotonic()+seconds
+    while api.members(name):
+        if time.monotonic()>=until:raise TimeoutError('Smoke job still has live members; retain its files')
+        time.sleep(.02)
+    process.wait(timeout=10)
+    api.api.CloseHandle(api.jobs.pop(name))
+
+
 def _terminate(process):
+    if os.name=='nt':return _terminate_windows(process)
     if process.poll() is not None:return
-    if os.name=='nt':
-        # Windows venv launchers own a separate Python child. Restrict cleanup
-        # to this still-live Popen tree, never a process name or an observed PID.
-        subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],capture_output=True,
-                       timeout=10,check=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-    else:process.terminate()
+    process.terminate()
     try:process.wait(timeout=10)
     except subprocess.TimeoutExpired:process.kill();process.wait()
+
+
+def _remove_released_tree(folder,seconds=10):
+    # Job membership and process waits establish ownership and termination.
+    # Windows can finish pending file-handle rundown just after that proof.
+    until=time.monotonic()+seconds
+    while True:
+        try:
+            shutil.rmtree(folder)
+            return
+        except OSError as error:
+            if getattr(error,'winerror',None)!=32 or time.monotonic()>=until:raise
+            time.sleep(.02)
 
 
 def run_smoke():
     root=Path(__file__).resolve().parents[1];port=_port();base=f'http://127.0.0.1:{port}'
     processes=[];logs=[];participants=[]
-    with tempfile.TemporaryDirectory(prefix='ioalab-smoke-') as temporary:
-        folder=Path(temporary)
-        env={**os.environ,'PYTHONUTF8':'1','IOALAB_STUB':'1','IOALAB_MODE':'dev','IOALAB_ADMIN_PASSWORD':'smoke-password',
-             'IOALAB_TRAFFIC':'off','IOALAB_PORT':str(port),'IOALAB_PUBLIC_URL':base,'IOALAB_AUTOSEED':'1',
-             'IOALAB_DATA':str(folder/'core'),'IOALAB_SEED_FILE':str(root/'deploy/default-seed.json')}
+    with ExitStack() as cleanup:
+        (root/'temp').mkdir(exist_ok=True)
+        folder=Path(tempfile.mkdtemp(prefix='ioalab-smoke-',dir=root/'temp'))
+        from ioalab.configuration import defaults,PlatformConfiguration
+        from ioalab.configuration_permissions import protect_new
+        private=folder/'configuration';private.mkdir();protect_new(private,directory=True)
+        document=defaults();document['runtime'].update(stub=True,mode='dev',port=port,public_url=base,
+            data=str(folder/'core'),seed_file=str(root/'deploy/default-seed.json'))
+        document['admin']['password']='smoke-password'
+        document['credits'].update(initial='0.00',repeat_daily=True)
+        configuration=PlatformConfiguration.create(private/'platform.json',document)
+        env={**os.environ,'PYTHONUTF8':'1','IOALAB_CONFIG':str(configuration.path)}
         def launch(command):
             log=(folder/f'process-{len(processes)}.log').open('w',encoding='utf-8');logs.append(log)
-            process=subprocess.Popen(command,cwd=root,env=env,stdout=log,stderr=log,
+            process=_launch(command,cwd=root,env=env,stdout=log,stderr=log,
                 creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0));processes.append(process);return process
         code=0
         try:
@@ -143,7 +201,9 @@ def run_smoke():
             for log in logs:log.close()
         if code:
             for path in folder.glob('process-*.log'):print(path.name+': '+path.read_text('utf-8',errors='replace')[-3000:])
+            print('Smoke failure evidence retained: '+str(folder),flush=True)
         else:
+            cleanup.callback(_remove_released_tree,folder)
             print('✓ Three-process resident lifecycle passed: actual HTTP login/enrollment, WS connection, authenticated IPC, original stop and released OS leases; no business authorization or model execution',flush=True)
         return code
 

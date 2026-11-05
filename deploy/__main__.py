@@ -47,7 +47,6 @@ def status(layout):
 
 def submit(args):
     value=load(args.config)
-    if value['model'] is None:raise ValueError('Provide a complete real deployment model')
     if stat.S_IMODE(args.config.stat().st_mode)&0o077:
         raise ValueError('Protect the initial deployment JSON with private owner-only permissions')
     source=Path(__file__).resolve().parent.parent

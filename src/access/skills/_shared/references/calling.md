@@ -4,11 +4,13 @@
 
 ## 调用格式
 
-先读取location.md，使用其实际脚本路径和用户已配置的外置文件；每次命令都保留 --config，不读取配置正文。先在本次工作目录创建独立 UTF-8 JSON 参数文件，再执行：
+先读取location.md，使用其实际脚本路径和用户已配置的外置文件。普通导入的技能每次命令都保留 --config，不读取配置正文。先在本次工作目录创建独立 UTF-8 JSON 参数文件，再执行：
 
 ```text
 python "<skill_directory>/scripts/ioalab.py" <operation> --config "<原外置配置文件>" --args-file "<本次参数文件>"
 ```
+
+平台已部署绑定时，省略上述`--config`及其值，由同一薄入口选择经过核验的原配置和已安装SDK；不猜路径、不读取配置，也不创建第二套身份或依赖。先调用`runtime.status`核对实际身份、连接与宿主，再进入业务。其他参数及真实确认流程完全相同。显式指定了不同配置或绑定校验失败时停止，不用普通安装绕过；部署绑定不是预算、合同或签名批准。
 
 `<operation>` 使用流程页中的完整名称，例如 `assistant.delegation.prepare`。其中的点和前缀也是命令的一部分；`prepare`、`authorize` 等末段名称不能单独调用。操作名输入被拒绝时，先按流程页修正命令，再使用原业务参数；账号身份以 `identity.status` 为准。
 
@@ -55,6 +57,6 @@ operations.get外层status=completed只表示查询完成。继续检查data.sta
 | rejected / failed | 先解析stdout中的结构化JSON；退出码1也可能是原业务已拒绝，不能据此重做。按 error 检查原因和 recovery。明确输入错误才用新文件纠正；不猜字段、删业务条件或绕过校验 |
 | unknown | 保留原参数和结果，查询原操作；不以新操作重做可能已发生的效果 |
 
-runtime.open_ui 的命令也沿用同一 --config 和独立 {} 参数文件。授权、具体合同、合同声明的环节与验收分别确认；对象、内容或阶段变化不能复用旧批准。浏览器选择由本机配置的 user_browser 决定，打开失败明确报告；不提取页面令牌或自写批准记录。
+runtime.open_ui 的命令也沿用同一配置选择方式和独立 {} 参数文件。授权、具体合同、合同声明的环节与验收分别确认；对象、内容或阶段变化不能复用旧批准。浏览器选择由本机配置的 user_browser 决定，打开失败明确报告；不提取页面令牌或自写批准记录。
 
 个人助手的普通需求澄清和候选选择按requirements.md使用已启用的原生A2UI，输出后结束本轮等待真实答复；其他角色按所属流程。无A2UI能力时明确未就绪并使用普通中文答复，不使用ask_user弹层。A2UI和聊天答复均不能批准受保护动作。SDK返回waiting仍打开真实可信确认入口，决定后恢复原操作。回执nextActions只是下一步提示，requires是待补字段，resumeOriginal表示复用原参数文件与operationId；不能把提示当作许可，不能因unknown换号重做。

@@ -67,14 +67,14 @@ def test_admin_requires_password_and_rate_limit(platform):
             assert c.post("/api/admin/wallet", json={"user_id": "x", "delta": "1"}).status_code == 401
             # 错口令 400；5 次之后同一 IP 被限速（仍是 400，但理由不同）
             for _ in range(5):
-                r = c.post("/api/admin/login", json={"password": "wrong"})
+                r = c.post("/api/admin/login", json={"username":"admin","password": "wrong"})
                 assert r.status_code == 400 and "口令错误" in r.json()["error"]["message"]
-            r = c.post("/api/admin/login", json={"password": "wrong"})
+            r = c.post("/api/admin/login", json={"username":"admin","password": "wrong"})
             assert r.status_code == 400 and "频繁" in r.json()["error"]["message"]
-            r = c.post("/api/admin/login", json={"password": "test"})       # 限速期间对的口令也进不去
+            r = c.post("/api/admin/login", json={"username":"admin","password": "test"})       # 限速期间对的口令也进不去
             assert r.status_code == 400 and "频繁" in r.json()["error"]["message"]
             pf.auth.rate.hits.clear()
-            r = c.post("/api/admin/login", json={"password": "test"})
+            r = c.post("/api/admin/login", json={"username":"admin","password": "test"})
             assert r.status_code == 200 and COOKIE in c.cookies
             assert c.get("/api/admin/stats").status_code == 200
             # 管理员会话不是用户会话
@@ -113,7 +113,7 @@ def test_trial_invite_registration():
         auth.login("alice", "wrong", ip="1.2.3.6")
     tok = auth.login("alice", "longpassword1", ip="1.2.3.6")["token"]
     assert auth.verify(tok) == u["id"]
-    # 按 IP 限速（5 次 / 小时，成功的也计）：1.2.3.4 已用 4 次，第 5 次仍按正常规则拒绝，第 6 次被限速
+    # 注册独立按请求限速，成功注册也计：已用4次，第5次校验邀请码，第6次限速。
     with pytest.raises(A2CError, match="邀请码"):
         auth.register("carol", "longpassword1", invite="x", ip="1.2.3.4")
     with pytest.raises(A2CError, match="频繁"):

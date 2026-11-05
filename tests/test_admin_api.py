@@ -37,5 +37,5 @@ def test_components_traffic_and_pool(platform,client):
 
 def test_origin_host_must_match_exactly(platform,client):
     host=platform.s.base_url.split('://',1)[1]
-    assert client.post('/api/admin/login',json={'password':'test'},headers={'Origin':'http://'+host+'.attacker.example'}).status_code==403
-    assert client.post('/api/admin/login',json={'password':'test'},headers={'Origin':platform.s.base_url}).status_code==200
+    assert client.post('/api/admin/login',json={'username':'admin','password':'test'},headers={'Origin':'http://'+host+'.attacker.example'}).status_code==403
+    assert client.post('/api/admin/login',json={'username':'admin','password':'test'},headers={'Origin':platform.s.base_url}).status_code==200

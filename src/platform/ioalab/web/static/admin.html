@@ -27,7 +27,8 @@
   <div class="panel auth">
     <h2>管理员登录</h2>
     <div class="form">
-      <label>口令</label><input id="adminPw" type="password" placeholder="IOALAB_ADMIN_PASSWORD 或 data/admin.secret">
+      <label>账号</label><input id="adminUsername" autocomplete="username" value="admin">
+      <label>口令</label><input id="adminPw" type="password" autocomplete="current-password">
       <div class="full"><button class="btn primary" id="btnLogin" style="width:100%">登录</button></div>
       <div class="full hint">不走手机号；/admin、/api/admin/*、/ws/admin 全受保护。</div>
     </div>
@@ -49,6 +50,7 @@
     <button data-tab="stream">实时交易流<span class="n" id="nStream">0</span></button>
     <button data-tab="lanes">泳道视图<span class="n" id="nLanes">0</span></button>
     <button data-tab="components">组件</button>
+    <button data-tab="configuration">平台配置</button>
     <button data-tab="messages">消息中心</button>
     <button data-tab="users">用户与钱包</button>
     <button data-tab="registry">服务注册表</button>
@@ -70,6 +72,22 @@
   </div>
 
   <div class="view" id="view-messages"><div class="toolbar"><span class="mute">全局活动仅显示元数据；查看正文会记录管理员审计事件。</span></div><div id="adminMessages"></div></div>
+  <div class="view" id="view-configuration">
+    <div class="panel"><h2>平台配置</h2><p class="hint">保存后即时生效。赠币规则只影响后续操作，历史账本不变；按北京时间划分每日领取资格。账号、模型和地址需修改部署配置并重启。</p>
+      <form id="configurationForm" class="form">
+        <label for="cfgFailures">每 IP 密码失败上限</label><input id="cfgFailures" type="number" min="1" max="10000" required>
+        <label for="cfgWindow">失败窗口（秒）</label><input id="cfgWindow" type="number" min="1" max="86400" required>
+        <label for="cfgLocal">本机免频率限制</label><input id="cfgLocal" type="checkbox">
+        <label for="cfgRegistrations">每 IP 注册次数上限</label><input id="cfgRegistrations" type="number" min="1" max="10000" required>
+        <label for="cfgRegistrationWindow">注册窗口（秒）</label><input id="cfgRegistrationWindow" type="number" min="1" max="86400" required>
+        <label for="cfgInitial">新账号初始虚拟币</label><input id="cfgInitial" type="number" min="0" step="0.01" required>
+        <label for="cfgLogin">登录赠送虚拟币</label><input id="cfgLogin" type="number" min="0" step="0.01" required>
+        <label for="cfgRepeat">同日重复登录可再次领取</label><input id="cfgRepeat" type="checkbox">
+        <div class="full"><button class="btn primary" type="submit">保存配置</button><button class="btn" type="button" id="cfgReload">重新读取</button></div>
+        <p id="cfgStatus" class="full hint" role="status"></p>
+      </form>
+    </div>
+  </div>
   <dialog id="messageAudit" style="max-width:850px;background:#132033;color:#e9eef5;border:1px solid #426079;border-radius:12px"><form method="dialog"><button class="btn">关闭</button></form><h2>消息审计</h2><pre id="messageAuditBody" style="white-space:pre-wrap;word-break:break-word"></pre></dialog>
   <div class="view" id="view-components">
     <div class="toolbar"><span class="mute">内部组件的实时状态，每 5 秒刷新</span><button class="btn sm" id="btnCompsRefresh">刷新</button></div>
@@ -150,6 +168,6 @@
 <script src="/static/network-map.js?sha256=fc66c03f6ab5c567"></script>
 <script>NetworkMap.mount(document.querySelector("#pn .pn-mid"));</script>
 <script src="/static/panorama.js?sha256=ed6dfe751320e1ad"></script>
-<script src="/static/admin.js?sha256=ce9446808edb7717"></script><script src="/static/admin_messages.js?sha256=27cdeef36e039577"></script>
+<script src="/static/admin.js?sha256=48c8ea93a9f76f84"></script><script src="/static/admin_messages.js?sha256=27cdeef36e039577"></script>
 </body>
 </html>

@@ -43,15 +43,16 @@ def register_assistant(client,password,epoch):
     return {'cookie':cookie,'username':'trial-user'}
 
 
-def core_environment(model, admin):
-    return {'IOALAB_MODE':'trial','IOALAB_BIND':'127.0.0.1','IOALAB_PORT':'8750',
-        'IOALAB_PUBLIC_URL':'http://127.0.0.1:8750','IOALAB_DATA':'/epoch/core/data',
-        'IOALAB_SECRET':secrets.token_hex(32),'IOALAB_ADMIN_PASSWORD':admin,
-        'IOALAB_ASSISTANT_PASSWORD':secrets.token_urlsafe(24),'IOALAB_ISC_COUNT':'1',
-        'IOALAB_LOGIN_CREDIT':'1000','IOALAB_REGISTRATION':'open',
-        'IOALAB_AUTOSEED':'1','IOALAB_TRAFFIC':'off','IOALAB_SEED_FILE':'/epoch/core/seed.json',
-        'IOALAB_LLM_API_KEY':model['api_key'],'IOALAB_LLM_BASE_URL':model['base_url'],
-        'IOALAB_LLM_MODEL':model['name'],'IOALAB_A2X_MODEL':model['name']}
+def core_configuration(model,admin,template):
+    value=json.loads(json.dumps(template))
+    value['runtime'].update(mode='trial',bind='127.0.0.1',port=8750,public_url='http://127.0.0.1:8750',
+        data='/epoch/core/data',session_secret=secrets.token_hex(32),assistant_password=secrets.token_urlsafe(24),
+        isc_count=1,registration='open',autoseed=True,traffic='off',seed_file='/epoch/core/seed.json')
+    value['admin'].update(username='admin',password=admin)
+    value['llm'].update(api_key=model['api_key'],base_url=model['base_url'],model=model['name'],discovery_model=model['name'])
+    # This deliberately bounded sample profile retains its prior total grant.
+    value['credits'].update(initial='0.00',login='1000.00',repeat_daily=False)
+    return value
 
 
 def write(path,value,uid):
@@ -120,14 +121,14 @@ update_config(change)
         subprocess.run([SWARM_PYTHON,'-c',source],input=json.dumps(model),text=True,env=native_env(name),cwd=ROOT/name,
                        user=uid,group=uid,extra_groups=[],check=True,timeout=30)
     admin,assistant = secrets.token_urlsafe(24),secrets.token_urlsafe(24)
-    core = core_environment(model,admin)
-    write(ROOT/'core/environment.json',core,10001)
-    write(ROOT/'services/config.json',{'platform_url':core['IOALAB_PUBLIC_URL'],
+    core = core_configuration(model,admin,json.loads(Path('/opt/trial/platform-template.json').read_text()))
+    write(ROOT/'core/platform.json',core,10001)
+    write(ROOT/'services/config.json',{'platform_url':core['runtime']['public_url'],
         'data_dir':'/epoch/services/official','host':{'command':['/opt/swarm/bin/jiuwenswarm-process'],
         'data_dir':'/epoch/services/swarm'},'max_model_runs':1},10004)
     ids=json.loads(Path('/opt/trial/service-ids.json').read_text())
     write(ROOT/'core/seed.json',public_seed(ids),10001)
-    write(ROOT/'assistant/config.json',{'platform_url':core['IOALAB_PUBLIC_URL'],
+    write(ROOT/'assistant/config.json',{'platform_url':core['runtime']['public_url'],
         'username':'trial-user','password':assistant,'data_dir':'/epoch/assistant/resident',
         'identities':[{'key':'personal','role':'assistant','name':'试用个人助手'}],
         'max_model_runs':1,'assistant':{},'provider':{},
@@ -145,7 +146,7 @@ home=Path('/epoch/native/.ioalab');home.mkdir()
 """
     subprocess.run([SWARM_PYTHON,'-c',source],env=native_env('native'),cwd=ROOT/'native',user=10003,group=10003,extra_groups=[],check=True,timeout=30)
     # Initialization and publication are delegated to their existing public owners.
-    core_env = {**os.environ,**core,'HOME':'/epoch/core','TMPDIR':'/epoch/core/tmp'}
+    core_env = {**os.environ,'IOALAB_CONFIG':'/epoch/core/platform.json','HOME':'/epoch/core','TMPDIR':'/epoch/core/tmp'}
     subprocess.run([CORE_PYTHON,'-m','ioalab','init'],env=core_env,cwd=ROOT/'core',
                    user=10001,group=10001,extra_groups=[],check=True,timeout=60,stdout=subprocess.DEVNULL)
     temporary = subprocess.Popen([CORE_PYTHON,'-m','ioalab','serve'],env=core_env,cwd=ROOT/'core',
@@ -154,10 +155,10 @@ home=Path('/epoch/native/.ioalab');home.mkdir()
         import httpx
         for _ in range(60):
             try:
-                if httpx.get(core['IOALAB_PUBLIC_URL']+'/api/config',timeout=1).is_success:break
+                if httpx.get(core['runtime']['public_url']+'/api/config',timeout=1).is_success:break
             except httpx.HTTPError:pass
             time.sleep(.2)
-        with httpx.Client(base_url=core['IOALAB_PUBLIC_URL'],trust_env=False,timeout=10) as http:
+        with httpx.Client(base_url=core['runtime']['public_url'],trust_env=False,timeout=10) as http:
             receipt=register_assistant(http,assistant,os.environ['IOALAB_TRIAL_EPOCH'])
         write(ROOT/'control/probe-session.json',receipt,0)
         # Account/category bootstrap is the public core startup operation; no trial SQL.
@@ -167,7 +168,7 @@ home=Path('/epoch/native/.ioalab');home.mkdir()
         subprocess.run([PYTHON,'-m','ioalab_trial.bootstrap','prepare-services'],env={**os.environ,'HOME':'/epoch/services','TMPDIR':'/epoch/services/tmp'},cwd=ROOT/'services',
                        user=10004,group=10004,extra_groups=[],check=True,timeout=90,stdout=subprocess.DEVNULL)
         dep = deployment()
-        authorize(dep,administrator_session(dep,admin))
+        authorize(dep,administrator_session(dep,core['admin']['username'],admin))
         for item in (ROOT/'services/official').rglob('*'):
             os.chown(item,10004,10004)
     finally:
@@ -182,7 +183,7 @@ def main():
         from ioalab_services.preparation import prepare
         prepare(deployment())
     elif mode == 'core':
-        env={**os.environ,**json.loads((ROOT/'core/environment.json').read_text())}
+        env={**os.environ,'IOALAB_CONFIG':'/epoch/core/platform.json'}
         os.execve(CORE_PYTHON,[CORE_PYTHON,'-m','ioalab','serve'],env)
     elif mode == 'services':
         from ioalab_services.lifecycle import serve

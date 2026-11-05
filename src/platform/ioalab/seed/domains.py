@@ -6,7 +6,7 @@ import re
 
 def load_domains(path):
     if path is None:
-        raise ValueError('IOALAB_SEED_FILE is required when initializing accounts and categories')
+        raise ValueError('runtime.seed_file is required when initializing accounts and categories')
     source = Path(path)
     if not source.is_file() or source.stat().st_size > 2 * 1024 * 1024:
         raise ValueError('Seed manifest must be a readable JSON file of at most 2 MiB')

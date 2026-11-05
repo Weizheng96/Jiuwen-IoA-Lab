@@ -1,0 +1,65 @@
+{
+  "admin": {
+    "password": "admin1234",
+    "username": "admin"
+  },
+  "authentication": {
+    "local_addresses": [
+      "127.0.0.1",
+      "::1"
+    ],
+    "local_unlimited": true,
+    "max_failures": 40,
+    "registration_limit": 5,
+    "registration_window_seconds": 3600,
+    "trusted_proxy_addresses": [],
+    "window_seconds": 60
+  },
+  "credits": {
+    "day_timezone": "Asia/Shanghai",
+    "initial": "500.00",
+    "login": "100.00",
+    "repeat_daily": false
+  },
+  "format": "ioalab.platform-config/1",
+  "llm": {
+    "api_key": "",
+    "arbitration_models": {},
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "concurrency": 4,
+    "discovery_model": "qwen-flash",
+    "embedding_model": "text-embedding-v4",
+    "fallback_base": "",
+    "model": "qwen3.7-flash",
+    "round1_attempts": 5
+  },
+  "revision": 1,
+  "runtime": {
+    "assistant_password": "",
+    "autoseed": true,
+    "bind": "127.0.0.1",
+    "bundles_dir": "/opt/ioalab-runtime/envs/current/release/skills",
+    "connection_ticket_seconds": 60,
+    "data": "/var/lib/ioalab/core",
+    "isc_count": 10,
+    "message_metadata_days": 90,
+    "message_pending_limit": 1000,
+    "message_rate": 60,
+    "message_retention_days": 30,
+    "message_ttl_days": 7,
+    "mode": "trial",
+    "port": 8750,
+    "public_url": "http://127.0.0.1:8750",
+    "quota_needs_per_day": 0,
+    "registration": "open",
+    "seed_file": "/opt/ioalab-runtime/envs/current/release/seed.json",
+    "session_secret": "",
+    "stub": false,
+    "traffic": "off",
+    "trial_admission_key": "",
+    "trial_confirm_url": "",
+    "trial_url": "",
+    "ws_heartbeat_seconds": 15,
+    "ws_lease_seconds": 45
+  }
+}

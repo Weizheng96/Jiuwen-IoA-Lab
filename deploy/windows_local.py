@@ -20,6 +20,7 @@ import uuid
 from urllib.request import build_opener, ProxyHandler, HTTPRedirectHandler
 
 from .configuration import load as input_configuration
+from .configuration import platform as platform_configuration
 from .configs import Configuration, local_url
 from .environment import Environment, writer
 from .layout import Layout, read_environment
@@ -30,6 +31,10 @@ from .workspace import Workspace, path_without_links, save
 
 FORMAT = 'ioalab.windows-local/1'
 ROLES = ('core', 'swarm-agent', 'swarm-gateway', 'swarm-web', 'official', 'assistant')
+
+
+def process_key(value):
+    return tuple(value[name] for name in ('pid','created','executable'))
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -77,6 +82,7 @@ class WindowsProcesses:
         self.api.OpenJobObjectW.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR)
         self.api.OpenJobObjectW.restype = wintypes.HANDLE
         self.api.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+        self.api.IsProcessInJob.argtypes = (wintypes.HANDLE,wintypes.HANDLE,ctypes.POINTER(wintypes.BOOL))
         self.api.QueryInformationJobObject.argtypes = (wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
                                                        wintypes.DWORD, ctypes.POINTER(wintypes.DWORD))
         self.jobs = {}
@@ -167,13 +173,21 @@ class WindowsProcesses:
         rows = (ctypes.c_ulong * (6 * count)).from_buffer(buffer, 4)
         return {rows[i + 5] for i in range(0, count * 6, 6) if socket.ntohs(rows[i + 2] & 0xffff) == port}
 
-    def identity(self, pid):
+    def identity(self, pid, *, job=None):
         handle = self.api.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
         if not handle:
             if ctypes.get_last_error() == 87:
                 return None
             raise RuntimeError('Cannot verify an owned Windows process')
         try:
+            if job is not None:
+                # Query membership on this same process handle, not on a PID
+                # list that could race an external process reusing that PID.
+                if job not in self.jobs:self.members(job)
+                belongs=wintypes.BOOL()
+                if not self.api.IsProcessInJob(handle,self.jobs[job],ctypes.byref(belongs)):
+                    raise RuntimeError('Cannot verify process job ownership')
+                if not belongs.value:return None
             exit_code = wintypes.DWORD()
             if not self.api.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
                 raise RuntimeError('Cannot verify process exit')
@@ -202,17 +216,20 @@ class WindowsProcesses:
 
     def descendants(self, records):
         if any('job' in row for row in records):
-            known = {row['pid']: row for row in records}
+            known = {process_key(row): row for row in records}
             for root in [row for row in records if 'job' in row]:
                 for pid in self.members(root['job']):
-                    actual = self.identity(pid)
+                    actual = self.identity(pid,job=root['job'])
                     if actual is None:
                         continue
-                    if pid in known:
-                        if actual != {k: known[pid][k] for k in ('pid', 'created', 'executable')}:
-                            raise RuntimeError('An owned job PID was replaced')
+                    key=process_key(actual)
+                    if key in known:
+                        if known[key]['role']!=root['role']:
+                            raise RuntimeError('An owned job process changed component ownership')
                     else:
-                        known[pid] = {**actual, 'role': root['role'], 'parent': root['pid']}
+                        # A later generation proved by the same kernel Job is
+                        # another owned member; retain old roots and history.
+                        known[key] = {**actual, 'role': root['role'], 'parent': root['pid']}
             return list(known.values())
         class Entry(ctypes.Structure):
             _fields_ = [('dwSize', wintypes.DWORD), ('cntUsage', wintypes.DWORD),
@@ -316,7 +333,8 @@ class Local:
                     raise RuntimeError('Preserve this deployment; an explicit reviewed local upgrade is required')
                 self.require_empty(old)
             value = input_configuration(configuration)
-            if value['bind'] != '127.0.0.1' or value['public_url'] != local_url('127.0.0.1', value['port']):
+            core=platform_configuration(value['platform_config'])
+            if core['bind'] != '127.0.0.1' or core['public_url'] != local_url('127.0.0.1', core['port']):
                 raise ValueError('Trusted local deployment uses its explicit 127.0.0.1 core URL')
             results = {unit: Environment(release, unit, environments).install(
                 index=value['pypi_index'], retry_failed=retry_failed) for unit in ('core', 'participant', 'swarm')}
@@ -382,7 +400,7 @@ class Local:
 
     def plans(self, record):
         configs = self.layout.config / 'agents'; agents = self.layout.state / 'agents'
-        result = {'core': ('core', 'ioalab', ['serve'], self.layout.state / 'core', self.layout.config / 'core/core.env'),
+        result = {'core': ('core', 'ioalab', ['--config',self.layout.config/'core/platform.json','serve'], self.layout.state / 'core', None),
                   'official': ('participant', 'ioalab_services', ['serve', '--config', configs / 'official.json'], agents / 'official', configs / 'official.env')}
         if self.config().input['admin_assistant']['enabled']:
             for role, module in (('swarm-agent', 'jiuwenswarm.server.app_agentserver'),
@@ -407,7 +425,7 @@ class Local:
                 'runpy.run_module(sys.argv[0],run_name="__main__",alter_sys=True)')
         command = [record['environments'][unit]['python'], '-I', '-X', 'utf8', '-c', gate, module, *map(str, arguments)]
         process = subprocess.Popen(command, cwd=cwd,
-                    env={**child_environment(), **read_environment(environment)}, stdin=subprocess.PIPE,
+                    env={**child_environment(), **(read_environment(environment) if environment else {})}, stdin=subprocess.PIPE,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, startupinfo=options,
                     creationflags=subprocess.CREATE_NEW_CONSOLE | 0x4)  # CREATE_SUSPENDED
         actual = self.api.identity(process.pid)
@@ -434,7 +452,21 @@ class Local:
         roots = [p for p in record['processes'] if p['role'] == process['role'] and 'job' in p]
         if roots and process['pid'] not in self.api.members(roots[0]['job']):
             return False  # A recycled PID outside our job is never touched.
-        return self.api.alive(process)
+        try:return self.api.alive(process)
+        except RuntimeError:
+            if not roots:raise
+            actual=self.api.identity(process['pid'],job=roots[0]['job'])
+            if actual and process_key(actual)!=process_key(process) and any(
+                    row['role']==process['role'] and process_key(row)==process_key(actual) for row in record['processes']):
+                return False  # This historical generation exited; never signal its replacement.
+            raise
+
+    def role_alive(self,record,role):
+        return any(self.alive(record,row) for row in record['processes'] if row['role']==role)
+
+    def components_alive(self,record):
+        roles={row['role'] for row in record['processes'] if 'parent' not in row}
+        return all(self.role_alive(record,role) for role in roles)
 
     def require_empty(self, record):
         # The previous supervisor may have died before its first refresh. Its
@@ -456,10 +488,10 @@ class Local:
                 time.sleep(.5)
 
     def core_ready(self, config, record):
-        roots = [p for p in record['processes'] if p['role'] == 'core' and 'parent' not in p]
-        if len(roots) != 1 or not self.alive(record, roots[0]):
-            raise RuntimeError('Core listener is not the owned local process; no bootstrap credentials were submitted')
         self.refresh(record)
+        roots = [p for p in record['processes'] if p['role'] == 'core' and 'parent' not in p]
+        if len(roots) != 1 or not self.role_alive(record,'core'):
+            raise RuntimeError('Core listener is not the owned local process; no bootstrap credentials were submitted')
         members = self.api.members(roots[0]['job'])
         listeners = self.api.listener(config.input['port'])
         if len(listeners) != 1 or not listeners.issubset(set(members)):
@@ -468,7 +500,7 @@ class Local:
             value = json.load(response)
         if value.get('publicUrl') != config.input['public_url']:
             raise RuntimeError('The listening core belongs to another platform identity')
-        if not self.alive(record, roots[0]) or self.api.listener(config.input['port']) != listeners:
+        if not self.role_alive(record,'core') or self.api.listener(config.input['port']) != listeners:
             raise RuntimeError('Owned core listener changed during readiness')
         return value
 
@@ -495,10 +527,10 @@ class Local:
         env = read_environment(self.layout.config / 'agents/official.env')
         for stage in ('prepare', 'authorize'):
             if not record['prepared'].get('official-' + stage):
-                extra = ('--admin-password-env', 'IOALAB_BOOTSTRAP_ADMIN_PASSWORD') if stage == 'authorize' else ()
+                extra = ('--admin-username',config.core()['admin']['username'],'--admin-password-env', 'IOALAB_BOOTSTRAP_ADMIN_PASSWORD') if stage == 'authorize' else ()
                 self.core_ready(config, record)
                 self.run(record, 'ioalab_services', stage, *args, *extra,
-                         environment={**env, **({'IOALAB_BOOTSTRAP_ADMIN_PASSWORD': config.core()['IOALAB_ADMIN_PASSWORD']} if extra else {})})
+                         environment={**env, **({'IOALAB_BOOTSTRAP_ADMIN_PASSWORD': config.core()['admin']['password']} if extra else {})})
                 record['prepared']['official-' + stage] = True; self.write(record)
         if config.input['admin_assistant']['enabled']:
             admin = Workspace(python, self.layout.state / 'agents/swarm-admin', record['deploymentId']).prepare(config.input['model'])
@@ -519,7 +551,7 @@ class Local:
         config = self.config()
         self.core_ready(config, record)
         self.refresh(record)
-        if any(not self.alive(record, p) for p in record['processes'] if 'parent' not in p):
+        if not self.components_alive(record):
             raise RuntimeError('A local component exited before readiness')
         official = self.run(record, 'ioalab_services', 'status', '--config', self.layout.config / 'agents/official.json')
         expected = official_catalog(self.assets(record), load(self.assets(record)))
@@ -553,6 +585,11 @@ class Local:
                 raise RuntimeError('Personal assistant runtime was replaced')
             record['assistantBootId'] = live['bootId']; self.write(record)
             result.update(nativeWeb=native, assistantConnected=True)
+            from .assistant_skill import ensure_assistant_skill
+            skill=ensure_assistant_skill(self.assets(record),record['environments']['participant']['python'],
+                self.layout.state/'agents/swarm-admin',self.layout.state/'agents/admin-assistant/config.json',
+                local_url('127.0.0.1',config.input['swarm_ports']['frontend']),live['bootId'])
+            result.update(personalAssistantSkill=skill)
         return result
 
     def public(self, record):
@@ -588,7 +625,7 @@ class Local:
             try:
                 while not stop:
                     self.refresh(record)
-                    if any(not self.alive(record, p) for p in record['processes'] if 'parent' not in p):
+                    if not self.components_alive(record):
                         record['phase'] = 'failed'; self.write(record)
                     if (self.layout.private / 'stop-request.json').exists():
                         request_record = read_json(self.layout.private / 'stop-request.json')

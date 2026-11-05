@@ -35,7 +35,7 @@ def http(base, path, body=None, *, cookie=None):
 
 
 
-def seed_accounts(base, password):
+def seed_accounts(base, password, *, username='admin'):
     """Bootstrap administrator is a separate cookie channel, not a user account."""
     cookies = CookieJar()
     opener = build_opener(ProxyHandler({}), HTTPCookieProcessor(cookies))
@@ -44,7 +44,7 @@ def seed_accounts(base, password):
                           headers={'Content-Type':'application/json'})
         with opener.open(request, timeout=15) as response:
             return json.load(response)
-    post('/api/admin/login', {'password':password})
+    post('/api/admin/login', {'username':username,'password':password})
     if not any(cookie.name == 'ioalab_session' for cookie in cookies):
         raise RuntimeError('Bootstrap administrator did not receive its required session cookie')
     return post('/api/admin/seed', {})
@@ -115,10 +115,14 @@ def exercise(layout, release, installations, report):
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
     base = 'http://127.0.0.1:' + str(port)
-    env = {**child_environment(), 'IOALAB_MODE':'dev', 'IOALAB_BIND':'127.0.0.1', 'IOALAB_PORT':str(port),
-           'IOALAB_PUBLIC_URL':base, 'IOALAB_DATA':str(layout.state/'core'), 'IOALAB_AUTOSEED':'0',
-           'IOALAB_SEED_FILE':str(stable/'release'/document['assets']['seed']['path']),
-           'IOALAB_ADMIN_PASSWORD':'isolated-verification-password', 'IOALAB_LOGIN_CREDIT':'100', 'A2C_CACHE_DIR':str(layout.state/'cache')}
+    settings=json.loads((ROOT/'deploy/platform.json.example').read_text('utf-8'))
+    settings['runtime'].update(mode='dev',stub=True,bind='127.0.0.1',port=port,public_url=base,
+        data=str(layout.state/'core'),autoseed=False,seed_file=str(stable/'release'/document['assets']['seed']['path']))
+    settings['admin']['password']='isolated-verification-password'
+    settings['credits'].update(initial='0.00',repeat_daily=True)
+    private=layout.config/'core';private.mkdir(mode=0o700,exist_ok=True)
+    configuration=private/'platform.json';save(configuration,settings)
+    env = {**child_environment(),'IOALAB_CONFIG':str(configuration),'A2C_CACHE_DIR':str(layout.state/'cache')}
     sdk = None; status = None
     with (layout.private/'core.log').open('w', encoding='utf-8') as core_log:
         core = subprocess.Popen([str(core_python), '-I', '-m', 'ioalab', 'serve'],

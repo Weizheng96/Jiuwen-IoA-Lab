@@ -36,8 +36,8 @@ def plans(layout, *, administrator):
     def python(executable,module,*args):return [str(executable),'-I','-X','utf8','-m',module,*map(str,args)]
     rows={
         'core':{'unit':'ioalab-core.service','user':layout.core_user,'directory':layout.state/'core',
-            'environment':layout.config/'core/core.env','after':[],
-            'command':python(stable/'core/bin/python','ioalab','serve'),'pre':[]},
+            'environment':None,'after':[],
+            'command':python(stable/'core/bin/python','ioalab','--config',layout.config/'core/platform.json','serve'),'pre':[]},
         'official':{'unit':'ioalab-official.service','user':layout.agents_user,'directory':official,
             'environment':configuration/'official.env','after':['core'],
             'command':python(participant,'ioalab_services','serve','--config',configuration/'official.json'),
@@ -69,7 +69,7 @@ def render(layout, deployment_id, plans):
             'Description=Jiuwen IoA Lab '+key,'After='+' '.join(after),
             '[Service]','Type=exec','User='+row['user'],'Group='+row['user'],
             'WorkingDirectory='+directive_path(row['directory']),
-            'EnvironmentFile='+directive_path(row['environment']),'UMask=0077','NoNewPrivileges=yes','PrivateTmp=yes',
+            *(['EnvironmentFile='+directive_path(row['environment'])] if row['environment'] else []),'UMask=0077','NoNewPrivileges=yes','PrivateTmp=yes',
             *('ExecStartPre='+command(argv) for argv in row['pre']),
             'ExecStart='+command(row['command']),
             'KillMode='+row.get('kill_mode','mixed'),'SendSIGKILL=no','TimeoutStartSec=infinity','TimeoutStopSec=infinity',

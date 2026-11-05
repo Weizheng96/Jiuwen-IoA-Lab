@@ -66,3 +66,52 @@ def test_stop_receipt_requires_zero_exit_and_actual_lease_release(tmp_path,monke
     with pytest.raises(AssertionError,match='does not own'):smoke._assert_lease_held(tmp_path)
     with pytest.raises(AssertionError,match='exit cleanly'):
         smoke._stop_participant(rpc,{'bootId':'original'},SimpleNamespace(wait=lambda **kwargs:1),tmp_path)
+
+
+def test_windows_cleanup_waits_for_the_actual_owned_job_after_front_exit(monkeypatch):
+    calls=[];members=iter([[123],[123],[]])
+    class Terminate:
+        def __call__(self,handle,code):calls.append(('stop',handle,code));return True
+    kernel=SimpleNamespace(TerminateJobObject=Terminate(),CloseHandle=lambda handle:calls.append(('close',handle)))
+    api=SimpleNamespace(api=kernel,jobs={'owned':77},members=lambda name:next(members))
+    process=SimpleNamespace(_smoke_job=(api,'owned'),poll=lambda:0,wait=lambda **kwargs:calls.append(('wait',)))
+    monkeypatch.setattr(smoke.time,'sleep',lambda _:None)
+    smoke._terminate_windows(process)
+    assert calls==[('stop',77,1),('wait',),('close',77)]
+    assert api.jobs=={}
+
+
+def test_windows_cleanup_refuses_an_unknown_job_without_signalling():
+    with pytest.raises(RuntimeError,match='no verified Windows job'):
+        smoke._terminate_windows(SimpleNamespace(poll=lambda:None))
+
+
+def test_windows_cleanup_timeout_retains_owned_job_and_cannot_claim_release():
+    class Terminate:
+        def __call__(self,*args):return True
+    api=SimpleNamespace(api=SimpleNamespace(TerminateJobObject=Terminate()),
+        jobs={'owned':77},members=lambda name:[123])
+    with pytest.raises(TimeoutError,match='still has live members'):
+        smoke._terminate_windows(SimpleNamespace(_smoke_job=(api,'owned')),seconds=0)
+    assert api.jobs=={'owned':77}
+
+
+def test_released_tree_waits_for_transient_windows_handle_rundown(monkeypatch,tmp_path):
+    calls=[]
+    locked=OSError('fixture handle pending');locked.winerror=32
+    def remove(folder):
+        calls.append(folder)
+        if len(calls)==1:raise locked
+    monkeypatch.setattr(smoke.shutil,'rmtree',remove)
+    monkeypatch.setattr(smoke.time,'sleep',lambda _:None)
+    smoke._remove_released_tree(tmp_path)
+    assert calls==[tmp_path,tmp_path]
+
+
+@pytest.mark.parametrize('winerror',[32,5])
+def test_unreleased_or_unknown_tree_error_remains_failure(monkeypatch,tmp_path,winerror):
+    locked=OSError('fixture cannot release');locked.winerror=winerror
+    def remove(folder):raise locked
+    monkeypatch.setattr(smoke.shutil,'rmtree',remove)
+    with pytest.raises(OSError) as error:smoke._remove_released_tree(tmp_path,seconds=0)
+    assert error.value is locked

@@ -58,6 +58,7 @@ def platform_for(rows, *, active=0):
     events=[]
     platform.bus=SimpleNamespace(emit=lambda *args,**kwargs:events.append((args,kwargs)))
     platform.market_id='market'
+    platform.identities=SimpleNamespace(search_actor=lambda owner:owner)
     platform.discovery_operations=DiscoveryOperations(platform.discovery,platform.service_views,platform.bus.emit,platform.market_id)
     return platform,cards,calls,events
 

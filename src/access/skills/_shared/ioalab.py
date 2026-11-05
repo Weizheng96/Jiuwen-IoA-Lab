@@ -54,11 +54,16 @@ def main(argv=None):
                 'message':f'Use the complete operation name for this {role} product, such as runtime.status or {example}. '
                     +'Allowed namespaces: '+', '.join(prefixes)+'. Correct the operation argument; do not change identity roles.',
                 'recovery':'correct_input'}});return 1
-        prepared=installation().prepare(root/'assets',launch=args.operation in ('runtime.start','runtime.install'),retry=args.operation=='runtime.install')
+        installer=installation();binding=root/'scripts/deployment.local.json'
+        prepared=(installer.deployed(root/'assets',binding) if binding.exists() or binding.is_symlink() else
+                  installer.prepare(root/'assets',launch=args.operation in ('runtime.start','runtime.install'),retry=args.operation=='runtime.install'))
         if args.operation in ('runtime.install','runtime.install.status') or prepared['status']!='completed':
             emit(prepared);return 0 if prepared['status'] in ('completed','waiting') else 1
         python=Path(prepared['data']['python'])
-        config=(args.config or Path.home()/'.ioalab/settings.local.json').expanduser().resolve()
+        deployed_config=prepared['data'].get('configuration')
+        config=(args.config or (Path(deployed_config) if deployed_config else Path.home()/'.ioalab/settings.local.json')).expanduser().resolve()
+        if deployed_config and config!=Path(deployed_config).resolve():
+            raise RuntimeError('Use the original configuration bound to this deployed skill')
         if args.operation=='account.login':
             if args.args_file:raise RuntimeError('account.login uses only the local configuration; omit args-file')
             result=invoke(python,['-m','ioalab_sdk.runtime','login','--config',str(config)])

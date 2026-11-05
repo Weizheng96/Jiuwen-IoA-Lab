@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>登录 · 九问IoA实验室</title><link rel="stylesheet" href="/static/home.css?sha256=32cecff6e3233fd1"><script src="/static/session.js?sha256=2ac3e9848405f7f2"></script><script src="/static/auth-page.js?sha256=5bef5800125d7b31" defer></script><link rel="stylesheet" href="/static/shell.css?sha256=c15cb99d856637a9"><script src="/static/shell.js?sha256=cd33e580fc1d68c8" defer></script>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>登录 · 九问IoA实验室</title><link rel="stylesheet" href="/static/home.css?sha256=32cecff6e3233fd1"><script src="/static/session.js?sha256=2ac3e9848405f7f2"></script><script src="/static/auth-page.js?sha256=c5ed4b1657d0c5ad" defer></script><link rel="stylesheet" href="/static/shell.css?sha256=c15cb99d856637a9"><script src="/static/shell.js?sha256=cd33e580fc1d68c8" defer></script>
 </head>
 <body class="auth-page">
   <header class="site-header"><a class="brand" href="/"><span class="brand-symbol" aria-hidden="true"><i></i><i></i><i></i></span><span>九问IoA实验室<small>JIUWEN IoA LAB</small></span></a><a class="auth-back" href="/">返回首页 ↗</a></header>
@@ -19,7 +19,7 @@
       </form>
       <p class="auth-preview-note" id="registration-note"></p>
       <p class="auth-public-note">浏览首页和公开介绍无需登录。</p>
-      <details class="admin-login"><summary>使用管理员口令</summary><form id="admin-form" method="post" action="/login"><label for="admin-password">管理员口令</label><input id="admin-password" type="password" autocomplete="current-password" required><button type="submit" class="auth-submit">进入管理员工作台</button></form></details>
+      <details class="admin-login"><summary>使用管理员口令</summary><form id="admin-form" method="post" action="/login"><label for="admin-username">管理员账号</label><input id="admin-username" autocomplete="username" value="admin" required><label for="admin-password">管理员口令</label><input id="admin-password" type="password" autocomplete="current-password" required><button type="submit" class="auth-submit">进入管理员工作台</button></form></details>
     </section>
   </main>
   <footer><span>九问IoA实验室 · Jiuwen IoA Lab</span></footer>

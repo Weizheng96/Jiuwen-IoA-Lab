@@ -1,4 +1,5 @@
 """Real SDK/HTTP preset publications; Linux root authority is explicitly isolated."""
+from conftest import platform_settings
 from copy import deepcopy
 import json
 import os
@@ -27,7 +28,7 @@ def platform(tmp_path):
     from ioalab.config import Settings
     from ioalab.app import Platform
     from ioalab.web.app import create_app
-    core=Platform(Settings(port=free_port(),data=tmp_path/'isolated-core',autoseed=True))
+    core=Platform(platform_settings(port=free_port(),data=tmp_path/'isolated-core',autoseed=True))
     server=uvicorn.Server(uvicorn.Config(create_app(core),host='127.0.0.1',port=core.s.port,log_level='critical'))
     thread=threading.Thread(target=server.run,daemon=True);thread.start()
     wait_for(lambda:server.started)

@@ -61,9 +61,9 @@ Swarm环境先安装现有Linux普通依赖锁，再由install_swarm_wheels.py�
 
 席位模型配置只有模型名和自动生成的固定内网地址`http://model-egress:8081/v1`及epoch专用token。token按控制密钥、完整席位身份及轮次域分离派生，三席和跨轮均不同，不是供应商密钥；配置中不接受`model.api_key`。停止时先持久撤销网页/确认会话，再停止并核该轮sidecar退出，确保旧token与旧模型流失效；即使席位控制监听离线也不能继续调用供应商。随后停止席位并核全部数据/网络/sidecar归属后才销毁。任何一步未知均隔离，不分配下一人。
 
-镜像配置改为实际完整digest；admission_key与正式平台IOALAB_TRIAL_ADMISSION_KEY一致，control_key另生成。`model`只填写`name`，供应商secret从不进入席位环境、原生config.get或试用网关回执。
+镜像配置改为实际完整digest；admission_key与正式平台私有JSON的runtime.trial_admission_key一致，control_key另生成。`model`只填写`name`，供应商secret从不进入席位环境、原生config.get或试用网关回执。
 
-正式平台IOALAB_TRIAL_URL填写原生试用origin，IOALAB_TRIAL_CONFIRM_URL填写独立确认origin。两者必须不同HTTPS hostname，不能只换端口。应用配置的`origin`、`confirm_origin`分别匹配二者，`formal_origin`只生成返回正式平台的链接。正式平台的两个入口分别签不同aud票据，正式cookie不出正式host。用户先取得席位，再从正式平台点击确认入口；可信cookie消费时绑定当前seat/epoch，原生cookie不能访问确认端点。两个TLS虚拟host都转发同一网关进程并保留各自Host/Origin；确认host不代理任何原生内容或WS。
+正式平台私有JSON的runtime.trial_url填写原生试用origin，runtime.trial_confirm_url填写独立确认origin。两者必须不同HTTPS hostname，不能只换端口。应用配置的`origin`、`confirm_origin`分别匹配二者，`formal_origin`只生成返回正式平台的链接。正式平台的两个入口分别签不同aud票据，正式cookie不出正式host。用户先取得席位，再从正式平台点击确认入口；可信cookie消费时绑定当前seat/epoch，原生cookie不能访问确认端点。两个TLS虚拟host都转发同一网关进程并保留各自Host/Origin；确认host不代理任何原生内容或WS。
 
 ```sh
 "$TRIAL_CONTROLLER_BOOTSTRAP" -m venv /opt/ioalab-trial-controller

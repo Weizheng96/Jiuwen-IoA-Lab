@@ -33,7 +33,7 @@ if (VIEW === 'panorama') { document.body.classList.add('trial'); }
 
 /* ── 登录 ──────────────────────────────────────────────────── */
 $('btnLogin').onclick = async () => {
-  try { await api('/api/admin/login', { password: $('adminPw').value }); await enter(); }
+  try { await api('/api/admin/login', { username:$('adminUsername').value,password: $('adminPw').value });$('adminPw').value=''; await enter(); }
   catch (e) { toast(e.message, 'bad'); }
 };
 $('adminPw').onkeydown = e => { if (e.key === 'Enter') $('btnLogin').click(); };
@@ -67,7 +67,7 @@ function onFocus(acct) {
 $('focusClear').onclick = () => Focus.clear();
 
 /* ── 页签 ──────────────────────────────────────────────────── */
-const LOADERS = { users: loadUsers, registry: loadRegistry, dispatch: loadDispatch, needs: loadNeeds, orders: loadOrders, runs: loadRuns, components: loadComponents };
+const LOADERS = { users: loadUsers, registry: loadRegistry, dispatch: loadDispatch, needs: loadNeeds, orders: loadOrders, runs: loadRuns, components: loadComponents, configuration:loadConfiguration };
 function showTab(name) {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + name));
@@ -76,6 +76,34 @@ function showTab(name) {
   if (!REPLAY && /users|registry|needs|orders|components|dispatch/.test(name)) listTimer = setInterval(LOADERS[name], 5000);
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+let configurationView=null;
+async function loadConfiguration(){
+  if(REPLAY){$('cfgStatus').textContent='回放不提供配置修改。';return;}
+  try{
+    const response=await fetch('/api/admin/configuration',{credentials:'same-origin'}),value=await response.json();
+    if(!response.ok)throw new Error(value.error?.message||'读取配置失败');
+    configurationView=value;const a=value.editable.authentication,c=value.editable.credits;
+    $('cfgFailures').value=a.max_failures;$('cfgWindow').value=a.window_seconds;$('cfgLocal').checked=a.local_unlimited;
+    $('cfgRegistrations').value=a.registration_limit;$('cfgRegistrationWindow').value=a.registration_window_seconds;
+    $('cfgInitial').value=c.initial;$('cfgLogin').value=c.login;$('cfgRepeat').checked=c.repeat_daily;
+    $('cfgStatus').textContent=`修订 ${value.revision} · 管理员 ${value.restart.adminUsername} · 模型密钥${value.restart.llmKeyConfigured?'已配置':'未配置'}`;
+  }catch(e){$('cfgStatus').textContent=e.message;}
+}
+$('cfgReload').onclick=loadConfiguration;
+$('configurationForm').onsubmit=async event=>{
+  event.preventDefault();if(!configurationView||REPLAY)return;
+  const submit=event.submitter;submit.disabled=true;
+  try{
+    const changes={authentication:{max_failures:Number($('cfgFailures').value),window_seconds:Number($('cfgWindow').value),local_unlimited:$('cfgLocal').checked,
+      registration_limit:Number($('cfgRegistrations').value),registration_window_seconds:Number($('cfgRegistrationWindow').value)},
+      credits:{initial:$('cfgInitial').value,login:$('cfgLogin').value,repeat_daily:$('cfgRepeat').checked}};
+    const response=await fetch('/api/admin/configuration',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json','X-IOALAB-CSRF':configurationView.csrf},
+      body:JSON.stringify({revision:configurationView.revision,changes})});
+    const value=await response.json();if(!response.ok)throw new Error(value.error?.message||'保存失败，请重新读取后确认');
+    await loadConfiguration();toast('配置已保存并生效','ok');
+  }catch(e){$('cfgStatus').textContent=e.message;}finally{submit.disabled=false;}
+};
 
 /* ── 仪表盘 ────────────────────────────────────────────────── */
 function tile(k, v, cls, sub) { return `<div class="tile ${cls || ''}"><div class="k">${k}</div><div class="v">${v}${sub ? `<small>${sub}</small>` : ''}</div></div>`; }

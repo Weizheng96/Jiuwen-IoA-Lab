@@ -31,6 +31,10 @@ def load_domains() -> list[dict]:
         out.append(d)
     slugs = [d["slug"] for d in out]
     assert len(slugs) == len(set(slugs)), "领域 slug 重复"
+    accounts=[d['account'] for d in out]
+    assert len(accounts)==len(set(accounts)), '不同官方服务领域须有各自账号'
+    categories=[d['category']['id'] for d in out]
+    assert len(categories)==len(set(categories)), '同类型官方预置服务须集中在唯一领域账号'
     ids = [s["id"] for d in out for s in d["services"]]
     assert len(ids) == len(set(ids)), "服务 id 跨领域重复"
     return out

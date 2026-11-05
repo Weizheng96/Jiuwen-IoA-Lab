@@ -13,7 +13,8 @@ def build_router(platform, current_user):
 
     @router.post("/token")
     def token(body: dict, request: Request):
-        return platform.accounts.login(body.get('username',''),body.get('password',''),ip=request.client.host,
+        from .source import client_ip
+        return platform.accounts.login(body.get('username',''),body.get('password',''),ip=client_ip(request,platform.s),
                               operation_id=body.get('operationId'),audience='sdk')
 
     @router.post('/token/refresh')

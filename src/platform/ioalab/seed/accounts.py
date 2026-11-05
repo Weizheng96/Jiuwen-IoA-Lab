@@ -1,6 +1,6 @@
 """内部账号：ISP_001…ISP_{N}（内部服务提供者，各负责一个领域）与 ISC_001…ISC_{M}（内部服务使用者）。
 
-密码 = 序号三位（001…）。N 来自显式部署种子清单；M = IOALAB_ISC_COUNT。
+密码 = 序号三位（001…）。N 来自显式部署种子清单；M = runtime.isc_count。
 幂等：按用户名判已存在。ISC 账号保持空闲，每次成功登录按普通账号规则获得额度。
 """
 from __future__ import annotations

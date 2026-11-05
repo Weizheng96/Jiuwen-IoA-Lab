@@ -159,8 +159,14 @@ class Accounts:
         path=regular(path);expected=self.layout.config/('core' if role=='core' else 'agents')
         if not path.is_relative_to(expected):raise RuntimeError('Role configuration escaped the configured directory')
         entry=self.accounts[role]
-        if expected.resolve()!=expected.absolute() or expected.stat().st_uid!=0 or path.stat().st_uid!=0:
+        owners=(0,entry['uid']) if role=='core' else (0,)
+        if expected.resolve()!=expected.absolute() or expected.stat().st_uid not in owners or path.stat().st_uid not in owners:
             raise RuntimeError('Role configuration must remain in its root-owned directory')
+        if role=='core':
+            if path!=expected/'platform.json':raise RuntimeError('Only the unique core platform configuration may be writable')
+            os.chown(expected,entry['uid'],entry['gid']);os.chmod(expected,0o700)
+            os.chown(path,entry['uid'],entry['gid']);os.chmod(path,0o600)
+            return
         os.chown(expected,0,entry['gid']);os.chmod(expected,0o750)
         os.chown(path,0,entry['gid']);os.chmod(path,0o640)
 

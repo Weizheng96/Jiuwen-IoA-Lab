@@ -97,14 +97,20 @@ def test_installed_commands_are_role_scoped_and_drain_without_kill():
         assert f'User={root.core_user if key=="core" else root.agents_user}' in value
     assert '--config' in plans['assistant']['pre'][0]
     assert 'WorkingDirectory=/var/lib/ioalab/core\n' in rendered['ioalab-core.service']
-    assert 'EnvironmentFile=/etc/ioalab/core/core.env\n' in rendered['ioalab-core.service']
+    assert 'EnvironmentFile=' not in rendered['ioalab-core.service']
     assert 'EnvironmentFile=/etc/ioalab/agents/official.env\n' in rendered['ioalab-official.service']
+    assert plans['core']['command'][-4:]==['ioalab','--config','/etc/ioalab/core/platform.json','serve']
     assert set(units.plans(root,administrator=False))=={'core','official'}
 
 
 @pytest.mark.parametrize('argument',['/tmp/a\nb','/tmp/a%b','/tmp/$HOME','C:\\tool\\python'])
 def test_unit_arguments_cannot_expand_or_inject(argument):
     with pytest.raises(ValueError):units.command(['/usr/bin/python3',argument])
+
+
+@pytest.mark.parametrize('path',['relative','/tmp/space path','/tmp/line\nbreak','/tmp/$HOME','/tmp/%n','/tmp/../other','"/tmp/quoted"'])
+def test_path_directives_reject_ambiguous_or_expandable_values(path):
+    with pytest.raises(ValueError):units.directive_path(path)
 
 
 class FakeManager:
@@ -205,6 +211,22 @@ def test_owned_leaf_is_verified_without_recursive_permission_reset(tmp_path,monk
     assert child.read_text()=='preserve'
 
 
+def test_only_core_configuration_leaf_is_writable_not_parent_or_agents(tmp_path,monkeypatch):
+    root=layout(tmp_path);directory=root.config/'core';directory.mkdir(parents=True)
+    path=directory/'platform.json';path.write_text('{}')
+    record={'accounts':{'core':{'phase':'ready','uid':1201,'gid':1202}}}
+    accounts=linux.Accounts(root,DEPLOYMENT,record,lambda:None)
+    ownership=[];permissions=[]
+    monkeypatch.setattr(linux.os,'chown',lambda p,uid,gid:ownership.append((p,uid,gid)),raising=False)
+    monkeypatch.setattr(linux.os,'chmod',lambda p,mode:permissions.append((p,mode)))
+    accounts.configuration(path,'core')
+    assert ownership==[(directory,1201,1202),(path,1201,1202)]
+    assert permissions==[(directory,0o700),(path,0o600)]
+    extra=directory/'unrelated.json';extra.write_text('{}')
+    with pytest.raises(RuntimeError,match='unique core'):accounts.configuration(extra,'core')
+    assert len(ownership)==2 and root.config not in [item[0] for item in ownership]
+
+
 def test_unknown_populated_leaf_is_not_adopted(tmp_path):
     root=layout(tmp_path);leaf=root.state/'agents';leaf.mkdir(parents=True);(leaf/'database').write_text('existing')
     record={'accounts':{'agents':{'phase':'ready','uid':leaf.stat().st_uid,'gid':leaf.stat().st_gid}}}
@@ -246,8 +268,3 @@ def test_system_role_requires_its_original_dedicated_group(tmp_path,monkeypatch,
     elif change=='extra_group':supplementary.append(999)
     else:directory.append(SimpleNamespace(pw_uid=1401,pw_gid=1202))
     with pytest.raises(RuntimeError,match='group'):accounts.ensure('agents')
-
-
-@pytest.mark.parametrize('path',['relative','/tmp/space path','/tmp/line\nbreak','/tmp/$HOME','/tmp/%n','/tmp/../other','"/tmp/quoted"'])
-def test_path_directives_reject_ambiguous_or_expandable_values(path):
-    with pytest.raises(ValueError):units.directive_path(path)

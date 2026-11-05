@@ -15,10 +15,12 @@ def main(argv=None):
     parser.add_argument('command',choices=('prepare','authorize','serve','status','stop'))
     parser.add_argument('--config',type=Path,required=True)
     parser.add_argument('--admin-password-env')
+    parser.add_argument('--admin-username')
     parser.add_argument('--wait-seconds',type=float)
     args=parser.parse_args(argv)
     if args.wait_seconds is not None and (args.command!='stop' or not 0<=args.wait_seconds<=30):parser.error('--wait-seconds is only for stop and must be between zero and thirty')
     if (args.command=='authorize')!=bool(args.admin_password_env):parser.error('--admin-password-env is required only for authorize')
+    if (args.command=='authorize')!=bool(args.admin_username):parser.error('--admin-username is required only for authorize')
     try:
         deployment=Deployment(args.config)
         if args.command=='prepare':
@@ -26,7 +28,7 @@ def main(argv=None):
             result=prepare(deployment)
         elif args.command=='authorize':
             from .authorization import authorize,administrator_session
-            result=authorize(deployment,administrator_session(deployment,os.environ.get(args.admin_password_env)))
+            result=authorize(deployment,administrator_session(deployment,args.admin_username,os.environ.get(args.admin_password_env)))
         elif args.command=='status':
             from .coordinator import status
             result=status(deployment)

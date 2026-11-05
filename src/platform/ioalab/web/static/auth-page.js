@@ -38,7 +38,7 @@
     catch(failure){if([400,401,403,422].includes(failure.status)){pending=null;sessionStorage.removeItem('ioa-auth-operation');}error(failure.message||'连接结果未知，请重试原操作。');}
     finally{busy=false;$('account-submit').disabled=mode==='register'&&config?.registration==='closed';}
   });
-  $('admin-form').addEventListener('submit',async event=>{event.preventDefault();try{await WebSession.api('/api/admin/login',{password:$('admin-password').value});$('admin-password').value='';location.replace('/admin');}catch(failure){error(failure.message);}});
+  $('admin-form').addEventListener('submit',async event=>{event.preventDefault();try{await WebSession.api('/api/admin/login',{username:$('admin-username').value,password:$('admin-password').value});$('admin-password').value='';location.replace('/admin');}catch(failure){error(failure.message);}});
   updateMode(mode);
   WebSession.api('/api/config').then(value=>{config=value;updateMode(mode);}).catch(()=>{});
   WebSession.ready.then(value=>{if(value)location.replace(value.role==='admin'&&!value.id?'/admin':next);});

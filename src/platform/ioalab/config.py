@@ -1,7 +1,4 @@
-"""运行配置：全部来自环境变量（IOALAB_*），有默认值；凭据不读任何文件。
-
-部署者只配 deploy/ioalab.env（见 deploy/ioalab.env.example）；A2X 要的 llm_apikey.json 由平台按同一把 key 生成到 data/a2x_home/。
-"""
+"""Typed platform settings; runtime values come from one explicitly selected JSON file."""
 from __future__ import annotations
 
 import json
@@ -13,66 +10,71 @@ from pathlib import Path
 DEFAULT_LLM_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
-def _env(name: str, default: str = "") -> str:
-    return os.environ.get(name, default).strip()
-
-
-def _stub() -> bool:
-    """IOALAB_STUB=1：全程不调模型——交付件走定义里的 sample，发现走字符二元组退路，不读凭据。"""
-    return _env("IOALAB_STUB") == "1"
-
-
-def _llm() -> dict:
-    """OpenAI 兼容端点：IOALAB_LLM_API_KEY + IOALAB_LLM_BASE_URL。缺 key 或桩模式 → 空，平台以「无模型」模式起（只能跑桩）。"""
-    if _stub():
-        return {}
-    key = _env("IOALAB_LLM_API_KEY")
-    if not key:
-        return {}
-    return {"api_key": key, "api_base": _env("IOALAB_LLM_BASE_URL", DEFAULT_LLM_BASE).rstrip("/"),
-            "fallback_base": _env("IOALAB_LLM_BASE_URL_FALLBACK").rstrip("/")}
-
-
 @dataclass
 class Settings:
-    """全部字段在实例化时读环境变量（不是类定义时），所以测试可先设环境再 Settings()。"""
-    mode: str = field(default_factory=lambda: _env("IOALAB_MODE", "dev"))                 # dev · trial
-    bind: str = field(default_factory=lambda: _env("IOALAB_BIND", "127.0.0.1"))
-    port: int = field(default_factory=lambda: int(_env("IOALAB_PORT", "8750")))
-    public_url_env: str = field(default_factory=lambda: _env("IOALAB_PUBLIC_URL").rstrip("/"))
-    trial_url: str = field(default_factory=lambda: _env("IOALAB_TRIAL_URL").rstrip("/"))
-    trial_confirm_url: str = field(default_factory=lambda: _env("IOALAB_TRIAL_CONFIRM_URL").rstrip("/"))
-    trial_admission_key: str = field(default_factory=lambda: _env("IOALAB_TRIAL_ADMISSION_KEY"), repr=False)
-    data: Path = field(default_factory=lambda: Path(_env("IOALAB_DATA", "data")).expanduser().resolve())
-    seed_file: Path | None = field(default_factory=lambda: Path(_env("IOALAB_SEED_FILE")).expanduser().resolve() if _env("IOALAB_SEED_FILE") else None)
-    bundles_dir: Path = field(default_factory=lambda: Path(_env('IOALAB_BUNDLES_DIR','dist')).expanduser().resolve())
-    connection_ticket_seconds: int = field(default_factory=lambda:int(_env('IOALAB_CONNECTION_TICKET_SECONDS','60')))
-    ws_heartbeat_seconds: int = field(default_factory=lambda:int(_env('IOALAB_WS_HEARTBEAT_SECONDS','15')))
-    ws_lease_seconds: int = field(default_factory=lambda:int(_env('IOALAB_WS_LEASE_SECONDS','45')))
-    stub: bool = field(default_factory=_stub)
-    llm: dict = field(default_factory=_llm)
-    agent_model: str = field(default_factory=lambda: _env("IOALAB_LLM_MODEL", "qwen3.7-flash"))       # 助手与服务方
-    a2x_model: str = field(default_factory=lambda: _env("IOALAB_A2X_MODEL", "qwen-flash"))             # A2X 分类树检索
-    embedding_model: str = field(default_factory=lambda: _env("IOALAB_EMBED_MODEL", "text-embedding-v4"))
-    llm_concurrency: int = field(default_factory=lambda: int(_env("IOALAB_LLM_CONCURRENCY", "4")))
-    round1_attempts: int = field(default_factory=lambda: int(_env("IOALAB_ROUND1_ATTEMPTS", "5")))     # 第一轮遇模型连接类错误最多试几次
-    registration: str = field(default_factory=lambda: _env("IOALAB_REGISTRATION", "open"))              # open · invite · closed
-    login_credit: str = field(default_factory=lambda: _env("IOALAB_LOGIN_CREDIT", "100"))              # 每次成功登录赠送的虚拟币
-    isc_count: int = field(default_factory=lambda: int(_env("IOALAB_ISC_COUNT", "10")))                # 内部服务使用者账号数 M
-    traffic: str = field(default_factory=lambda: _env("IOALAB_TRAFFIC", "off"))                        # off · low · normal
-    autoseed: bool = field(default_factory=lambda: _env("IOALAB_AUTOSEED", "1") == "1")                # 首次启动自动注入内部账号与服务
-    quota_needs_per_day: int = field(default_factory=lambda: int(_env("IOALAB_NEEDS_PER_DAY", "0")))   # 0 → 默认 20
-    admin_password: str = field(default_factory=lambda: _env("IOALAB_ADMIN_PASSWORD"))
-    message_retention_days: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_RETENTION_DAYS','30')))
-    message_metadata_days: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_METADATA_DAYS','90')))
-    message_pending_limit: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_PENDING_LIMIT','1000')))
-    message_rate: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_RATE','60')))
-    message_ttl_days: int = field(default_factory=lambda:int(_env('IOALAB_MESSAGE_TTL_DAYS','7')))
-    assistant_password: str = field(default_factory=lambda:_env('IOALAB_ASSISTANT_PASSWORD'))
-    arbitration_models: dict = field(default_factory=lambda: json.loads(_env("IOALAB_ARBITRATION_MODELS", "{}")))
+    """Explicit settings objects support isolated component construction; CLI requires a private file."""
+    mode: str = "dev"
+    bind: str = "127.0.0.1"
+    port: int = 8750
+    public_url_env: str = ""
+    trial_url: str = ""
+    trial_confirm_url: str = ""
+    trial_admission_key: str = field(default="",repr=False)
+    data: Path = field(default_factory=lambda: Path("data").resolve())
+    seed_file: Path | None = None
+    bundles_dir: Path = field(default_factory=lambda: Path("dist").resolve())
+    connection_ticket_seconds: int = 60
+    ws_heartbeat_seconds: int = 15
+    ws_lease_seconds: int = 45
+    stub: bool = False
+    llm: dict = field(default_factory=dict,repr=False)
+    agent_model: str = "qwen3.7-flash"
+    a2x_model: str = "qwen-flash"
+    embedding_model: str = "text-embedding-v4"
+    llm_concurrency: int = 4
+    round1_attempts: int = 5
+    registration: str = "open"
+    login_credit: str = "100"
+    isc_count: int = 10
+    traffic: str = "off"
+    autoseed: bool = True
+    quota_needs_per_day: int = 0
+    admin_password: str = field(default="admin1234",repr=False)
+    message_retention_days: int = 30
+    message_metadata_days: int = 90
+    message_pending_limit: int = 1000
+    message_rate: int = 60
+    message_ttl_days: int = 7
+    assistant_password: str = field(default="",repr=False)
+    arbitration_models: dict = field(default_factory=dict)
     sandbox_concurrency: int = 2
     sandbox_fuel: int = 5_000_000_000
     currency: str = "CNY"                  # 协议内币种（SDK 白名单）；页面显示为「虚拟币」
+
+    admin_username: str = "admin"
+    session_secret: str = field(default="",repr=False)
+    initial_credit: str = "500"
+    repeat_daily_credit: bool = False
+    auth_max_failures: int = 40
+    auth_window_seconds: int = 60
+    registration_limit: int = 5
+    registration_window_seconds: int = 3600
+    local_unlimited: bool = True
+    local_addresses: tuple = ("127.0.0.1","::1")
+    trusted_proxy_addresses: tuple = ()
+    _configuration: object = field(default=None,repr=False,compare=False)
+
+    @classmethod
+    def load(cls,path=None):
+        from .configuration import PlatformConfiguration
+        path=path or os.environ.get("IOALAB_CONFIG")
+        if not path:
+            raise ValueError("Select the private platform configuration file with --config or IOALAB_CONFIG")
+        return PlatformConfiguration(path).settings()
+
+    def policy(self):
+        if self._configuration is not None:return self._configuration.policy()
+        return {"authentication":{"max_failures":self.auth_max_failures,"window_seconds":self.auth_window_seconds,"registration_limit":self.registration_limit,"registration_window_seconds":self.registration_window_seconds,"local_unlimited":self.local_unlimited},"credits":{"initial":self.initial_credit,"login":self.login_credit,"repeat_daily":self.repeat_daily_credit,"day_timezone":"Asia/Shanghai"}}
 
     # ── 地址 ─────────────────────────────────────────────────────────
     @property
@@ -114,8 +116,8 @@ class Settings:
             (self.data / d).mkdir(parents=True, exist_ok=True)
 
     def secret(self) -> bytes:
-        """会话签名密钥：IOALAB_SECRET 或 data/secret（首次生成，0600）。"""
-        env = _env("IOALAB_SECRET")
+        """显式会话签名密钥或原data/secret；首次生成后保留。"""
+        env = self.session_secret
         if env:
             return env.encode()
         p = self.data / "secret"
@@ -145,11 +147,11 @@ class Settings:
         """部署前自检：返回问题清单（空 = 可起）。"""
         problems = []
         if self.mode not in ("dev", "trial"):
-            problems.append(f"IOALAB_MODE 只能是 dev 或 trial：{self.mode!r}")
+            problems.append("runtime.mode 只能是 dev 或 trial")
         if self.registration not in ("open", "invite", "closed"):
-            problems.append(f"IOALAB_REGISTRATION 只能是 open / invite / closed：{self.registration!r}")
+            problems.append("runtime.registration 只能是 open / invite / closed")
         if self.traffic != "off":
-            problems.append(f"平台核心不运行参与方，当前未提供背景流量驱动；IOALAB_TRAFFIC 只能是 off：{self.traffic!r}")
+            problems.append("平台核心不运行参与方，runtime.traffic 只能是 off")
         if self.autoseed:
             from .seed.domains import load_domains
             try:
@@ -157,10 +159,10 @@ class Settings:
             except ValueError as exc:
                 problems.append(str(exc))
         if self.open and not self.stub:
-            if len(self.admin_password) < 12:
-                problems.append("trial 模式必须设置 IOALAB_ADMIN_PASSWORD（≥ 12 位）")
+            if not self.admin_username or not self.admin_password:
+                problems.append("Configure the deployment administrator username and password")
             if not self.public_url_env:
-                problems.append("trial 模式必须设置 IOALAB_PUBLIC_URL（参与方 id 内嵌它，首次 init 后不可改）")
+                problems.append("trial 模式必须设置 runtime.public_url（首次 init 后不可改）")
         if not 1<=self.message_ttl_days<=self.message_retention_days<=self.message_metadata_days:
             problems.append('消息有效期、正文保留期、元数据保留期必须正数且依次不减')
         if min(self.message_rate,self.message_pending_limit)<1:

@@ -2,13 +2,14 @@
 
 账号种类 kind：isp（内部服务提供者）· isc（内部服务使用者）· external（外部用户）· virtual（管理员临时创建）。
 种类只是用途标签，任何账号名下既可有个人助手也可有专业服务。
-dev：无限速、密码 ≥ 6；trial：按 IP 限速、密码 ≥ 8。IOALAB_REGISTRATION=open｜invite｜closed 只约束 external 注册。
+dev：普通用户登录无限速、密码 ≥ 6；trial：按 IP 限速、密码 ≥ 8。runtime.registration只约束external注册。
 """
 from __future__ import annotations
 
 import base64
 import hashlib
 import hmac
+import ipaddress
 import os
 import re
 import secrets
@@ -46,15 +47,36 @@ class RateLimit:
         self.hits: dict[str, deque] = defaultdict(deque)
         self.lock = threading.Lock()
 
-    def check(self, key: str) -> None:
+    def _available(self, key: str, n=None, per=None) -> deque:
+        """Caller owns the lock; expired hits cannot consume a new window."""
         t = time.time()
+        q = self.hits[key]
+        retention=self.per if per is None else 86400
+        while q and q[0] <= t-retention:
+            q.popleft()
+        window=self.per if per is None else per
+        limit=self.n if n is None else n
+        if sum(hit>t-window for hit in q) >= limit:
+            fail(CARD_INVALID, "操作过于频繁，请稍后再试")
+        return q
+
+    def check(self, key: str, *, n=None, per=None) -> None:
         with self.lock:
-            q = self.hits[key]
-            while q and q[0] < t - self.per:
-                q.popleft()
-            if len(q) >= self.n:
-                fail(CARD_INVALID, "操作过于频繁，请稍后再试")
-            q.append(t)
+            self._available(key,n,per).append(time.time())
+
+    def check_failure(self, key: str, verify, *, n=None, per=None) -> bool:
+        """Serialize synchronous verification and charge only a known failure.
+
+        Success preserves earlier failures. Exceptions propagate without being
+        classified as bad credentials; no concurrent check can spend the same
+        remaining failure slot while verification is in progress.
+        """
+        with self.lock:
+            q = self._available(key,n,per)
+            valid = verify()
+            if not valid:
+                q.append(time.time())
+            return valid
 
 
 class Auth:
@@ -62,25 +84,14 @@ class Auth:
         self.db = db
         self.s = settings
         self.secret = settings.secret()
-        self.rate = RateLimit(5, 3600)
+        self.rate = RateLimit(settings.auth_max_failures,settings.auth_window_seconds)
         self.admin_hash = self._admin_hash()
 
     # ── 管理员 ───────────────────────────────────────────────────────
     def _admin_hash(self) -> str:
-        pw = self.s.admin_password
-        p = self.s.data / "admin.secret"
-        if not pw:
-            if not p.exists():
-                pw = secrets.token_urlsafe(12)
-                p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(pw, encoding="utf-8")
-                try:
-                    os.chmod(p, 0o600)
-                except OSError:
-                    pass
-                print(f"[ioalab] 管理员口令已生成并保存于 {p}")
-            pw = p.read_text(encoding="utf-8").strip()
-        return _pbkdf2(pw)
+        if not self.s.admin_username or not self.s.admin_password:
+            raise ValueError('Configure the existing administrator credentials explicitly')
+        return _pbkdf2(self.s.admin_password)
 
     def is_admin(self,subject):
         return subject=='admin' or bool(subject and not subject.startswith('assistant:') and
@@ -114,10 +125,25 @@ class Auth:
                 (str(uuid.uuid4()),time.time(),operator,target,json.dumps(current),json.dumps(desired)))
             return {'userId':target,'roles':desired,'previousRoles':current,'changed':True}
 
-    def admin_login(self, password: str) -> str:
-        if not _check_pw(password, self.admin_hash):
-            fail(CARD_INVALID, "口令错误")
-        return self.token("admin")
+    def local_frequency_exempt(self,ip,policy):
+        try:
+            address=ipaddress.ip_address(ip)
+            address=getattr(address,'ipv4_mapped',None) or address
+            local=str(address) in self.s.local_addresses
+        except ValueError:local=False
+        return policy['authentication']['local_unlimited'] and local
+
+    def admin_login(self, password: str, *, username: str = "admin", ip: str = "") -> str:
+        if not isinstance(username,str) or not isinstance(password,str):fail(CARD_INVALID,"账号字段必须是字符串")
+        policy=self.s.policy(); auth=policy['authentication']
+        verify=lambda: username==self.s.admin_username and _check_pw(password,self.admin_hash)
+        valid=verify() if self.local_frequency_exempt(ip,policy) else self.rate.check_failure('admin:'+ip,verify,n=auth['max_failures'],per=auth['window_seconds'])
+        if not valid:fail(CARD_INVALID,"口令错误")
+        return self.token('admin')
+
+    def configuration_csrf(self, token: str) -> str:
+        """Bind configuration writes to an authenticated browser session."""
+        return hmac.new(self.secret, ('platform-configuration:'+token).encode(), hashlib.sha256).hexdigest()
 
     # ── 注册与登录 ────────────────────────────────────────────────────
     def prepare_registration(self, username: str, password: str = "", *, kind: str = "external", display_name: str = "", note: str = "",
@@ -135,8 +161,9 @@ class Auth:
         if external:
             if self.s.registration == "closed":
                 fail(CARD_INVALID, "当前不开放注册")
-            if self.s.open:
-                self.rate.check(ip)
+            policy=self.s.policy(); limits=policy["authentication"]
+            if self.s.open and not self.local_frequency_exempt(ip,policy):
+                self.rate.check("register:" + ip,n=limits["registration_limit"],per=limits["registration_window_seconds"])
             min_len = 8 if self.s.open else 6
             if len(password) < min_len:
                 fail(CARD_INVALID, f"密码至少 {min_len} 位")
@@ -167,15 +194,16 @@ class Auth:
         with self.db.tx() as c:
             return self.register_in(c,prepared)
 
-    def authenticate(self, username: str, password: str, *, ip: str = "") -> dict:
+    def authenticate(self, username: str, password: str, *, ip: str = "", policy=None) -> dict:
         if not isinstance(username,str) or not isinstance(password,str):
             fail(CARD_INVALID,'账号字段必须是字符串')
         row = self.db.one("SELECT * FROM users WHERE username=?", (username or "").strip())
+        verify = lambda: bool(row and _check_pw(password, row["pw_hash"]))
+        policy=policy or self.s.policy(); limits=policy["authentication"]
+        valid = self.rate.check_failure("login:" + ip, verify,n=limits["max_failures"],per=limits["window_seconds"]) if self.s.open and not self.local_frequency_exempt(ip,policy) else verify()
         if not row:
             fail(CARD_INVALID, "账号不存在")
-        if self.s.open:
-            self.rate.check(ip)
-        if not _check_pw(password, row["pw_hash"]):
+        if not valid:
             fail(CARD_INVALID, "密码错误")
         return row
 

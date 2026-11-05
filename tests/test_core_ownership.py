@@ -197,9 +197,10 @@ def test_web_lifespan_failure_still_closes_the_original_core(tmp_path):
 @pytest.mark.parametrize('command',[['init','--no-seed'],['serve'],['reset'],['backup']])
 def test_every_cli_write_entry_rejects_active_data_without_modification(tmp_path,monkeypatch,command):
     from ioalab.cli import main
+    from conftest import write_platform_configuration
+    config=write_platform_configuration(tmp_path.parent/(tmp_path.name+'-config'),data=str(tmp_path),public_url='http://different.invalid')
     core=Platform(settings(tmp_path));before=files(tmp_path)
-    monkeypatch.setenv('IOALAB_DATA',str(tmp_path))
-    monkeypatch.setenv('IOALAB_PUBLIC_URL','http://different.invalid')
+    monkeypatch.setenv('IOALAB_CONFIG',str(config.path))
     try:
         with pytest.raises(DataInUse):main(command)
         assert files(tmp_path)==before
@@ -209,8 +210,9 @@ def test_every_cli_write_entry_rejects_active_data_without_modification(tmp_path
 def test_cli_init_returns_with_closed_data_and_backup_does_not_restore_lock_state(tmp_path,monkeypatch):
     import tarfile
     from ioalab.cli import main
-    monkeypatch.setenv('IOALAB_DATA',str(tmp_path/'core'))
-    monkeypatch.setenv('IOALAB_PUBLIC_URL','http://127.0.0.1:9998')
+    from conftest import write_platform_configuration
+    config=write_platform_configuration(tmp_path/'configuration',data=str(tmp_path/'core'),public_url='http://127.0.0.1:9998')
+    monkeypatch.setenv('IOALAB_CONFIG',str(config.path))
     main(['init','--no-seed'])
     with DataOwner(tmp_path/'core'):pass
     main(['backup','--out',str(tmp_path/'backups')])

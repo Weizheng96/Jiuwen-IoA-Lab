@@ -3,6 +3,7 @@
 Only preparation is shared. No Runtime, Directory, database connection or callable
 from the seed is retained. Public HTTP/SDK boundary tests keep their live fixture.
 """
+from conftest import platform_settings
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 import hashlib
@@ -47,7 +48,7 @@ def original_core(directory):
     from ioalab.config import Settings
     from ioalab.web.app import create_app
     port = free_port()
-    core = Platform(Settings(bind='127.0.0.1', port=port, public_url_env=f'http://127.0.0.1:{port}',
+    core = Platform(platform_settings(bind='127.0.0.1', port=port, public_url_env=f'http://127.0.0.1:{port}',
                              data=directory, autoseed=True))
     server = uvicorn.Server(uvicorn.Config(create_app(core), host='127.0.0.1', port=core.s.port, log_level='critical'))
     thread = threading.Thread(target=server.run, daemon=True)

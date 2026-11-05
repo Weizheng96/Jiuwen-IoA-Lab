@@ -1,15 +1,5 @@
 {
-  "public_url": "https://ioa.example.com",
-  "bind": "127.0.0.1",
-  "port": 8750,
-  "mode": "trial",
+  "platform_config": "/etc/ioalab/core/platform.json",
   "pypi_index": "https://pypi.tuna.tsinghua.edu.cn/simple",
-  "model": {
-    "name": "API_MODEL_NAME",
-    "base_url": "https://MODEL_ENDPOINT/v1",
-    "api_key": ""
-  },
-  "admin_password": "",
-  "max_model_runs": 2,
-  "isc_count": 10
+  "max_model_runs": 2
 }

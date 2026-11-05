@@ -204,7 +204,7 @@ print(json.dumps(reply))
             expected = pwd.getpwnam(row['user']).pw_uid
             if live['ActiveState'] != 'active' or os.stat('/proc/'+live['MainPID']).st_uid != expected:
                 raise RuntimeError('A running unit does not use its actual dedicated role UID')
-        for path in (self.layout.private, self.layout.config/'core/core.env'):
+        for path in (self.layout.private, self.layout.config/'core/platform.json'):
             code = "import json,os,sys; print(json.dumps({'status':'completed','readable':os.access(sys.argv[1],os.R_OK)}))"
             if self.command([self.layout.environments/'current/participant/bin/python', '-I', '-c', code, path],
                             role='ioalab-agents')['readable']:
@@ -242,9 +242,14 @@ print(json.dumps(reply))
 
     def run(self, model):
         ports = free_ports(5); base = 'http://127.0.0.1:'+str(ports[0])
-        save(self.configuration, {'public_url':base, 'bind':'127.0.0.1', 'port':ports[0], 'mode':'dev',
-            'pypi_index':self.index, 'model':{'name':'installation-fixture', 'base_url':model.url,
-                'api_key':'isolated-lifecycle-not-a-production-key'},
+        from deploy.configure import initialize
+        platform_path=initialize(self.layout)
+        platform=read_json(platform_path)
+        platform['runtime'].update(public_url=base,bind='127.0.0.1',port=ports[0],mode='dev')
+        platform['llm'].update(model='installation-fixture',discovery_model='installation-fixture',base_url=model.url,
+            api_key='isolated-lifecycle-not-a-production-key')
+        save(platform_path,platform)
+        save(self.configuration, {'platform_config':str(platform_path),'pypi_index':self.index,
             'swarm_ports':dict(zip(('agent_server','gateway','web','frontend'), ports[1:]))})
         assert stat.S_IMODE(self.configuration.stat().st_mode) == 0o600
         self.checkpoint('install')
@@ -256,12 +261,13 @@ print(json.dumps(reply))
         initial = self.await_task(first, ROOT)
         self.reload_manager(); self.installed_uid_checks()
         ready = initial['lastReadiness']
-        if not ready.get('runtimeReady') or ready['official']['availableServices'] != 50:
+        expected_services=sum(len(domain['services']) for domain in read_json(ROOT/'deploy/default-seed.json')['domains'])
+        if not ready.get('runtimeReady') or ready['official']['availableServices'] != expected_services:
             raise RuntimeError('The default installer did not prove all official services ready')
         if not ready.get('nativeWeb') or not ready.get('administrator',{}).get('currentInterfaceQuerySucceeded'):
             raise RuntimeError('The original native web and administrator SDK were not proved')
         self.report['checks'].update(detachedOriginalTask=True, fullDefaultInstall=True,
-            nativePrebuiltWeb=True, officialAccounts=8, officialServices=50)
+            nativePrebuiltWeb=True, officialAccounts=8, officialServices=expected_services)
         before_status = self.official(); before_accounts = before_status['accounts']
         identities = {row['account']:row['runtime']['identities'] for row in before_accounts}
         chosen = before_accounts[0]; profile = chosen['services'][0]['profile']

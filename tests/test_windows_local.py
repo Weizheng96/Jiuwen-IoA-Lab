@@ -12,6 +12,51 @@ import pytest
 from deploy.windows_local import Local, WindowsProcesses
 
 
+@pytest.mark.parametrize('root_reused',[False,True])
+def test_job_owned_pid_generations_keep_history_and_original_root(tmp_path,root_reused):
+    api=object.__new__(WindowsProcesses)
+    root={'pid':1,'created':100,'executable':'python.exe','role':'core','job':'owned-job'}
+    old={'pid':2,'created':101,'executable':'python.exe','role':'core','parent':1}
+    pid=1 if root_reused else 2
+    current={1:{key:root[key] for key in ('pid','created','executable')},
+             2:{key:old[key] for key in ('pid','created','executable')}}
+    current[pid]={'pid':pid,'created':200,'executable':'python.exe'}
+    api.members=lambda job:[1,2]
+    api.identity=lambda pid,job=None:current[pid]
+    rows=api.descendants([root,old])
+    assert len(rows)==3 and root in rows and old in rows
+    assert next(row for row in rows if row['created']==100)['job']=='owned-job'
+    replacement=next(row for row in rows if row['created']==200)
+    assert replacement['role']=='core' and 'job' not in replacement
+    local=Local(tmp_path/'local');local.api=api;record={'processes':rows}
+    historical=root if root_reused else old
+    assert not local.alive(record,historical)
+    assert local.alive(record,replacement)
+    assert local.components_alive(record)
+    assert api.descendants(rows)==rows
+
+
+def test_pid_reused_outside_original_job_is_never_adopted_or_signalled(tmp_path,monkeypatch):
+    api=object.__new__(WindowsProcesses)
+    root={'pid':1,'created':100,'executable':'python.exe','role':'core','job':'owned-job'}
+    old={'pid':2,'created':101,'executable':'python.exe','role':'core','parent':1}
+    api.members=lambda job:[2]  # stale PID snapshot before the old process exits
+    api.identity=lambda pid,job=None:None if job else {'pid':2,'created':200,'executable':'outside.exe'}
+    assert api.descendants([root,old])==[root,old]
+    local=Local(tmp_path/'local');local.api=api
+    with pytest.raises(RuntimeError,match='replaced'):local.alive({'processes':[root,old]},old)
+    monkeypatch.setattr(subprocess,'run',lambda *a,**kw:pytest.fail('An external PID must not receive any signal'))
+    with pytest.raises(RuntimeError,match='replaced'):api.interrupt(old)
+
+
+def test_missing_job_after_pid_history_remains_unknown():
+    api=object.__new__(WindowsProcesses)
+    def missing(name):raise RuntimeError('Original Windows job membership is unknown')
+    api.members=missing
+    root={'pid':1,'created':100,'executable':'python.exe','role':'core','job':'lost-job'}
+    with pytest.raises(RuntimeError,match='unknown'):api.descendants([root])
+
+
 @pytest.mark.skipif(os.name != 'nt', reason='Actual Windows process identity and console semantics')
 def test_owned_console_interrupt_and_pid_replacement(tmp_path):
     api = WindowsProcesses()

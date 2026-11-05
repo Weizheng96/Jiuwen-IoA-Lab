@@ -1,6 +1,7 @@
 """Application use cases: coordinate public component methods in one short transaction."""
 import logging
 import json
+from decimal import Decimal
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from a2c.codec import digest
@@ -260,8 +261,11 @@ class AccountOperations:
 
     def create_account(self,username,password='',*,kind='external',display_name='',note='',invite='',ip=''):
         """Provision a seed/admin account; ordinary browser registration uses register."""
-        user=self.auth.register(username,password,kind=kind,display_name=display_name,note=note,invite=invite,ip=ip)
-        self.wallets.ensure(user['id'])
+        policy=self.settings.policy()
+        prepared=self.auth.prepare_registration(username,password,kind=kind,display_name=display_name,note=note,invite=invite,ip=ip)
+        with self.db.tx() as conn:
+            user=self.auth.register_in(conn,prepared)
+            self.wallets.initial_credit_in(conn,user['id'],policy['credits']['initial'])
         self.emit('platform','user.register',sender=user['id'],outcome=kind,
                   detail={'username':username,'displayName':user['display_name']})
         return user
@@ -273,13 +277,16 @@ class AccountOperations:
                 self.wallets.bind_payer_in(conn,owner,thumbprint(result['keys']['payer']))
         return result
 
-    def _project(self,user,operation,registered=False):
+    def _project(self,user,operation,credits,registered=False):
         try:
             if registered:
                 self.emit('platform','user.register',sender=user['id'],outcome=user['kind'],
                           detail={'username':user['username'],'displayName':user['display_name']})
-            self.emit('platform','wallet.adjust',sender='platform',receiver=user['id'],amount=str(self.settings.login_credit),
-                      outcome='login',detail={'note':'登录赠送','operationId':operation})
+            for kind,note in (('initial','账号初始发放'),('login','登录赠送')):
+                amount=credits.get(kind,'0.00')
+                if Decimal(amount)>0:
+                    self.emit('platform','wallet.adjust',sender='platform',receiver=user['id'],amount=amount,
+                              outcome=kind,detail={'note':note,'operationId':operation})
         except Exception:
             log.warning('Account operation committed; projection requires recovery: %s',operation)
 
@@ -288,6 +295,7 @@ class AccountOperations:
             raise LabError('invalid_input','Account fields must be strings')
         username=(username or '').strip()
         operation=self.sessions.operation(operation_id)
+        policy=self.settings.policy()
         params=self.sessions.fingerprint({'username':username,'password':password,'display_name':display_name,'invite':invite,'audience':'browser'})
         cached=self.sessions.restore(username,'register',operation,params)
         if cached:return cached
@@ -301,10 +309,12 @@ class AccountOperations:
             cached=self.sessions.restore(username,'register',operation,params,conn)
             if cached:return cached
             user=self.auth.register_in(conn,prepared)
+            initial=self.wallets.initial_credit_in(conn,user['id'],policy['credits']['initial'])
             user=self.auth.login_in(conn,prepared)
-            self.wallets.adjust_in(conn,user['id'],self.settings.login_credit,by='platform',note='登录赠送',kind='login',ref=operation)
-            result=self.sessions.save(conn,username,'register',operation,params,user,prepared['pw_hash'],'browser')
-        self._project(user,operation,registered=True)
+            credits=self.wallets.login_credit_in(conn,user['id'],operation,policy['credits'])
+            credits['initial']=initial
+            result=self.sessions.save(conn,username,'register',operation,params,user,prepared['pw_hash'],'browser',credits=credits)
+        self._project(user,operation,credits,registered=True)
         return result
 
     def login(self,username,password,*,operation_id=None,audience='browser',ip=''):
@@ -313,15 +323,17 @@ class AccountOperations:
         if audience not in ('sdk','browser'):raise ValueError('Unknown login audience')
         username=(username or '').strip()
         operation=self.sessions.operation(operation_id)
+        policy=self.settings.policy()
         params=self.sessions.fingerprint({'username':username,'password':password,'audience':audience})
         cached=self.sessions.restore(username,'login',operation,params)
         if cached:return cached
-        verified=self.auth.authenticate(username,password,ip=ip)
+        verified=self.auth.authenticate(username,password,ip=ip,policy=policy)
         with self.db.tx() as conn:
             cached=self.sessions.restore(username,'login',operation,params,conn)
             if cached:return cached
             user=self.auth.login_in(conn,verified)
-            self.wallets.adjust_in(conn,user['id'],self.settings.login_credit,by='platform',note='登录赠送',kind='login',ref=operation)
-            result=self.sessions.save(conn,username,'login',operation,params,user,verified['pw_hash'],audience)
-        self._project(user,operation)
+            credits=self.wallets.login_credit_in(conn,user['id'],operation,policy['credits'])
+            credits['initial']='0.00'
+            result=self.sessions.save(conn,username,'login',operation,params,user,verified['pw_hash'],audience,credits=credits)
+        self._project(user,operation,credits)
         return result
