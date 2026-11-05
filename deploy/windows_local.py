@@ -24,7 +24,7 @@ from .configs import Configuration, local_url
 from .environment import Environment, writer
 from .layout import Layout, read_environment
 from .processes import child_environment
-from .release import load, official_catalog, read_json
+from .release import HEX, load, official_catalog, read_json
 from .workspace import Workspace, path_without_links, save
 
 
@@ -332,8 +332,7 @@ class Local:
                 env=child_environment(), capture_output=True, timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
             if checked.returncode:
                 raise RuntimeError('Deployment ownership or ACL verification failed; no model configuration was written')
-            config = Configuration(self.layout, identity, value)
-            stable = self.layout.environments / 'current' / 'release'
+            stable = self.assets({'releaseId': document['releaseId']})
             if stable.exists():
                 if load(stable) != document:
                     raise RuntimeError('Established release assets changed; preserve the original deployment')
@@ -342,6 +341,7 @@ class Local:
                 shutil.copytree(release, stable)
                 if load(stable) != document:
                     raise RuntimeError('Copied release failed validation')
+            config = Configuration(self.layout, identity, value, assets=stable)
             config.base()
             record = {'format': FORMAT, 'deploymentId': identity['deploymentId'],
                       'releaseId': document['releaseId'], 'phase': 'installed',
@@ -353,7 +353,14 @@ class Local:
             return self.public(record)
 
     def config(self):
-        return Configuration(self.layout, self.layout.inspect(), read_json(self.layout.private / 'initial.json')['input'])
+        return Configuration(self.layout, self.layout.inspect(), read_json(self.layout.private / 'initial.json')['input'],
+                             assets=self.assets(self.read()))
+
+    def assets(self, record):
+        identifier = record.get('releaseId')
+        if not isinstance(identifier, str) or not HEX.fullmatch(identifier):
+            raise ValueError('Restore the original content-addressed release identity')
+        return self.layout.environments / 'releases' / identifier
 
     def command(self, record, unit, module, *args):
         return [record['environments'][unit]['python'], '-I', '-X', 'utf8', '-m', module, *map(str, args)]
@@ -473,7 +480,7 @@ class Local:
     def prepare(self, record):
         config = self.config()
         self.check_ports(config)
-        stable = self.layout.environments / 'current/release'
+        stable = self.assets(record)
         for unit, installed in record['environments'].items():
             actual = Environment(stable, unit, Path(installed['environment']).parent.parent).install(verify=True)
             if actual['environmentId'] != installed['environmentId'] or actual['python'] != installed['python']:
@@ -513,8 +520,7 @@ class Local:
         if any(not self.alive(record, p) for p in record['processes'] if 'parent' not in p):
             raise RuntimeError('A local component exited before readiness')
         official = self.run(record, 'ioalab_services', 'status', '--config', self.layout.config / 'agents/official.json')
-        expected = official_catalog(self.layout.environments / 'current/release',
-                                    load(self.layout.environments / 'current/release'))
+        expected = official_catalog(self.assets(record), load(self.assets(record)))
         rows = official.get('accounts')
         if (not isinstance(rows, list) or sorted(row.get('account', '') for row in rows) != sorted(expected)
                 or any(row.get('error') or not row.get('runtime', {}).get('platformConnected')

@@ -18,8 +18,9 @@ def local_url(bind,port):
 
 
 class Configuration:
-    def __init__(self,layout,identity,value):
+    def __init__(self,layout,identity,value,*,assets=None):
         self.layout,self.identity=layout,identity
+        self.assets = path_without_links(assets) if assets is not None else layout.environments/'current/release'
         self.input=validate(value)
         if self.input['model'] is None:
             raise ValueError('Default deployment requires a complete real model configuration')
@@ -65,14 +66,14 @@ class Configuration:
 
     def base(self):
         layout,value=self.layout,self.input
-        secret=self.record['credentials'];stable=layout.environments/'current'
+        secret=self.record['credentials'];assets=self.assets
         core={'IOALAB_MODE':value['mode'],'IOALAB_BIND':value['bind'],'IOALAB_PORT':str(value['port']),
             'IOALAB_PUBLIC_URL':value['public_url'],'IOALAB_DATA':str(layout.state/'core'),
             'IOALAB_SECRET':secret['secret'],'IOALAB_ADMIN_PASSWORD':secret['admin_password'],
             'IOALAB_ASSISTANT_PASSWORD':secret['assistant_password'],
             'IOALAB_ISC_COUNT':str(value['isc_count']),'IOALAB_AUTOSEED':'1','IOALAB_TRAFFIC':'off',
-            'IOALAB_SEED_FILE':str(stable/'release/seed.json'),
-            'IOALAB_BUNDLES_DIR':str(stable/'release/skills'),
+            'IOALAB_SEED_FILE':str(assets/'seed.json'),
+            'IOALAB_BUNDLES_DIR':str(assets/'skills'),
             'IOALAB_LLM_API_KEY':value['model']['api_key'],'IOALAB_LLM_BASE_URL':value['model']['base_url'],
             'IOALAB_LLM_MODEL':value['model']['name'],'IOALAB_A2X_MODEL':value['model']['name'],
             'A2C_CACHE_DIR':str(layout.state/'cache/core'),'PYTHONUTF8':'1'}

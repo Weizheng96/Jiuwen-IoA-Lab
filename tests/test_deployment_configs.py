@@ -48,6 +48,20 @@ def test_changed_initial_input_rejected_without_printing_secrets(tmp_path):
     assert 'sentinel' not in str(caught.value) and first.path.read_bytes()==before
 
 
+def test_native_assets_keep_content_identity_without_a_symlink(tmp_path):
+    from deploy.windows_local import Local
+    local=Local(tmp_path/'native');identity=local.layout.claim()
+    _,_,value=fixture(tmp_path/'input')
+    assets=local.assets({'releaseId':'a'*64})
+    result=Configuration(local.layout,identity,value,assets=assets).base()
+    assert assets.name=='a'*64
+    assert result['IOALAB_SEED_FILE']==str(assets/'seed.json')
+    assert result['IOALAB_BUNDLES_DIR']==str(assets/'skills')
+    assert not assets.is_symlink()
+    with pytest.raises(ValueError,match='content-addressed'):
+        local.assets({'releaseId':'../other'})
+
+
 def test_completed_missing_configuration_is_not_regenerated(tmp_path):
     layout,identity,value=fixture(tmp_path);configuration=Configuration(layout,identity,value);configuration.base()
     (layout.config/'agents/official.env').unlink()
