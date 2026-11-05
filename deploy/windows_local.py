@@ -137,9 +137,7 @@ class WindowsProcesses:
         if not job:
             job = self.api.OpenJobObjectW(0x4, False, name)  # QUERY
             if not job:
-                if ctypes.get_last_error() == 2:
-                    return []  # Last process and handle have gone.
-                raise RuntimeError('Cannot inspect the recorded Windows component job')
+                raise RuntimeError('Original Windows job membership is unknown; no process is considered released')
             self.jobs[name] = job
         capacity = 64
         while capacity <= 4096:
@@ -366,16 +364,20 @@ class Local:
         return [record['environments'][unit]['python'], '-I', '-X', 'utf8', '-m', module, *map(str, args)]
 
     def run(self, record, module, *args, environment=None, accepted=('completed',)):
+        record['stage'] = module + ':' + str(args[0]); self.write(record)
         result = subprocess.run(self.command(record, 'participant', module, *args),
                                 cwd=self.layout.state, env={**child_environment(), **(environment or {})},
-                                capture_output=True, text=True, encoding='utf-8', timeout=180,
+                                capture_output=True, text=True, encoding='utf-8',
                                 creationflags=subprocess.CREATE_NO_WINDOW)
         try:
             answer = json.loads(result.stdout)
         except ValueError:
             raise RuntimeError('Public deployment command returned no valid receipt: ' + module) from None
         if result.returncode not in (0, 2) or answer.get('status') not in accepted:
-            raise RuntimeError('Public deployment command is not ready: ' + module)
+            code = (answer.get('error') or {}).get('code')
+            if code not in ('authenticate', 'not_ready', 'forbidden', 'configuration_changed', 'identity_conflict'):
+                code = 'rejected'
+            raise RuntimeError('Public deployment command is not ready: ' + module + ' (' + code + ')')
         return answer
 
     def plans(self, record):
@@ -559,13 +561,15 @@ class Local:
                 'home': str(self.home), 'dataPreserved': True,
                 'runtimeReady': record['phase'] == 'running' and bool(record.get('readiness')),
                 'readiness': record.get('readiness'), 'browserAcceptance': 'unverified',
+                'failure': record.get('failure'), 'allOwnedJobsEmpty': record.get('allOwnedJobsEmpty', False),
                 'processes': [{k: p[k] for k in ('pid', 'role')} for p in record.get('processes', [])]}
 
     def serve(self):
         with writer(self.layout.private / 'local-runtime.lock'):
             record = self.read()
             self.require_empty(record)
-            record.update(processes=[], phase='starting', readiness=None, assistantBootId=None); self.write(record)
+            record.update(processes=[], phase='starting', readiness=None, assistantBootId=None,
+                          allOwnedJobsEmpty=False, failure=None); self.write(record)
             stop = False
             def request(*_):
                 nonlocal stop
@@ -576,10 +580,16 @@ class Local:
                 record['readiness'] = self.wait(record, lambda: self.readiness(record))
                 record['initialReadinessVerified'] = True
                 record['phase'] = 'running'; self.write(record)
+            except Exception as error:
+                record.update(phase='failed', failure={'type': type(error).__name__, 'stage': record.get('stage')})
+                self.write(record)
+                # Keep the original Job handles while the operator inspects a
+                # failed setup. Missing handles are never proof of empty jobs.
+            try:
                 while not stop:
                     self.refresh(record)
                     if any(not self.alive(record, p) for p in record['processes'] if 'parent' not in p):
-                        raise RuntimeError('An owned local component exited; inspect the original instance')
+                        record['phase'] = 'failed'; self.write(record)
                     if (self.layout.private / 'stop-request.json').exists():
                         request_record = read_json(self.layout.private / 'stop-request.json')
                         if request_record == {'deploymentId': record['deploymentId']}:
@@ -646,7 +656,10 @@ class Local:
                     self.write(record)
                     raise RuntimeError('An owned native process has not exited; no force kill or reset was used')
                 time.sleep(.2)
-        record['phase'] = 'stopped'; self.write(record)
+        if any(self.api.members(p['job']) for p in record['processes'] if 'job' in p):
+            raise RuntimeError('An original Windows job is not empty; shutdown remains incomplete')
+        record['lastStoppedProcesses'] = record['processes']
+        record.update(phase='stopped', processes=[], allOwnedJobsEmpty=True); self.write(record)
         request = self.layout.private / 'stop-request.json'
         if request.exists():
             request.unlink()

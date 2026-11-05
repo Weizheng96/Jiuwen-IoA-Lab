@@ -215,3 +215,40 @@ def test_source_scope_keeps_native_owners_without_linux_installer_matrix():
     unrelated = select_tests(['src/platform/ioalab/storage.py'])['tests']
     assert 'tests/test_windows_local.py' not in unrelated
     assert 'tests/test_windows_local_owner.py' not in unrelated
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Actual Windows named Job lookup')
+def test_missing_job_is_unknown_not_empty():
+    api=WindowsProcesses()
+    with pytest.raises(RuntimeError,match='membership is unknown'):
+        api.members('Local\\ioa-never-created-'+uuid.uuid4().hex)
+
+
+def test_setup_failure_retains_supervisor_until_explicit_stop(tmp_path,monkeypatch):
+    local=Local(tmp_path/'local');local.layout.private.mkdir(parents=True)
+    record={'processes':[],'phase':'installed','deploymentId':'owned-local'}
+    class Processes:
+        def descendants(self,values):return values
+        def members(self,name):return [1]
+        def alive(self,value):return True
+    local.api=Processes()
+    monkeypatch.setattr(local,'read',lambda:record)
+    def fail(value):
+        value.update(processes=[{'pid':1,'role':'core','job':'still-owned'}],stage='fixed-public-prepare')
+        raise RuntimeError('Public setup rejected')
+    monkeypatch.setattr(local,'prepare',fail)
+    original_refresh=local.refresh
+    def refresh(value):
+        original_refresh(value)
+        if value['phase']=='failed':
+            (local.layout.private/'stop-request.json').write_text(json.dumps({'deploymentId':'owned-local'}))
+    monkeypatch.setattr(local,'refresh',refresh)
+    stopped=[]
+    def shutdown(value):
+        assert value['phase']=='failed'
+        assert value['failure']=={'type':'RuntimeError','stage':'fixed-public-prepare'}
+        assert value['processes'][0]['job']=='still-owned'
+        stopped.append(True)
+    monkeypatch.setattr(local,'shutdown',shutdown)
+    local.serve()
+    assert stopped==[True]
