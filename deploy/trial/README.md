@@ -1,20 +1,53 @@
-# Linux三席试用部署
+# 在线试用部署
 
-当前未在Linux实机验收。固定三席，每席位全部可写状态归一个epoch volume。原生九问UID10003不能读写SDK UID10002、核心UID10001或服务方UID10004数据。只读程序和完整离线wheelhouse共享。
+配置模板`config.example.json`中的`deployment_profile`必须按目标环境填写；规则唯一归[在线试用](../../设计/工程/在线试用.md)。这只限定可选试用应用，不限制正式平台账号或普通SDK连接。Linux服务器使用linux-server；Windows本机在已准备的WSL2发行版、Linux控制器环境与Docker Desktop集成上使用windows-wsl。同一个协调器执行相同生命周期。
 
-先完成普通发行构建并校验摘要，准备独立上下文，不把配置、私钥、模型密钥或运行数据放入镜像。
+Windows在仓库根目录执行（参数都是WSL内已安装的实际路径，不是Windows虚拟环境）：
 
-```sh
-mkdir -p temp/trial-image/locks temp/trial-image/wheelhouse
-cp deploy/trial/{Dockerfile,plan.json,service-ids.json} temp/trial-image/
-cp deploy/locks/linux-x86_64/{core,participant,swarm}.lock temp/trial-image/locks/
-cp /absolute/reviewed-release/wheelhouse/*.whl temp/trial-image/wheelhouse/
-unzip dist/ioalab-assistant-skill.zip -d temp/trial-unpack
-cp -a temp/trial-unpack/ioalab-delegate temp/trial-image/assistant-skill
-docker build --network=none --build-arg BASE_IMAGE=python:3.11-slim@sha256:<实际摘要> -t ioalab-trial-seat temp/trial-image
+```powershell
+python deploy/trial/start_windows.py --distribution IoA-Trial --python /opt/ioalab-trial-controller/bin/python --config /etc/ioalab-trial/config.json
 ```
 
-wheelhouse须含锁定上游wheel、全部普通依赖及本次发行的ioalab、SDK、九问适配、官方资源和trial包。pip均使用`--no-index`，缺wheel失败，不现场访问GitHub。基础镜像需预先准备目标Python原生库并固定摘要。容器不挂宿主Docker socket、正式数据、其他席位或管理员目录；仅映射loopback的原生UI及受限控制端口。
+该薄入口不安装WSL/Docker、不复制密钥、不修改全局设置；启动或环境核对失败返回非零。配置须填写windows-wsl，调用指定发行版原解释器运行普通ioalab_trial模块，WSL内核不匹配时拒绝。Linux服务器直接执行下文控制器入口，配置须填写linux-server。
+
+已有无profile控制库或切换profile/容量时启动会拒绝并保留原库；先在原部署完整结束全部轮次、撤销旧访问并核任务及数据重置成功，再选新的专用control_directory。不要删除旧数据库或改profile字段来绕过拒绝；新目录不能证明旧容器或业务已清退。原版网页、可信确认与整轮重置未过时仍不提供试用。
+
+资源脚本须由已安装trial的Linux控制器解释器执行，Windows同样先进入所选WSL发行版再使用该绝对解释器，不用Windows项目Python采样。Windows资源采集使用`--deployment-profile windows-wsl`，阶段为baseline、one-idle、one-active、after-reset；三席阶段在该profile被拒绝。下文三席命令仅用于Linux服务器。目标容量及实测结果必须同时记录。
+
+实际容量及隔离规则见[在线试用](../../设计/工程/在线试用.md)，尚未完成原版业务专项验收。每席位全部可写状态归一个epoch volume。原生九问UID10003不能读写SDK UID10002、核心UID10001或服务方UID10004数据。只读程序和完整离线wheelhouse共享。
+
+普通正式发行只含`wheels/`本地项目包，不包含可选ioalab-trial，也不是完整第三方wheelhouse。先校验普通发行，保持它不可变；在受审源码仓库根目录的Linux/WSL shell中独立构建可选包、汇总专用上下文。下列路径变量替换为真实绝对Linux路径：BUILD_PYTHON是已有setuptools/pip的维护端解释器；TRIAL_IMAGE_WHEELS是已按镜像Python3.11/bookworm核过三个Linux锁的依赖缓存；TRIAL_CONTROLLER_WHEELS与TRIAL_CONTROLLER_BOOTSTRAP须匹配控制器实际Python/平台（本机已备Python3.12缓存，不能与镜像缓存互换）。不向已核普通发行或依赖缓存回写。
+
+```sh
+REVIEWED_RELEASE=/absolute/reviewed-release
+BUILD_PYTHON=/absolute/maintainer-venv/bin/python
+TRIAL_IMAGE_WHEELS=/absolute/reviewed-cp311-bookworm-wheel-cache
+TRIAL_CONTROLLER_WHEELS=/absolute/reviewed-controller-cp312-wheel-cache
+TRIAL_CONTROLLER_BOOTSTRAP=/usr/bin/python3.12
+TRIAL_WORK=$(mktemp -d /var/tmp/ioalab-trial-build.XXXXXXXX)
+"$BUILD_PYTHON" tools/build_packages.py --out "$TRIAL_WORK/optional-wheels" src/trial
+mkdir -p "$TRIAL_WORK/image/locks" "$TRIAL_WORK/image/wheelhouse" "$TRIAL_WORK/controller-wheelhouse" "$TRIAL_WORK/image/vendor/jiuwen" "$TRIAL_WORK/image/vendor/wheels"
+cp "$REVIEWED_RELEASE"/wheels/*.whl "$TRIAL_WORK/image/wheelhouse/"
+cp "$TRIAL_IMAGE_WHEELS"/*.whl "$TRIAL_WORK/image/wheelhouse/"
+cp "$TRIAL_WORK/optional-wheels"/*.whl "$TRIAL_WORK/image/wheelhouse/"
+cp "$REVIEWED_RELEASE"/wheels/*.whl "$TRIAL_WORK/controller-wheelhouse/"
+cp "$TRIAL_CONTROLLER_WHEELS"/*.whl "$TRIAL_WORK/controller-wheelhouse/"
+cp "$TRIAL_WORK/optional-wheels"/*.whl "$TRIAL_WORK/controller-wheelhouse/"
+cp deploy/trial/{Dockerfile,plan.json,service-ids.json,install_swarm_wheels.py} "$TRIAL_WORK/image/"
+cp vendor/SOURCES.json "$TRIAL_WORK/image/vendor/"
+cp vendor/jiuwen/requirements-swarm.lock "$TRIAL_WORK/image/vendor/jiuwen/"
+cp vendor/wheels/*.whl "$TRIAL_WORK/image/vendor/wheels/"
+cp deploy/locks/linux-x86_64/{core,participant,swarm}.lock "$TRIAL_WORK/image/locks/"
+unzip "$REVIEWED_RELEASE/skills/ioalab-assistant-skill.zip" -d "$TRIAL_WORK/skill-unpack"
+cp -a "$TRIAL_WORK/skill-unpack/ioalab-delegate" "$TRIAL_WORK/image/assistant-skill"
+(cd "$TRIAL_WORK" && find image controller-wheelhouse optional-wheels -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+(cd "$TRIAL_WORK" && sha256sum -c SHA256SUMS)
+docker build --network=none --build-arg BASE_IMAGE=python:3.11-slim@sha256:<实际摘要> -t ioalab-trial-seat "$TRIAL_WORK/image"
+```
+
+普通依赖缓存由维护端按原core/participant/swarm锁准备，完整包含传递依赖且实际核目标Python ABI与manylinux兼容；这里只复制已审核输入，不现场访问GitHub。四个原版Git来源wheel继续使用下述原manifest与requirements，不能从PyPI/VCS替换。可选包构建使用现有隔离build_packages入口，不把trial添加进普通发行类别。核专用SHA256SUMS及输入出处后才使用，不能将两种ABI混合缓存。基础镜像须预先准备目标Python原生库并固定摘要；容器不挂宿主Docker socket、正式数据、邻席位或管理员目录，仅映射loopback原生UI和受限控制端口。
+
+Swarm环境先安装现有Linux普通依赖锁，再由install_swarm_wheels.py读取原requirements中的本地wheel条目并核SOURCES.json摘要，按同一Linux锁约束离线安装原版包，最后pip check及原Process入口检查。元数据与原wheel原样进入专用vendor构建目录，不复制运行配置、secret或原生状态，不另维护原版版本清单。缺件、摘要或依赖不符时构建失败。
 
 协调器为每epoch自动启动独立模型sidecar，入口为镜像内`python -m ioalab_trial.model_egress`。不需要注册外部共享代理。sidecar连接显式`egress_network`外网bridge及该epoch独立internal bridge；席位只连接内网。只有本轮sidecar在内网具有`model-egress`别名，不连接其他席位网络。
 
@@ -27,9 +60,10 @@ wheelhouse须含锁定上游wheel、全部普通依赖及本次发行的ioalab�
 正式平台IOALAB_TRIAL_URL填写原生试用origin，IOALAB_TRIAL_CONFIRM_URL填写独立确认origin。两者必须不同HTTPS hostname，不能只换端口。应用配置的`origin`、`confirm_origin`分别匹配二者，`formal_origin`只生成返回正式平台的链接。正式平台的两个入口分别签不同aud票据，正式cookie不出正式host。用户先取得席位，再从正式平台点击确认入口；可信cookie消费时绑定当前seat/epoch，原生cookie不能访问确认端点。两个TLS虚拟host都转发同一网关进程并保留各自Host/Origin；确认host不代理任何原生内容或WS。
 
 ```sh
-/usr/bin/python3 -m venv /opt/ioalab-trial-controller
-/opt/ioalab-trial-controller/bin/pip install --no-index --find-links=/absolute/reviewed-release/wheelhouse -c deploy/locks/linux-x86_64/core.lock -c deploy/locks/linux-x86_64/participant.lock ioalab-trial
-ioalab-trial --config /etc/ioalab-trial/config.json
+"$TRIAL_CONTROLLER_BOOTSTRAP" -m venv /opt/ioalab-trial-controller
+/opt/ioalab-trial-controller/bin/pip install --no-index --find-links="$TRIAL_WORK/controller-wheelhouse" -c deploy/locks/linux-x86_64/core.lock -c deploy/locks/linux-x86_64/participant.lock ioalab-trial
+/opt/ioalab-trial-controller/bin/pip check
+/opt/ioalab-trial-controller/bin/ioalab-trial --config /etc/ioalab-trial/config.json
 ```
 
 控制器使用该环境中的`/opt/ioalab-trial-controller/bin/ioalab-trial`启动。镜像participant安装trial时也同时应用原core/participant锁约束，避免完整离线wheelhouse有多个FastAPI/uvicorn版本时任意挑选；不另建一套依赖锁。
@@ -43,8 +77,8 @@ ioalab-trial --config /etc/ioalab-trial/config.json
 业务使用公开注册的普通`trial-user`，不是默认管理员身份。core公共seed只含四个编程候选的公共摘要；模型指令、样例和验收器仍归外部服务资源。仅试用环境显式登录赠1000虚拟币，独立于用户预算/授权；探针使用首次注册原cookie只读核钱包可支持500预算样例，不反复登录或赠币。
 
 ```sh
-python experiments/trial_resources.py --deployment ioa-trial --phase three-idle --seconds 60 --out temp/three-idle.jsonl
-python experiments/trial_resources.py --deployment ioa-trial --phase three-active --seconds 120 --out temp/three-active.jsonl
+/opt/ioalab-trial-controller/bin/python experiments/trial_resources.py --deployment-profile linux-server --deployment ioa-trial --phase three-idle --seconds 60 --out temp/three-idle.jsonl
+/opt/ioalab-trial-controller/bin/python experiments/trial_resources.py --deployment-profile linux-server --deployment ioa-trial --phase three-active --seconds 120 --out temp/three-active.jsonl
 ```
 
 同样保存baseline、one-active、after-reset；包含核心与服务方。Docker内存不是PSS；脚本明确标出待补的宿主/PSS、模型请求令牌及业务时延，不用空闲数值推算三席执行负担。

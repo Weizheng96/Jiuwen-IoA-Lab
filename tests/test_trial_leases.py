@@ -15,7 +15,7 @@ from ioalab_trial.store import Store
 @pytest.fixture
 def trial(tmp_path):
     now = [1000.0]
-    store = Store(tmp_path/'control.sqlite')
+    store = Store(tmp_path/'control.sqlite',deployment_profile='linux-server')
     coordinator = Coordinator(store,audience='https://trial.test',admission_key='k'*40,
                               lease_seconds=100,grace_seconds=20,clock=lambda:now[0])
     yield coordinator,now

@@ -4,10 +4,13 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 COPY wheelhouse /opt/wheelhouse
 COPY locks /opt/locks
+COPY vendor /opt/trial-build/vendor
+COPY install_swarm_wheels.py /opt/trial-build/install_swarm_wheels.py
 RUN python -m venv /opt/core && python -m venv /opt/participant && python -m venv /opt/swarm \
  && /opt/core/bin/pip install --no-index --find-links=/opt/wheelhouse -r /opt/locks/core.lock \
  && /opt/participant/bin/pip install --no-index --find-links=/opt/wheelhouse -r /opt/locks/participant.lock \
  && /opt/swarm/bin/pip install --no-index --find-links=/opt/wheelhouse -r /opt/locks/swarm.lock \
+ && python /opt/trial-build/install_swarm_wheels.py --root /opt/trial-build --python /opt/swarm/bin/python --constraints /opt/locks/swarm.lock \
  && /opt/core/bin/pip install --no-index --find-links=/opt/wheelhouse -c /opt/locks/core.lock ioalab \
  && /opt/participant/bin/pip install --no-index --find-links=/opt/wheelhouse -c /opt/locks/core.lock -c /opt/locks/participant.lock ioalab-trial ioalab-jiuwen ioalab-official \
  && useradd -u 10001 -M core && useradd -u 10002 -M assistant && useradd -u 10003 -M native && useradd -u 10004 -M services

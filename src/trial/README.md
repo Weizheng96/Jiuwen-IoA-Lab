@@ -4,7 +4,7 @@
 
 `ioalab-trial --config <受限配置文件>`启动一个协调器/网关。正式平台只签发一次准入票据；本应用只保存队列、席位、会话和轮次控制记录。正式平台和SDK不导入本包。SDK/合同/付款仍由各隔离席位自己的普通运行实例负责。
 
-`coordinator.py`/`store.py`管理固定三席，`gateway.py`代理固定目标并撤销旧cookie/WS，`sandbox.py`管理完整所有权标签的容器与volume；`agent.py`在容器内以不同UID运行核心、个人九问、助手SDK和四候选服务，`bootstrap.py`复用公开配置和资源准备入口。原生九问与助手SDK不同UID；试用Skill副本的脚本经`model_bridge.py`封闭调用普通SDK操作，模型无法读取SDK数据目录、确认库和私钥。SDK远程可信确认由同SDK进程中的`TrustedUserServer`负责。
+`coordinator.py`/`store.py`按显式部署profile管理实际席位，`gateway.py`代理固定目标并撤销旧cookie/WS，`sandbox.py`管理完整所有权标签的容器与volume；`agent.py`在容器内以不同UID运行核心、个人九问、助手SDK和四候选服务，`bootstrap.py`复用公开配置和资源准备入口。原生九问与助手SDK不同UID；试用Skill副本的脚本经`model_bridge.py`封闭调用普通SDK操作，模型无法读取SDK数据目录、确认库和私钥。SDK远程可信确认由同SDK进程中的`TrustedUserServer`负责。
 
 部署步骤见[试用部署](../../deploy/trial/README.md)。没有Linux容器与真实原版浏览器专项，本组件保持未就绪。健康探针查询真实原生Web/WS、技能、SDK、服务状态及公开空业务状态，同时要求实际原版UI/A2UI/Skill调用验收记录。缺少记录或公开接口与锁定版本不符均隔离席位；验收记录不能代替原始浏览器与Linux证据。
 

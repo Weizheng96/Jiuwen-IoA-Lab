@@ -7,11 +7,22 @@ import subprocess
 import time
 from pathlib import Path
 import httpx
+import stat
+from .profile import capacity
+
+
+def check_secret_permissions(path):
+    value=path.stat()
+    if getattr(value,'st_uid',None)!=0 or getattr(value,'st_gid',None)!=0 or stat.S_IMODE(value.st_mode)!=0o600:
+        raise ValueError('Provider secret must have Linux root:root ownership and mode 600')
+    if re.match(r'^/mnt/[a-z](?:/|$)',str(path)):
+        raise ValueError('Provider secret must be on the native Linux filesystem, not a Windows drive mount')
 
 
 class DockerSandbox:
-    def __init__(self, config):
+    def __init__(self, config, *, deployment_profile):
         self.config = config
+        self.capacity=capacity(deployment_profile)
         if not re.fullmatch(r'[a-z][a-z0-9-]{2,30}',config['deployment']):
             raise ValueError('Invalid deployment identity')
         if not re.fullmatch(r'.+@sha256:[0-9a-f]{64}',config['image']):
@@ -31,7 +42,7 @@ class DockerSandbox:
         self.run = subprocess.run
 
     def identity(self, seat, epoch):
-        if seat not in (1,2,3) or not isinstance(epoch,str) or not re.fullmatch('[a-f0-9]{32}',epoch):
+        if type(seat) is not int or seat not in range(1,self.capacity+1) or not isinstance(epoch,str) or not re.fullmatch('[a-f0-9]{32}',epoch):
             raise ValueError('Invalid sandbox ownership')
         return self.config['deployment'] + '-' + str(seat) + '-' + epoch
 
@@ -80,6 +91,8 @@ class DockerSandbox:
         return network
 
     def ui(self, seat):
+        if type(seat) is not int or seat not in range(1,self.capacity+1):
+            raise ValueError('Seat exceeds deployment capacity')
         return 'http://127.0.0.1:' + str(self.config['port_base'] + seat * 2)
 
     def control(self, seat, epoch, method, body=None):
@@ -93,6 +106,7 @@ class DockerSandbox:
         name = self.identity(seat,epoch)
         if not self.secret_path.is_file() or any(p.is_symlink() for p in (self.secret_path,*self.secret_path.parents)):
             raise ValueError('Provider secret must be a dedicated regular file without symlink ancestors')
+        check_secret_permissions(self.secret_path)
         outer=self.inspect('network',self.config['egress_network'])
         if outer.get('Driver')!='bridge' or outer.get('Internal') is not False:
             raise RuntimeError('Provider sidecar requires the reviewed external bridge')

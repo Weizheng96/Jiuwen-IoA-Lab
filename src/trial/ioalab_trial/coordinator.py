@@ -92,8 +92,9 @@ class Coordinator:
             row = self.store.db.execute('SELECT * FROM seats WHERE owner=?', (owner,)).fetchone()
             queue = [item['owner'] for item in self.store.db.execute('SELECT owner FROM queue ORDER BY created,owner')]
         if row:
-            return {key: row[key] for key in ('id','state','epoch','expires')}
+            return {**{key: row[key] for key in ('id','state','epoch','expires')},'capacity':self.store.capacity}
         return {'state':'queued' if owner in queue else 'idle',
+                'capacity':self.store.capacity,
                 'position':queue.index(owner) + 1 if owner in queue else None}
 
     def access(self, owner, epoch, *, touch=False):

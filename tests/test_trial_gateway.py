@@ -22,7 +22,7 @@ from ioalab_trial.store import Store
 
 @pytest.fixture
 def gateway(tmp_path, monkeypatch):
-    store=Store(tmp_path/'control.sqlite')
+    store=Store(tmp_path/'control.sqlite',deployment_profile='linux-server')
     coordinator=Coordinator(store,audience='https://trial.test',admission_key='k'*40,
                             lease_seconds=100,grace_seconds=20,clock=lambda:1000)
     monkeypatch.setattr(coordinator,'reconcile',lambda sandbox:None)
@@ -111,7 +111,7 @@ def test_sdk_control_rejection_and_unknown_are_distinct(gateway,code):
 
 @pytest.mark.parametrize('origin',['https://trial.test','https://trial.test:9999','http://confirm.trial.test'])
 def test_confirmation_origin_cannot_share_native_hostname(tmp_path,origin):
-    store=Store(tmp_path/'control.sqlite')
+    store=Store(tmp_path/'control.sqlite',deployment_profile='linux-server')
     try:
         coordinator=Coordinator(store,audience='https://trial.test',admission_key='k'*40)
         with pytest.raises(ValueError):create_app(coordinator,SimpleNamespace(),confirm_origin=origin)

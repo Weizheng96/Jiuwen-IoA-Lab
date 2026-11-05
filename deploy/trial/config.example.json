@@ -1,4 +1,5 @@
 {
+  "deployment_profile": "linux-server",
   "origin": "https://trial.example.test",
   "confirm_origin": "https://trial-confirm.example.test",
   "formal_origin": "https://ioa.example.test",

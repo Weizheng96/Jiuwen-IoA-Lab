@@ -63,7 +63,9 @@ class Docker:
 @pytest.fixture
 def sandbox(monkeypatch,tmp_path):
     secret=tmp_path/'provider.json';secret.write_text('{"api_key":"private-provider-key"}')
-    sandbox=DockerSandbox({**configuration(),'proxy_secret_file':str(secret)})
+    sandbox=DockerSandbox({**configuration(),'proxy_secret_file':str(secret)},deployment_profile='linux-server')
+    # Docker command tests isolate Linux file metadata; dedicated profile tests cover the real checker.
+    monkeypatch.setattr('ioalab_trial.sandbox.check_secret_permissions',lambda path:None)
     docker=Docker(sandbox);sandbox.run=docker
     def post(url,**kwargs):
         assert kwargs['trust_env'] is False
@@ -97,6 +99,14 @@ def test_prepare_has_epoch_network_readonly_root_and_one_owned_volume(sandbox):
     assert target.identity(2,EPOCH)!=name and target.identity(1,'c'*32)!=name
 
 
+def test_invalid_secret_metadata_rejected_before_any_docker_resource(sandbox,monkeypatch):
+    target,docker=sandbox
+    def reject(path):raise ValueError('Provider secret must have Linux root:root ownership and mode 600')
+    monkeypatch.setattr('ioalab_trial.sandbox.check_secret_permissions',reject)
+    with pytest.raises(ValueError,match='root:root'):target.prepare(1,EPOCH)
+    assert docker.calls==[]
+
+
 @pytest.mark.parametrize('seat,epoch',[(0,EPOCH),(4,EPOCH),(1,'../formal'),(1,'A'*32)])
 def test_invalid_target_never_invokes_docker(sandbox,seat,epoch):
     target,docker=sandbox
@@ -108,7 +118,7 @@ def test_invalid_target_never_invokes_docker(sandbox,seat,epoch):
     {'egress_network':'--host'},{'deployment':'../formal'},
     {'model':{'name':'trial','api_key':'provider-key-must-never-enter-seat'}}])
 def test_invalid_deployment_configuration_rejected(updates):
-    with pytest.raises(ValueError):DockerSandbox({**configuration(),**updates})
+    with pytest.raises(ValueError):DockerSandbox({**configuration(),**updates},deployment_profile='linux-server')
 
 
 @pytest.mark.parametrize('network',[{'Internal':False},{'Driver':'host'}])
@@ -178,7 +188,7 @@ def test_preparation_rejects_foreign_network_label(sandbox):
 def test_each_reset_phase_failure_quarantines_without_reassignment(tmp_path,failed):
     from ioalab_trial.coordinator import Coordinator
     from ioalab_trial.store import Store
-    store=Store(tmp_path/'control.sqlite')
+    store=Store(tmp_path/'control.sqlite',deployment_profile='linux-server')
     coordinator=Coordinator(store,audience='https://native.test',admission_key='k'*40,clock=lambda:1000)
     with store.transaction() as db:
         db.execute("UPDATE seats SET state='quarantined'")
