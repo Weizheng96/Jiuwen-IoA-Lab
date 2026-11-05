@@ -23,6 +23,7 @@ class Coordinator:
         self.lease, self.grace, self.clock = lease_seconds, grace_seconds, clock
         self.listeners = set()
         self.stopping = threading.Event()
+        self._runtime_checked={}
 
     def begin_shutdown(self):
         """Fence browser access before draining; preserve every epoch and volume."""
@@ -172,6 +173,15 @@ class Coordinator:
             seat, epoch = row['id'], row['epoch']
             try:
                 state = row['state']
+                if state in ('ready','leased','reconnect_grace'):
+                    last=self._runtime_checked.get((seat,epoch),float('-inf'))
+                    if self.clock()-last>=15:
+                        try:sandbox.runtime_healthy(seat,epoch)
+                        except Exception:
+                            self.revoke(seat,'runtime_unavailable')
+                            self._state(seat,'quarantined')
+                            continue
+                        self._runtime_checked[(seat,epoch)]=self.clock()
                 if state in ('revoking','stopping','wiping'):
                     self._state(seat,'stopping')
                     sandbox.stop(seat,epoch)
@@ -189,6 +199,7 @@ class Coordinator:
                     sandbox.prepare(seat,epoch)
                     if self.stopping.is_set():return
                     sandbox.healthy(seat,epoch)
+                    self._runtime_checked[(seat,epoch)]=self.clock()
                     with self.store.transaction() as db:
                         if self.stopping.is_set():return
                         db.execute("UPDATE seats SET state='ready',owner=NULL,reason=NULL WHERE id=?", (seat,))

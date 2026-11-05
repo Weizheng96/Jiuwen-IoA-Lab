@@ -270,8 +270,9 @@ class DockerSandbox:
         self.checked_resources(seat,epoch)
 
     def healthy(self, seat, epoch):
+        from .processes import STARTUP_TIMEOUT
         required = ('nativeWeb','nativeWs','a2uiEnabled','skillLoaded','sdkConnected','servicesReady','cleanInitialState','sampleBudgetAvailable')
-        until = time.monotonic() + 60
+        until = time.monotonic() + STARTUP_TIMEOUT
         while time.monotonic() < until:
             try:
                 value = self.control(seat,epoch,'health')
@@ -281,6 +282,13 @@ class DockerSandbox:
                 pass
             time.sleep(1)
         raise RuntimeError('Real sandbox readiness evidence missing')
+
+    def runtime_healthy(self,seat,epoch):
+        """Current liveness only; never require unused balance or empty history."""
+        value=self.control(seat,epoch,'runtime-health')
+        required=('nativeWeb','nativeWs','sdkConnected','servicesReady')
+        if value.get('epoch')!=epoch or any(value.get(key) is not True for key in required):
+            raise RuntimeError('The original trial epoch is no longer runtime ready')
 
     def stop(self, seat, epoch):
         name = self.identity(seat,epoch)

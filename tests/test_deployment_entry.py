@@ -25,7 +25,7 @@ def test_bootstrap_prepares_admin_extension_before_handoff_and_original_web_star
     layout=Layout(tmp_path/'runtime',tmp_path/'state',tmp_path/'config');layout.claim()
     folder=layout.config/'agents';folder.mkdir()
     for name in ('official','assistant'):(folder/(name+'.env')).write_text(environment_text({'HOME':str(layout.state/'agents')}))
-    events=[];plans=units.plans(layout,administrator=True)
+    events=[];plans=units.plans(layout,administrator=True,core={'bind':'127.0.0.1','port':8750,'public_url':'https://ioa.example'})
     manager=SimpleNamespace(install=lambda _:events.append(('units',)),
         start=lambda name:events.append(('start',name)),enable=lambda name:events.append(('enable',name)))
     accounts=SimpleNamespace(reserve=lambda path,*args,**kwargs:events.append(('reserve',path.name)),
@@ -63,6 +63,20 @@ def test_accepted_background_install_does_not_look_like_a_shell_failure(monkeypa
     assert result=={'status':'waiting','operationId':'original'}
 
 
+def test_core_identity_checks_reuse_installed_probe_for_local_and_public_endpoints():
+    selected=object.__new__(Installation)
+    selected.layout=SimpleNamespace(environments=Path('/opt/runtime/envs'))
+    selected.config=SimpleNamespace(input={'public_url':'https://192.0.2.10'},core=lambda:{
+        'runtime':{'bind':'127.0.0.1','port':8750,'public_url':'https://192.0.2.10'}})
+    calls=[];selected.command=lambda argv,**kwargs:calls.append((argv,kwargs))
+    selected.core_ready()
+    assert len(calls)==2
+    for (argv,kwargs),url in zip(calls,('http://127.0.0.1:8750','https://192.0.2.10')):
+        assert argv[:4]==[Path('/opt/runtime/envs/current/core/bin/python'),'-I','-m','ioalab.readiness']
+        assert argv[argv.index('--url')+1]==url and '--config' not in argv
+        assert kwargs=={'role':'core'}
+
+
 def test_public_stop_preserves_waiting_and_uses_original_layout(monkeypatch,capsys):
     from deploy import lifecycle
     layout=object();seen=[]
@@ -78,11 +92,12 @@ def test_public_stop_preserves_waiting_and_uses_original_layout(monkeypatch,caps
 def test_trial_readiness_cannot_promote_incomplete_or_wrong_capacity(monkeypatch,tmp_path):
     import pytest
     import deploy.installation as module
-    config=tmp_path/'trial.json';config.write_text(json.dumps({'origin':'https://trial.example','port':8766}))
+    config=tmp_path/'trial.json';config.write_text(json.dumps({'origin':'https://trial.example','confirm_origin':'https://confirm.example','formal_origin':'https://formal.example','admission_key':'a'*40,'port':8766}))
+    formal=tmp_path/'platform.json';formal.write_text(json.dumps({'runtime':{'public_url':'https://formal.example','trial_url':'https://trial.example','trial_confirm_url':'https://confirm.example','trial_admission_key':'a'*40}}))
     selected=object.__new__(Installation)
     selected.progress={'requiredRunning':['trial']};selected.plans={'trial':{'unit':'ioalab-trial.service'}}
     selected.manager=SimpleNamespace(ready=lambda _: {'ActiveState':'active','UnitFileState':'disabled'})
-    selected.config=SimpleNamespace(input={'trial':{'config':str(config)}})
+    selected.config=SimpleNamespace(input={'platform_config':str(formal),'trial':{'config':str(config)}})
     for health in ({'ready':False,'capacity':3},{'ready':True,'capacity':1}):
         monkeypatch.setattr(module,'http_json',lambda _,value=health:value)
         with pytest.raises(RuntimeError,match='three-seat'):selected.readiness()

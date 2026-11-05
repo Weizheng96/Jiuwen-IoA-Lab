@@ -82,10 +82,10 @@ def test_installed_commands_are_role_scoped_and_drain_without_kill():
     root=SimpleNamespace(root=PurePosixPath('/opt/ioalab-runtime'),state=PurePosixPath('/var/lib/ioalab'),
         config=PurePosixPath('/etc/ioalab'),environments=PurePosixPath('/opt/ioalab-runtime/envs'),
         core_user='ioalab-core',agents_user='ioalab-agents')
-    plans=units.plans(root,administrator=True)
+    plans=units.plans(root,administrator=True,core={'bind':'127.0.0.1','port':8750,'public_url':'https://ioa.example'})
     rendered=units.render(root,DEPLOYMENT,plans)
     assert len(rendered)==6
-    assert len(plans['official']['pre'])==8
+    assert len(plans['official']['pre'])==9
     for key,row in plans.items():
         value=rendered[row['unit']]
         assert 'SendSIGKILL=no' in value
@@ -95,12 +95,18 @@ def test_installed_commands_are_role_scoped_and_drain_without_kill():
         assert row['command'][0].startswith('/opt/ioalab-runtime/envs/current/')
         assert row['command'][1:4]==['-I','-X','utf8']
         assert f'User={root.core_user if key=="core" else root.agents_user}' in value
-    assert '--config' in plans['assistant']['pre'][0]
+    assert '--config' in plans['assistant']['pre'][1]
+    assert 'ioalab.readiness' in plans['assistant']['pre'][0]
     assert 'WorkingDirectory=/var/lib/ioalab/core\n' in rendered['ioalab-core.service']
     assert 'EnvironmentFile=' not in rendered['ioalab-core.service']
     assert 'EnvironmentFile=/etc/ioalab/agents/official.env\n' in rendered['ioalab-official.service']
     assert plans['core']['command'][-4:]==['ioalab','--config','/etc/ioalab/core/platform.json','serve']
-    assert set(units.plans(root,administrator=False))=={'core','official'}
+    for key,row in plans.items():
+        if key=='core':continue
+        assert row['pre'][0][:5]==['/opt/ioalab-runtime/envs/current/core/bin/python','-I','-X','utf8','-m']
+        assert row['pre'][0][5:] == ['ioalab.readiness','--url','http://127.0.0.1:8750',
+            '--expected-public-url','https://ioa.example','--timeout','180','--request-timeout','3']
+    assert set(units.plans(root,administrator=False,core={'bind':'127.0.0.1','port':8750,'public_url':'https://ioa.example'}))=={'core','official'}
 
 
 @pytest.mark.parametrize('argument',['/tmp/a\nb','/tmp/a%b','/tmp/$HOME','C:\\tool\\python'])

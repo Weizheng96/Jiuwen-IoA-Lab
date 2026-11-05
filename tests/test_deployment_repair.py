@@ -184,7 +184,7 @@ def test_initial_progress_reuses_existing_candidate_without_build_or_activation(
     assert repair.initial_progress({'action':'install'}, {})=={'stage':'candidate'}
 
 
-@pytest.mark.parametrize('fault',[None,'active','populated','account','unit-map','path-phase'])
+@pytest.mark.parametrize('fault',[None,'active','populated','account','unit-map','path-phase','trial'])
 def test_stopped_ownership_uses_existing_checks_and_never_creates(subject,monkeypatch,fault):
     import sys
     layout,parent,_,_,_=subject
@@ -194,6 +194,7 @@ def test_stopped_ownership_uses_existing_checks_and_never_creates(subject,monkey
              'paths':{str(layout.state/'core'):{'phase':'owned','role':'core'}},
              'units':{'ioalab-core.service':{'phase':'ready'},'ioalab-official.service':{'phase':'ready'}}}
     if fault=='unit-map':records['units'].pop('ioalab-official.service')
+    if fault=='trial':records['units']['ioalab-trial.service']={'phase':'ready'}
     if fault=='path-phase':next(iter(records['paths'].values()))['phase']='preparing'
     class ReadOnlyAccounts:
         def __init__(self,*args):pass
@@ -208,13 +209,23 @@ def test_stopped_ownership_uses_existing_checks_and_never_creates(subject,monkey
     monkeypatch.setattr(repair,'Accounts',ReadOnlyAccounts)
     monkeypatch.setattr(repair,'Systemd',ReadOnlyManager)
     monkeypatch.setattr(repair,'protected_file',lambda _:True)
-    monkeypatch.setattr(repair.units,'plans',lambda *_args,**_kwargs:{'core':{'unit':'ioalab-core.service'},'official':{'unit':'ioalab-official.service'}})
+    def plans(*args,**kwargs):
+        rows={'core':{'unit':'ioalab-core.service'},'official':{'unit':'ioalab-official.service'}}
+        if kwargs.get('trial'):
+            assert kwargs['trial']=={'config':'original-trial.json','controller_python':'original-python'}
+            rows['trial']={'unit':'ioalab-trial.service'}
+        return rows
+    monkeypatch.setattr(repair.units,'plans',plans)
+    from deploy import configuration
+    monkeypatch.setattr(configuration,'platform',lambda path:{'bind':'127.0.0.1','port':8750,'public_url':'https://ioa.example'})
     monkeypatch.setitem(sys.modules,'pwd',SimpleNamespace(getpwnam=lambda _:object()))
     before=copy.deepcopy(records)
-    if fault:
-        with pytest.raises(RuntimeError):REAL_STOPPED_OWNERSHIP(layout,records,{'input':{'admin_assistant':{'enabled':False}}})
+    initial={'input':{'admin_assistant':{'enabled':False},'platform_config':'original-config.json'}}
+    if fault=='trial':initial['input']['trial']={'config':'original-trial.json','controller_python':'original-python'}
+    if fault and fault!='trial':
+        with pytest.raises(RuntimeError):REAL_STOPPED_OWNERSHIP(layout,records,initial)
     else:
-        REAL_STOPPED_OWNERSHIP(layout,records,{'input':{'admin_assistant':{'enabled':False}}})
+        REAL_STOPPED_OWNERSHIP(layout,records,initial)
         assert calls==[('verify','core'),('verify','agents'),('path','core')]
     assert records==before
 

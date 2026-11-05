@@ -55,6 +55,37 @@ def test_authorization_runs_as_service_owner_with_credentials_only_on_stdin(monk
     with pytest.raises(subprocess.CalledProcessError):bootstrap.authorize_services_as_owner(admin)
 
 
+def test_actual_runtime_probe_module_entry_accepts_busy_business_without_initial_checks(tmp_path,monkeypatch,capsys):
+    import runpy,sys
+    from types import SimpleNamespace
+    from ioalab_trial import bootstrap
+    from ioalab_sdk.runtime import ipc,config
+    from ioalab_services import coordinator
+    import websockets.sync.client
+    (tmp_path/'control').mkdir();(tmp_path/'control/probe-session.json').write_text('{"cookie":"original"}')
+    monkeypatch.setattr(bootstrap,'ROOT',tmp_path)
+    monkeypatch.setattr(bootstrap,'deployment',lambda:None)
+    live={'platformConnected':True,'ipcReady':True,'identities':[{'executionReady':False}]}
+    monkeypatch.setattr(config.RuntimeConfig,'load',lambda path:SimpleNamespace(home=tmp_path/'sdk'))
+    monkeypatch.setattr(ipc,'LocalClient',lambda *a,**kw:SimpleNamespace(call=lambda *a,**kw:{'data':live}))
+    monkeypatch.setattr(coordinator,'status',lambda dep:{'accounts':[{'runtime':{**live,'host':{'available':True}}}]})
+    monkeypatch.setattr(httpx,'Client',lambda **kw:pytest.fail('Runtime probe must not log in or inspect initial balance/history'))
+    monkeypatch.setattr(httpx,'get',lambda *a,**kw:httpx.Response(200,request=httpx.Request('GET','http://native/')))
+    class Socket:
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def send(self,raw):
+            self.request=json.loads(raw)
+            assert self.request['method']=='session.list'
+        def recv(self,**kwargs):return json.dumps({'id':self.request['id'],'type':'res','ok':True,'payload':{'sessions':[{'id':'business-session'}]}})
+    monkeypatch.setattr(websockets.sync.client,'connect',lambda *a,**kw:Socket())
+    monkeypatch.setattr(sys,'argv',['ioalab_trial.probe','--runtime'])
+    runpy.run_module('ioalab_trial.probe',run_name='__main__')
+    value=json.loads(capsys.readouterr().out)
+    assert all(value[key] is True for key in ('nativeWeb','nativeWs','sdkConnected','servicesReady'))
+    assert value['cleanInitialState'] is None and value['sampleBudgetAvailable'] is None
+
+
 def test_core_seed_has_only_four_public_summaries():
     value=public_seed(IDS)
     assert len(value['domains'])==1

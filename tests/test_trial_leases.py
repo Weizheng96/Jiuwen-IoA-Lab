@@ -28,6 +28,36 @@ def ready(coordinator):
             db.execute("UPDATE seats SET state='ready',epoch=? WHERE id=?", (str(seat)*32,seat))
 
 
+def test_runtime_failure_revokes_then_quarantines_without_wiping(trial):
+    from types import SimpleNamespace
+    coordinator,now=trial;ready(coordinator)
+    token,_=coordinator.consume(ticket(coordinator));lease=coordinator.enqueue('alice')
+    revoked=[];coordinator.listeners.add(revoked.append)
+    def health(seat,epoch):
+        if seat==lease['id']:raise RuntimeError('actual runtime exited')
+    sandbox=SimpleNamespace(runtime_healthy=health,stop=lambda *a:pytest.fail('Unverified runtime must be preserved'),
+        wipe=lambda *a:pytest.fail('Unverified runtime must not be destroyed'))
+    coordinator.reconcile(sandbox)
+    assert coordinator.status('alice')['state']=='quarantined' and revoked==[lease['id']]
+    with pytest.raises(Denied):coordinator.session(token)
+    assert coordinator.status('alice')['epoch']==lease['epoch']
+    assert coordinator.store.seats()[1]['state']=='ready'
+
+
+def test_runtime_liveness_is_throttled_and_not_based_on_initial_cleanliness(trial):
+    from types import SimpleNamespace
+    from ioalab_trial.probe import runtime_services_ready
+    coordinator,now=trial;ready(coordinator);calls=[]
+    sandbox=SimpleNamespace(runtime_healthy=lambda seat,epoch:calls.append(seat))
+    coordinator.reconcile(sandbox);coordinator.reconcile(sandbox)
+    assert calls==[1,2,3]
+    now[0]+=15;coordinator.reconcile(sandbox)
+    assert calls==[1,2,3,1,2,3]
+    busy={'accounts':[{'runtime':{'platformConnected':True,'ipcReady':True,'host':{'available':True}},
+        'services':[{'current':{'localExecution':{'executionReady':False}}}]}]}
+    assert runtime_services_ready(busy)
+
+
 def test_deployment_shutdown_stops_without_wiping_and_fences_admission(trial):
     from types import SimpleNamespace
     coordinator,_=trial;ready(coordinator);calls=[]

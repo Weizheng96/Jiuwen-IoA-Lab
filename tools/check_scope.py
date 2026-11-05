@@ -71,6 +71,7 @@ FILE_RULES = {
     'deploy/__main__.py': ('deployment_repair', 'deployment_entry', 'deployment_jobs'),
     'deploy/installation.py': ('deployment_repair', 'deployment_entry', 'deployment_upgrade_flow'),
     'src/platform/ioalab/config.py': ('platform_configuration','configuration_web','account_rewards','auth','auth_failures','domain_migrations'),
+    'src/platform/ioalab/readiness.py': ('core_readiness', 'deployment_lifecycle', 'linux_service_management', 'trial_processes'),
     'src/platform/ioalab/configuration.py': ('platform_configuration','configuration_web','configuration_migration','deployment_configs'),
     'src/platform/ioalab/configuration_permissions.py': ('platform_configuration','configuration_web'),
     'src/platform/ioalab/web/source.py': ('configuration_web','auth_failures'),

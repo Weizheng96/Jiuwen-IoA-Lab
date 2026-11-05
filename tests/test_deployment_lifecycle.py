@@ -90,7 +90,7 @@ def test_units_stop_on_core_loss_without_automatic_restart():
     from pathlib import PurePosixPath
     layout=SimpleNamespace(root=PurePosixPath('/opt/r'),environments=PurePosixPath('/opt/r/envs'),
         state=PurePosixPath('/var/lib/r'),config=PurePosixPath('/etc/r'),core_user='core',agents_user='agents')
-    plans=units.plans(layout,administrator=True,trial={'config':'/etc/trial.json','controller_python':'/opt/trial/bin/python'})
+    plans=units.plans(layout,administrator=True,core={'bind':'127.0.0.1','port':8750,'public_url':'https://ioa.example'},trial={'config':'/etc/trial.json','controller_python':'/opt/trial/bin/python'})
     content=units.render(layout,'a'*32,plans)
     for key,row in plans.items():
         assert 'Restart=no' in content[row['unit']]

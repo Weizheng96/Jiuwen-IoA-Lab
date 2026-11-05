@@ -44,7 +44,7 @@ def trial_binding(value):
     return result
 
 
-def plans(layout, *, administrator, trial=None):
+def plans(layout, *, administrator, core, trial=None):
     stable=layout.environments/'current'
     participant=stable/'participant/bin/python'
     swarm=stable/'swarm/bin/python'
@@ -80,6 +80,11 @@ def plans(layout, *, administrator, trial=None):
         rows['trial']={'unit':'ioalab-trial.service','user':'root','directory':layout.state,
             'environment':None,'after':['core'],
             'command':python(trial['controller_python'],'ioalab_trial','--config',trial['config']), 'pre':[]}
+    from .configs import local_url
+    probe=python(stable/'core/bin/python','ioalab.readiness','--url',local_url(core['bind'],core['port']),
+                 '--expected-public-url',core['public_url'],'--timeout','180','--request-timeout','3')
+    for key,row in rows.items():
+        if key!='core':row['pre']=[list(probe),*row['pre']]
     return rows
 
 

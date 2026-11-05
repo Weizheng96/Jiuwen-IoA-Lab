@@ -8,6 +8,7 @@ import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import subprocess
@@ -15,6 +16,127 @@ import threading
 import time
 
 import httpx
+
+
+def private_record(path,value):
+    temporary=path.with_suffix('.tmp')
+    temporary.write_text(json.dumps(value,ensure_ascii=False)+'\n');temporary.chmod(0o600);temporary.replace(path)
+
+
+def redacted(line,secrets):
+    for value in secrets:
+        if value:line=line.replace(value,'<redacted>')
+    line=re.sub(r'''(?i)(["']?(?:api[_-]?key|password|authorization|token|secret)["']?\s*[:=]\s*)(["'])(.*?)\2''',r'\1"<redacted>"',line)
+    line=re.sub(r'(?i)(Bearer\s+)[^\s"\',}]+',r'\1<redacted>',line)
+    return re.sub(r"(?i)(api[_-]?key|password|authorization|token|secret)([\"']?\s*[:=]\s*[\"']?)([^\s,\"'}]+)",r"\1\2<redacted>",line)
+
+
+class SeatProcesses:
+    def __init__(self,control,secrets):
+        from .processes import require_pid1
+        require_pid1()
+        self.children={};self.identities={};self.readers=[];self.control=control;self.secrets=secrets
+        self.logs=control/'logs';self.logs.mkdir(mode=0o700)
+        self.record={'phase':'starting','roles':{}}
+        self.save()
+
+    def save(self):private_record(self.control/'lifecycle.json',self.record)
+
+    def launch(self,name,command,*,env,cwd,user=None):
+        from .processes import identity
+        options={} if user is None else {'user':user,'group':user,'extra_groups':[]}
+        process=subprocess.Popen(command,env=env,cwd=cwd,start_new_session=True,
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,**options)
+        self.children[name]=process;self.identities[name]=identity(process.pid)
+        def read():
+            path=self.logs/(name+'.log')
+            with path.open('w',encoding='utf-8') as output:
+                path.chmod(0o600)
+                for line in iter(process.stdout.readline,b''):
+                    output.write(redacted(line.decode('utf-8','replace'),self.secrets));output.flush()
+            process.stdout.close()
+        reader=threading.Thread(target=read,name='trial-log-'+name,daemon=False)
+        reader.start();self.readers.append(reader)
+        self.record['roles'][name]={'pid':process.pid,'uid':user if user is not None else 0};self.save()
+        return process
+
+    def note_exits(self):
+        changed=False;observed=[];timestamp=time.time()
+        for name,child in self.children.items():
+            code=child.poll()
+            if code is not None:
+                if self.record['roles'][name].get('exitCode')!=code:
+                    self.record['roles'][name]['exitCode']=code;changed=True
+                if name not in ('setup','core-ready'):
+                    observed.append({'role':name,'exitCode':code,'observedAt':timestamp})
+        if observed and self.record['phase'] in ('starting','running') and 'firstObservedExits' not in self.record:
+            self.record['firstObservedExits']=observed;changed=True
+        if changed:self.save()
+
+    def signal(self,name):
+        from .processes import identity
+        child=self.children.get(name)
+        if child is None or child.poll() is not None:return
+        current=identity(child.pid);original=self.identities[name]
+        if current is None:return
+        if original is None or any(current[key]!=original[key] for key in ('pid','uid','start')):
+            raise RuntimeError('The original supervised process changed before TERM')
+        child.terminate()
+
+    def wait(self,name,timeout=90):
+        child=self.children.get(name)
+        if child is not None:child.wait(timeout=timeout)
+        self.note_exits()
+
+    def shutdown(self):
+        from .processes import terminate_owned,descendants
+        self.record['phase']='stopping';self.save()
+        for name in ('setup','core-ready'):
+            self.signal(name);self.wait(name)
+        for name in ('assistant','services'):self.signal(name)
+        for name in ('assistant','services'):self.wait(name)
+        terminate_owned({10002,10004})
+        self.signal('native');self.wait('native')
+        terminate_owned({10003})
+        self.signal('core');self.wait('core')
+        terminate_owned({10001})
+        if any(row['state']!='Z' for row in descendants()):raise RuntimeError('Unreleased seat processes remain')
+        for reader in self.readers:reader.join(timeout=5)
+        if any(reader.is_alive() for reader in self.readers):raise RuntimeError('Private process logs have not released')
+        self.record['phase']='stopped';self.save()
+
+
+def shutdown_preserving(owner,retry):
+    """A failed normal stop retains PID1 and the original writers for inspection."""
+    while True:
+        retry.clear()
+        try:owner.shutdown();return
+        except Exception as error:
+            owner.record.update(phase='stop_unverified',shutdownError={'type':type(error).__name__})
+            try:owner.save()
+            except OSError:pass  # A full diagnostic volume must not terminate PID1.
+            while not retry.wait(1):
+                try:owner.note_exits()
+                except OSError:pass
+
+
+def start_roles(owner,plan,root,environment,stop,startup_deadline,sdk_key):
+    for name, uid in (('core',10001),('native',10003),('assistant',10002),('services',10004)):
+        env = {**environment,'HOME':str(root/name),'TMPDIR':str(root/name/'tmp')}
+        (root/name/'tmp').mkdir(exist_ok=True)
+        os.chown(root/name/'tmp',uid,uid)
+        if name == 'assistant':
+            env['IOALAB_TRIAL_SDK_KEY'] = sdk_key
+        owner.launch(name,plan['processes'][name],env=env,cwd=root/name,user=uid)
+        if name=='core':
+            probe=owner.launch('core-ready',['/opt/core/bin/python','-I','-m','ioalab.readiness',
+                '--url','http://127.0.0.1:8750','--expected-public-url','http://127.0.0.1:8750',
+                '--timeout',str(max(1,startup_deadline-time.monotonic()-5)), '--request-timeout','3'],env=env,cwd=root/name,user=uid)
+            while probe.poll() is None and not stop.wait(.1):
+                if time.monotonic()>=startup_deadline:raise RuntimeError('Trial core readiness exceeded the startup deadline')
+            if stop.is_set():raise RuntimeError('Trial core startup was stopped')
+            owner.wait('core-ready',timeout=5)
+            if probe.returncode:raise RuntimeError('The original trial core is not publicly ready')
 
 
 def main():
@@ -39,21 +161,33 @@ def main():
     environment.update(PYTHONUTF8='1',IOALAB_TRIAL_EPOCH=epoch,
                        HOME=str(control/'root'),TMPDIR=str(control/'tmp'))
     model = os.environ.pop('IOALAB_TRIAL_MODEL','')
-    subprocess.run(plan['setup'],env={**environment,'IOALAB_TRIAL_MODEL':model},cwd=root,check=True,timeout=180)
-    bridge = root/'native/model-bridge.json'
-    bridge.write_text(json.dumps({'key':model_key}))
-    bridge.chmod(0o600);os.chown(bridge,10003,10003)
-    children = {}
-    stop = threading.Event()
-    for name, uid in (('core',10001),('native',10003),('assistant',10002),('services',10004)):
-        env = {**environment,'HOME':str(root/name),'TMPDIR':str(root/name/'tmp')}
-        (root/name/'tmp').mkdir(exist_ok=True)
-        os.chown(root/name/'tmp',uid,uid)
-        if name == 'assistant':
-            env['IOALAB_TRIAL_SDK_KEY'] = sdk_key
-        children[name] = subprocess.Popen(plan['processes'][name],env=env,cwd=root/name,
-            user=uid,group=uid,extra_groups=[],start_new_session=True,
-            stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    secret_values=[key,sdk_key,model_key]
+    try:secret_values.append(json.loads(model).get('api_key',''))
+    except ValueError:pass
+    owner=SeatProcesses(control,secret_values);children=owner.children
+    from .processes import STARTUP_TIMEOUT
+    startup_deadline=time.monotonic()+STARTUP_TIMEOUT
+    stop=threading.Event();retry=threading.Event()
+    def request_stop(*_):stop.set();retry.set()
+    for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,request_stop)
+    try:
+        setup=owner.launch('setup',plan['setup'],env={**environment,'IOALAB_TRIAL_MODEL':model},cwd=root)
+        deadline=min(startup_deadline,time.monotonic()+180)
+        while setup.poll() is None and not stop.wait(.1):
+            if time.monotonic()>=deadline:raise RuntimeError('Trial setup has not completed; preserve private logs')
+        if stop.is_set():raise RuntimeError('Trial setup was stopped')
+        if setup.returncode:raise RuntimeError('Trial setup failed; inspect its private role log')
+    except BaseException:
+        shutdown_preserving(owner,retry);raise
+    try:
+        bridge = root/'native/model-bridge.json'
+        bridge.write_text(json.dumps({'key':model_key}))
+        bridge.chmod(0o600);os.chown(bridge,10003,10003)
+        start_roles(owner,plan,root,environment,stop,startup_deadline,sdk_key)
+    except BaseException as error:
+        owner.record['startupFailure']={'errorType':type(error).__name__}
+        owner.note_exits();owner.save()
+        shutdown_preserving(owner,retry);raise
 
     def revoke():
         (control/'revoked').touch(mode=0o644,exist_ok=True)
@@ -63,6 +197,7 @@ def main():
             pass
 
         def do_POST(self):
+            self.connection.settimeout(10)
             status = 200
             try:
                 expected = model_key if self.path == '/model' else key
@@ -80,10 +215,10 @@ def main():
                 elif self.path == '/revoke' and body == {}:
                     revoke()
                     result = {'revoked':True}
-                elif self.path == '/health' and body == {} and not (control/'revoked').exists():
-                    if any(child.poll() is not None for child in children.values()):
+                elif self.path in ('/health','/runtime-health') and body == {} and not (control/'revoked').exists():
+                    if stop.is_set() or any(child.poll() is not None for name,child in children.items() if name not in ('setup','core-ready')):
                         raise ValueError()
-                    observed = subprocess.run(plan['health'],env=environment,cwd=root,
+                    observed = subprocess.run([*plan['health'],*(['--runtime'] if self.path=='/runtime-health' else [])],env=environment,cwd=root,
                         check=True,capture_output=True,text=True,timeout=20)
                     result = {**json.loads(observed.stdout),'epoch':epoch}
                 elif self.path == '/confirmations' and not (control/'revoked').exists():
@@ -107,35 +242,23 @@ def main():
             self.end_headers()
             self.wfile.write(raw)
 
-    server = ThreadingHTTPServer(('0.0.0.0',8767),Handler)
-    server.daemon_threads = True
-    threading.Thread(target=server.serve_forever,daemon=True).start()
-    for sig in (signal.SIGTERM,signal.SIGINT):
-        signal.signal(sig,lambda *_:stop.set())
+    server=None
     try:
+        server=ThreadingHTTPServer(('0.0.0.0',8767),Handler)
+        server.daemon_threads=False
+        threading.Thread(target=server.serve_forever,daemon=True).start()
+        owner.record['phase']='running';owner.save()
         while not stop.wait(.2):
-            if any(child.poll() is not None for child in children.values()):
+            owner.note_exits()
+            if any(child.poll() is not None for name,child in children.items() if name not in ('setup','core-ready')):
                 stop.set()
     finally:
         revoke()
-        server.shutdown()
-        for child in children.values():
-            try:
-                os.killpg(child.pid,signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        # Never leave a detached Worker after declaring success. PID1 remains
-        # alive if descendants refuse to stop; the host then quarantines the seat.
-        while True:
-            for child in children.values():
-                child.poll()
-            try:
-                while os.waitpid(-1,os.WNOHANG)[0]:
-                    pass
-            except ChildProcessError:
-                break
-            time.sleep(.2)
-        server.server_close()
+        if server is not None:
+            server.shutdown();server.server_close()
+        shutdown_preserving(owner,retry)
+    if owner.record.get('firstObservedExits'):
+        raise RuntimeError('An owned role exited unexpectedly; inspect private lifecycle and role logs')
 
 
 if __name__ == '__main__':

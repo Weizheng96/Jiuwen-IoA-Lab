@@ -79,7 +79,9 @@ def stopped_ownership(layout, metadata, initial):
         if record.get('phase') != 'owned':
             raise RuntimeError('Repair cannot adopt an unfinished state ownership transfer')
         accounts.reserve(Path(name), record['role'], create=False)
-    plans = units.plans(layout, administrator=initial['input']['admin_assistant']['enabled'])
+    from .configuration import platform
+    plans = units.plans(layout, administrator=initial['input']['admin_assistant']['enabled'],
+                        core=platform(initial['input']['platform_config']),trial=initial['input'].get('trial'))
     if set(metadata.get('units', {})) != {row['unit'] for row in plans.values()}:
         raise RuntimeError('Repair requires the complete original managed unit mapping')
     manager = Systemd(owner, metadata['units'], lambda: None)

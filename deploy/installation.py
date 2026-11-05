@@ -132,7 +132,7 @@ class Installation:
             raise RuntimeError('Restore the original installation ownership')
         self.accounts=Accounts(self.layout,job.owner,self.metadata,self.save_metadata)
         self.manager=Systemd(job.owner,self.metadata['units'],self.save_metadata)
-        self.plans=units.plans(self.layout,administrator=self.config.input['admin_assistant']['enabled'],trial=self.config.input.get('trial'))
+        self.plans=units.plans(self.layout,administrator=self.config.input['admin_assistant']['enabled'],core=self.config.input,trial=self.config.input.get('trial'))
         self.contents=units.render(self.layout,job.owner,self.plans)
         from .repair import initial_progress
         self.progress=read_json(self.progress_path) if self.progress_path.exists() else initial_progress(self.request,self.plans)
@@ -228,9 +228,8 @@ class Installation:
         port=int(values['runtime']['port'])
         if not 1<=port<=65535:raise ValueError('Use a valid configured core port')
         for url in (local_url(bind,port),values['runtime']['public_url']):
-            answer=http_json(url+'/api/config')
-            if answer.get('publicUrl')!=self.config.input['public_url']:
-                raise RuntimeError('The actual core does not have this original public platform identity')
+            self.command([self.layout.environments/'current/core/bin/python','-I','-m','ioalab.readiness',
+                          '--url',url,'--expected-public-url',self.config.input['public_url'],'--timeout','0'],role='core')
 
     def wait(self,query):
         until=time.monotonic()+180
@@ -332,6 +331,8 @@ print(json.dumps(r,ensure_ascii=False))
             report['administrator']={'connected':True,'hostAvailable':True,'currentInterfaceQuerySucceeded':True,
                 'meetingConfigured':self.config.input['admin_assistant']['notification'] is not None}
         if 'trial' in required:
+            from .configuration import trial_pair
+            trial_pair(self.config.input['platform_config'],self.config.input['trial'])
             value=read_json(Path(self.config.input['trial']['config']))
             request=Request(local_url('127.0.0.1',value.get('port',8766))+'/health',
                             headers={'Host':urlsplit(value['origin']).netloc})

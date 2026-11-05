@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import uuid
 
 import httpx
@@ -34,6 +35,8 @@ def query(method):
 
 
 def main():
+    runtime_mode=sys.argv[1:]==['--runtime']
+    if sys.argv[1:] and not runtime_mode:raise ValueError('Use only the public runtime-health option')
     from ioalab_sdk.runtime.ipc import LocalClient
     from ioalab_sdk.runtime.config import RuntimeConfig
     from ioalab_services.coordinator import status
@@ -41,9 +44,11 @@ def main():
     live = LocalClient(config.home).call('runtime.status')['data']
     service_state = status(deployment())
     receipt=json.loads((ROOT/'control/probe-session.json').read_text('utf-8'))
-    with httpx.Client(base_url='http://127.0.0.1:8750',trust_env=False,timeout=3) as participant:
+    sufficient=clean=None
+    if not runtime_mode:
+      with httpx.Client(base_url='http://127.0.0.1:8750',trust_env=False,timeout=3) as participant:
         sufficient=sample_budget(participant,receipt)
-    with httpx.Client(base_url='http://127.0.0.1:8750',trust_env=False,timeout=3) as client:
+      with httpx.Client(base_url='http://127.0.0.1:8750',trust_env=False,timeout=3) as client:
         core = json.loads((ROOT/'core/platform.json').read_text())
         response = client.post('/api/admin/login',json={'username':core['admin']['username'],'password':core['admin']['password']})
         response.raise_for_status()
@@ -53,9 +58,9 @@ def main():
         clean = orders.json() == [] and intents.json() == [] and stats.json()['payment']['transfers_total'] == 0
     response = httpx.get('http://127.0.0.1:8080/',timeout=3,trust_env=False)
     response.raise_for_status()
-    installed = query('skills.installed')
+    installed = query('skills.installed') if not runtime_mode else None
     sessions = query('session.list')
-    native_config = query('config.get')
+    native_config = query('config.get') if not runtime_mode else None
     a2ui_enabled = isinstance(native_config,dict) and native_config.get('a2ui_enabled') in (True,'true')
     # Unexpected public schemas fail readiness, rather than assuming an empty list.
     native_sessions = sessions.get('sessions') if isinstance(sessions,dict) else None
@@ -65,17 +70,23 @@ def main():
     # must provide a reviewed acceptance receipt baked into the image after the
     # original UI/WS/A2UI and real Skill->SDK loop have actually passed.
     from .acceptance import validated_checks
-    native_accepted = all(validated_checks().values())
+    native_accepted = runtime_mode or all(validated_checks().values())
     print(json.dumps({'nativeWeb':response.is_success and native_accepted,
         'a2uiEnabled':a2ui_enabled,
         'nativeWs':isinstance(sessions,dict) and native_accepted,'skillLoaded':skill_loaded,
-        'sdkConnected':live['platformConnected'] and all(item['executionReady'] for item in live['identities']),
-        'servicesReady':len(service_state.get('accounts',[])) == 1 and all(
+        'sdkConnected':live['platformConnected'] and (bool(live.get('ipcReady')) if runtime_mode else all(item['executionReady'] for item in live['identities'])),
+        'servicesReady':(runtime_services_ready(service_state) if runtime_mode else len(service_state.get('accounts',[])) == 1 and all(
             not row.get('error') and len(row.get('services',[])) == 4 and all(
                 not item.get('error') and item.get('current',{}).get('localExecution',{}).get('executionReady') is True
                 and item.get('current',{}).get('indexReady') is True and item.get('current',{}).get('templateReady') is True
-                for item in row['services']) for row in service_state.get('accounts',[])),
+                for item in row['services']) for row in service_state.get('accounts',[]))),
         'cleanInitialState':clean and native_sessions == [],'sampleBudgetAvailable':sufficient}))
+
+
+def runtime_services_ready(value):
+    rows=value.get('accounts',[])
+    return len(rows)==1 and all(not row.get('error') and row.get('runtime',{}).get('platformConnected')
+        and row.get('runtime',{}).get('ipcReady') and row.get('runtime',{}).get('host',{}).get('available') for row in rows)
 
 
 if __name__ == '__main__':main()

@@ -1,5 +1,6 @@
 """First-write recovery and reinstall preservation for sensitive deployment configuration."""
 import json
+from pathlib import Path
 
 import pytest
 
@@ -23,6 +24,42 @@ def fixture(tmp_path,**changes):
 def workspace(layout):
     return {'status':'completed','data_dir':str(layout.state/'agents/swarm-admin'),
             'command':[str(layout.environments/'current/swarm/bin/jiuwenswarm-process')],'model':'OpenAI@native-selection'}
+
+
+@pytest.mark.parametrize('change',['matching','trailing-slash','empty-native','wrong-key','wrong-port','formal-conflict',
+                                  'native-default-port','confirm-default-port','native-host-case','confirm-host-case'])
+def test_trial_pair_is_checked_before_installation_effects(tmp_path,monkeypatch,change):
+    from deploy import configuration,units
+    layout,_,value=fixture(tmp_path)
+    path=Path(value['platform_config'])
+    core=json.loads(path.read_text());core['runtime'].update(public_url='https://192.0.2.10',
+        trial_url='https://192.0.2.10:8443',trial_confirm_url='https://192.0.2.10:9443',trial_admission_key='PRIVATE-KEY-'*4)
+    gateway={'origin':'https://192.0.2.10:8443','confirm_origin':'https://192.0.2.10:9443',
+             'formal_origin':'https://192.0.2.10:443','admission_key':'PRIVATE-KEY-'*4}
+    if change=='empty-native':core['runtime']['trial_url']=''
+    if change=='wrong-key':gateway['admission_key']='DIFFERENT-PRIVATE-KEY-'*3
+    if change=='wrong-port':gateway['confirm_origin']='https://192.0.2.10:9444'
+    if change=='formal-conflict':core['runtime']['trial_confirm_url']='https://192.0.2.10:443'
+    if change=='trailing-slash':
+        core['runtime']['trial_url']+='/'
+        gateway['confirm_origin']+='/'
+    if change in ('native-default-port','confirm-default-port','native-host-case','confirm-host-case'):
+        core['runtime'].update(trial_url='https://trial.test',trial_confirm_url='https://confirm.test')
+        gateway.update(origin='https://trial.test',confirm_origin='https://confirm.test')
+        if change=='native-default-port':core['runtime']['trial_url']='https://trial.test:443'
+        if change=='confirm-default-port':gateway['confirm_origin']='https://confirm.test:443'
+        if change=='native-host-case':core['runtime']['trial_url']='https://TRIAL.test'
+        if change=='confirm-host-case':gateway['confirm_origin']='https://CONFIRM.test'
+    path.write_text(json.dumps(core),encoding='utf-8')
+    trial=tmp_path/'trial.json';trial.write_text(json.dumps(gateway),encoding='utf-8')
+    binding={'config':str(trial),'controller_python':'not-executed'}
+    monkeypatch.setattr(units,'trial_binding',lambda selected:binding)
+    if change in ('matching','trailing-slash'):
+        result=configuration.validate({**value,'trial':binding})
+        assert result['trial']==binding and 'admission_key' not in json.dumps(result)
+    else:
+        with pytest.raises(ValueError) as error:configuration.validate({**value,'trial':binding})
+        assert 'must be complete and match' in str(error.value) and 'PRIVATE-KEY' not in str(error.value)
 
 
 def test_reinstall_preserves_credentials_and_operator_edits(tmp_path):

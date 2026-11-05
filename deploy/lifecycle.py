@@ -20,7 +20,8 @@ class Lifecycle:
         if self.metadata.get('deploymentId')!=self.owner:
             raise RuntimeError('Deployment ownership changed')
         initial=read_json(regular(layout.private/'initial.json'))['input']
-        self.plans=units.plans(layout,administrator=initial['admin_assistant']['enabled'],trial=initial.get('trial'))
+        from .configuration import platform
+        self.plans=units.plans(layout,administrator=initial['admin_assistant']['enabled'],core=platform(initial['platform_config']),trial=initial.get('trial'))
         if set(self.metadata['units'])!={row['unit'] for row in self.plans.values()}:
             raise RuntimeError('The complete original managed component mapping changed')
         self.manager=Systemd(self.owner,self.metadata['units'],lambda:None)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ipaddress
+import hmac
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -129,6 +130,36 @@ def platform(path):
     return result
 
 
+def trial_pair(platform_path,trial):
+    """Read only the documented formal/trial admission configuration projection."""
+    if trial is None:return
+    formal=read_json(platform_path)['runtime'];gateway=read_json(trial['config'])
+    def origin(value):
+        parsed=urlsplit(url(value,'trial origin',root=True))
+        if parsed.scheme!='https':raise ValueError('Trial origins require HTTPS')
+        port=parsed.port if parsed.port is not None else 443
+        if port<1:raise ValueError('Invalid admission port')
+        return parsed.scheme,parsed.hostname.lower(),port
+    try:
+        native=origin(formal['trial_url']);confirm=origin(formal['trial_confirm_url']);public=origin(formal['public_url'])
+        if len({native,confirm,public})!=3:raise ValueError('Admission origins must be distinct')
+        if native[1]==confirm[1]:ipaddress.ip_address(native[1])
+        if (native!=origin(gateway['origin']) or confirm!=origin(gateway['confirm_origin'])
+                or public!=origin(gateway['formal_origin'])):
+            raise ValueError('Admission origin binding changed')
+        # Formal settings remove trailing slashes before issuing aud; the trial
+        # owner applies precisely that operation before comparing the ticket.
+        # Origin equivalence alone does not imply serialized audience equality.
+        if (formal['trial_url'].rstrip('/')!=gateway['origin'].rstrip('/')
+                or formal['trial_confirm_url'].rstrip('/')!=gateway['confirm_origin'].rstrip('/')):
+            raise ValueError('Admission audience binding changed')
+        key=formal['trial_admission_key'];other=gateway['admission_key']
+        if not isinstance(key,str) or not isinstance(other,str) or len(key.encode())<32 or not hmac.compare_digest(key.encode(),other.encode()):
+            raise ValueError('Admission credential binding changed')
+    except (ValueError,KeyError,TypeError,AttributeError):
+        raise ValueError('Formal and trial admission configuration must be complete and match') from None
+
+
 def validate(value):
     allowed={'platform_config','pypi_index','max_model_runs','admin_assistant','swarm_ports','trial'}
     if not isinstance(value,dict) or 'platform_config' not in value or set(value)-allowed:
@@ -137,11 +168,13 @@ def validate(value):
     source=platform(path)
     index=value.get('pypi_index','https://pypi.tuna.tsinghua.edu.cn/simple')
     from .units import trial_binding
+    trial=trial_binding(value.get('trial'))
+    trial_pair(path,trial)
     return {'platform_config':str(Path(path).absolute()),'pypi_index':mirror(url(index,'pypi_index')),
         'max_model_runs':integer(value.get('max_model_runs',2),'max_model_runs',1,64),
         'admin_assistant':admin_assistant(value.get('admin_assistant'),mode=source['mode']),
         'swarm_ports':swarm_ports(value.get('swarm_ports'),source['port']),
-        'trial':trial_binding(value.get('trial'))}
+        'trial':trial}
 
 
 def load(path):
