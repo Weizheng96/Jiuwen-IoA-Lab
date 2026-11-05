@@ -64,11 +64,8 @@ def main():
     # Physical/local readiness is distinct from Linux/browser acceptance. A deployment
     # must provide a reviewed acceptance receipt baked into the image after the
     # original UI/WS/A2UI and real Skill->SDK loop have actually passed.
-    acceptance = Path('/opt/trial/native-acceptance.json')
-    native_accepted = False
-    if acceptance.is_file():
-        receipt = json.loads(acceptance.read_text())
-        native_accepted = all(receipt.get(key) is True for key in ('originalUiProxy','originalWsProxy','a2ui','skillSdkCall'))
+    from .acceptance import validated_checks
+    native_accepted = all(validated_checks().values())
     print(json.dumps({'nativeWeb':response.is_success and native_accepted,
         'a2uiEnabled':a2ui_enabled,
         'nativeWs':isinstance(sessions,dict) and native_accepted,'skillLoaded':skill_loaded,

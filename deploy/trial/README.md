@@ -46,6 +46,7 @@ cp vendor/wheels/*.whl "$TRIAL_WORK/image/vendor/wheels/"
 cp deploy/locks/linux-x86_64/{core,participant,swarm}.lock "$TRIAL_WORK/image/locks/"
 unzip "$REVIEWED_RELEASE/skills/ioalab-assistant-skill.zip" -d "$TRIAL_WORK/skill-unpack"
 cp -a "$TRIAL_WORK/skill-unpack/ioalab-delegate" "$TRIAL_WORK/image/assistant-skill"
+"$BUILD_PYTHON" tools/verification/trial_acceptance.py context --context "$TRIAL_WORK/image" --source "$(git rev-parse HEAD)"
 (cd "$TRIAL_WORK" && find image controller-wheelhouse optional-wheels -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 (cd "$TRIAL_WORK" && sha256sum -c SHA256SUMS)
 docker build --network=none --build-arg BASE_IMAGE=python:3.11-slim@sha256:<实际摘要> -t ioalab-trial-seat "$TRIAL_WORK/image"
@@ -61,9 +62,9 @@ Swarm环境先安装现有Linux普通依赖锁，再由install_swarm_wheels.py�
 
 席位模型配置只有模型名和自动生成的固定内网地址`http://model-egress:8081/v1`及epoch专用token。token按控制密钥、完整席位身份及轮次域分离派生，三席和跨轮均不同，不是供应商密钥；配置中不接受`model.api_key`。停止时先持久撤销网页/确认会话，再停止并核该轮sidecar退出，确保旧token与旧模型流失效；即使席位控制监听离线也不能继续调用供应商。随后停止席位并核全部数据/网络/sidecar归属后才销毁。任何一步未知均隔离，不分配下一人。
 
-镜像配置改为实际完整digest；admission_key与正式平台私有JSON的runtime.trial_admission_key一致，control_key另生成。`model`只填写`name`，供应商secret从不进入席位环境、原生config.get或试用网关回执。
+镜像配置使用实际不可变sha256:ImageID或已有name@sha256:RepoDigest，不使用漂移tag；admission_key与正式平台私有JSON的runtime.trial_admission_key一致，control_key另生成。`model`只填写`name`，供应商secret从不进入席位环境、原生config.get或试用网关回执。
 
-正式平台私有JSON的runtime.trial_url填写原生试用origin，runtime.trial_confirm_url填写独立确认origin。两者必须不同HTTPS hostname，不能只换端口。应用配置的`origin`、`confirm_origin`分别匹配二者，`formal_origin`只生成返回正式平台的链接。正式平台的两个入口分别签不同aud票据，正式cookie不出正式host。用户先取得席位，再从正式平台点击确认入口；可信cookie消费时绑定当前seat/epoch，原生cookie不能访问确认端点。两个TLS虚拟host都转发同一网关进程并保留各自Host/Origin；确认host不代理任何原生内容或WS。
+正式平台私有JSON的runtime.trial_url填写原生试用origin，runtime.trial_confirm_url填写独立确认origin。两者必须为不同HTTPS origin；公网IP部署可用同一IP的8443与9443端口，正式平台使用443。域名同hostname的不同端口不作为独立部署入口。两类Cookie各使用独立__Host名称、Secure及HttpOnly；Cookie不按端口隔离，原生代理必须剥离Cookie、Authorization、Set-Cookie和Clear-Site-Data。应用配置的`origin`、`confirm_origin`分别匹配二者，`formal_origin`只生成返回正式平台的链接。正式平台的两个入口分别签不同aud票据，正式cookie不出正式host。用户先取得席位，再从正式平台点击确认入口；可信cookie消费时绑定当前seat/epoch，原生cookie不能访问确认端点。两个TLS入口都转发同一网关进程并保留各自含端口的Host及原始Origin；确认host不代理任何原生内容或WS。
 
 ```sh
 "$TRIAL_CONTROLLER_BOOTSTRAP" -m venv /opt/ioalab-trial-controller
@@ -76,7 +77,30 @@ Swarm环境先安装现有Linux普通依赖锁，再由install_swarm_wheels.py�
 
 专用TLS反代保持Host和Origin，将HTTP及WS转到127.0.0.1:8766；不透传正式平台cookie，不直接开放席位端口。该进程需宿主Docker权限，权限不授予容器。
 
-真实健康后仍需原版UI/WS/A2UI/Skill工具调用和双origin确认边界专项。`probe.py`查询实际公开接口并要求镜像中`/opt/trial/native-acceptance.json`记录`originalUiProxy`、`originalWsProxy`、`a2ui`、`skillSdkCall`的真实验收结果；Dockerfile不会伪造该文件。审核证据后冻结镜像摘要，不能手写true冒充实测。应实测原生host的活动内容不能取得确认cookie或CSRF，旧epoch在两个host均无法读写；不得将确认API临时搬回原生host绕过验收。
+正式三席的健康门槛同时要求程序实时探测和镜像内的受审浏览器证据。缺少证据的工程镜像不能分配给普通用户。为避免“须先上线才能验收、须先验收才能上线”的循环，先走独立工程轮次：
+
+1. 在完整构建上下文生成`acceptance/inputs.json`（上文context命令），此文件只有sourceRevision与原程序/锁/wheel/Skill上下文摘要，不包含通过断言。构建没有native-acceptance记录的工程镜像，记录实际ImageID。
+2. 使用独立的工程配置：`sandbox.deployment`以`-engineering`结尾，`port_base`使用不与正式席位相交的专用范围，image写实际`sha256:ImageID`。配置仍复用同一隔离规则、只读程序、模型代理和固定转发器。通过下列公开工程入口创建一个epoch，不加入正式协调器或修改其控制库。
+
+```sh
+/opt/ioalab-trial-controller/bin/python tools/verification/trial_engineering.py prepare --config /etc/ioalab-trial/engineering.json --state /var/lib/ioalab-trial/engineering-operation.json --inputs "$TRIAL_WORK/image/acceptance/inputs.json"
+/opt/ioalab-trial-controller/bin/python tools/verification/trial_engineering.py observe --config /etc/ioalab-trial/engineering.json --state /var/lib/ioalab-trial/engineering-operation.json --inputs "$TRIAL_WORK/image/acceptance/inputs.json"
+```
+
+3. observe读取真实原生HTTP及WS公开查询，仅报告工程观察；不会生成生产通过记录。root通过受控的工程HTTPS反代在真实Chrome观察原版页面、WSS、实际A2UI交互和个人助手Skill调用已连接SDK。工程访问仅供管理员验收，不向陌生人开放。配置开启或直接SDK探针均不能替代实际A2UI与Skill调用。保存脱敏截图/调用证据和摘要；原聊天和业务数据留在工程volume。
+4. root完成四项真实观察后，提供JSON review：`reviewedBy=root-chrome`、实际`browserSessionId`、`engineeringImageId`、与inputs相同的`sourceRevision/contextSha256`，以及四项检查`originalUiProxy/originalWsProxy/a2ui/skillSdkCall`。每项包含真实`status`与`artifacts`（相对review文件目录的脱敏证据文件名→SHA256）。不可填写预设通过值代替执行。只将审核可公开的工程证据提供给recorder；密钥、Cookie和私人业务正文不得进入镜像。
+
+```sh
+/opt/ioalab-trial-controller/bin/python tools/verification/trial_acceptance.py record --context "$TRIAL_WORK/image" --review /var/lib/ioalab-trial/review/root-chrome-review.json
+```
+
+recorder重新核原上下文，校每份原证据的实际字节摘要，输出`acceptance/native-acceptance.json`及脱敏证据。Dockerfile将整个acceptance目录拷进镜像；probe校来源/上下文、工程ImageID格式、浏览器review及每份证据摘要后才使用通过结果。工程ImageID仅记录验收来源，不要求最终镜像与工程镜像ID相等（加入证据必然改变ID），相同源码输入在不同机器重建不会因生成不同镜像ID而被永久拒绝。
+5. 使用未变的程序/锁/wheel/Skill上下文加上验收目录重建最终镜像，记录最终不可变ID；通过engineering retire命令正常停机、核退出并清除该工程轮次。正式配置引用最终ID，启动正式三席协调器；只有三个新epoch均通过原实时health门槛，正式安装才能完成。此时再从正式网页按钮取得票据，实际验证原生和确认两个origin、旧轮次失效及完整重置。任何步骤失败保留原工程状态，不自动接管部分创建或手工把正式席位改ready。
+
+```sh
+/opt/ioalab-trial-controller/bin/python tools/verification/trial_engineering.py retire --config /etc/ioalab-trial/engineering.json --state /var/lib/ioalab-trial/engineering-operation.json --inputs "$TRIAL_WORK/image/acceptance/inputs.json"
+```
+
 
 结束先持久撤销用户会话和epoch访问并关闭WS，在首个TERM前完整核三个容器、卷及内部网络的归属和固定形状，再停本轮model、经仍活ingress撤销SDK确认、SIGTERM席位所属进程组并核退出，最后SIGTERM ingress关闭活动连接并核退出。未知保持quarantined，不强杀伪装停止。首个删除动作前再次完整核验；三个容器均成功Exited/Pid=0后移除三个容器、整个volume和本轮网络，再准备新epoch，共用外网桥保留。未知部分创建不盲目接管；默认隔离，人工核完整owner标签和真实资源后恢复。
 

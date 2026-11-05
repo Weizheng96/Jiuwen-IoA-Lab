@@ -31,6 +31,7 @@ class Docker:
         self.ingress_override={}
         self.image_override={}
         self.image=sandbox.config['image']
+        self.image_id=self.image if self.image.startswith('sha256:') else 'sha256:'+'c'*64
         self.secret=str(sandbox.secret_path)
         self.network_override={}
         self.volume_label=self.name
@@ -48,7 +49,7 @@ class Docker:
         if role!='seat':networks['bridge']={'NetworkID':'outer-id','GlobalIPv6Address':'','IPv6Gateway':''}
         ports={'8080/tcp':[{'HostIp':'127.0.0.1','HostPort':'19002'}], '8767/tcp':[{'HostIp':'127.0.0.1','HostPort':'19003'}]} if role=='ingress' else {}
         return {'Id':role+'-id','Name':'/'+self.name+suffix,
-            'Config':{'Labels':labels,'Image':self.image,'User':'65534:65534' if role=='ingress' else '',
+            'Image':self.image_id,'Config':{'Labels':labels,'Image':self.image,'User':'65534:65534' if role=='ingress' else '',
                 'Entrypoint':['/opt/participant/bin/python','-m','ioalab_trial.agent'] if role=='seat' else ['/opt/participant/bin/python'],
                 'Cmd':None if role=='seat' else ['-m','ioalab_trial.'+('model_egress' if role=='model' else 'ingress')]},
             'HostConfig':{'ReadonlyRootfs':True,'Privileged':False,'CapDrop':['ALL'],
@@ -69,7 +70,7 @@ class Docker:
             return SimpleNamespace(returncode=1,stdout='',stderr='private Docker error')
         output=''
         if args[:2]==['image','inspect']:
-            output=json.dumps([{'Config':{'Entrypoint':['/opt/participant/bin/python','-m','ioalab_trial.agent'],
+            output=json.dumps([{'Id':self.image_id,'Os':'linux','Architecture':'amd64','RepoDigests':[self.image], 'Config':{'Entrypoint':['/opt/participant/bin/python','-m','ioalab_trial.agent'],
                 'Labels':{'ioalab.trial.resource_layout':RESOURCE_LAYOUT,'ioalab.trial.ingress':INGRESS_CAPABILITY}},**self.image_override}])
         elif args[:2]==['container','inspect']:
             if args[2].endswith('-model'):
@@ -119,6 +120,7 @@ def test_prepare_has_epoch_network_readonly_root_and_one_owned_volume(sandbox):
     assert run[run.index('--network')+1]==name+'-net'
     assert '--read-only' in run and '--cap-drop=ALL' in run and '--security-opt=no-new-privileges' in run
     assert run.count('--mount')==1 and run[run.index('--mount')+1]=='type=volume,src='+name+',dst=/epoch'
+
     bindings=[run[i+1] for i,value in enumerate(run) if value=='-p']
     assert bindings==[] and run[run.index('--network-alias')+1]=='seat'
     assert not any('docker.sock' in arg or 'host'==arg for arg in run)
@@ -135,6 +137,24 @@ def test_prepare_has_epoch_network_readonly_root_and_one_owned_volume(sandbox):
     assert ingress[ingress.index('--add-host')+1]=='seat:172.18.0.1'
     assert 'private-provider-key' not in ' '.join(ingress) and target.model_key(1,EPOCH) not in ' '.join(ingress)
     assert ['network','connect',name+'-net',name+'-ingress'] in docker.calls
+
+
+def test_local_image_content_id_is_accepted_without_registry_digest(sandbox):
+    target,_=sandbox;target.config['image']='sha256:'+'d'*64
+    docker=Docker(target);target.run=docker
+    docker.image_override={'RepoDigests':[]}
+    target.validate_image()
+    assert target.image_id==target.config['image']
+    target.checked_resources(1,EPOCH)
+    docker.container_override={'Image':'sha256:'+'e'*64}
+    with pytest.raises(RuntimeError,match='image'):target.checked_resources(1,EPOCH)
+
+
+@pytest.mark.parametrize('override',[{'Id':'sha256:'+'e'*64},{'Os':'windows'},{'Architecture':'arm64'}])
+def test_local_image_refuses_wrong_identity_or_platform(sandbox,override):
+    target,_=sandbox;target.config['image']='sha256:'+'d'*64
+    docker=Docker(target);target.run=docker;docker.image_override=override
+    with pytest.raises(RuntimeError,match='identity'):target.validate_image()
 
 
 def test_invalid_secret_metadata_rejected_before_any_docker_resource(sandbox,monkeypatch):

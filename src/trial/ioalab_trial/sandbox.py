@@ -26,7 +26,7 @@ class DockerSandbox:
         self.capacity=capacity(deployment_profile)
         if not re.fullmatch(r'[a-z][a-z0-9-]{2,30}',config['deployment']):
             raise ValueError('Invalid deployment identity')
-        if not re.fullmatch(r'.+@sha256:[0-9a-f]{64}',config['image']):
+        if not re.fullmatch(r'(?:sha256:|[^\s@]+@sha256:)[0-9a-f]{64}',config['image']):
             raise ValueError('Pin the complete reviewed image digest')
         if len(config['control_key']) < 32:
             raise ValueError('Dedicated high entropy sandbox control key required')
@@ -46,12 +46,18 @@ class DockerSandbox:
     def validate_image(self):
         if self.image_validated:return
         image=self.inspect('image',self.config['image'])
+        reference=self.config['image'];identifier=image.get('Id','')
+        if (not re.fullmatch(r'sha256:[0-9a-f]{64}',identifier)
+                or image.get('Os')!='linux' or image.get('Architecture')!='amd64'
+                or (reference.startswith('sha256:') and identifier!=reference)
+                or ('@' in reference and reference not in image.get('RepoDigests',[]))):
+            raise RuntimeError('The immutable reviewed Linux image identity changed')
         labels=image.get('Config',{}).get('Labels',{}) or {}
         if (labels.get('ioalab.trial.resource_layout')!=RESOURCE_LAYOUT
                 or labels.get('ioalab.trial.ingress')!=INGRESS_CAPABILITY
                 or image.get('Config',{}).get('Entrypoint')!=['/opt/participant/bin/python','-m','ioalab_trial.agent']):
             raise RuntimeError('Reviewed image resource layout or ingress capability mismatch')
-        self.image_validated=True
+        self.image_id=identifier;self.image_validated=True
 
     def labels(self, name, role):
         return ['--label','ioalab.trial.owner='+name,'--label','ioalab.trial.role='+role,
@@ -124,6 +130,7 @@ class DockerSandbox:
         return network
 
     def checked_resources(self, seat, epoch):
+        self.validate_image()
         """One full preflight before control, the first TERM, or first removal."""
         name=self.identity(seat,epoch)
         self.validate_image()
@@ -154,7 +161,7 @@ class DockerSandbox:
             entry=['/opt/participant/bin/python','-m','ioalab_trial.agent'] if role=='seat' else ['/opt/participant/bin/python']
             command=[] if role=='seat' else ['-m','ioalab_trial.'+('model_egress' if role=='model' else 'ingress')]
             additions={'SETUID','SETGID','CHOWN','DAC_OVERRIDE'} if role=='seat' else set()
-            if (config.get('Image')!=self.config['image'] or config.get('Entrypoint')!=entry
+            if (config.get('Image')!=self.config['image'] or value.get('Image')!=self.image_id or config.get('Entrypoint')!=entry
                     or (config.get('Cmd') or [])!=command
                     or config.get('User','') not in (('','0','0:0') if role!='ingress' else ('65534:65534',))
                     or host.get('ReadonlyRootfs') is not True or host.get('Privileged') is not False

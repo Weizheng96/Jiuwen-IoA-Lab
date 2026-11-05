@@ -21,6 +21,7 @@ RUN python -m venv /opt/core && python -m venv /opt/participant && python -m ven
  && useradd -u 10001 -M core && useradd -u 10002 -M assistant && useradd -u 10003 -M native && useradd -u 10004 -M services
 COPY plan.json service-ids.json /opt/trial/
 COPY assistant-skill /opt/trial/assistant-skill
+COPY acceptance /opt/trial/acceptance
 # No acceptance receipt is fabricated here. The image remains unready until
 # target-machine original-browser acceptance supplies the reviewed receipt.
 ENV PATH=/opt/participant/bin:/opt/core/bin:/opt/swarm/bin:/usr/local/bin:/usr/bin:/bin PYTHONDONTWRITEBYTECODE=1
