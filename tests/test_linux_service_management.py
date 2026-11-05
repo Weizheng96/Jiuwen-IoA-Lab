@@ -1,5 +1,6 @@
 """Bounded manager fault tests. Real systemd/cgroup deployment requires Linux verification."""
 import hashlib
+import sys
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
@@ -9,6 +10,67 @@ from deploy import linux, units
 
 
 DEPLOYMENT = 'a' * 32
+
+
+def test_linux_source_scope_includes_ownership_regressions_only_for_its_owner():
+    from tools.check_scope import select_tests
+    selected=select_tests(['deploy/linux.py'])['tests']
+    assert 'tests/test_linux_service_management.py' in selected
+    assert 'tests/test_deployment_layout.py' in selected
+    assert 'tests/test_windows_local.py' not in selected
+    assert 'tests/test_linux_service_management.py' not in select_tests(['deploy/windows_local.py'])['tests']
+
+
+@pytest.fixture
+def account_database(monkeypatch):
+    rows={};calls=[]
+    def lookup(name):
+        if name not in rows:raise KeyError(name)
+        return rows[name]
+    def execute(argv,**kwargs):
+        assert argv[:3]==['useradd','--system','--user-group']
+        name=argv[-1];tag=argv[argv.index('--comment')+1]
+        # shadow's useradd rejects these passwd/GECOS delimiters.
+        assert not any(char in tag for char in (':','\n','\r','\x00'))
+        identity=10001+len(rows)
+        rows[name]=SimpleNamespace(pw_name=name,pw_uid=identity,pw_gid=identity,pw_gecos=tag,
+            pw_dir=str(argv[argv.index('--home-dir')+1]),pw_shell='/usr/sbin/nologin')
+        calls.append(argv)
+        return SimpleNamespace(returncode=0,stdout='',stderr='')
+    monkeypatch.setitem(sys.modules,'pwd',SimpleNamespace(getpwnam=lookup,getpwall=lambda:list(rows.values())))
+    monkeypatch.setitem(sys.modules,'grp',SimpleNamespace(getgrnam=lambda name:SimpleNamespace(gr_gid=lookup(name).pw_gid,gr_mem=[])))
+    monkeypatch.setattr(linux.os,'getgrouplist',lambda name,gid:[gid],raising=False)
+    monkeypatch.setattr(linux,'execute',execute)
+    return rows,calls
+
+
+def test_accounts_use_valid_gecos_and_preserve_exact_ownership(tmp_path,account_database):
+    rows,calls=account_database;record={};saves=[]
+    accounts=linux.Accounts(layout(tmp_path),DEPLOYMENT,record,lambda:saves.append(True))
+    for role in ('core','agents'):
+        value=accounts.ensure(role)
+        assert value['phase']=='ready' and value['tag']=='ioalab-'+DEPLOYMENT+'-'+role
+        assert accounts.ensure(role)==value
+    assert len(calls)==2 and saves
+    rows['ioalab-core'].pw_gecos='another-deployment'
+    with pytest.raises(RuntimeError,match='identity or purpose'):accounts.ensure('core')
+    assert len(calls)==2
+
+
+def test_accounts_do_not_adopt_unrecorded_system_user(tmp_path,account_database):
+    rows,calls=account_database
+    rows['ioalab-core']=SimpleNamespace(pw_uid=10001)
+    accounts=linux.Accounts(layout(tmp_path),DEPLOYMENT,{},lambda:None)
+    with pytest.raises(RuntimeError,match='unrecorded'):accounts.ensure('core')
+    assert calls==[] and accounts.accounts=={}
+
+
+@pytest.mark.parametrize('identity',['ioalab:invalid','a'*31+'\n','A'*32])
+def test_invalid_account_owner_is_rejected_before_recording(tmp_path,identity):
+    record={}
+    with pytest.raises(ValueError,match='canonical deployment UUID'):
+        linux.Accounts(layout(tmp_path),identity,record,lambda:pytest.fail('Invalid ownership must not be saved'))
+    assert record=={}
 
 
 def layout(tmp_path):
@@ -168,7 +230,7 @@ def test_system_role_requires_its_original_dedicated_group(tmp_path,monkeypatch,
     import sys
     root=layout(tmp_path);name='ioalab-agents'
     user=SimpleNamespace(pw_uid=1201,pw_gid=1202,pw_dir=str(root.state/'agents'),pw_shell='/usr/sbin/nologin',
-                         pw_gecos='ioalab:'+DEPLOYMENT+':agents')
+                         pw_gecos='ioalab-'+DEPLOYMENT+'-agents')
     group=SimpleNamespace(gr_gid=1202,gr_mem=[]);directory=[user];supplementary=[1202]
     monkeypatch.setitem(sys.modules,'pwd',SimpleNamespace(getpwnam=lambda _:user,getpwall=lambda:directory))
     monkeypatch.setitem(sys.modules,'grp',SimpleNamespace(getgrnam=lambda _:group))

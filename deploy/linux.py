@@ -47,6 +47,11 @@ def protected_file(path):
 
 class Accounts:
     def __init__(self, layout, deployment_id, record, save):
+        try:
+            if uuid.UUID(deployment_id).hex != deployment_id:
+                raise ValueError()
+        except (ValueError, TypeError, AttributeError):
+            raise ValueError('Use the canonical deployment UUID for system account ownership') from None
         self.layout,self.id,self.record,self.save=layout,deployment_id,record,save
         self.accounts=record.setdefault('accounts',{})
         self.paths=record.setdefault('paths',{})
@@ -73,7 +78,8 @@ class Accounts:
         if role not in ('core','agents'):raise ValueError('Choose the core or agents system role')
         name=self.layout.core_user if role=='core' else self.layout.agents_user
         home=self.layout.state/('core' if role=='core' else 'agents')
-        tag='ioalab:'+self.id+':'+role
+        # GECOS is a colon-delimited passwd field, not a free-form label.
+        tag='ioalab-'+self.id+'-'+role
         entry=self.accounts.get(role)
         try:actual=pwd.getpwnam(name)
         except KeyError:actual=None
