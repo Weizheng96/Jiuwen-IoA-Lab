@@ -63,6 +63,9 @@ HELPER_CASES = {
 }
 # Exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
+    'deploy/windows_local.py': ('windows_local', 'windows_local_owner', 'deployment_configs', 'owned_workspace'),
+    'src/official/admin-assistant/ioalab_admin_assistant/deployment.py': ('admin_assistant_preparation', 'windows_local_owner'),
+    'src/official/admin-assistant/ioalab_admin_assistant/local_owner.py': ('admin_assistant_preparation', 'windows_local_owner'),
     'experiments/trial_resources.py': ('trial_resources',),
     'src/access/sdk/ioalab_sdk/assistant/flow.py': ('assistant_flow_guidance', 'resident_delegation', 'user_confirmations'),
     'src/access/sdk/ioalab_sdk/runtime/confirmation_view.py': ('confirmation_view', 'user_confirmation_view', 'user_confirmations'),

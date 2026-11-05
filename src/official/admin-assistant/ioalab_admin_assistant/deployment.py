@@ -1,4 +1,4 @@
-"""Root-owned recipe and original preparation receipts, separate from participant data."""
+"""Installer-owned recipe and preparation receipts, separate from participant data."""
 import ipaddress
 import os
 from pathlib import Path
@@ -9,12 +9,15 @@ import uuid
 from a2c.codec import digest
 from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_json, read_json
+from ioalab_sdk.runtime.files import private_json, read_json, windows_sid
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from .presets import load
 
 
 def operator():
+    if os.name == 'nt':
+        windows_sid()  # The recipe and all owned state are checked separately.
+        return
     if os.name != 'posix' or os.geteuid() != 0:
         raise RuntimeFault('forbidden', 'Managed administrator preparation requires the Linux deployment root process')
 
@@ -28,6 +31,10 @@ def safe_path(value):
 
 def owned(path, *, private=False):
     path = safe_path(path)
+    if os.name == 'nt':
+        from .local_owner import owned as local_owned
+        local_owned(path)
+        return
     value = path.stat()
     if value.st_uid != 0 or stat.S_IMODE(value.st_mode) & (0o077 if private else 0o022):
         raise RuntimeFault('forbidden', 'Deployment preparation inputs must remain owned and protected by root')
