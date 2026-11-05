@@ -121,7 +121,7 @@ def environment_text(values):
 def read_environment(path):
     """Read our documented literal subset, never shell expansion or execution."""
     values = {}
-    for line in Path(path).read_text(encoding='utf-8').splitlines():
+    for line in Path(path).read_text(encoding='utf-8').split('\n'):
         if not line.strip() or line.lstrip().startswith('#'): continue
         key, separator, value = line.partition('=')
         if not separator or key in values or not re.fullmatch(r'[A-Z][A-Z0-9_]*', key):

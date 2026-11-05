@@ -17,6 +17,15 @@ def command(arguments):
     return ' '.join(quoted(value) for value in arguments)
 
 
+def directive_path(value):
+    """Path-valued unit directives do not use ExecStart's argument quoting."""
+    value=str(value)
+    if not PurePosixPath(value).is_absolute() or any(c.isspace() or ord(c)<32 or c in '$%\\\"\'' for c in value):
+        raise ValueError('Managed unit paths require an absolute literal path without whitespace or expansion')
+    if '..' in PurePosixPath(value).parts:raise ValueError('Managed unit paths cannot traverse parents')
+    return value
+
+
 def plans(layout, *, administrator):
     stable=layout.environments/'current'
     participant=stable/'participant/bin/python'
@@ -59,8 +68,8 @@ def render(layout, deployment_id, plans):
         lines=['# ioalab-deployment:'+deployment_id,'[Unit]',
             'Description=Jiuwen IoA Lab '+key,'After='+' '.join(after),
             '[Service]','Type=exec','User='+row['user'],'Group='+row['user'],
-            'WorkingDirectory='+quoted(row['directory']),
-            'EnvironmentFile='+quoted(row['environment']),'UMask=0077','NoNewPrivileges=yes','PrivateTmp=yes',
+            'WorkingDirectory='+directive_path(row['directory']),
+            'EnvironmentFile='+directive_path(row['environment']),'UMask=0077','NoNewPrivileges=yes','PrivateTmp=yes',
             *('ExecStartPre='+command(argv) for argv in row['pre']),
             'ExecStart='+command(row['command']),
             'KillMode='+row.get('kill_mode','mixed'),'SendSIGKILL=no','TimeoutStartSec=infinity','TimeoutStopSec=infinity',

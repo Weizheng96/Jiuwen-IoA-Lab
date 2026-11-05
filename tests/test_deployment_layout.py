@@ -95,3 +95,18 @@ def test_ports_and_capture_are_explicit_and_do_not_redirect_credentials():
     assert validate({'public_url':'https://ioa.example','mode':'dev','admin_assistant':{'notification':capture}})['admin_assistant']['notification']['port']==1025
     with pytest.raises(ValueError,match='loopback'):
         validate({'public_url':'https://ioa.example','mode':'dev','admin_assistant':{'notification':{**capture,'host':'external.example'}}})
+
+
+@pytest.mark.parametrize('separator',['\u0085','\u2028','\u2029'])
+def test_literal_unicode_separators_roundtrip_as_data_not_physical_lines(tmp_path,separator):
+    values={'MODEL_LABEL':'中文'+separator+'label','OWNER_WINDOWS_PATH':r'D:\demo\assistant'}
+    path=tmp_path/'literal.env';write_initial(path,environment_text(values).encode('utf-8'))
+    assert read_environment(path)==values
+    assert path.read_bytes().count(b'\n')==3  # header and two physical records
+
+
+@pytest.mark.parametrize('control',['\n','\r','\t'])
+def test_literal_environment_control_characters_are_rejected_by_both_sides(tmp_path,control):
+    with pytest.raises(ValueError):environment_text({'VALUE':'a'+control+'b'})
+    path=tmp_path/'bad-control.env';path.write_text('VALUE='+json.dumps('a'+control+'b')+'\n',encoding='utf-8')
+    with pytest.raises(ValueError):read_environment(path)

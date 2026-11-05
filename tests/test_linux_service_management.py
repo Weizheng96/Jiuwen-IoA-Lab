@@ -96,6 +96,9 @@ def test_installed_commands_are_role_scoped_and_drain_without_kill():
         assert row['command'][1:4]==['-I','-X','utf8']
         assert f'User={root.core_user if key=="core" else root.agents_user}' in value
     assert '--config' in plans['assistant']['pre'][0]
+    assert 'WorkingDirectory=/var/lib/ioalab/core\n' in rendered['ioalab-core.service']
+    assert 'EnvironmentFile=/etc/ioalab/core/core.env\n' in rendered['ioalab-core.service']
+    assert 'EnvironmentFile=/etc/ioalab/agents/official.env\n' in rendered['ioalab-official.service']
     assert set(units.plans(root,administrator=False))=={'core','official'}
 
 
@@ -243,3 +246,8 @@ def test_system_role_requires_its_original_dedicated_group(tmp_path,monkeypatch,
     elif change=='extra_group':supplementary.append(999)
     else:directory.append(SimpleNamespace(pw_uid=1401,pw_gid=1202))
     with pytest.raises(RuntimeError,match='group'):accounts.ensure('agents')
+
+
+@pytest.mark.parametrize('path',['relative','/tmp/space path','/tmp/line\nbreak','/tmp/$HOME','/tmp/%n','/tmp/../other','"/tmp/quoted"'])
+def test_path_directives_reject_ambiguous_or_expandable_values(path):
+    with pytest.raises(ValueError):units.directive_path(path)
