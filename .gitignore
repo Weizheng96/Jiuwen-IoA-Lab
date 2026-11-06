@@ -33,7 +33,9 @@ dist/
 .DS_Store
 Thumbs.db
 
-# 开发模型源与复用私有数据
-/.agents/data/
-/.agents/llm_apikey
-/.agents/server-connection.json
+# 开发模型源、服务器连接与复用私有数据：.agents 下只有 skills 入库
+/.agents/*
+!/.agents/skills/
+
+# 本机智能体入口，只指向 AGENTS.md
+/CLAUDE.md

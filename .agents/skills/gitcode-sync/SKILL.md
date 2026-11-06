@@ -1,6 +1,6 @@
 ---
 name: gitcode-sync
-description: 将本项目已发布到GitHub的main及其可达设计标签同步到GitCode主仓；用于用户要求同步本仓更新，不用于仅查看GitCode或同步其他仓库。
+description: 将本项目已发布到GitHub的main及其可达设计标签同步到GitCode主仓；仅在用户要求把develop合入main时执行，不用于日常develop提交、仅查看GitCode或同步其他仓库。
 ---
 
 # 同步 GitCode 主仓
@@ -9,8 +9,8 @@ description: 将本项目已发布到GitHub的main及其可达设计标签同步
 
 ## 工作流程
 
-1. 核对用户当前请求是否授权同步；已有明确授权直接继续，只有查询请求时不推送。与并行写者协调 Git 窗口，不暂存、stash、覆盖或替他人提交在途工作。
-2. 核对 `main` 的提交快照与已发布 GitHub 源，按项目约定提交并推送本次获准文件。跟踪文件有未提交修改时先协调原写者完成检查点；不绕过脚本，不承诺同步工作区草稿、数据或秘密。
+1. 同步只由用户要求把 develop 合入 main 触发；日常 develop 提交与推送、阶段完成或查询请求都不同步 GitCode。与并行写者协调 Git 窗口，不暂存、stash、覆盖或替他人提交在途工作。
+2. 先按[交付](../develop/references/delivery.md#合入-main)完成合入并推送 GitHub main，再在 main 上核对提交快照与已发布 GitHub 源。跟踪文件有未提交修改时先协调原写者完成检查点；不绕过脚本，不承诺同步工作区草稿、数据或秘密。
 3. 在仓库根目录使用项目 Python，先核计划，再执行同一脚本：
 
    ```text

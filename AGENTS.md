@@ -4,8 +4,9 @@
 
 ## 1. 版本与提交
 
-在main小步开发、验证、提交，主要迭代GitHub，定期依[同步技能](.agents/skills/gitcode-sync/SKILL.md)同步GitCode。提交为`v<设计三段>.<开发序号>：主题`，序号从该设计下main已有提交顺延。
-以[设计VERSION](设计/VERSION)为当前版本：Codex只递增第三位，前两位由用户决定。产物可落后，差异见[开发计划](设计/工程/实施资料/开发计划.md)，不因提交编号虚升设计。
+在develop小步开发、验证、提交并推送GitHub，不直接向main提交。提交为`v<设计三段>.<开发序号>：主题`，序号从该设计下已有提交顺延。
+仅在用户明确要求时将develop合入main：设计VERSION第三位加一，main上的合入提交为`v<新三段>：主题`，随后才依[同步技能](.agents/skills/gitcode-sync/SKILL.md)同步GitCode；步骤见[交付](.agents/skills/develop/references/delivery.md)。
+以[设计VERSION](设计/VERSION)为当前版本：Codex只在规则变化或合入main时递增第三位，前两位由用户决定。产物可落后，差异见[开发计划](设计/工程/实施资料/开发计划.md)，不因提交编号虚升设计。
 
 ## 2. 设计
 

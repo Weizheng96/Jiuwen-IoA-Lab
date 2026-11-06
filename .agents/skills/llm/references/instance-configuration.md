@@ -4,7 +4,7 @@
 
 ## 操作者初始化与运行边界
 
-1. 使用已授权的统一私有源 `.agents/llm_apikey`，选明确 profile；本仓当前已准备的 profile 名为 `default`。只在操作者初始化进程内读取 `tools.llm.profile()`，不打印对象、key 或提供方错误正文，不把值放参数、全局环境或 Git。保留原空间 API 入口，不能换成猜测的公共默认地址。
+1. 使用已授权的统一私有源 `.agents/llm_apikey`，选明确 profile；本仓当前已准备的 profile 名为 `default`。只在操作者初始化进程内读取 `tools.llm.profile()`，不打印对象、key 或提供方错误正文，不把值放参数、全局环境或 Git。保留原空间 API 入口，不能换成猜测的公共默认地址。`default` 现由 `.agents/newllmkey.txt` 生成，其供应商的模型名与平台模板默认值不同：初始化只写入主模型、入口和密钥，`llm.discovery_model` 与 `llm.embedding_model` 须由操作者改成该供应商模型列表中实际存在的名称，再按下表分别验证，不能沿用模板里的阿里云模型名。
 2. 新实例使用选定发布源码实际提供的 `deploy.configure.initialize(..., llm=...)` 或 `python -m tools.llm`，只创建唯一平台 JSON。Windows 指定实际已构建资源路径时使用 initialize 的 assets 参数；现有 tools.llm CLI 不提供 assets 参数，不虚构该选项。旧发布没有 llm 参数时，先用其 deploy.configure 创建新私有文件，再由操作者显式映射同一 profile 的 api_key/base_url/name 到该文件 llm.api_key/base_url/model。已经存在的文件不重复初始化，变更沿原部署 owner 的停机/配置或显式迁移流程。
 3. Linux 原远程操作使用已核主机指纹的 pin SSH/SFTP 会话，私有载体先受 root 所有及0600权限保护，只传所选模型输入，不复制完整开发凭据库或把秘密放命令文本。没有已核会话或安全载体时，部署 owner 先向主控给最小方案，不请求用户贴 key。初始化后运行服务只读取自己的实例配置，不跨读开发源或临时传输载体。
 4. 配置中的主模型、检索、嵌入和仲裁等实际用途分别核供应商权限与类型；单一主模型字段非空不能证明所有用途可调用。已配置实例及人工修改保留，换 profile 不自动覆盖运行文件或重建参与方工作区。

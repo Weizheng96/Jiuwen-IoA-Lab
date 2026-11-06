@@ -345,7 +345,7 @@ def test_ci_uses_local_entrypoint_and_separates_explicit_validation():
     ci = yaml.load((ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
     validation = yaml.load((ROOT / '.github/workflows/validation.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
     assert set(ci['on']) == {'push', 'pull_request', 'workflow_dispatch'}
-    assert ci['on']['push']['branches'] == ['main']
+    assert ci['on']['push']['branches'] == ['main', 'develop']
     assert ci['on']['workflow_dispatch']['inputs'] == {
         'base': {'description': 'Full commit SHA or explicit refs/heads/... or refs/tags/... on origin',
                  'type': 'string', 'required': 'true'}}

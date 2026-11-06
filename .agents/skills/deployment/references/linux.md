@@ -4,9 +4,9 @@
 
 ## 固定来源与连接
 
-- 发布前先将GitHub已验证main同步GitCode并核完整SHA；服务器只直连GitCode取这个SHA。保存源码SHA、内容发行摘要、环境集合和实际运行身份，控制器更新不能冒充业务产物更新。未提交工作树、设计标签、同名wheel版本都不足以证明输入一致。
+- GitCode只含用户要求合入main后同步的提交；发布前核GitHub与GitCode的main为同一完整SHA，服务器只直连GitCode取这个SHA。保存源码SHA、内容发行摘要、环境集合和实际运行身份，控制器更新不能冒充业务产物更新。未提交工作树、设计标签、同名wheel版本都不足以证明输入一致。
 - Git请求用`git -c http.proxy= -c https.proxy= ...`，HTTP诊断用`curl --noproxy '*' ...`，SSH用`-o ProxyCommand=none -o ProxyJump=none`并核主机指纹。若系统TUN改变路由，这些参数并不保证物理路径直连；分别记录TCP连通、SSH主机身份和GitCode/TLS结果，不修改全局代理或放宽主机校验。
-- 自动连接的唯一私有源为本机`.agents/server-connection.json`，不读取正文来写报告，不同步Git。当前共用连接工具尚缺，遇需自动连接时先报告入口未就绪；不恢复历史会话提密或临时硬编码。人类使用自己的SSH凭据或已核alias，不绑定该文件。
+- 自动连接的唯一私有源为本机`.agents/server_new.txt`（依次为登录用户、口令、公网IP），对应用户提供的全新服务器；不读取正文来写报告，不同步Git。该文件不含主机指纹，首次连接记录指纹，此后固定核对。`.agents/server-connection.json`属于已停用的原服务器，不再用于连接或部署。当前共用连接工具尚缺，遇需自动连接时先报告入口未就绪；不恢复历史会话提密或临时硬编码。人类使用自己的SSH凭据或已核alias，不绑定该文件。
 - Git来源依赖采用随仓固定原件；普通包走已配置国内HTTPS镜像。先检查本地固定输入、目标锁及真实环境身份，不现场从GitHub/VCS补包或向运行venv手工pip修补。
 
 ## Linux消费者格式与权限

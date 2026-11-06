@@ -8,6 +8,6 @@ description: 按唯一教程执行Windows本地或Linux服务器部署；异常�
 
 异常、旧实例恢复、所属进程未知或专项验收时，再按[异常与专项](references/operations.md)选入口。真实规则由[安装与升级](../../../设计/工程/安装与升级.md)和[平台配置](../../../设计/工程/平台配置.md)持有，技能不重复定义。
 
-Linux出现发布源、SSH/代理、证书、systemd格式或旧初装恢复问题时读[Linux部署诊断](references/linux.md)。人类教程使用普通SSH，不依赖Codex私有配置。自动连接的私有源为Git忽略的`.agents/server-connection.json`；当前`tools/server_connection.py`尚未就绪，不能假定已有统一工具、回退聊天提密或在脚本硬编码密码。
+Linux出现发布源、SSH/代理、证书、systemd格式或旧初装恢复问题时读[Linux部署诊断](references/linux.md)。人类教程使用普通SSH，不依赖Codex私有配置。远端部署目标是用户提供的全新服务器，用户拥有其全部权限；首次部署按新装执行，不沿用原服务器的部署记录、证书或状态。自动连接的私有源为Git忽略的`.agents/server_new.txt`，`.agents/server-connection.json`属于已停用的原服务器，不再使用；当前`tools/server_connection.py`尚未就绪，不能假定已有统一工具、回退聊天提密或在脚本硬编码密码。
 
 验收分别记录核心、官方、助手、模型、正常停启及可选三席的真实结果；页面可用与配置存在不等于全部就绪。三席入口按[在线试用](../../../设计/工程/在线试用.md)核独立HTTPS端口及Cookie隔离，不能用单IP的正式443可达证明额外端口可用。
