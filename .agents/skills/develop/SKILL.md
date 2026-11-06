@@ -19,6 +19,7 @@ description: 按现行设计开发、重构和修复代码，按模块读取专�
 | 原版九问、公开扩展与配置排错 | [jiuwen-swarm](../jiuwen-swarm/SKILL.md) |
 | 用户已授权的多智能体分工与交接 | [parallel-development](../parallel-development/SKILL.md) |
 | 开发模型及显式初始化 | [llm](../llm/SKILL.md) |
+| 官方预置服务方的资产、归属与发布验证 | [official-services](../official-services/SKILL.md) |
 | 媒体制作 | [demo-video](../demo-video/SKILL.md) |
 | 提交、版本、并发与同步 | [交付](references/delivery.md)、[gitcode-sync](../gitcode-sync/SKILL.md) |
 
