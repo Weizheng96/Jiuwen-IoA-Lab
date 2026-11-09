@@ -10,7 +10,8 @@ description: 选择并执行本仓轻量、定向、完整及环境专项检查�
 |---|---|
 | A | 文档及技能说明：`python .agents/skills/develop/scripts/check.py` |
 | B | 代码迭代：上述入口加 `--tests <路径或nodeid...>`，或加 `--changed-from <已提交基线>` 自动选择；覆盖受影响模块和相邻边界 |
-| C | 阶段交付和发布：加 `--full`，执行设计、文档、整仓 pytest、selfcheck |
+| B+ | 提交前回归：加 `--layer fast`，跑清单外全部用例，数分钟；整链路与真实宿主用例归 `--layer chain` |
+| C | 阶段交付和发布：加 `--full`，执行设计、文档、整仓 pytest（两层全部）、selfcheck |
 | D | 构建安装、真实模型、原生九问、Linux/systemd、外部业务与视频按所属技能显式触发 |
 
 修改脚本、配置模板、依赖及安装清单须验证受影响行为；维护工具覆盖成功及失败路径。已通过且输入未变的结果复用，不能用历史报告证明新输入。

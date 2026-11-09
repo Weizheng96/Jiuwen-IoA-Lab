@@ -8,7 +8,7 @@ description: 按现行设计开发、重构和修复代码；按改动目录查�
 2. 按[路由表](references/routing.md)找到改动目录对应的职责页、定向测试和所属产物，只读这些。需要背景再读[架构](../../../设计/架构.md)与[术语](../../../设计/术语.md)；开发计划和验收页按需查，不默认通读。
 3. 要改不变量或规则有缺陷，先交 [design](../design/SKILL.md)。实现偏离正确设计时先写修复方案并在开发计划标“开发中，与当前设计有偏离”，再修实现。文档只需追平代码时随本次提交一起改，不升版。
 4. 保持简洁现行架构：不增旧接口、格式回退或双执行链；跨模块只走公共接口，依赖方向与唯一 owner 按[架构审查](../design/references/architecture.md)核对。迁移同步构建、安装、资源及所有消费者。
-5. 验证：`python .agents/skills/develop/scripts/check.py --tests <路由表所列测试>`，覆盖正常、拒绝、恢复与依赖方影响；层级与诊断按 [testing](../testing/SKILL.md)。
+5. 验证：`python .agents/skills/develop/scripts/check.py --tests <路由表所列测试>`，覆盖正常、拒绝、恢复与依赖方影响；提交前加 `--layer fast` 跑快速层。层级与诊断按 [testing](../testing/SKILL.md)。
 6. 交付：产物 VERSION 不随本次改动递增，发布时才按[交付](references/delivery.md)同步版本与锁。完成后删除开发计划已完成进展项，按交付参考提交并推送 develop。
 
 | 专题 | 按需入口 |

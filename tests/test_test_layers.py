@@ -1,4 +1,4 @@
-"""Coverage-preserving plans and failure diagnostics without running a slow suite."""
+"""Two measured test layers, manifest validation, audit and failure diagnostics without running a slow suite."""
 import json
 import os
 from pathlib import Path
@@ -8,30 +8,112 @@ import sys
 
 import pytest
 
-from tools.test_layers import ROOT, failed_modules, plan
+from tools.test_layers import ROOT, audit, failed_modules, manifest, plan
+
+MANIFEST = {'thresholdSeconds': 1.0, 'chain': {'tests/test_payments.py': ['test_recovery'],
+                                               'tests/integration/test_process.py': ['TestOwner::test_release']}}
 
 
-def sources(root):
+def sources(root, chain=MANIFEST):
     tests = root / 'tests'
     tests.mkdir(parents=True)
+    # Same rootdir rule as the repository: nodeids start at the tree root, not at tests/.
+    (root / 'pyproject.toml').write_text('[tool.pytest.ini_options]\ntestpaths = ["tests"]\n', encoding='utf-8')
     (tests / 'test_payments.py').write_text(
         "import pytest\n@pytest.mark.parametrize('fault', ['lost', 'rollback'])\n"
-        "def test_recovery(fault): assert fault\n", encoding='utf-8')
+        "def test_recovery(fault): assert fault\n\ndef test_quick(): assert True\n", encoding='utf-8')
     nested = tests / 'integration'
     nested.mkdir()
     (nested / 'test_process.py').write_text(
         'class TestOwner:\n    async def test_release(self): pass\n', encoding='utf-8')
+    if chain is not None:
+        (tests / 'chain_layer.json').write_text(json.dumps(chain), encoding='utf-8')
 
 
-def test_first_preserves_full_files_and_diagnostics_never_sample_matrices(tmp_path):
+def test_layers_select_by_marker_and_diagnostics_expand_whole_files(tmp_path):
     sources(tmp_path)
-    first = plan(root=tmp_path)
-    assert set(first['tests']) == {'tests/test_payments.py', 'tests/integration/test_process.py'}
-    assert first['diagnostics'] == {
+    fast = plan(layer='fast', root=tmp_path)
+    assert fast['tests'] == ['tests'] and fast['pytestArgs'] == ['-m', 'not chain']
+    assert fast['manifest'] == {'files': 2, 'functions': 2}
+    chain = plan(layer='chain', root=tmp_path)
+    assert chain['tests'] == ['tests'] and chain['pytestArgs'] == ['-m', 'chain']
+    everything = plan(root=tmp_path)
+    assert set(everything['tests']) == {'tests/test_payments.py', 'tests/integration/test_process.py'}
+    assert everything['diagnostics'] == {
         'integration.process': 'tests/integration/test_process.py', 'payments': 'tests/test_payments.py'}
     diagnosis = plan(module='payments', root=tmp_path)
-    assert diagnosis['tests'] == ['tests/test_payments.py']
-    assert all('::' not in target for target in first['tests'] + diagnosis['tests'])
+    assert diagnosis['tests'] == ['tests/test_payments.py'] and diagnosis['pytestArgs'] == []
+    assert all('::' not in target for target in fast['tests'] + chain['tests'] + everything['tests'] + diagnosis['tests'])
+
+
+@pytest.mark.parametrize('broken,message', [
+    ({'thresholdSeconds': 1.0, 'chain': {'tests/test_payments.py': ['test_missing']}}, 'do not exist'),
+    ({'thresholdSeconds': 1.0, 'chain': {'tests/test_gone.py': ['test_recovery']}}, 'do not exist'),
+    ({'thresholdSeconds': 1.0, 'chain': {'tests/test_payments.py': []}}, 'do not exist'),
+    ({'thresholdSeconds': 0, 'chain': {}}, 'positive thresholdSeconds'),
+    ({'thresholdSeconds': True, 'chain': {}}, 'positive thresholdSeconds'),
+    ({'thresholdSeconds': 1.0, 'chain': ['tests/test_payments.py']}, 'map test files'),
+])
+def test_manifest_must_name_existing_tests_and_a_positive_threshold(tmp_path, broken, message):
+    sources(tmp_path, chain=broken)
+    with pytest.raises(ValueError, match=message):
+        plan(layer='fast', root=tmp_path)
+    (tmp_path / 'tests/chain_layer.json').unlink()
+    with pytest.raises(ValueError, match='Missing layer manifest'):
+        manifest(tmp_path)
+    with pytest.raises(ValueError, match='Unknown layer'):
+        plan(layer='slow', root=tmp_path)
+    # Diagnostics and the complete plan never depend on the manifest.
+    assert plan(module='payments', root=tmp_path)['tests'] == ['tests/test_payments.py']
+    assert len(plan(root=tmp_path)['tests']) == 2
+
+
+def test_audit_reports_unlisted_slow_listed_fast_skipped_and_unmeasured(tmp_path):
+    sources(tmp_path, chain={'thresholdSeconds': 1.0, 'chain': {
+        'tests/test_payments.py': ['test_recovery'], 'tests/integration/test_process.py': ['TestOwner::test_release']}})
+    report = tmp_path / 'pytest.xml'
+    report.write_text(
+        '<testsuites><testsuite>'
+        '<testcase classname="tests.test_payments" name="test_recovery[lost]" time="0.10"/>'
+        '<testcase classname="tests.test_payments" name="test_recovery[rollback]" time="0.30"/>'
+        '<testcase classname="tests.test_payments" name="test_quick" time="2.50"/>'
+        '<testcase classname="tests.integration.test_process.TestOwner" name="test_release" time="0.00"><skipped/></testcase>'
+        '<testcase classname="tests.unrelated" name="test_other" time="9.00"/>'
+        '</testsuite></testsuites>', encoding='utf-8')
+    assert audit(report, root=tmp_path) == {
+        'threshold': 1.0,
+        'unlistedSlow': ['tests/test_payments.py::test_quick 2.50s'],
+        'listedFast': ['tests/test_payments.py::test_recovery 0.30s'],
+        'unmeasured': [],
+        'skipped': ['tests/integration/test_process.py::TestOwner::test_release']}
+    report.write_text('<testsuites><testsuite/></testsuites>', encoding='utf-8')
+    assert audit(report, root=tmp_path)['unmeasured'] == [
+        'tests/integration/test_process.py::TestOwner::test_release', 'tests/test_payments.py::test_recovery']
+
+
+def test_conftest_marks_manifest_functions_so_layers_select_by_marker(tmp_path):
+    sources(tmp_path)
+    shutil.copy2(ROOT / 'tests/conftest.py', tmp_path / 'tests/conftest.py')
+
+    def collected(expression):
+        result = subprocess.run([sys.executable, '-B', '-m', 'pytest', 'tests', '-m', expression, '--collect-only', '-q',
+                                 '-p', 'no:cacheprovider'], cwd=tmp_path, capture_output=True, text=True,
+                                encoding='utf-8', timeout=60, env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert 'PytestUnknownMarkWarning' not in result.stdout + result.stderr
+        return {line for line in result.stdout.splitlines() if '::' in line}
+
+    assert collected('chain') == {'tests/test_payments.py::test_recovery[lost]', 'tests/test_payments.py::test_recovery[rollback]',
+                                  'tests/integration/test_process.py::TestOwner::test_release'}
+    assert collected('not chain') == {'tests/test_payments.py::test_quick'}
+
+
+def test_repository_manifest_lists_existing_functions_only():
+    layer = manifest()
+    assert layer['threshold'] == 1.0 and layer['chain']
+    assert all((ROOT / path).is_file() for path in layer['chain'])
+    everything = plan(layer='chain')
+    assert everything['manifest']['functions'] == sum(len(names) for names in layer['chain'].values())
 
 
 def test_removed_scene_cases_and_asset_changes_select_their_real_coverage_owner():
@@ -75,6 +157,9 @@ def test_removed_scene_cases_and_asset_changes_select_their_real_coverage_owner(
         'src/access/sdk/ioalab_sdk/runtime/confirmation_view.py':'confirmation_view',
         'src/hosts/jiuwen/ioalab_jiuwen/a2ui.py':'jiuwen_a2ui_forms',
         'src/platform/ioalab/web/trial.py':'trial_admission',
+        'tests/chain_layer.json':'test_layers',
+        'src/platform/ioalab/payments/scopes.py':'rule_boundaries',
+        'src/access/sdk/ioalab_sdk/adapters/arbitration.py':'rule_boundaries',
     }.items():
         assert 'tests/test_'+owner+'.py' in select_tests([path])['tests'], path
 
@@ -133,14 +218,16 @@ def test_layer_entry_reuses_runner_preserves_exit_and_reports_diagnosis(tmp_path
     (report / 'pytest.xml').write_text(
         '<testsuites><testsuite><testcase classname="tests.test_payments" name="test_recovery">'
         '<failure/></testcase></testsuite></testsuites>', encoding='utf-8')
-    command = [sys.executable, '-B', str(develop), '--layer', 'first', '--report-dir', str(report)]
-    result = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True,
-                            encoding='utf-8', timeout=20, env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
-    assert result.returncode == exit_code, result.stdout + result.stderr
-    selected = json.loads((tmp_path / 'selected.json').read_text())
-    assert selected == [['base', []], ['Tests', ['tests/integration/test_process.py', 'tests/test_payments.py']]]
-    assert ('--diagnose payments' in result.stdout) is bool(exit_code)
-    (tmp_path / 'selected.json').unlink()
-    invalid = subprocess.run([sys.executable, '-B', str(develop), '--diagnose', 'missing'], cwd=tmp_path,
-                             capture_output=True, text=True, timeout=20)
-    assert invalid.returncode != 0 and not (tmp_path / 'selected.json').exists()
+    env = {**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'}
+    for layer in ('fast', 'chain'):
+        command = [sys.executable, '-B', str(develop), '--layer', layer, '--report-dir', str(report)]
+        result = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True, encoding='utf-8', timeout=20, env=env)
+        assert result.returncode == exit_code, result.stdout + result.stderr
+        selected = json.loads((tmp_path / 'selected.json').read_text())
+        assert selected == [['base', []], ['Tests', ['-m', 'not chain' if layer == 'fast' else 'chain', 'tests']]]
+        assert ('--diagnose payments' in result.stdout) is bool(exit_code)
+        (tmp_path / 'selected.json').unlink()
+    for invalid in (['--diagnose', 'missing'], ['--layer', 'first']):
+        result = subprocess.run([sys.executable, '-B', str(develop), *invalid], cwd=tmp_path,
+                                capture_output=True, text=True, timeout=20, env=env)
+        assert result.returncode != 0 and not (tmp_path / 'selected.json').exists()

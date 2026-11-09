@@ -64,6 +64,12 @@ HELPER_CASES = {
 # Exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
     'tools/container_images.py': ('container_images',),
+    'tools/check_docs.py': ('check_docs',),
+    'tests/chain_layer.json': ('test_layers',),
+    'src/platform/ioalab/payments/scopes.py': ('payment_*', 'delegation_scopes', 'delegation_admission', 'protocol_relay', 'rule_boundaries'),
+    'src/platform/ioalab/delegation/admission.py': ('delegation_*', 'protocol_relay', 'provider_admission', 'arbitration*', 'payment_rejection', 'rule_boundaries'),
+    'src/access/sdk/ioalab_sdk/adapters/arbitration.py': ('arbitration_review', 'runtime_delivery', 'rule_boundaries'),
+    'src/access/sdk/ioalab_sdk/provider/policy.py': ('provider_*', 'service_publication', 'task_*', 'resident_fulfillment', 'rule_boundaries'),
     'deploy/lifecycle.py': ('deployment_lifecycle', 'linux_service_management', 'trial_leases', 'trial_gateway', 'trial_sandbox'),
     'deploy/units.py': ('deployment_lifecycle', 'linux_service_management', 'deployment_configs'),
     'deploy/repair.py': ('deployment_repair', 'deployment_jobs', 'deployment_entry', 'deployment_layout', 'deployment_activation'),
@@ -112,7 +118,7 @@ FILE_RULES = {
     'src/access/sdk/ioalab_sdk/runtime/store.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries', 'payment_transport_recovery'),
     'src/platform/ioalab/operations.py': ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission', 'payment_rejection','account_rewards','auth','authentication_recovery'),
     'src/access/sdk/ioalab_sdk/assistant/contracts.py': ('resident_contracts', 'contract_binding', 'delegation_scopes'),
-    'src/access/sdk/ioalab_sdk/assistant/candidates.py': ('candidate_evidence',),
+    'src/access/sdk/ioalab_sdk/assistant/candidates.py': ('candidate_evidence', 'rule_boundaries'),
     'src/access/sdk/ioalab_sdk/assistant/delegation.py': ('resident_delegation', 'delegation_admission', 'delegation_scopes'),
     'src/access/sdk/ioalab_sdk/assistant/rules.py': ('inbox_rules', 'user_confirmations'),
     'src/access/sdk/ioalab_sdk/assistant/termination.py': ('resident_termination', 'termination_control'),

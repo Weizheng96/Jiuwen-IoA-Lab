@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import uuid
@@ -16,8 +17,9 @@ def main():
     scope.add_argument('--tests', nargs='+', help='focused pytest paths or nodeids')
     scope.add_argument('--full', action='store_true', help='explicitly run all four repository gates')
     scope.add_argument('--changed-from', help='quick CI scope from a committed base revision to HEAD')
-    scope.add_argument('--layer', choices=['first'], help='coverage-preserving daily regression; retains unproven matrices')
-    scope.add_argument('--diagnose', metavar='MODULE', help='whole test module from the first-layer diagnostic map')
+    scope.add_argument('--layer', choices=['fast', 'chain'],
+                       help='fast: every test outside tests/chain_layer.json; chain: the listed whole-chain and opt-in host tests')
+    scope.add_argument('--diagnose', metavar='MODULE', help='whole test module from the diagnostic map')
     parser.add_argument('--report-dir', type=Path, help='new directory for stage logs and report.json')
     args = parser.parse_args()
     helper = ROOT / '.agents/skills/design/scripts/check.py'
@@ -34,11 +36,12 @@ def main():
         layer_module = importlib.util.module_from_spec(layer_spec)
         layer_spec.loader.exec_module(layer_module)
         try:
-            layer_plan = layer_module.plan(module=args.diagnose, root=ROOT)
+            layer_plan = layer_module.plan(layer=args.layer, module=args.diagnose, root=ROOT)
         except (ValueError, SyntaxError, OSError) as exc:
             parser.error(str(exc))
-        print('Test layer: ' + str(layer_plan), flush=True)
-        steps.append(runner.test_step(layer_plan['tests']))
+        summary = {key: layer_plan[key] for key in ('layer', 'tests', 'pytestArgs')} | layer_plan.get('manifest', {})
+        print('Test layer: ' + json.dumps(summary, ensure_ascii=False), flush=True)
+        steps.append(runner.test_step([*layer_plan['pytestArgs'], *layer_plan['tests']]))
     elif args.full:
         steps.extend(runner.full_steps())
     elif args.tests:
