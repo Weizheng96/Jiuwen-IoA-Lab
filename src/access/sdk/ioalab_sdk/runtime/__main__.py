@@ -19,19 +19,13 @@ from .installation import require_matching,SAFE_CALLS
 READ_ONLY={'runtime.status','identity.status','operations.get'}
 
 
-def validate_roles(config):
-    from ..provider.configuration import validate_provider
-    validate_provider(config.provider,config.identities)
-
-
-def setup_command(command,path,arguments=None,*,validate=validate_roles,host_update=None,host_fields=()):
+def setup_command(command,path,arguments=None,*,validate,service_fields,host_update=None,host_fields=()):
     from .configuration import inspect_config,configure
-    from ..provider.configuration import EDITABLE_SERVICE_FIELDS
     if command=='validate':
         config=RuntimeConfig.load(path);validate(config)
         data=config.public_summary()
     elif command=='configuration':data=inspect_config(path,validate=validate,host_fields=host_fields)
-    else:data=configure(path,arguments,service_fields=EDITABLE_SERVICE_FIELDS,validate=validate,
+    else:data=configure(path,arguments,service_fields=service_fields,validate=validate,
                         host_update=host_update,host_fields=host_fields)
     return {'status':'completed','data':data,'error':None}
 
@@ -85,6 +79,12 @@ def start(config_path,*,timeout=15,command=None,assembly=None,environment=None):
 
 
 def main(argv=None):
+    """Stable `ioalab-access` and `-m ioalab_sdk.runtime` command; the SDK assembly supplies the roles."""
+    from ..access import main as assembled
+    return assembled(argv)
+
+
+def run(argv,*,modules,validate,service_fields):
     configure_stdio()
     parser=argparse.ArgumentParser(prog='ioalab-access')
     commands=parser.add_subparsers(dest='command',required=True)
@@ -101,15 +101,13 @@ def main(argv=None):
     try:
         if args.command=='serve':
             from .resident import ResidentRuntime
-            from ..assistant.role import AssistantRole
-            from ..provider import ProviderRole
-            runtime=ResidentRuntime(RuntimeConfig.load(args.config),modules=(AssistantRole(),ProviderRole()))
+            runtime=ResidentRuntime(RuntimeConfig.load(args.config),modules=modules())
             runtime.run()
             return 0
         if args.command=='login':
             from .authentication import login
             result=login(args.config)
-        elif args.command in ('validate','configuration','configure'):result=setup_command(args.command,args.config,getattr(args,'args_file',None))
+        elif args.command in ('validate','configuration','configure'):result=setup_command(args.command,args.config,getattr(args,'args_file',None),validate=validate,service_fields=service_fields())
         elif args.command=='start':result=start(args.config)
         else:
             if args.operation not in READ_ONLY and not args.args_file:

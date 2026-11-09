@@ -218,10 +218,8 @@ class AssistantRole:
             if relation:envelope['interactionId']=relation['id']
             reference={'kind':'delivery','agentId':self.identity.agent_id,'operation':'message.send','operationId':operation}
             record={'fingerprint':fingerprint,'messageId':mid,'operationRef':reference,'interface':interface,'envelope':envelope}
-            with self.store.transaction() as conn:
-                self.store._prepare(conn,self.identity.agent_id,'message.send',envelope,operation)
-                for key in ('send:'+operation,'message:'+mid):
-                    conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',(self.namespace,key,encode(record)))
+            self.store.prepare_checkpointed(self.identity.agent_id,'message.send',envelope,operation,self.namespace,
+                                            {'send:'+operation:record,'message:'+mid:record})
         self.wake()
         return {'status':'accepted','data':{'messageRef':mid,'interactionRef':relation['id'] if relation else None,'operationRef':reference}}
 
@@ -373,9 +371,7 @@ class AssistantRole:
                           'recipient':message['sender'],'inReplyTo':mid,'interactionId':interaction,
                           'expiresAt':stamp(time.time()+86400),'body':body}
                 record={'operationId':operation,'envelope':envelope,'session':session}
-                with self.store.transaction() as conn:
-                    self.store._prepare(conn,self.identity.agent_id,'message.send',envelope,operation)
-                    conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',(self.namespace,'reply:'+mid,encode(record)))
+                self.store.prepare_checkpointed(self.identity.agent_id,'message.send',envelope,operation,self.namespace,{'reply:'+mid:record})
         receipt=self.runtime.connection.wait(self.identity.agent_id,'message.send',record['operationId'],timeout=10)
         return {'status':'submitted','replyReceipt':receipt,'messageRef':mid}
 

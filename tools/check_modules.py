@@ -34,6 +34,7 @@ MODULES = {
     "个人助手端": ["src/access/sdk/ioalab_sdk/assistant", "src/access/skills/assistant"],
     "服务方端": ["src/access/sdk/ioalab_sdk/provider", "src/access/skills/provider"],
     "宿主适配": ["src/hosts/jiuwen/ioalab_jiuwen"],
+    "SDK装配": ["src/access/sdk/ioalab_sdk/access.py"],
     "官方服务": ["src/official/services/ioalab_services"],
     "管理员助手": ["src/official/admin-assistant/ioalab_admin_assistant", "src/official/tools/ioalab_tools"],
     "在线试用": ["src/trial/ioalab_trial", "deploy/trial"],

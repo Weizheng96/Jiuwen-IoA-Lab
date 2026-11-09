@@ -117,6 +117,14 @@ class RuntimeStore:
         with self.transaction() as conn:
             return self._prepare(conn,actor,kind,payload,operation_id or str(uuid.uuid4()))
 
+    def prepare_checkpointed(self, actor, kind, payload, operation_id, namespace, values):
+        """Save an outbound operation and its role checkpoints in one local transaction."""
+        with self.transaction() as conn:
+            self._prepare(conn,actor,kind,payload,operation_id)
+            for key,value in values.items():
+                conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',(namespace,key,encode(value)))
+        return operation_id
+
     def pending(self):
         with self.lock:
             return [{**dict(row),'payload':json.loads(row['payload'])}

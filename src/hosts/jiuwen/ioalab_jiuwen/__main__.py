@@ -6,9 +6,10 @@ import sys
 
 from ioalab_sdk.assistant.role import AssistantRole
 from ioalab_sdk.provider import ProviderRole
+from ioalab_sdk.provider.configuration import EDITABLE_SERVICE_FIELDS,validate_provider
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.resident import ResidentRuntime
-from ioalab_sdk.runtime.__main__ import start,setup_command,validate_roles
+from ioalab_sdk.runtime.__main__ import start,setup_command
 from ioalab_sdk.runtime.ipc import public_error
 from ioalab_sdk.runtime.protocol import RuntimeFault,configure_stdio
 from .process import ProcessHost
@@ -33,9 +34,9 @@ def main(argv=None):
         if args.command in ('configuration','configure','validate'):
             from .configuration import HOST_FIELDS,merge_host,validate_host
             def validate(config):
-                validate_roles(config)
+                validate_provider(config.provider,config.identities)
                 validate_host(config,base_dir=args.config.resolve().parent)
-            result=setup_command(args.command,args.config,args.args_file,validate=validate,
+            result=setup_command(args.command,args.config,args.args_file,validate=validate,service_fields=EDITABLE_SERVICE_FIELDS,
                                  host_update=merge_host,host_fields=HOST_FIELDS)
             print(json.dumps(result,ensure_ascii=False))
             return 0
