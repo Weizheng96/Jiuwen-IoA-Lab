@@ -71,6 +71,19 @@ def current_documents():
     return sorted(set(files))
 
 
+def folder_pages(folder):
+    return {page.resolve() for page in folder.rglob("*.md")}
+
+
+def module_folders():
+    """Every directory under 设计/组件 that holds a module interface or a group index."""
+    modules = ROOT / "设计/组件"
+    if not modules.is_dir():
+        return []
+    return sorted(folder for folder in modules.rglob("*")
+                  if folder.is_dir() and ((folder / "接口.md").is_file() or (folder / "README.md").is_file()))
+
+
 def check_design_index():
     index = ROOT / "设计/README.md"
     if not index.is_file():
@@ -81,9 +94,26 @@ def check_design_index():
         folder = parent.with_suffix("")
         if parent.suffix == ".md" and parent.is_file() and folder.is_dir():
             indexed |= {resolved for _, resolved in local_targets(parent) if resolved.parent == folder}
-    return [f"Design page missing from index: {path.relative_to(ROOT)}"
-            for path in design_documents()
-            if path != index and path.resolve() not in indexed]
+    # A listed README registers every page under its own folder (decisions, topics, module groups).
+    for page in sorted(indexed):
+        if page.name == "README.md" and page.parent != (ROOT / "设计").resolve():
+            indexed |= folder_pages(page.parent)
+    # The architecture module table registers module folders; every module folder must be in it.
+    failures, linked = [], set()
+    architecture = ROOT / "设计/架构.md"
+    modules = (ROOT / "设计/组件").resolve()
+    if architecture.is_file():
+        for _, resolved in local_targets(architecture):
+            if resolved.is_relative_to(modules) and resolved.parent != modules:
+                linked.add(resolved.parent)
+                indexed |= folder_pages(resolved.parent)
+    for folder in module_folders():
+        if folder.resolve() not in linked and not any(folder.resolve().is_relative_to(known) for known in linked):
+            failures.append(f"Module folder missing from architecture table: {folder.relative_to(ROOT)}")
+    failures.extend(f"Design page missing from index: {path.relative_to(ROOT)}"
+                    for path in design_documents()
+                    if path != index and path.resolve() not in indexed)
+    return failures
 
 
 def link_failures(files):

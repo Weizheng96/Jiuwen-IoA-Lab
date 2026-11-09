@@ -64,6 +64,35 @@ def test_history_pages_are_outside_the_current_index(tree):
     assert check_docs.check_design_index() == []
 
 
+def test_listed_readme_registers_its_whole_folder(tree):
+    tree('设计/README.md', '# 索引\n\n[接口](接入/接口.md) [决策](决策/README.md)\n')
+    tree('设计/决策/README.md', '# 决策\n')
+    tree('设计/决策/0001-选型.md', '# 选型\n')
+    tree('设计/决策/深/0002-细节.md', '# 细节\n')
+    assert check_docs.check_design_index() == []
+
+
+def test_module_folder_is_registered_by_the_architecture_table(tree):
+    tree('设计/README.md', '# 索引\n\n[接口](接入/接口.md) [架构](架构.md)\n')
+    tree('设计/架构.md', '# 架构\n\n## 模块表\n\n| [平台](组件/平台/README.md) | [支付中心](组件/平台/支付中心/接口.md) |\n')
+    tree('设计/组件/平台/README.md', '# 平台\n')
+    tree('设计/组件/平台/术语.md', '# 术语\n')
+    tree('设计/组件/平台/进展/01-票.md', '# 票\n')
+    tree('设计/组件/平台/支付中心/接口.md', '# 接口\n')
+    tree('设计/组件/平台/支付中心/依赖.md', '# 依赖\n')
+    assert check_docs.check_design_index() == []
+
+
+def test_module_folder_outside_the_architecture_table_is_reported(tree):
+    tree('设计/README.md', '# 索引\n\n[接口](接入/接口.md) [架构](架构.md)\n')
+    tree('设计/架构.md', '# 架构\n\n## 模块表\n\n| [部署](组件/部署/接口.md) |\n')
+    tree('设计/组件/部署/接口.md', '# 部署\n')
+    tree('设计/组件/孤儿/接口.md', '# 孤儿\n')
+    assert check_docs.check_design_index() == [
+        'Module folder missing from architecture table: ' + str(Path('设计/组件/孤儿')),
+        missing('设计/组件/孤儿/接口.md')]
+
+
 def test_moved_section_leaves_a_reported_anchor_and_missing_file(tree):
     page = tree('设计/流程/使用.md',
                 '# 使用\n\n[旧位置](../接入/接口.md#http-入口) [新位置](../接入/接口/入口.md#http-入口) '
