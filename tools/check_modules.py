@@ -223,7 +223,8 @@ def check_dependencies(folders):
 def check_tests(folders):
     failures = []
     for name, folder in folders.items():
-        for page in sorted(folder.rglob("接口*.md")):
+        # A large interface page splits into 接口/<分组>.md; every sub-page carries its own test column.
+        for page in [folder / "接口.md", *sorted((folder / "接口").glob("*.md"))]:
             for cell in table_rows(page.read_text(encoding="utf-8"), "测试"):
                 for item in re.split(r"[、,，]", plain(cell)):
                     item = item.strip()

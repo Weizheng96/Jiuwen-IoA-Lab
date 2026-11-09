@@ -76,6 +76,12 @@ def test_test_column_names_must_exist(tree):
         'Test missing for interface row: ' + str(Path('设计/组件/平台/钱包/接口.md')) + ': missing_one']
 
 
+def test_split_interface_sub_pages_are_checked_too(tree):
+    tree('设计/组件/平台/钱包/接口/账本.md', '# 钱包 · 账本\n\n| 接口 | 测试 |\n|---|---|\n| `a` | wallet |\n| `b` | absent_case |\n')
+    assert check_modules.check_tests(check_modules.module_folders()) == [
+        'Test missing for interface row: ' + str(Path('设计/组件/平台/钱包/接口/账本.md')) + ': absent_case']
+
+
 def test_architecture_table_and_code_mapping_must_agree(tree):
     tree('设计/架构.md', '# 架构\n\n## 模块表\n\n| 模块 | 子模块 | 代码 | 职责 | 文件夹 |\n|---|---|---|---|---|\n'
          '| 平台 | 钱包 | `w` | 账本 | 页 |\n| 平台 | 账号 | `a` | 账号 | 页 |\n| 平台 | 基础 | `s` | 基础 | 页 |\n| 平台 | 多余 | `x` | 多余 | 页 |\n')
