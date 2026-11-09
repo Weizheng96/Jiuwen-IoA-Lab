@@ -31,4 +31,4 @@ description: 编写、审查现行设计：架构模块表、模块文件夹六�
 
 ## 验证与交付
 
-运行 `python .agents/skills/develop/scripts/check.py` 核版本、链接、索引与锚点，再按[交付](../develop/references/delivery.md#提交标题与版本)提交推送。结构、术语与分层细则读[文档编辑](references/documentation.md)；尚未迁入模块文件夹的职责页沿用同一规则，迁移由工程专题的票据推进。
+运行 `python .agents/skills/develop/scripts/check.py` 核版本、链接、索引、锚点，以及模块文件夹对代码的依赖声明、入口导入、接口测试列与进展索引（`tools/check_modules.py`，模块到代码目录的映射在该脚本维护），再按[交付](../develop/references/delivery.md#提交标题与版本)提交推送。结构、术语与分层细则读[文档编辑](references/documentation.md)；尚未迁入模块文件夹的职责页沿用同一规则，迁移由工程专题的票据推进。

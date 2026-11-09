@@ -18,7 +18,8 @@ ROOT = Path(__file__).resolve().parents[4]
 
 def base_steps():
     return [("Design versions", ["设计/check.py"]),
-            ("Documentation links and index", ["tools/check_docs.py"])]
+            ("Documentation links and index", ["tools/check_docs.py"]),
+            ("Module folders", ["tools/check_modules.py"])]
 
 
 def test_step(targets):
@@ -93,7 +94,7 @@ def main():
     parser.add_argument('--full', action='store_true', help='explicitly run all four repository gates')
     parser.add_argument('--report-dir', type=Path, help='new directory for stage logs and report.json')
     args = parser.parse_args()
-    if not all((ROOT / path).is_file() for path in ('AGENTS.md', '设计/check.py', 'tools/check_docs.py', 'tools/selfcheck.py')):
+    if not all((ROOT / path).is_file() for path in ('AGENTS.md', '设计/check.py', 'tools/check_docs.py', 'tools/check_modules.py', 'tools/selfcheck.py')):
         parser.error('place this script at .agents/skills/design/scripts/check.py in the repository')
     return run_checks(base_steps() + (full_steps() if args.full else []), args.report_dir)
 
