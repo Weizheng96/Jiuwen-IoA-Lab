@@ -20,7 +20,7 @@
 
 ## 5. 部署
 
-常规部署只读[部署教程](设计/工程/部署.md)，选择Windows本地或Linux服务器部分；[deployment](.agents/skills/deployment/SKILL.md)提供异常处理及专项入口。现行安装、进程归属与数据保留规则归[部署模块](设计/组件/部署/接口.md)。
+平台、官方实例与在线试用只在Linux服务器部署，常规部署只读[部署教程](设计/工程/部署.md)；Windows开发机只做单元测试、自检与本机平台开发运行（见develop）；[deployment](.agents/skills/deployment/SKILL.md)提供异常处理及专项入口。现行安装、进程归属与数据保留规则归[部署模块](设计/组件/部署/接口.md)。
 
 ## 6. 模型
 

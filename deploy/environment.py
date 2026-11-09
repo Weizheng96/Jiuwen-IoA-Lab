@@ -73,14 +73,6 @@ def python_in(environment):
     return environment / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
 
 
-def native_paths(environment):
-    if os.name != 'nt':
-        return
-    for path in environment.rglob('*'):
-        if path.suffix.lower() in ('.pyd', '.dll') and len(str(path.absolute()).encode('utf-16-le')) // 2 > 240:
-            raise RuntimeError('A Windows native library path is too long; preserve this attempt and choose a shorter --root')
-
-
 def validation_code(unit, expected, catalog):
     checks = '''
 import importlib.metadata as metadata
@@ -134,8 +126,6 @@ class Environment:
         if self.root.resolve().is_relative_to(prefix) or prefix.is_relative_to(self.root.resolve()):
             raise ValueError('Choose a dedicated environment root separate from this running interpreter')
         self.folder = self.root / (unit + '-' + self.id[:16])
-        if os.name == 'nt' and len(str(self.folder / ('a-' + '0' * 16)).encode('utf-16-le')) // 2 > 145:
-            raise ValueError('Choose a shorter --root for Windows native dependencies; the environment prefix must fit 145 UTF-16 characters')
         self.versions = pins(regular(self.release, self.plan['lock']['path']).read_text(encoding='utf-8'))
         self.versions.update({wheel['name']: wheel['version'] for wheel in self.plan['wheels']})
 
@@ -172,7 +162,6 @@ class Environment:
         environment = self.folder / attempt
         if linked(environment) or not environment.is_dir():
             raise RuntimeError('Installed environment path has changed')
-        native_paths(environment)
         python = python_in(environment)
         catalog = official_catalog(self.release, self.document) if self.unit == 'participant' else None
         execute(python, validation_code(self.unit, self.versions, catalog), self.folder, log)

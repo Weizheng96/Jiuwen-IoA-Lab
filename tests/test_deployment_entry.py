@@ -7,7 +7,7 @@ from deploy import __main__ as entry
 from deploy.installation import Installation
 from deploy.layout import Layout,environment_text
 from deploy import units
-from test_production_release import source,release
+from test_production_release import source,release,linux_target
 
 
 def test_status_does_not_initialize_or_repair_any_role_state(tmp_path,monkeypatch,capsys):

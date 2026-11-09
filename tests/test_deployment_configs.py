@@ -1,5 +1,6 @@
 """First-write recovery and reinstall preservation for sensitive deployment configuration."""
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,11 @@ from deploy.layout import Layout, environment_text, read_environment
 def fixture(tmp_path,**changes):
     layout=Layout(tmp_path/'runtime',tmp_path/'state',tmp_path/'config')
     path=initialize(layout)
+    if os.name=='nt':
+        # Deployment is Linux-only; on a Windows development machine the test
+        # applies the platform's own private-file protection that chmod cannot express.
+        from ioalab.configuration_permissions import protect_new
+        protect_new(path.parent,directory=True);protect_new(path)
     document=json.loads(path.read_text());document['runtime']['public_url']='https://ioa.example'
     document['llm'].update(model='test-model',base_url='https://models.example/v1',api_key='model-private-sentinel')
     path.write_text(json.dumps(document),encoding='utf-8')
@@ -87,22 +93,6 @@ def test_changed_initial_input_rejected_without_printing_secrets(tmp_path):
     changed={**value,'max_model_runs':7}
     with pytest.raises(ValueError,match='Initial deployment input') as caught:Configuration(layout,identity,changed)
     assert 'sentinel' not in str(caught.value) and first.path.read_bytes()==before
-
-
-def test_native_assets_keep_content_identity_without_a_symlink(tmp_path):
-    from deploy.windows_local import Local
-    local=Local(tmp_path/'native');identity=local.layout.claim()
-    assets=local.assets({'releaseId':'a'*64})
-    path=initialize(local.layout,assets=assets)
-    document=json.loads(path.read_text());document['llm'].update(model='test-model',api_key='model-private-sentinel')
-    path.write_text(json.dumps(document),encoding='utf-8')
-    result=Configuration(local.layout,identity,{'platform_config':str(path)},assets=assets).base()
-    assert assets.name=='a'*64
-    assert result['runtime']['seed_file']==str(assets/'seed.json')
-    assert result['runtime']['bundles_dir']==str(assets/'skills')
-    assert not assets.is_symlink()
-    with pytest.raises(ValueError,match='content-addressed'):
-        local.assets({'releaseId':'../other'})
 
 
 def test_completed_missing_configuration_is_not_regenerated(tmp_path):

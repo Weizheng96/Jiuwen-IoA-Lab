@@ -46,7 +46,7 @@ def resolve(wheels, output, target, *, index, constraints=None, resolver='uv'):
             locked = folder / 'requirements.lock'
             direct.write_text('\n'.join(plan['requirements']) + '\n', encoding='utf-8')
             command = [executable, 'pip', 'compile', str(direct), '--python-platform',
-                       'linux' if target.startswith('linux-') else 'windows', '--python-version', '3.11',
+                       'linux', '--python-version', '3.11',
                        '--python', sys.executable, '--only-binary', ':all:', '--default-index', index,
                        '--native-tls', '--no-header', '--no-annotate', '--output-file', str(locked)]
             if constraints:

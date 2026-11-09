@@ -281,13 +281,9 @@ def test_recipe_cannot_select_another_owner_target_or_arbitrary_permission(manag
 
 
 def test_root_requirement_is_not_a_configuration_switch(monkeypatch):
-    if os.name=='posix':
-        monkeypatch.setattr(os,'geteuid',lambda:1000)
-        with pytest.raises(RuntimeFault,match='Linux deployment root'):configuration.operator()
-    else:
-        def unavailable():raise RuntimeFault('not_ready','Local owner SID unavailable')
-        monkeypatch.setattr(configuration,'windows_sid',unavailable)
-        with pytest.raises(RuntimeFault,match='Local owner SID unavailable'):configuration.operator()
+    # Windows has no deployment path: the same check rejects it as not the Linux root.
+    if os.name=='posix':monkeypatch.setattr(os,'geteuid',lambda:1000)
+    with pytest.raises(RuntimeFault,match='Linux deployment root'):configuration.operator()
 
 
 def test_interrupted_fixed_confirmation_is_resumed_without_new_reference(managed,monkeypatch):

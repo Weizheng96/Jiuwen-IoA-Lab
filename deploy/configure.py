@@ -9,7 +9,7 @@ from .layout import Layout,write_initial
 from .release import read_json
 
 
-def initialize(layout,*,assets=None,llm=None):
+def initialize(layout,*,llm=None):
     if llm is not None:
         from .configuration import model
         llm=model(llm)
@@ -19,14 +19,11 @@ def initialize(layout,*,assets=None,llm=None):
     directory=path.parent
     if directory.exists() and any(directory.iterdir()):raise ValueError('Preserve the existing core configuration and import it explicitly')
     directory.mkdir(mode=0o700,exist_ok=True)
-    if os.name=='nt':
-        from .windows_local import private_directory
-        private_directory(directory)
-    else:os.chmod(directory,0o700)
+    os.chmod(directory,0o700)
     value=read_json(Path(__file__).with_name('platform.json.example'))
     if llm is not None:
         value['llm'].update(model=llm['name'],base_url=llm['base_url'],api_key=llm['api_key'])
-    assets=Path(assets).absolute() if assets else layout.environments/'current/release'
+    assets=layout.environments/'current/release'
     value['runtime'].update(data=str(layout.state/'core'),seed_file=str(assets/'seed.json'),
         bundles_dir=str(assets/'skills'),session_secret=secrets.token_hex(32),assistant_password=secrets.token_urlsafe(24))
     write_initial(path,(json.dumps(value,ensure_ascii=False,sort_keys=True,indent=2)+'\n').encode())
@@ -38,10 +35,9 @@ def main(argv=None):
     parser.add_argument('--root',type=Path,default=Path('/opt/ioalab-runtime'))
     parser.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
     parser.add_argument('--config-dir',type=Path,default=Path('/etc/ioalab'))
-    parser.add_argument('--assets',type=Path,help='Windows已构建release资源路径；Linux默认current/release')
     args=parser.parse_args(argv)
     try:
-        path=initialize(Layout(args.root,args.state,args.config_dir),assets=args.assets)
+        path=initialize(Layout(args.root,args.state,args.config_dir))
         print(json.dumps({'status':'completed','platformConfig':str(path)},ensure_ascii=False));return 0
     except Exception as error:
         print(json.dumps({'status':'not_ready','error':{'type':type(error).__name__}},ensure_ascii=False));return 1

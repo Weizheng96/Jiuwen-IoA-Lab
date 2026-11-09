@@ -64,6 +64,23 @@ def test_focused_check_runs_only_the_selected_test(tmp_path):
     assert 'test_selected.py::test_selected' in (path / 'result/04.log').read_text(encoding='utf-8')
 
 
+def test_module_check_runs_the_module_interface_column(tmp_path):
+    path = repository(tmp_path)
+    # The selector owns the column; this stub isolates the runner wiring from the real design tree.
+    (path / 'tools/check_scope.py').write_text(
+        'def module_targets(name):\n'
+        '    if name != "钱包":\n'
+        '        raise ValueError("Unknown module " + repr(name))\n'
+        '    return ["tests/test_selected.py"]\n', encoding='utf-8')
+    (path / 'tests/test_other.py').write_text('def test_other():\n    assert False\n', encoding='utf-8')
+    result, report = run(path, '--module', '钱包')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert report['status'] == 'passed' and len(report['steps']) == 4
+    assert '1 passed' in result.stdout and 'Module tests:' in result.stdout
+    unknown = subprocess.run(command(path, '--module', '不存在'), capture_output=True, text=True, encoding='utf-8')
+    assert unknown.returncode == 2 and 'Unknown module' in unknown.stderr
+
+
 def test_explicit_full_check_runs_all_four_gates(tmp_path):
     path = repository(tmp_path)
     result, report = run(path, '--full')

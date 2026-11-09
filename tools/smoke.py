@@ -80,11 +80,11 @@ def _stop_participant(rpc,state,child,home):
 
 def _launch(command,**kwargs):
     if os.name!='nt':return subprocess.Popen(command,**kwargs)
-    from deploy.windows_local import WindowsProcesses
+    from tools.windows_jobs import WindowsJobs
     # Assign the still-suspended launcher before it can create any descendants.
     kwargs['creationflags']=kwargs.get('creationflags',0)|0x4
     process=subprocess.Popen(command,**kwargs)
-    api=WindowsProcesses();name='ioa-smoke-'+uuid.uuid4().hex
+    api=WindowsJobs();name='ioa-smoke-'+uuid.uuid4().hex
     try:
         api.assign(name,process.pid)
         process._smoke_job=(api,name)

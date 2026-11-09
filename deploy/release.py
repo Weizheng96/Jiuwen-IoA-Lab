@@ -18,7 +18,7 @@ UNITS = {
     'participant': frozenset({'ioalab-sdk', 'ioalab-jiuwen', 'ioalab-official', 'a2c', 'jiuwenswarm-process-sdk'}),
     'swarm': frozenset({'workswarm', 'openjiuwen', 'a4p', 'intelli-router'}),
 }
-TARGETS = ('linux-x86_64', 'windows-x86_64')
+TARGETS = ('linux-x86_64',)
 HEX = re.compile(r'[a-f0-9]{64}')
 PIN = re.compile(r'([A-Za-z0-9][A-Za-z0-9_.-]*)==([A-Za-z0-9][A-Za-z0-9_.+!-]*)')
 
@@ -113,10 +113,9 @@ def current_target():
     system, machine = platform.system(), platform.machine().lower()
     if machine not in ('amd64', 'x86_64') or sys.maxsize <= 2**32:
         raise ValueError('Generate and verify a separate lock for this CPU architecture')
-    target = {'Linux': 'linux-x86_64', 'Windows': 'windows-x86_64'}.get(system)
-    if target is None:
-        raise ValueError('This operating system has no production lock')
-    return target
+    if system != 'Linux':
+        raise ValueError('Production releases run only on Linux; Windows is not a deployment target')
+    return 'linux-x86_64'
 
 
 def file_record(root, path):

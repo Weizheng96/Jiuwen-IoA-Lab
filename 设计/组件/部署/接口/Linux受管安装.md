@@ -4,7 +4,7 @@
 
 ## Linux受管入口与前置条件
 
-本页与[升级与修复](升级与修复.md)定义Linux受管安装；Windows启动装配遵守[Windows可信本机体验](重部署与本机体验.md#windows可信本机体验)，并复用其中的发行校验及组件公开契约，不引入systemd依赖。
+本页与[升级与修复](升级与修复.md)定义Linux受管安装，这是平台、官方实例与在线试用唯一的部署方式；Windows不提供部署方式。
 
 | 入口 | 行为 |
 |---|---|
@@ -14,7 +14,7 @@
 | python -m deploy repair-bootstrap --state <原状态根> --operation <失败安装操作> | 在[初次启动的控制器修复](升级与修复.md#初次启动的控制器修复)边界内复用原候选，提交关联原失败操作的修复任务 |
 | python -m deploy bootstrap-upgrade --state <原状态根> --operation <失败安装操作> | 按下述未完成初装升级准入，从已同步的新来源构建真实新候选，显式导入原配置并续接首次bootstrap |
 
-以下受管安装默认运行根为/opt/ioalab-runtime，状态根为/var/lib/ioalab，配置根为/etc/ioalab；可用--root、--state、--config-dir显式选择。三根与源码目录互不嵌套。入口使用CPython3.11、systemd及统一cgroup v2，Linux首批目标为x86_64；Windows本机入口按[Windows可信本机体验](重部署与本机体验.md#windows可信本机体验)独立装配进程，不能冒充systemd部署成功。
+以下受管安装默认运行根为/opt/ioalab-runtime，状态根为/var/lib/ioalab，配置根为/etc/ioalab；可用--root、--state、--config-dir显式选择。三根与源码目录互不嵌套。入口使用CPython3.11、systemd及统一cgroup v2，目标只有Linux x86_64。
 
 部署者预先同步完整本仓，可通过GitCode或目录复制；安装器不拉取Git、不使用子模块，也不复制整棵开发工作区。普通包走配置的HTTPS镜像，构建只用固定的独立build环境，运行不使用根requirements或editable包。源码、构建、发行、运行环境与持久状态分别定位。
 

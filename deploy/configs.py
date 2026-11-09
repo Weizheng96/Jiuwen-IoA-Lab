@@ -18,9 +18,9 @@ def local_url(bind,port):
 
 
 class Configuration:
-    def __init__(self,layout,identity,value,*,assets=None):
+    def __init__(self,layout,identity,value):
         self.layout,self.identity=layout,identity
-        self.assets = path_without_links(assets) if assets is not None else layout.environments/'current/release'
+        self.assets = layout.environments/'current/release'
         self.options=validate(value)
         if Path(self.options['platform_config'])!=layout.config/'core/platform.json':
             raise ValueError('The unique platform configuration must be in this deployment core leaf')

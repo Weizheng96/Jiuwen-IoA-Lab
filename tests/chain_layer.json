@@ -134,7 +134,6 @@
    "test_committed_test_body_only_change_does_not_expand_to_helper_consumers",
    "test_known_harness_entry_uses_explicit_consumers_but_new_helper_falls_back",
    "test_manual_quick_base_uses_original_committed_selector_and_rejects_bad_revision",
-   "test_payment_owners_do_not_expand_unrelated_roles_or_test_edits",
    "test_quick_matrix_collects_whole_new_class_and_new_parametrized_async_methods",
    "test_quick_matrix_still_includes_new_test_functions",
    "test_selector_itself_and_runner_change_only_select_maintenance_checks",
@@ -531,10 +530,6 @@
   ],
   "tests/test_web_setup.py": [
    "test_command_reports_prepared_without_secret_or_original_runtime_execution"
-  ],
-  "tests/test_windows_local.py": [
-   "test_fast_exiting_front_cannot_hide_owned_worker",
-   "test_owned_console_interrupt_and_pid_replacement"
   ],
   "tests/test_workbench_network.py": [
    "test_public_service_uses_its_declaration_connection_and_current_admission_policy"

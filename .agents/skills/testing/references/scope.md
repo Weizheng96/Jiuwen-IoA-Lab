@@ -1,6 +1,6 @@
 # 范围与覆盖
 
-push/PR 的 A 与 B 由 `tools/check_scope.py` 选择；`--changed-from <已提交基线>` 只比较基线到 HEAD，不包含工作区。选择结果只提供快速反馈，开发者仍按不变量补足测试。完整回归由 stage validation 的 full 或定期任务执行，安装部署使用 deployment 专项。
+push/PR 的 A 与 B 由 `tools/check_scope.py` 选择：模块代码（`tools/check_modules.py` 的 MODULES）取所属模块接口页及子页的测试列，代表性矩阵按 QUICK_CASES 抽样；模块之外的工具、测试支撑与打包文件才用其 FILE_RULES 与 RULES，缺项先补接口页测试列；`--changed-from <已提交基线>` 只比较基线到 HEAD，不包含工作区。选择结果只提供快速反馈，开发者仍按不变量补足测试。完整回归由 stage validation 的 full 或定期任务执行，安装部署使用 deployment 专项。
 
 ## 两个测试层
 

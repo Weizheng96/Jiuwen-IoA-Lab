@@ -10,7 +10,9 @@ import sys
 import pytest
 import yaml
 
-from tools.check_scope import CRITICAL, FILE_RULES, HELPER_CASES, QUICK_CASES, ROOT, changed_paths, select_tests
+from tools import check_modules
+from tools.check_scope import (CRITICAL, FILE_RULES, HELPER_CASES, QUICK_CASES, ROOT, changed_paths, interface_tests,
+                               module_of, module_targets, select_tests)
 
 
 def has_target(selected, target):
@@ -107,48 +109,107 @@ def test_runtime_scope_keeps_related_and_critical_boundaries(path, expected):
     assert expected in selected
     if not path.endswith('.md'):
         assert all(has_target(selected, target) for target in CRITICAL)
-    assert 'tests/test_package_installation.py' not in selected
 
 
-def test_exact_fulfillment_owner_avoids_unrelated_domain_and_full_matrices():
-    selected = select_tests(['src/access/sdk/ioalab_sdk/assistant/fulfillment.py'])['tests']
-    assert 'tests/test_fulfillment_status.py' in selected
-    assert all(target in selected for target in QUICK_CASES['resident_multiperiod'])
-    assert 'tests/test_resident_multiperiod.py' not in selected
-    assert 'tests/test_candidate_evidence.py' not in selected
-    assert 'tests/test_inbox_rules.py' not in selected
-    assert 'tests/test_installation_identity.py' not in selected
-    assert not any('arbitration' in target for target in selected)
+@pytest.mark.parametrize('path,module', [
+    ('src/access/sdk/ioalab_sdk/assistant/fulfillment.py', '个人助手端'),
+    ('src/platform/ioalab/payments/ledger.py', '支付中心'),
+    ('src/platform/ioalab/operations.py', 'web服务'),
+    ('deploy/linux.py', '部署'),
+])
+def test_repository_module_file_selects_its_whole_interface_test_column(path, module):
+    column = interface_tests()[module]
+    selected = select_tests([path])['tests']
+    assert column and any(path + ': interface test column of ' + module == reason for reason in select_tests([path])['reasons'])
+    for entry in column:
+        if entry.startswith('tests/'):
+            assert has_target(selected, entry)
+            continue
+        for stem in {p.stem[5:] for p in (ROOT / 'tests').glob(f'test_{entry}.py')}:
+            # Declared matrices stay sampled in quick scope; check.py --module runs them whole.
+            wanted = QUICK_CASES.get(stem, ('tests/test_' + stem + '.py',))
+            assert all(has_target(selected, target) for target in wanted), stem
 
 
-def test_payment_owners_add_recovery_boundaries_without_removing_existing_coverage(monkeypatch):
-    owners = {
-        'src/access/sdk/ioalab_sdk/assistant/fulfillment.py': (
-            ('fulfillment_status', 'resident_fulfillment', 'resident_multiperiod', 'user_confirmations', 'payment_atomicity'),
-            ('fulfillment_payment_guards', 'resident_payment_recovery')),
-        'src/access/sdk/ioalab_sdk/assistant/trading.py': (
-            ('assistant_role', 'resident_input_boundaries', 'resident_contracts'), ('payment_transport_recovery',)),
-        'src/platform/ioalab/operations.py': (
-            ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission'), ('payment_rejection','account_rewards','auth','authentication_recovery')),
-    }
-    for name in ('adapters/payments.py', 'adapters/transport.py', 'runtime/store.py'):
-        owners['src/access/sdk/ioalab_sdk/' + name] = (
-            ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries'), ('payment_transport_recovery',))
-    for path, (original, additions) in owners.items():
-        selected = set(select_tests([path])['tests'])
-        with monkeypatch.context() as previous:
-            previous.setitem(FILE_RULES, path, original)
-            baseline = set(select_tests([path])['tests'])
-        # A newly selected whole module includes its former critical nodeids.
-        assert all(has_target(selected,target) for target in baseline)
-        assert selected - baseline == {'tests/test_' + name + '.py' for name in additions}
+def test_module_targets_run_the_whole_column_and_reject_unknown_modules():
+    targets = module_targets('个人助手端')
+    assert 'tests/test_assistant_role.py' in targets
+    assert all((ROOT / target.split('::')[0]).is_file() for target in targets)
+    assert not any('::' in target and target.split('::')[0] in targets for target in targets)
+    with pytest.raises(ValueError, match='Unknown module'):
+        module_targets('不存在的模块')
 
 
-def test_payment_owners_do_not_expand_unrelated_roles_or_test_edits():
-    payment_tests = {'tests/test_' + name + '.py' for name in
-                     ('fulfillment_payment_guards', 'resident_payment_recovery', 'payment_rejection', 'payment_transport_recovery')}
-    for path in ('src/access/sdk/ioalab_sdk/assistant/rules.py', 'src/access/sdk/ioalab_sdk/runtime/config.py'):
-        assert not payment_tests.intersection(select_tests([path])['tests'])
+def test_file_rules_cover_only_files_outside_every_module():
+    assert [path for path in FILE_RULES if module_of(path) is not None] == []
+
+
+@pytest.fixture
+def module_tree(tmp_path, monkeypatch):
+    monkeypatch.setattr(check_modules, 'ROOT', tmp_path)
+    monkeypatch.setattr(check_modules, 'MODULES', {'钱包': ['src/app/wallet'], '账号': ['src/app/account']})
+    monkeypatch.setattr(check_modules, 'OUTSIDE', {'测试': ['tests']})
+
+    def write(name, text):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding='utf-8')
+
+    for name in ('wallet', 'other', 'matrix'):
+        write(f'tests/test_{name}.py', 'def test_one(): pass\n\ndef test_two(): pass\n')
+    write('src/app/wallet/ledger.py', 'VALUE = 1\n')
+    write('src/app/account/keys.py', 'VALUE = 1\n')
+    write('设计/组件/平台/钱包/接口.md', '# 钱包\n\n| 接口 | 测试 |\n|---|---|\n| `a` | wallet、other::test_one |\n| `b` | — |\n')
+    write('设计/组件/平台/钱包/接口/账本.md', '# 钱包 · 账本\n\n| 接口 | 测试 |\n|---|---|\n| `c` | matrix |\n')
+    write('设计/组件/平台/账号/接口.md', '# 账号\n\n| 接口 | 测试 |\n|---|---|\n| `d` | — |\n')
+    return tmp_path, write
+
+
+def test_module_file_selects_parent_and_sub_page_columns_only(module_tree):
+    root, _ = module_tree
+    result = select_tests(['src/app/wallet/ledger.py'], root)
+    assert result['tests'] == ['tests/test_matrix.py', 'tests/test_other.py::test_one', 'tests/test_wallet.py']
+    assert result['reasons'] == ['src/app/wallet/ledger.py: interface test column of 钱包']
+    assert module_targets('钱包', root) == result['tests']
+
+
+def test_module_without_interface_tests_warns_instead_of_guessing(module_tree):
+    root, _ = module_tree
+    result = select_tests(['src/app/account/keys.py'], root)
+    assert result['tests'] == []
+    assert result['warnings'] == ['src/app/account/keys.py: module 账号 lists no interface tests; critical checks only']
+    with pytest.raises(ValueError, match='lists no existing tests'):
+        module_targets('账号', root)
+
+
+def test_module_column_keeps_quick_sampling_of_declared_matrices(module_tree, monkeypatch):
+    root, _ = module_tree
+    monkeypatch.setitem(QUICK_CASES, 'matrix', ('tests/test_matrix.py::test_one',))
+    selected = select_tests(['src/app/wallet/ledger.py'], root)['tests']
+    assert 'tests/test_matrix.py' not in selected
+    assert {'tests/test_matrix.py::test_one', 'tests/test_matrix.py::test_two'} <= set(selected)
+    assert 'tests/test_matrix.py' in module_targets('钱包', root)
+
+
+def test_committed_scope_reads_the_committed_interface_column(module_tree):
+    root, write = module_tree
+
+    def git(*args):
+        return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.PIPE).decode().strip()
+    git('init'); git('config', 'user.email', 'fixture@invalid.test'); git('config', 'user.name', 'Fixture')
+    git('add', '.'); git('commit', '-m', 'base')
+    base = git('rev-parse', 'HEAD')
+    write('src/app/wallet/ledger.py', 'VALUE = 2\n')
+    git('add', '.'); git('commit', '-m', 'ledger change')
+    # A working edit of the interface page must not change the committed plan.
+    write('设计/组件/平台/钱包/接口.md', '# 钱包\n\n| 接口 | 测试 |\n|---|---|\n| `a` | other |\n')
+    write('设计/组件/平台/钱包/接口/账本.md', '# 钱包 · 账本\n')
+    assert select_tests(changed_paths(base, root), root, base=base)['tests'] == [
+        'tests/test_matrix.py', 'tests/test_other.py::test_one', 'tests/test_wallet.py']
+    assert select_tests(['src/app/wallet/ledger.py'], root)['tests'] == ['tests/test_other.py']
+
+
+def test_test_edits_select_only_themselves():
     assert select_tests(['tests/test_payment_transport_recovery.py'])['tests'] == ['tests/test_payment_transport_recovery.py']
 
 
@@ -159,7 +220,6 @@ def test_owner_view_and_its_js_driver_select_behavior_and_security_checks():
         if path.startswith('src/'):
             assert 'tests/test_user_confirmations.py' in selected
         assert 'tests/test_resident_multiperiod.py' not in selected
-        assert 'tests/test_resident_runtime.py' not in selected
 
 
 def test_changed_test_imports_are_structural_transitive_and_ignore_strings(tmp_path):

@@ -31,6 +31,50 @@
 
 `POST /api/v1/messaging/interfaces` 的输入为 operationId、name、expectedRevision 与 definition；definition 仅包含公开说明、object 根输入/输出 Schema、allowedSenders、enabled、完整本地规则的 contentDigest。原文处理步骤不上传。发布返回不可变修订和目标 agentId；读取及发送均复核当前权限，操作重试不重复建立修订。
 
+## 种类契约
+
+本表是 WebSocket 帧 `type`、控制操作与持久消息 `kind` 的唯一清单，平台分派表与 SDK 发送方各由测试解析本表核对（[平台侧](../../../../../tests/test_platform_contract.py)、[SDK 侧](../../../../../tests/test_sdk_contract.py)）。新增、改名或删除种类时先改本表，再改实现；错误码的唯一清单见[幂等与错误](幂等与错误.md#错误码)。上文各表与本节一致，只补字段与语义。
+
+列的取值固定，便于解析：类别为 连接帧、控制、操作记录、消息、系统消息；方向为 参与方→平台、平台→参与方、参与方→参与方；发送方与处理方写模块名，多个用“、”分隔。控制的处理方是平台中提交该操作的模块；消息的处理方是接收端模块，平台消息中心负责校验与转发；操作记录只能经 `operation.get` 或 HTTP 原操作查询读取，不能作为控制帧发送。
+
+| 种类 | 类别 | 方向 | 发送方 | 处理方 |
+|---|---|---|---|---|
+| `connection.auth` | 连接帧 | 参与方→平台 | 共用运行时 | web服务 |
+| `connection.ready` | 连接帧 | 平台→参与方 | web服务 | 共用运行时 |
+| `connection.ping` | 连接帧 | 参与方→平台 | 共用运行时 | web服务 |
+| `connection.pong` | 连接帧 | 平台→参与方 | web服务 | 共用运行时 |
+| `connection.error` | 连接帧 | 平台→参与方 | web服务 | 共用运行时 |
+| `operation.result` | 连接帧 | 平台→参与方 | web服务 | 共用运行时 |
+| `message.deliver` | 连接帧 | 平台→参与方 | 消息中心 | 共用运行时 |
+| `message.send` | 控制 | 参与方→平台 | 共用运行时、个人助手端、服务方端 | 消息中心 |
+| `message.ack` | 控制 | 参与方→平台 | 共用运行时 | 消息中心 |
+| `request.start` | 控制 | 参与方→平台 | 共用运行时、个人助手端、服务方端 | 消息中心 |
+| `interaction.close` | 控制 | 参与方→平台 | 个人助手端 | 消息中心 |
+| `contract.bind` | 控制 | 参与方→平台 | 个人助手端 | 消息中心 |
+| `admission.configure` | 控制 | 参与方→平台 | 服务方端 | 委托中心 |
+| `admission.reserve` | 控制 | 参与方→平台 | 服务方端 | 委托中心 |
+| `admission.commit` | 控制 | 参与方→平台 | 服务方端 | 委托中心 |
+| `admission.status` | 控制 | 参与方→平台 | 服务方端 | 委托中心 |
+| `scope.register` | 控制 | 参与方→平台 | 个人助手端 | 支付中心 |
+| `scope.status` | 控制 | 参与方→平台 | 个人助手端 | 支付中心 |
+| `scope.close` | 控制 | 参与方→平台 | 个人助手端 | 支付中心 |
+| `scope.select` | 控制 | 参与方→平台 | 个人助手端 | 支付中心 |
+| `arbitration.request` | 控制 | 参与方→平台 | 个人助手端、服务方端 | 委托中心 |
+| `arbitration.finish` | 控制 | 参与方→平台 | 个人助手端、服务方端 | 委托中心 |
+| `ap2.pay` | 控制 | 参与方→平台 | 共用运行时 | 支付中心 |
+| `a2c.market` | 控制 | 参与方→平台 | 共用运行时 | 委托中心 |
+| `operation.get` | 控制 | 参与方→平台 | 共用运行时 | web服务 |
+| `service.publish` | 操作记录 | 参与方→平台 | 服务方端 | 注册中心 |
+| `delegation.intent` | 消息 | 参与方→参与方 | 个人助手端 | 服务方端 |
+| `delegation.result` | 消息 | 参与方→参与方 | 服务方端 | 个人助手端 |
+| `a2c.request` | 消息 | 参与方→参与方 | 共用运行时 | 共用运行时 |
+| `a2c.result` | 消息 | 参与方→参与方 | 共用运行时 | 共用运行时 |
+| `message.request` | 消息 | 参与方→参与方 | 个人助手端 | 个人助手端 |
+| `message.result` | 消息 | 参与方→参与方 | 个人助手端 | 个人助手端 |
+| `interaction.opened` | 消息 | 参与方→参与方 | 共用运行时 | 共用运行时 |
+| `contract.ruling` | 系统消息 | 平台→参与方 | 消息中心 | 个人助手端、服务方端 |
+| `interaction.closed` | 系统消息 | 平台→参与方 | 消息中心 | 共用运行时 |
+
 ## 持久消息封套
 
 | 字段 | 必填条件与来源 |

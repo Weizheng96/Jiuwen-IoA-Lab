@@ -6,7 +6,7 @@
 
 **状态：** ready
 
-**范围：** 共用运行时 `runtime/__main__.py`、SDK装配 `access.py`、`src/access/sdk/pyproject.toml`；消费者为 `_shared/ioalab.py`、`deploy/units.py`、`deploy/windows_local.py`、`tools/smoke.py`、`tools/verification/verify_deployment.py`、`tools/check_bootstrap.py`、`src/access/sdk/README.md` 与测试。按展开、迁移、收口三步做：
+**范围：** 共用运行时 `runtime/__main__.py`、SDK装配 `access.py`、`src/access/sdk/pyproject.toml`；消费者为 `_shared/ioalab.py`、`deploy/units.py`、`tools/smoke.py`、`tools/verification/verify_deployment.py`、`tools/check_bootstrap.py`、`src/access/sdk/README.md` 与测试。按展开、迁移、收口三步做：
 
 1. 展开：新增 SDK装配 的模块命令，例如 `python -m ioalab_sdk.access`；控制台脚本 `ioalab-access` 指向 `ioalab_sdk.access:main`；`start` 的默认子进程命令同步改。
 2. 迁移：上述消费者切换到新命令。

@@ -4,12 +4,12 @@ description: 选择并执行本仓轻量、定向、完整及环境专项检查�
 ---
 # 检查与验证
 
-按 develop 的[路由表](../develop/references/routing.md)确定受影响模块，定向测试取其 接口.md 的测试列；验收条件只查受影响模块接口页的“验收条件”表与所涉流程页的“端到端验收”节，不通读。Windows 使用 `.venv/Scripts/python.exe`，Linux 使用 `.venv/bin/python`。
+按 develop 的[路由表](../develop/references/routing.md)确定受影响模块，定向测试只取其接口页的测试列，`--module <模块名>` 直接运行该列；验收条件只查受影响模块接口页的“验收条件”表与所涉流程页的“端到端验收”节，不通读。Windows 使用 `.venv/Scripts/python.exe`，Linux 使用 `.venv/bin/python`。
 
 | 层级 | 触发与唯一入口 |
 |---|---|
 | A | 文档、技能与模块文件夹：`python .agents/skills/develop/scripts/check.py`，含版本、链接与索引、模块文件夹对代码四项核对 |
-| B | 代码迭代：上述入口加 `--tests <路径或nodeid...>`，或加 `--changed-from <已提交基线>` 自动选择；覆盖受影响模块和相邻边界 |
+| B | 代码迭代：上述入口加 `--module <模块名>`（接口页测试列并集）、`--tests <路径或nodeid...>`，或 `--changed-from <已提交基线>` 按同一测试列自动选择 |
 | B+ | 提交前回归：加 `--layer fast`，跑清单外全部用例，数分钟；整链路与真实宿主用例归 `--layer chain` |
 | C | 阶段交付和发布：加 `--full`，执行设计、文档、整仓 pytest（两层全部）、selfcheck |
 | D | 构建安装、真实模型、原生九问、Linux/systemd、外部业务与视频按所属技能显式触发 |

@@ -12,13 +12,11 @@ from deploy import linux, units
 DEPLOYMENT = 'a' * 32
 
 
-def test_linux_source_scope_includes_ownership_regressions_only_for_its_owner():
+def test_linux_source_scope_includes_service_and_layout_regressions():
     from tools.check_scope import select_tests
     selected=select_tests(['deploy/linux.py'])['tests']
     assert 'tests/test_linux_service_management.py' in selected
     assert 'tests/test_deployment_layout.py' in selected
-    assert 'tests/test_windows_local.py' not in selected
-    assert 'tests/test_linux_service_management.py' not in select_tests(['deploy/windows_local.py'])['tests']
 
 
 @pytest.fixture

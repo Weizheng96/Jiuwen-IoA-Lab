@@ -20,12 +20,10 @@ def inputs(unit, target, wheels):
         pool[meta['name']] = meta
     if not UNITS[unit].issubset(pool):
         raise ValueError('A local dependency wheel is missing')
-    linux = target.startswith('linux-')
     environment = default_environment()
     environment.update(python_version='3.11', python_full_version='3.11.0', implementation_version='3.11.0',
                        implementation_name='cpython', platform_python_implementation='CPython',
-                       sys_platform='linux' if linux else 'win32', platform_system='Linux' if linux else 'Windows',
-                       os_name='posix' if linux else 'nt', platform_machine='x86_64' if linux else 'AMD64',
+                       sys_platform='linux', platform_system='Linux', os_name='posix', platform_machine='x86_64',
                        platform_release='', platform_version='')
     ordinary, local_urls = set(), set()
     extras = {name: set() for name in UNITS[unit]}
