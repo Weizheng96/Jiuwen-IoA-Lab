@@ -6,7 +6,7 @@ description: 为开发和验收工具管理统一私有模型凭据来源及显�
 
 开发与验收工具统一读取 Git 忽略的 `.agents/llm_apikey`，调用与安全初始化复用 `tools/llm.py`。凭据内容不进入 Git、日志、命令参数或全局环境；不得输出私有源正文。
 
-当前授权密钥由用户放在 Git 忽略的 `.agents/newllmkey.txt`（字段 `key`、`url`），统一源的 `default` profile 据此生成；平台、官方服务与试用个人助手后续都从该 profile 取值。原阿里云密钥已停用，不得再写入任何实例或工具配置。用户更换密钥文件后，由操作者据新文件重建统一源并把旧源移出，不让两把密钥同时可用。
+当前授权密钥由用户放在 Git 忽略的 `.agents/newllmkey.txt`（字段 `key`、`url`），统一源的 `default` profile 据此生成；平台、官方服务与试用个人助手后续都从该 profile 取值。原阿里云密钥只保留给配音：统一源另有 `aliyun-tts` profile，仅供 `tts` 配置引用，不得写入平台、官方服务、试用助手或其他工具配置。用户更换密钥文件后，由操作者据新文件重建 `default`，不改动配音 profile。
 
 私有源使用 `profiles` 对象，以操作者选择的名字索引模型对象；字段复用 deploy.configuration.model 的 `name`、`base_url`、`api_key` 与可选 `provider`。开发调用使用 `tools.llm.profile()` 或 `complete()`，不在每个工具重新解析秘密源。`python -m tools.llm --profile <名字> --root <实例根> --state <状态目录> --config-dir <配置目录>` 仅经既有 deploy.configure 显式初始化；name 在写入唯一平台 JSON 时转换为 llm.model，不生成旁路运行配置。
 
@@ -19,4 +19,4 @@ description: 为开发和验收工具管理统一私有模型凭据来源及显�
 
 首次迁移阿里 CSV 使用 `python -m tools.import_model_source --csv <已授权CSV> --profile <名字> --model <模型>`，仅一次显式导入；严格核重复字段、HTTPS 原空间入口和目标不存在，先限制文件 ACL 再写秘密，失败清除本次空目标并保留原源。原源与在途输入不自动删除。导入工具不是运行组件的旧格式回退。
 
-语音工具只使用 `tools.llm.Aliyun` 和源内 `tts` 配置（引用 profile，不复制凭据）；官方 SDK 的 key 仅设在客户端实例，不修改全局 API key 或环境。TTS 的响应、错误、提前关闭及空音频均有确定性替身测试；真实服务连通和听感仍属授权后 D 专项，不为源码整理调用付费服务。当前统一源没有 `tts` 配置：现密钥的供应商不是阿里云实时语音入口，配音须等用户另行授权语音凭据，不回退使用已停用的旧密钥。
+语音工具只使用 `tools.llm.Aliyun` 和源内 `tts` 配置（引用 profile，不复制凭据）；官方 SDK 的 key 仅设在客户端实例，不修改全局 API key 或环境。TTS 的响应、错误、提前关闭及空音频均有确定性替身测试；真实服务连通和听感仍属授权后 D 专项，不为源码整理调用付费服务。`default` 的供应商没有阿里云实时语音入口，配音按用户决定继续使用 `aliyun-tts` profile 中的原阿里云密钥。

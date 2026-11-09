@@ -9,9 +9,9 @@ from a2c.errors import A2CError
 from a2c.jws import sign
 from a2c.slots import verify_card
 from a2c.template import acceptance_of,accept_within
-from ..runtime.protocol import RuntimeFault
-from ..runtime.scheduling import JobOutcome
-from ..adapters.transport import stable
+from ..runtime import RuntimeFault
+from ..runtime import JobOutcome
+from ..adapters import stable
 from .candidates import checked_candidate
 
 

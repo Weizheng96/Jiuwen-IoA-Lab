@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import sys
 
-from ioalab_sdk.runtime.protocol import configure_stdio
+from ioalab_sdk.runtime import configure_stdio
 from .calendar import GraphCalendar, OutlookSMTPAuth, address
 
 

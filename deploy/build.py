@@ -10,7 +10,8 @@ import zipfile
 
 from . import skills
 from .dependencies import inputs
-from .release import FORMAT, TARGETS, UNITS, digest, file_record, load, read_json, sha, wheel_metadata
+from .release import FORMAT, TARGETS, UNITS, digest, file_record, load, read_json, wheel_metadata
+from .files import sha
 from .vendor import validate
 from .wheels import build_wheel
 

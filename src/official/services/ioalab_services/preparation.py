@@ -1,11 +1,11 @@
 """One resumable preparation recipe; no publication, model or private SDK database access."""
 from a2c.codec import digest
 from ioalab_sdk.provider import ProviderRole
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_json,read_json
-from ioalab_sdk.runtime.ipc import LocalClient
-from ioalab_sdk.runtime.protocol import RuntimeFault
-from ioalab_sdk.runtime.resident import ResidentRuntime
+from ioalab_sdk.runtime import RuntimeConfig
+from ioalab_sdk.runtime import private_json,read_json
+from ioalab_sdk.runtime import LocalClient
+from ioalab_sdk.runtime import RuntimeFault
+from ioalab_sdk.runtime import ResidentRuntime
 from .deployment import operation,call
 from .profiles import prepare as service_configuration
 

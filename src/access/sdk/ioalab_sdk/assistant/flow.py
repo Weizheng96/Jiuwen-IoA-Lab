@@ -3,7 +3,7 @@ import copy
 import uuid
 
 from a2c.codec import digest
-from ..runtime.protocol import RuntimeFault, encode
+from ..runtime import RuntimeFault, encode
 
 
 def begin(role, operation, args):

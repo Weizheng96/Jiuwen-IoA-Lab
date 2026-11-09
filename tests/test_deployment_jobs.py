@@ -5,7 +5,7 @@ import uuid
 
 import pytest
 
-from deploy.environment import writer
+from deploy.files import writer
 from deploy.jobs import Job,source_identity
 from deploy.layout import Layout
 from deploy.linux import Systemd
@@ -112,6 +112,16 @@ def test_changed_or_missing_upstream_build_pin_blocks_original_worker(setup,name
     assert not launches and job.attempt() is None
     path.unlink()
     with pytest.raises(ValueError,match='complete local deployment source'):source_identity(source)
+
+
+def test_development_tools_do_not_change_the_installation_source(setup):
+    _,source,_,_,_=setup
+    original=source_identity(source)
+    (source/'tools/input.txt').write_text('changed development tool')
+    (source/'tools/check_scope.py').write_text('new development tool')
+    assert source_identity(source)==original
+    (source/'src/input.txt').write_text('changed runtime source')
+    assert source_identity(source)!=original
 
 
 @pytest.mark.skipif(__import__('os').name!='posix',reason='Actual directory links require the Linux deployment host')

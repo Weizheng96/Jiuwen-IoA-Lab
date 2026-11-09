@@ -63,8 +63,11 @@ def test_automatic_deadline_ruling_is_one_atomic_document_and_two_notices_withou
         assert platform.market.market.store.get('ledger',ref)['outcome']=='arbitrated'
         notices=platform.db.rows("SELECT * FROM delivery_messages WHERE interaction=? AND kind='contract.ruling'",value['assessment']['evidence']['interactionId'])
         assert {n['recipient'] for n in notices}=={actor(a),actor(p)} and len(notices)==2
-        assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='committed'
-        assert platform.db.one('SELECT state FROM delivery_interactions WHERE id=?',value['assessment']['evidence']['interactionId'])['state']=='open'
+        # The ruling itself releases nothing; the service SDK verifies it, drains and sends the finish receipt.
+        wait_for(lambda:platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='released')
+        assert platform.db.one('SELECT state FROM delivery_interactions WHERE id=?',value['assessment']['evidence']['interactionId'])['state']=='closed'
+        assert snapshot(platform,receipt['caseRef'])['execution']=='finished'
+        wait_for(lambda:a.modules[0].cases.saved(admission) is not None)  # The assistant consumed the notice by a verified read.
         assert platform.db.rows('SELECT * FROM payment_records')==money
         assert submit(a,due_payload(value))['caseRef']==receipt['caseRef']
         client,_=a.modules[0].fulfillment.client(ref)
@@ -233,6 +236,8 @@ def finish(runtime,case_ref,admission,operation=None):
 
 def test_ruled_service_finish_releases_once_only_after_convergence_and_actual_payables(platform,tmp_path,monkeypatch):
     with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        # Drive the platform receipt directly; the SDK's automatic finish is covered separately.
+        monkeypatch.setattr(p.modules[0].execution.rulings,'advance',lambda endpoint:None)
         ref,admission=formed(a,candidate(a,p,t,task))
         with monkeypatch.context() as patch:
             patch.setattr(platform.arbitration_cases,'process_one',lambda:False)
@@ -276,3 +281,46 @@ def test_ruled_service_finish_releases_once_only_after_convergence_and_actual_pa
         assert again['released'] is False and again['finishedAt']==done['finishedAt']
         assert read(p,'/arbitrations/'+case,agentId=actor(p))['execution']=='finished'
         assert platform.market.market.store.get('ledger',ref)['outcome']=='arbitrated'
+
+
+def test_service_sdk_recovers_a_missed_ruling_by_case_query_and_finishes_once(platform,tmp_path,monkeypatch):
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        ref,admission=formed(a,candidate(a,p,t,task));rulings=p.modules[0].execution.rulings
+        monkeypatch.setattr(rulings,'notice',lambda identity,message:None)
+        wait_for(lambda:any(endpoint.interaction in rulings.checked for endpoint in p.modules[0].execution.contexts.values()))
+        receipt=submit(a,due(platform,a,admission,monkeypatch));case=receipt['caseRef']
+        wait_for(lambda:snapshot(platform,case)['state']=='ruled')
+        endpoint=next(e for e in p.modules[0].execution.contexts.values() if e.provider.transport.admission==admission)
+        assert rulings.ruled(endpoint) is None
+        assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='committed'
+        rulings.checked.clear()  # A restarted process reads the current case once, without the notice.
+        wait_for(lambda:platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='released')
+        wait_for(lambda:(rulings.ruled(endpoint) or {}).get('finish'));saved=rulings.ruled(endpoint)
+        assert saved['caseRef']==case and saved['finish']['released'] is True and saved['finish']['caseRef']==case
+        assert snapshot(platform,case)['execution']=='finished'
+        wait_for(lambda:[job['state'] for job in p.scheduler.records(actor(p),('provider.arbitration',))]==['completed'])
+
+
+def test_assistant_reads_the_current_case_before_new_protected_contract_actions(platform,tmp_path,monkeypatch):
+    from ioalab_sdk.runtime.ipc import LocalClient
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        ref,admission=formed(a,candidate(a,p,t,task));local=LocalClient(a.config.home)
+        cases=a.modules[0].cases
+        monkeypatch.setattr(cases,'scan',lambda:None)  # A missed notice; only the case read stops the action.
+        import ioalab_sdk.assistant.arbitration as gate
+        def unreadable(*args,**kwargs):raise RuntimeFault('unknown_result','Case read did not complete','resume_original')
+        with monkeypatch.context() as patch:
+            patch.setattr(gate,'read_case',unreadable)
+            operation=uid();blocked=local.call('assistant.delegation.start',{'contractRef':ref},operation_id=operation)
+            assert blocked['error']['code']=='unknown_result'
+            assert a.store.checkpoint('fulfillment:'+actor(a),operation) is None
+        receipt=submit(a,due(platform,a,admission,monkeypatch));case=receipt['caseRef']
+        wait_for(lambda:snapshot(platform,case)['state']=='ruled')
+        assert cases.saved(admission) is None
+        for name,args in (('assistant.delegation.start',{'contractRef':ref}),('assistant.delegation.termination_quote',{'contractRef':ref}),
+                          ('assistant.delegation.terminate',{'contractRef':ref,'mode':'unilateral'})):
+            result=local.call(name,args)
+            assert result['status']!='completed' and result['error']['code']=='closed',(name,result)
+        assert cases.saved(admission)['caseRef']==case
+        status=local.call('assistant.delegation.status',{'contractRef':ref})
+        assert status['data']['arbitration']['caseRef']==case and status['data']['arbitration']['liable']=='provider'

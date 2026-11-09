@@ -10,7 +10,7 @@ from email.message import EmailMessage
 from email.utils import parseaddr,formatdate
 from pathlib import Path
 import httpx
-from ioalab_sdk.runtime.files import private_text
+from ioalab_sdk.runtime import private_text
 
 SCOPES='offline_access Calendars.Read User.Read'
 SMTP_SCOPES='offline_access https://outlook.office.com/SMTP.Send'
@@ -147,6 +147,10 @@ class SMTPNotification:
                 smtp.auth('XOAUTH2',lambda challenge=None: response if challenge is None else '')
             elif self.username: smtp.login(self.username,self.password)
             yield smtp
+
+    def authorization_missing(self):
+        """True while an OAuth sender has no owner-created token yet; nothing is read or refreshed."""
+        return bool(self.oauth) and not self.oauth.path.is_file()
 
     def check(self,*,access_token=None):
         """Connect and authenticate without submitting a message."""

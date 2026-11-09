@@ -6,8 +6,8 @@ import stat
 import tarfile
 import uuid
 
-from .release import digest, read_json, sha
-from .workspace import path_without_links, save
+from .release import digest, read_json
+from .files import path_without_links, save, sha
 
 
 def members(layout):

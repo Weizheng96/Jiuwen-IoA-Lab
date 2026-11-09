@@ -11,7 +11,8 @@ import sys
 import tempfile
 from urllib.parse import urlsplit
 
-from deploy.release import TARGETS, UNITS, pins, sha
+from deploy.release import TARGETS, UNITS, pins
+from deploy.files import sha
 from deploy.dependencies import inputs
 
 

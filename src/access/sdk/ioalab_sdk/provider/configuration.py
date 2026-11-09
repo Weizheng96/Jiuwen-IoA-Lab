@@ -2,7 +2,7 @@
 import copy
 import re
 
-from ..runtime.protocol import RuntimeFault,encode
+from ..runtime import RuntimeFault,encode
 
 
 SERVICE_FIELDS={'instructions','skills','resources','native_tools','max_active_delegations','accepting'}

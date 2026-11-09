@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -13,47 +12,12 @@ from urllib.parse import urlsplit
 import uuid
 import venv
 
-from .release import UNITS, current_target, digest, linked, load, official_catalog, pins, read_json, regular
+from .release import UNITS, current_target, digest, load, official_catalog, pins, read_json, regular
+from .files import linked, save, writer
 from .processes import child_environment
 
 
-def atomic(path, value):
-    temporary = path.with_name('.' + path.name + '.' + uuid.uuid4().hex)
-    with temporary.open('x', encoding='utf-8', newline='\n') as stream:
-        stream.write(json.dumps(value, ensure_ascii=False, sort_keys=True) + '\n')
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, path)
 
-
-@contextmanager
-def writer(path):
-    if path.exists() and linked(path):
-        raise ValueError('Installation lock cannot be a link')
-    descriptor = os.open(path, os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
-    try:
-        if os.fstat(descriptor).st_size == 0:
-            os.write(descriptor, b'0')
-        os.lseek(descriptor, 0, os.SEEK_SET)
-        try:
-            if os.name == 'nt':
-                import msvcrt
-                msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            raise RuntimeError('Another installer holds this environment writer lock; inspect that original attempt') from None
-        try:
-            yield
-        finally:
-            os.lseek(descriptor, 0, os.SEEK_SET)
-            if os.name == 'nt':
-                msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
-            else:
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
-    finally:
-        os.close(descriptor)
 
 
 def mirror(value):
@@ -143,7 +107,7 @@ class Environment:
         with writer(self.folder / 'writer.lock'):
             owner = self.folder / 'owner.json'
             if created:
-                atomic(owner, self.identity)
+                save(owner, self.identity)
             elif not owner.is_file() or linked(owner) or read_json(owner) != self.identity:
                 raise RuntimeError('Existing environment has unknown ownership; preserve and inspect it')
 
@@ -205,7 +169,7 @@ class Environment:
             attempt = 'a-' + uuid.uuid4().hex[:16]
             environment, log = self.folder / attempt, self.folder / (attempt + '.log')
             state = {'environmentId': self.id, 'phase': 'installing', 'attempt': attempt}
-            atomic(self.folder / 'state.json', state)
+            save(self.folder / 'state.json', state)
             print(self.unit + ': installing a new isolated environment', flush=True)
             try:
                 venv.EnvBuilder(with_pip=True, system_site_packages=False).create(environment)
@@ -221,16 +185,16 @@ class Environment:
                 self.validate(attempt, log)
                 if load(self.release, require_target=True) != self.document:
                     raise RuntimeError('Release inputs changed during installation')
-                atomic(environment / 'deployment.json', {'environmentId': self.id, 'identity': self.identity, 'versions': self.versions})
+                save(environment / 'deployment.json', {'environmentId': self.id, 'identity': self.identity, 'versions': self.versions})
                 if self.unit == 'participant':
-                    atomic(environment / 'ioalab-release.json', {'format': 'ioalab.access-installation/1', 'releaseId': self.id, 'versions': self.versions})
+                    save(environment / 'ioalab-release.json', {'format': 'ioalab.access-installation/1', 'releaseId': self.id, 'versions': self.versions})
                 (environment / '.ready').write_text(self.id, encoding='utf-8')
                 state['phase'] = 'ready'
                 self.ready(state, log)
-                atomic(self.folder / 'state.json', state)
+                save(self.folder / 'state.json', state)
             except Exception:
                 state['phase'] = 'failed'
-                atomic(self.folder / 'state.json', state)
+                save(self.folder / 'state.json', state)
                 raise RuntimeError('Installation failed; the original environment and log were preserved: ' + str(log)) from None
             return self.result(environment, reused=False)
 

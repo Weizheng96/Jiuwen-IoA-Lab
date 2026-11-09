@@ -188,6 +188,18 @@ def test_full_notification_explicitly_initializes_schedule_and_preserves_edits(p
     assert not managed.schedule.exists()
 
 
+def test_outlook_oauth_recipe_prepares_before_the_owner_login(platform,managed):
+    value=deepcopy(managed.value);token=managed.home/'outlook-smtp-token.json'
+    value['notification']={'transport':'smtp','sender':'owner@outlook.com','host':'smtp-mail.outlook.com','port':587,
+                           'client_id':'public-app-id','token_file':str(token)}
+    private_json(managed.path,value);managed=Deployment(managed.path)
+    # Installation completes without a token; the owner logs in afterwards.
+    assert preparation.prepare(managed)['meetingInitiallyEnabled'] is True
+    assert not token.exists()
+    tools=managed.complete()['host']['business_tools']
+    assert next(t for t in tools if t['factory']=='calendar')['options']['notification']==value['notification']
+
+
 def test_status_is_read_only_and_unregistered_instance_is_refused(managed):
     before=snapshot(managed.state_root)
     value=preparation.status(managed)

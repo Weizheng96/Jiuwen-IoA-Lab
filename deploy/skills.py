@@ -9,12 +9,10 @@ import zipfile
 from packaging.requirements import Requirement
 
 from .wheels import build_wheel
+from .files import sha
 
 
 ROOT=Path(__file__).resolve().parents[1]
-
-
-def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def build(output,*,root=ROOT):

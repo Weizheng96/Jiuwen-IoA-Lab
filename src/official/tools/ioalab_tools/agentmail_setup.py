@@ -7,7 +7,7 @@ import re
 import httpx
 
 from dotenv import dotenv_values
-from ioalab_sdk.runtime.files import private_text
+from ioalab_sdk.runtime import private_text
 
 DEFAULT_HOME=Path.home()/'.ioalab/agentmail'
 

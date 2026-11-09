@@ -10,9 +10,9 @@ import sys
 import uuid
 import venv
 
-from .environment import mirror, python_in, writer
-from .release import digest, pins, read_json, sha
-from .workspace import path_without_links, save
+from .environment import mirror, python_in
+from .files import path_without_links, save, sha, writer
+from .release import digest, pins, read_json
 from .processes import child_environment
 from .layout import write_initial
 

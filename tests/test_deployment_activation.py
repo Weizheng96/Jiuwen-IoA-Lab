@@ -10,7 +10,7 @@ import pytest
 from deploy import activation
 from deploy.layout import Layout
 from deploy.release import UNITS, digest, read_json
-from deploy.workspace import save
+from deploy.files import save
 from test_production_release import release, source
 
 

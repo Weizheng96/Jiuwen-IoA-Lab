@@ -11,8 +11,8 @@ from a2c.verifier.sandbox import Sandbox,SandboxError
 from jsonschema import Draft202012Validator
 from wasmtime import WasmtimeError
 
-from ..adapters.transport import stable
-from ..runtime.protocol import RuntimeFault
+from ..adapters import stable
+from ..runtime import RuntimeFault
 
 
 TASK_SOURCE_LIMIT=64*1024

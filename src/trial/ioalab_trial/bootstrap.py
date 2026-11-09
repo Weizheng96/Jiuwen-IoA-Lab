@@ -16,7 +16,7 @@ SERVICE_IDS = Path('/opt/trial/service-ids.json')
 
 
 def public_seed(service_ids, manifest=None):
-    from ioalab_services.catalog import seed_manifest
+    from ioalab_services import seed_manifest
     manifest = seed_manifest() if manifest is None else manifest
     wanted=set(service_ids)
     if len(wanted)!=4:raise ValueError('Use exactly four programming service IDs')
@@ -76,7 +76,7 @@ def native_env(name):
 def deployment():
     # The official deployment owner restricts its catalog and binding to the
     # explicit service list. Neither SDK nor official resources import this recipe.
-    from ioalab_services.deployment import Deployment
+    from ioalab_services import Deployment
     ids = json.loads(SERVICE_IDS.read_text())
     if not isinstance(ids,list) or len(set(ids)) != 4 or len(ids) != 4:
         raise ValueError('Trial requires the reviewed four programming candidates')
@@ -177,10 +177,10 @@ def main():
     mode = sys.argv[1]
     if mode == 'setup':setup()
     elif mode == 'prepare-services':
-        from ioalab_services.preparation import prepare
-        prepare(deployment())
+        from ioalab_services import prepare_deployment
+        prepare_deployment(deployment())
     elif mode == 'authorize-services':
-        from ioalab_services.authorization import authorize,administrator_session
+        from ioalab_services import administrator_session,authorize
         admin=json.load(sys.stdin)
         if set(admin)!={'username','password'}:raise ValueError('Use the original administrator credential fields')
         dep=deployment()
@@ -189,7 +189,7 @@ def main():
         env={**os.environ,'IOALAB_CONFIG':'/epoch/core/platform.json'}
         os.execve(CORE_PYTHON,[CORE_PYTHON,'-m','ioalab','serve'],env)
     elif mode == 'services':
-        from ioalab_services.lifecycle import serve
+        from ioalab_services import serve
         raise SystemExit(serve(deployment()))
     elif mode == 'native':
         children=[]

@@ -10,32 +10,13 @@ import sys
 import uuid
 
 from .configuration import load as load_configuration, model as validate_model
-from .environment import Environment, writer
-from .release import digest, linked, read_json
+from .environment import Environment
+from .files import linked, path_without_links, save, writer
+from .release import digest, read_json
 from .processes import child_environment
 
 FORMAT = 'ioalab.owned-swarm/1'
 PHASES = {'initializing', 'workspace', 'awaiting_model', 'configuring', 'configured', 'ready'}
-
-def path_without_links(value):
-    path = Path(value).expanduser().absolute()
-    if any(part == '..' for part in path.parts):
-        raise ValueError('Workspace paths must not contain parent traversal')
-    for part in (*reversed(path.parents), path):
-        if part.exists() or part.is_symlink():
-            if linked(part):
-                raise ValueError('Workspace paths must not contain links')
-    return path
-
-
-def save(path, value):
-    temporary = path.with_name('.' + path.name + '-' + uuid.uuid4().hex)
-    descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    with os.fdopen(descriptor, 'w', encoding='utf-8', newline='\n') as stream:
-        json.dump(value, stream, ensure_ascii=False, sort_keys=True)
-        stream.write('\n'); stream.flush(); os.fsync(stream.fileno())
-    os.replace(temporary, path)
-
 
 PREPARE = '''from pathlib import Path
 import os

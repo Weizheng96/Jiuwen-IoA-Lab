@@ -73,16 +73,16 @@ def test_actual_runtime_probe_module_entry_accepts_busy_business_without_initial
     import runpy,sys
     from types import SimpleNamespace
     from ioalab_trial import bootstrap
-    from ioalab_sdk.runtime import ipc,config
-    from ioalab_services import coordinator
+    import ioalab_sdk.runtime as runtime
+    import ioalab_services
     import websockets.sync.client
     (tmp_path/'control').mkdir();(tmp_path/'control/probe-session.json').write_text('{"cookie":"original"}')
     monkeypatch.setattr(bootstrap,'ROOT',tmp_path)
     monkeypatch.setattr(bootstrap,'deployment',lambda:None)
     live={'platformConnected':True,'ipcReady':True,'identities':[{'executionReady':False}]}
-    monkeypatch.setattr(config.RuntimeConfig,'load',lambda path:SimpleNamespace(home=tmp_path/'sdk'))
-    monkeypatch.setattr(ipc,'LocalClient',lambda *a,**kw:SimpleNamespace(call=lambda *a,**kw:{'data':live}))
-    monkeypatch.setattr(coordinator,'status',lambda dep:{'accounts':[{'runtime':{**live,'host':{'available':True}}}]})
+    monkeypatch.setattr(runtime.RuntimeConfig,'load',lambda path:SimpleNamespace(home=tmp_path/'sdk'))
+    monkeypatch.setattr(runtime,'LocalClient',lambda *a,**kw:SimpleNamespace(call=lambda *a,**kw:{'data':live}))
+    monkeypatch.setattr(ioalab_services,'status',lambda dep:{'accounts':[{'runtime':{**live,'host':{'available':True}}}]})
     monkeypatch.setattr(httpx,'Client',lambda **kw:pytest.fail('Runtime probe must not log in or inspect initial balance/history'))
     monkeypatch.setattr(httpx,'get',lambda *a,**kw:httpx.Response(200,request=httpx.Request('GET','http://native/')))
     class Socket:
@@ -204,7 +204,7 @@ def restricted_trial(tmp_path,monkeypatch,ids):
 
 
 def test_trial_deployment_is_built_by_the_official_owner_without_rewriting_it(tmp_path,monkeypatch):
-    from ioalab_services.deployment import Deployment
+    from ioalab_services import Deployment
     bootstrap=restricted_trial(tmp_path,monkeypatch,IDS)
     result=bootstrap.deployment()
     assert [d['slug'] for d in result.domains]==['dev']

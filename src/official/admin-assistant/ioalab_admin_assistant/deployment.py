@@ -7,10 +7,10 @@ from urllib.parse import parse_qs, urlsplit
 import uuid
 
 from a2c.codec import digest
-from ioalab_sdk.runtime.lease import Lease
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_json, read_json
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime import Lease
+from ioalab_sdk.runtime import RuntimeConfig
+from ioalab_sdk.runtime import private_json, read_json
+from ioalab_sdk.runtime import RuntimeFault
 from .presets import load
 
 
@@ -74,7 +74,7 @@ class Deployment:
                 not {'command','data_dir','model'} <= set(host) or safe_path(host['data_dir']) != self.workspace or
                 not isinstance(host['model'],str) or not host['model']):
             raise RuntimeFault('invalid_input', 'Select the owned administrator Swarm workspace and a real model key')
-        from ioalab_jiuwen.process import ProcessHost
+        from ioalab_jiuwen import ProcessHost
         ProcessHost.from_config(host, base_dir=self.private)
         url = urlsplit(self.value['web_url'])
         try: loopback = ipaddress.ip_address(url.hostname).is_loopback

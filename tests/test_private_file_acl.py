@@ -54,6 +54,26 @@ def test_owner_only_write_passes_and_extra_public_grant_is_removed(tmp_path):
     fresh = private / 'fresh.json'
     private_json(fresh, {'nonsecret': 'fresh'})
     assert grantees(fresh) == (True, {owner})
+    # Restricting an existing directory or file takes back explicit grants to anyone else.
+    restrict(private, directory=True)
+    assert grantees(private) == (True, {owner})
+    grant_everyone(fresh)
+    restrict(fresh)
+    assert grantees(fresh) == (True, {owner}) and fresh.read_text(encoding='utf-8') == '{"nonsecret": "fresh"}'
+
+
+@pytest.mark.skipif(not WINDOWS, reason='Actual Windows SID and DACL semantics')
+def test_restricted_directory_passes_owner_only_access_to_new_children(tmp_path):
+    private = tmp_path / 'private'
+    private.mkdir()
+    grant_everyone(private, '(OI)(CI)(R)')
+    restrict(private, directory=True)
+    child = private / 'child'
+    child.mkdir()
+    (child / 'plain.txt').write_text('plain', encoding='utf-8')
+    owner = windows_sid()
+    assert grantees(private) == (True, {owner})
+    assert grantees(child)[1] == {owner} and grantees(child / 'plain.txt')[1] == {owner}
 
 
 @pytest.mark.skipif(WINDOWS, reason='POSIX mode bits')

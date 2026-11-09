@@ -37,7 +37,7 @@ def arguments(path, *, root=Path('/epoch/native')):
 
 
 def forward(body):
-    from ioalab_sdk.runtime.ipc import LocalClient
+    from ioalab_sdk.runtime import LocalClient
     if not isinstance(body,dict) or set(body) != {'operation','arguments','operationId'}:
         raise ValueError('Invalid model bridge request')
     operation = body['operation']
@@ -58,10 +58,10 @@ def forward(body):
         raise ValueError('Stable operationId required')
     client = LocalClient(Path('/epoch/assistant/resident'),timeout=30)
     status = client.call('runtime.status')
-    from ioalab_sdk.runtime.config import RuntimeConfig
-    from ioalab_sdk.runtime.__main__ import require_configuration
+    from ioalab_sdk.runtime import RuntimeConfig
+    from ioalab_sdk.runtime import require_configuration
     require_configuration(status['data'],RuntimeConfig.load(Path('/epoch/assistant/config.json')),assembly='ioalab-jiuwen')
-    from ioalab_sdk.runtime.installation import require_matching
+    from ioalab_sdk.runtime import require_matching
     require_matching(status['data'].get('installation'),assembly='ioalab-jiuwen')
     return LocalClient(Path('/epoch/assistant/resident'),timeout=30,boot_id=status['data']['bootId']).call(
         operation,body['arguments'],operation_id=body['operationId'])

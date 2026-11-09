@@ -22,13 +22,36 @@ def windows_sid():
 
 
 def restrict(path,*,directory=False):
+    """Leave only the owning user on the path: POSIX mode bits, or a protected DACL replaced as a whole on Windows,
+    so earlier explicit grants to anyone else are removed rather than kept."""
     if os.name!='nt':
         os.chmod(path,0o700 if directory else 0o600)
         return
-    permission='(OI)(CI)F' if directory else '(F)'
-    result=subprocess.run(['icacls',str(path),'/inheritance:r','/grant:r','*'+windows_sid()+':'+permission],
-                          capture_output=True,timeout=5,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-    if result.returncode:raise RuntimeFault('not_ready','Cannot restrict local data to its owning user','configure_private_directory')
+    import ctypes
+    from ctypes import wintypes
+    advapi=ctypes.WinDLL('advapi32',use_last_error=True)
+    advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes=[wintypes.LPCWSTR,wintypes.DWORD,ctypes.POINTER(ctypes.c_void_p),ctypes.c_void_p]
+    advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW.restype=wintypes.BOOL
+    advapi.GetSecurityDescriptorDacl.argtypes=[ctypes.c_void_p,ctypes.POINTER(wintypes.BOOL),ctypes.POINTER(ctypes.c_void_p),ctypes.POINTER(wintypes.BOOL)]
+    advapi.GetSecurityDescriptorDacl.restype=wintypes.BOOL
+    advapi.SetNamedSecurityInfoW.argtypes=[wintypes.LPWSTR,ctypes.c_int,wintypes.DWORD,ctypes.c_void_p,ctypes.c_void_p,ctypes.c_void_p,ctypes.c_void_p]
+    advapi.SetNamedSecurityInfoW.restype=wintypes.DWORD
+    kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+    kernel.LocalFree.argtypes=[ctypes.c_void_p];kernel.LocalFree.restype=ctypes.c_void_p
+    # Protected DACL with one full-control entry for the owner; directories pass it on to new children.
+    sddl='D:P(A;'+('OICI' if directory else '')+';FA;;;'+windows_sid()+')'
+    descriptor=ctypes.c_void_p()
+    if not advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl,1,ctypes.byref(descriptor),None):
+        raise RuntimeFault('not_ready','Cannot restrict local data to its owning user','configure_private_directory')
+    try:
+        present,defaulted,dacl=wintypes.BOOL(),wintypes.BOOL(),ctypes.c_void_p()
+        if not advapi.GetSecurityDescriptorDacl(descriptor,ctypes.byref(present),ctypes.byref(dacl),ctypes.byref(defaulted)) or not present:
+            raise RuntimeFault('not_ready','Cannot restrict local data to its owning user','configure_private_directory')
+        # SE_FILE_OBJECT=1; DACL_SECURITY_INFORMATION|PROTECTED_DACL_SECURITY_INFORMATION replaces every entry.
+        if advapi.SetNamedSecurityInfoW(str(path),1,0x00000004|0x80000000,None,None,dacl,None):
+            raise RuntimeFault('not_ready','Cannot restrict local data to its owning user','configure_private_directory')
+    finally:
+        kernel.LocalFree(descriptor)
 
 
 def prepare_home(path):

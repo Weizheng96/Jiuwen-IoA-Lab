@@ -13,10 +13,10 @@ from zoneinfo import ZoneInfo
 from a2c.codec import digest
 from dotenv import dotenv_values
 from jsonschema import Draft202012Validator,FormatChecker
-from ioalab_sdk.runtime.lease import Lease
-from ioalab_sdk.runtime.files import private_json,restrict
-from ioalab_sdk.runtime.host import BusinessTools,ToolBinding
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime import Lease
+from ioalab_sdk.runtime import private_json,restrict
+from ioalab_sdk.runtime import BusinessTools,ToolBinding
+from ioalab_sdk.runtime import RuntimeFault
 from .calendar import GraphCalendar,OutlookSMTPAuth,SMTPNotification,address
 from .agentmail import AgentMailNotification
 from .schedule import LocalSchedule,DEFAULT_RULES,RULES_SCHEMA,instant
@@ -176,6 +176,9 @@ class Appointments:
         if any(character in args['title'] for character in '\r\n\x00'):raise RuntimeFault('invalid_input','Use a single-line meeting title')
         ZoneInfo(args['timeZone']);start,end=instant(args['start']),instant(args['end'])
         if end<=start:raise RuntimeFault('invalid_input','Meeting end must be after start')
+        if getattr(self.notification,'authorization_missing',lambda:False)():
+            # Checked before any reservation: the owner has not run the sender login yet.
+            raise RuntimeFault('not_ready','Run ioalab-outlook smtp-login for the configured notification sender','smtp_login')
         operation=context['operationId']
         fingerprint=digest({'input':args,**{key:context[key] for key in ('agentId','messageId','interactionId')}})
         with Lease(self.lock,timeout=30):
@@ -266,8 +269,8 @@ def configure(options,*,home,profile,base_dir):
         token=path(notice['token_file'])
         if token==calendar.path:raise RuntimeFault('invalid_input','Calendar and SMTP authorizations need separate token files')
         oauth=OutlookSMTPAuth(notice['client_id'],token,notice['sender'],host=notice['host'],port=notice.get('port',587))
-        if not token.is_file():
-            oauth.http.close();raise RuntimeFault('not_ready','Run ioalab-outlook smtp-login for the configured notification sender before starting its tool')
+        # The token is checked at status and before each booking, not at assembly, so a managed
+        # installation completes and the owner can log in afterwards without reinstalling.
         notification=SMTPNotification(notice['host'],notice.get('port',587),notice['sender'],oauth=oauth)
     elif notice.get('transport') in ('smtp','smtp-capture'):
         notification=SMTPNotification(notice['host'],notice.get('port',587),notice['sender'],username=credential('username_env'),password=credential('password_env'),test=notice['transport']=='smtp-capture')
@@ -275,6 +278,11 @@ def configure(options,*,home,profile,base_dir):
     required=options.get('requires_steps',[])
     if not isinstance(required,list) or any(not isinstance(step,str) or not step for step in required):raise RuntimeFault('invalid_input','Use declared step names')
     service=Appointments(calendar,notification,recipient,rules=options.get('rules'))
+    def status():
+        if getattr(notification,'authorization_missing',lambda:False)():
+            return {'state':'not_ready','ready':False,'code':'not_ready','recovery':'smtp_login',
+                    'message':'Run ioalab-outlook smtp-login for the configured notification sender'}
+        return {'state':'ready','ready':True}
     revision='calendar-2:'+digest(options)
     return BusinessTools((ToolBinding('calendar.book','每条来信只按原输入决定一次预约；冲突返回建议，须发送方用新消息改约。不冲突则预留并提交邀请；invite_submitted只表示等待本人接受。',INPUT,service.book,'notification',revision,tuple(required),output_schema=BOOK_OUTPUT),
-                          ToolBinding('calendar.status','查询本交互既有预约，不重发邀请。',STATUS,service.status,'none',revision,output_schema=STATUS_OUTPUT)),service.close)
+                          ToolBinding('calendar.status','查询本交互既有预约，不重发邀请。',STATUS,service.status,'none',revision,output_schema=STATUS_OUTPUT)),service.close,status=status)

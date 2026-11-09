@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import zipfile
 
-from .release import sha
+from .files import sha
 
 ROOT=Path(__file__).resolve().parents[1]
 

@@ -6,7 +6,7 @@ import secrets
 from .configuration import validate, platform
 from .layout import environment_text, read_environment, write_initial
 from .release import digest, read_json
-from .workspace import path_without_links, save
+from .files import path_without_links, save
 
 
 FORMAT='ioalab.initial-configuration/1'
@@ -113,6 +113,10 @@ class Configuration:
         variables={}
         if notice is not None:
             notification={key:value for key,value in notice.items() if key not in ('api_key','username','password')}
+            if 'client_id' in notice:
+                # The token stays in the administrator assistant's own directory; the
+                # owner creates it later with ioalab-outlook smtp-login. Never read here.
+                notification['token_file']=str(self.layout.state/'agents/admin-assistant/outlook-smtp-token.json')
             for key in ('api_key','username','password'):
                 if key in notice:
                     name='IOALAB_NOTIFICATION_'+key.upper();variables[name]=notice[key]

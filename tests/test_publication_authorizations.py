@@ -262,7 +262,7 @@ def test_sdk_cached_success_repairs_latest_projection_without_resigning_or_rolli
 
 
 def test_all_official_terms_match_core_and_expiry_is_the_only_renewable_business_field(tmp_path):
-    from ioalab_services import prepare
+    from ioalab_services import prepare_service
     from ioalab_services.catalog import definitions
     from ioalab.delegation.packages import PackageStore
     packages=PackageStore(tmp_path/'packages')
@@ -270,7 +270,7 @@ def test_all_official_terms_match_core_and_expiry_is_the_only_renewable_business
     for definition in definitions():
         verifier=definition['verifier']
         ref=packages.put(verifier_id=verifier['id'],source=verifier['source'],reads=verifier.get('reads',[]))
-        service=prepare(definition['id'],profile='service',verifier_ref=ref,payment_provider=pay)['service']
+        service=prepare_service(definition['id'],profile='service',verifier_ref=ref,payment_provider=pay)['service']
         protocol='https://lab.example/agents/'+definition['id']
         terms=publication_terms(protocol,service)
         assert terms==core_terms(protocol,service)

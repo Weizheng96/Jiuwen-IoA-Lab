@@ -3,7 +3,7 @@ import argparse
 import json
 from pathlib import Path
 
-from ioalab_sdk.runtime.protocol import configure_stdio
+from ioalab_sdk.runtime import configure_stdio
 from .appointments import SETTLEMENTS,appointment_records,settle
 from .schedule import LocalSchedule
 

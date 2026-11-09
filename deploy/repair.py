@@ -8,18 +8,16 @@ from pathlib import Path
 import uuid
 
 from . import activation, units
-from .environment import writer
+from .files import regular_file, save, writer
 from .jobs import Job, source_identity, source_files
 from .layout import MARKER
-from .linux import Accounts, Systemd, protected_file, regular
+from .linux import Accounts, Systemd, protected_file
 from .release import digest, read_json
-from .workspace import save
 
 
 CONTROLLER_FILES = frozenset({
     'deploy/__main__.py', 'deploy/jobs.py', 'deploy/installation.py',
     'deploy/repair.py', 'deploy/units.py', 'deploy/layout.py',
-    'tools/check_scope.py',
 })
 
 
@@ -41,7 +39,7 @@ def changed_files(previous, current):
 
 
 def initial_input(layout, expected):
-    value = read_json(regular(layout.private / 'initial.json'))
+    value = read_json(regular_file(layout.private / 'initial.json'))
     if (value.get('deploymentId') != layout.inspect()['deploymentId']
             or value.get('inputDigest') != expected
             or digest(value.get('input')) != expected):
@@ -59,7 +57,7 @@ def stopped_ownership(layout, metadata, initial):
         if root.resolve() != root.absolute() or not protected_file(root):
             raise RuntimeError('The original protected deployment roots changed')
     for root in (layout.root, layout.state, layout.config):
-        if not protected_file(regular(root / MARKER)):
+        if not protected_file(regular_file(root / MARKER)):
             raise RuntimeError('The original deployment marker ownership changed')
     # ensure/reserve cannot create anything after these ready/owned preconditions.
     # Work on a private copy and use a no-write callback, reusing UID/GECOS/group
@@ -101,12 +99,12 @@ def evidence(parent, source, *, candidate=None, stopped=True):
             or observed.get('stage') != 'bootstrap'
             or observed.get('outcome') != 'failed'):
         raise RuntimeError('Repair requires a stopped failed first bootstrap operation')
-    progress = read_json(regular(parent.folder / 'progress.json'))
+    progress = read_json(regular_file(parent.folder / 'progress.json'))
     active = activation.current(parent.layout)
     if active is None or active != progress.get('candidate') or (candidate is not None and active != candidate):
         raise RuntimeError('The original complete active installation candidate changed')
     initial = initial_input(parent.layout, request['inputDigest'])
-    metadata = read_json(regular(parent.layout.private / 'installation.json'))
+    metadata = read_json(regular_file(parent.layout.private / 'installation.json'))
     if stopped and metadata.get('initialized'):
         raise RuntimeError('A completed deployment must use the ordinary upgrade path')
     if stopped:
@@ -127,7 +125,7 @@ def submit(layout, source_root, parent_operation):
     source = source_identity(source_root)
     parent = Job(layout, parent_operation)
     selected = Job(layout, operation_id(parent_operation, source))
-    pointer_path = regular(layout.private / 'current-job.json')
+    pointer_path = regular_file(layout.private / 'current-job.json')
     with writer(layout.private / 'launcher.lock'):
         pointer = read_json(pointer_path)
         # Live observation must not contend for the worker's installer lock.
@@ -158,7 +156,7 @@ def worker_admission(job, request):
         return
     repair = request.get('repair', {})
     parent = Job(job.layout, repair.get('parentOperation'))
-    pointer = read_json(regular(job.layout.private / 'current-job.json'))
+    pointer = read_json(regular_file(job.layout.private / 'current-job.json'))
     if (pointer != pointer_for(job, request)
             or job.operation != operation_id(parent.operation, request['source'])
             or request['inputDigest'] != parent.request()['inputDigest']):

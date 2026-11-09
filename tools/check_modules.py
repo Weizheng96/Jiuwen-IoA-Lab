@@ -64,6 +64,11 @@ CONVERGED = {
     "支付中心": PACKAGE,
     "消息中心": PACKAGE,
     "观测": PACKAGE,
+    "共用运行时": PACKAGE,
+    "个人助手端": PACKAGE,
+    "服务方端": PACKAGE,
+    "宿主适配": PACKAGE,
+    "SDK装配": FILES,
 }
 
 

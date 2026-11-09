@@ -104,6 +104,9 @@ OPERATIONS = (
     _assistant('delegation.pay', PERIOD, EXTERNAL, True, JOB),
     _assistant('delegation.termination_quote', (shape(('contractRef',)),), EXTERNAL, False, JOB),
     _assistant('delegation.terminate', (shape(('contractRef', 'mode'), ('terminationQuoteRef', 'reason', 'confirmationRef')),), EXTERNAL, True, JOB),
+    _assistant('delegation.dispute', (shape(('contractRef', 'ground'), ('period', 'materials', 'confirmationRef')),
+                                      shape(('quoteRef', 'ground'), ('period', 'materials', 'confirmationRef'))), EXTERNAL, True, CONFIRMED),
+    _assistant('delegation.dispute_status', (shape(('caseRef',)),), READ, False, QUERY),
     # Service provider role.
     _provider('preview', (shape(('service',)),), LOCAL, False, JOB),
     _provider('publish', (shape(('service', 'contentDigest', 'expectedRevision'), ('confirmationRef',)),), EXTERNAL, True, CONFIRMED),
@@ -117,6 +120,8 @@ OPERATIONS = (
     _provider('resume', (shape(('profile',)),), EXTERNAL, False, QUERY),
     _provider('tasks.get', (shape(('profile',), ('taskRef',)),), READ, False, QUERY),
     _provider('task.resume', (shape(('profile', 'taskRef'), ('confirmationRef',)),), EXTERNAL, True, JOB),
+    _provider('dispute', (shape(('profile', 'taskRef', 'ground'), ('period', 'materials', 'confirmationRef')),), EXTERNAL, True, CONFIRMED),
+    _provider('dispute_status', (shape(('profile', 'caseRef')),), READ, False, QUERY),
 )
 
 CATALOG = {operation.name: operation for operation in OPERATIONS}

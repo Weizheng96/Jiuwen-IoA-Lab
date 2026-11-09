@@ -11,8 +11,9 @@ import zipfile
 
 import pytest
 
-from deploy.environment import Environment, atomic, writer
-from deploy.release import FORMAT, UNITS, digest, load, pins, sha
+from deploy.environment import Environment
+from deploy.files import save, sha, writer
+from deploy.release import FORMAT, UNITS, digest, load, pins
 from deploy.build import assemble
 from deploy.dependencies import inputs
 from deploy import release as release_module
@@ -231,11 +232,11 @@ def test_unknown_owner_unknown_attempt_and_os_writer_do_not_repair(source, tmp_p
     with pytest.raises(RuntimeError, match='unknown ownership'):
         environment.install()
     assert sentinel.read_text() == 'must survive'
-    atomic(environment.folder / 'owner.json', environment.identity)
+    save(environment.folder / 'owner.json', environment.identity)
     with pytest.raises(RuntimeError, match='Unrecorded'):
         environment.install(retry_failed=True)
     state = {'environmentId': environment.id, 'phase': 'installing', 'attempt': 'a-' + 'a' * 16}
-    atomic(environment.folder / 'state.json', state)
+    save(environment.folder / 'state.json', state)
     with pytest.raises(RuntimeError, match='result is unknown'):
         environment.install(retry_failed=True)
     with writer(environment.folder / 'writer.lock'):
@@ -288,8 +289,8 @@ def test_changed_ready_identity_is_rejected_before_executing_python(source, tmp_
     state = {'environmentId': environment.id, 'phase': 'ready', 'attempt': 'a-' + 'b' * 16}
     attempt = environment.folder / state['attempt']
     attempt.mkdir()
-    atomic(attempt / 'deployment.json', {'identity': 'changed'})
-    atomic(environment.folder / 'state.json', state)
+    save(attempt / 'deployment.json', {'identity': 'changed'})
+    save(environment.folder / 'state.json', state)
     def forbidden(*args):
         pytest.fail('An unverified environment must not execute its interpreter')
     monkeypatch.setattr('deploy.environment.execute', forbidden)

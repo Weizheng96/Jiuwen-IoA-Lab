@@ -3,8 +3,8 @@ import threading
 import uuid
 
 from a2c.codec import digest
-from ..adapters.transport import stable
-from ..runtime.protocol import RuntimeFault
+from ..adapters import stable
+from ..runtime import RuntimeFault
 
 
 class AdmissionPolicy:

@@ -10,10 +10,10 @@ import uuid
 from a2c.codec import digest,fmt_time,parse_time
 from a2c.jws import sign
 from a2c.card import request_digest,card_digest
-from ..runtime.protocol import stamp
+from ..runtime import stamp
 import httpx
 
-from ..runtime.protocol import RuntimeFault,encode
+from ..runtime import RuntimeFault,encode
 
 
 def money(value):

@@ -4,8 +4,8 @@ from importlib.resources import files
 import json
 
 from a2c.codec import digest_bytes
-from ioalab_sdk.assistant.rules import parse, render
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.assistant import parse, render
+from ioalab_sdk.runtime import RuntimeFault
 
 
 def load(*, meetings):

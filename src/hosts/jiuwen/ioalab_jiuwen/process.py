@@ -10,9 +10,9 @@ import uuid
 
 from a2c.codec import digest
 from jiuwenswarm_sdk import Client
-from ioalab_sdk.runtime.files import private_json
-from ioalab_sdk.runtime.host import HostResult
-from ioalab_sdk.runtime.protocol import RuntimeFault,encode
+from ioalab_sdk.runtime import private_json
+from ioalab_sdk.runtime import HostResult
+from ioalab_sdk.runtime import RuntimeFault,encode
 from .skills import FrozenSkills,documents
 
 

@@ -12,8 +12,8 @@ import httpx
 from jsonschema import Draft202012Validator
 import yaml
 
-from ..runtime.files import private_text
-from ..runtime.protocol import RuntimeFault,encode
+from ..runtime import private_text
+from ..runtime import RuntimeFault,encode
 
 
 FIELDS={'name','description','inputSchema','outputSchema','allowedSenders','enabled','tools'}

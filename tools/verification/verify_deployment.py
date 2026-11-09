@@ -19,11 +19,12 @@ sys.path.insert(0, str(ROOT))
 
 from deploy.activation import activate, current, prepare_set
 from deploy.builder import Builder, run
-from deploy.environment import Environment, writer
+from deploy.environment import Environment
+from deploy.files import save, sha, writer
 from deploy.layout import Layout
 from deploy.processes import child_environment
-from deploy.release import load, sha
-from deploy.workspace import Workspace, save
+from deploy.release import load
+from deploy.workspace import Workspace
 
 
 def http(base, path, body=None, *, cookie=None):

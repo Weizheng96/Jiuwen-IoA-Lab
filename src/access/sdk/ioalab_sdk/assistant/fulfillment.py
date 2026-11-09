@@ -12,12 +12,13 @@ from a2c.errors import A2CError
 from a2c.slots import verify_card,period_manifest
 from a2c.jws import header_of
 from a2c.payment import PaymentRejected,verify_voucher
-from ..runtime.protocol import RuntimeFault
-from ..runtime.scheduling import JobOutcome
-from ..runtime.ipc import public_error
-from ..adapters.transport import stable
-from ..adapters.reports import report
+from ..runtime import RuntimeFault
+from ..runtime import JobOutcome
+from ..runtime import public_error
+from ..adapters import stable
+from ..adapters import report
 from .delivery_files import save_delivery
+from .arbitration import GUARDED
 
 
 class Fulfillment:
@@ -64,6 +65,7 @@ class Fulfillment:
                 'acceptedPeriods':len(card['signatures']['7']),'vouchers':record.get('vouchers',[]),'depositVoucher':record.get('depositVoucher'),'payment':payment,
                 'paymentNotifiedPeriods':record.get('paymentNotifiedPeriods',[]),
                 'closed':any(frame['message'].get('kind')=='interaction.closed' and frame['message'].get('interactionId')==contract['interactionId'] for frame in self.store.messages(self.identity.agent_id))}
+        result['arbitration']=self.role.cases.saved(contract['admissionId'])
         if card['fulfillment'].get('termination'):
             result['terminationStatus']=self.role.termination.facts(client,contract)
             result['stepRequest']=None
@@ -104,6 +106,7 @@ class Fulfillment:
             if record and record['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original fulfillment operation changed')
             client,contract=self.client(args['contractRef'])
             if not record:
+                if name in GUARDED:self.role.cases.require_open(client,contract,args['contractRef'])
                 record={'name':name,'args':value,'fingerprint':fingerprint,'phase':'prepared',
                         'handler':'assistant.verification' if name in ('verify','accept') else 'assistant.fulfillment'}
                 if name=='answer_step':
@@ -171,6 +174,12 @@ class Fulfillment:
                 actual=self.runtime.confirmations.native_answer(record['approval'])
                 if not actual or (actual[0]['selected_options']==['allow'])!=record['granted']:raise RuntimeFault('forbidden','The original user answer is unavailable')
             else:self.runtime.confirmations.claim(record['approval'],record['binding'])
+        if record['name'] in GUARDED:
+            # A late user approval cannot revive a ruled contract.
+            try:self.role.cases.require_open(client,contract,ref)
+            except RuntimeFault as exc:
+                if exc.code!='closed':raise
+                return self.finish(operation,record,{'error':public_error(exc)},state='rejected')
         record=self.save(operation,record,phase='executing')
         self.runtime.require_execution()
         with client.transport.operation(operation):

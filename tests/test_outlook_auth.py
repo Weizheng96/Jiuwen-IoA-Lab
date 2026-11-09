@@ -162,8 +162,14 @@ def test_calendar_factory_sends_outlook_invitation_over_xoauth2(tmp_path,smtp):
     LocalSchedule(tmp_path/'schedule.json').init()
     notice={'transport':'smtp','host':'smtp-mail.outlook.com','port':587,'sender':'sender@example.test','client_id':'test-app','token_file':'smtp-token.json'}
     options={'calendar':{'backend':'local','schedule_file':'schedule.json'},'notification':notice,'recipient':'owner@example.test'}
-    with pytest.raises(RuntimeFault,match='ioalab-outlook smtp-login') as error:configure(options,home=tmp_path,profile='owner',base_dir=tmp_path)
-    assert error.value.code=='not_ready'
+    # Assembly no longer needs the token; booking before the owner's login is not_ready without a reservation.
+    early=configure(options,home=tmp_path,profile='owner',base_dir=tmp_path)
+    try:
+        assert early.status()['recovery']=='smtp_login'
+        with pytest.raises(RuntimeFault,match='ioalab-outlook smtp-login') as error:
+            next(tool for tool in early.bindings if tool.name=='calendar.book').invoke(appointment(),context())
+        assert error.value.code=='not_ready' and not any(isinstance(c,tuple) and c[0]=='mail' for c in smtp.calls)
+    finally:early.close()
     OutlookSMTPAuth('test-app',tmp_path/'smtp-token.json','sender@example.test').save({'access_token':'local-token','expires_at':time.time()+3600})
     for bad in ({**notice,'password_env':'SMTP_PASSWORD'},{key:value for key,value in notice.items() if key!='client_id'},
                 {**notice,'token_file':'schedule.json'},{**notice,'transport':'smtp-capture'},{**notice,'transport':'agentmail'}):

@@ -17,60 +17,6 @@ class Busy(RuntimeError):pass
 class Uncertain(RuntimeError):pass
 
 
-def deployed(assets, binding):
-    """Reuse an installer-owned participant environment; never install on failure."""
-    assets=Path(assets);binding=Path(binding)
-    def regular(path):
-        path=Path(path).absolute()
-        if '..' in path.parts:raise RuntimeError('Deployed runtime paths must not contain parent traversal')
-        for part in (*reversed(path.parents),path):
-            if part.exists() and (part.is_symlink() or getattr(part.lstat(),'st_file_attributes',0)&0x400):
-                raise RuntimeError('Deployed runtime paths must not contain links')
-        if not path.is_file():raise RuntimeError('Restore the original deployed runtime binding')
-        return path
-    value=json.loads(regular(binding).read_text(encoding='utf-8'))
-    if (not isinstance(value,dict) or set(value)!={'format','python','configuration','environmentId','manifestSha256'}
-            or value['format']!='ioalab.deployed-skill/1'):
-        raise RuntimeError('Invalid deployed runtime binding; preserve this instance')
-    python=regular(value['python']);config=regular(value['configuration']);prefix=python.parent.parent
-    if (not Path(value['python']).is_absolute() or not Path(value['configuration']).is_absolute()
-            or python!=prefix/('Scripts/python.exe' if os.name=='nt' else 'bin/python')):
-        raise RuntimeError('Use the original deployed participant interpreter and configuration')
-    manifest_raw=regular(assets/'runtime.json').read_bytes();manifest=json.loads(manifest_raw)
-    if hashlib.sha256(manifest_raw).hexdigest()!=value['manifestSha256']:
-        raise RuntimeError('The deployed skill release changed')
-    lock=regular(assets/'requirements.lock')
-    if hashlib.sha256(lock.read_bytes()).hexdigest()!=manifest['constraintsSha256']:
-        raise RuntimeError('Dependency lock checksum mismatch')
-    identity=json.loads(regular(prefix/'deployment.json').read_text(encoding='utf-8'))
-    expected=identity['identity']
-    calculated=hashlib.sha256(json.dumps(expected,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
-    identifier=value['environmentId']
-    if (expected.get('format')!='ioalab.deployment-environment/1' or expected.get('unit')!='participant'
-            or calculated!=identifier or identity['environmentId']!=identifier
-            or regular(prefix/'.ready').read_text(encoding='utf-8')!=identifier):
-        raise RuntimeError('Deployed participant installation identity changed')
-    wheels={Path(item['path']).name:item['sha256'] for item in expected['plan']['wheels']}
-    packaged={item['file']:item['sha256'] for item in manifest['wheels']}
-    if (len(wheels)!=len(expected['plan']['wheels']) or len(packaged)!=len(manifest['wheels'])
-            or wheels!=packaged or any(identity['versions'].get(name)!=version for name,version in manifest['versions'].items())):
-        raise RuntimeError('The deployed participant and product skill releases differ')
-    for name,checksum in packaged.items():
-        if Path(name).name!=name or hashlib.sha256(regular(assets/'wheels'/name).read_bytes()).hexdigest()!=checksum:
-            raise RuntimeError('Bundled wheel checksum or path mismatch')
-    check=('import json,sys; from ioalab_sdk.runtime.installation import current; '
-           'actual=current("ioalab-official"); expected=json.load(sys.stdin); '
-           'assert actual["releaseId"]==expected["environmentId"]; '
-           'assert actual["environment"]==expected["environment"]; '
-           'assert actual["versions"]==expected["versions"]')
-    result=subprocess.run([str(python),'-I','-c',check],env=worker_environment(),
-        input=json.dumps({'environmentId':identifier,'environment':str(prefix.resolve()),'versions':identity['versions']}),
-        capture_output=True,text=True,encoding='utf-8',timeout=30)
-    if result.returncode:raise RuntimeError('Installed deployed packages changed; preserve the original installation')
-    return {'status':'completed','data':{'stage':'installation','python':str(python),'configuration':str(config),
-        'releaseId':identifier,'sharedEnvironment':True,'deployed':True},'error':None}
-
-
 @contextmanager
 def lock(path,timeout=0):
     path=Path(path)

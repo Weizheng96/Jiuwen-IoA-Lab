@@ -2,15 +2,15 @@
 import secrets
 
 from a2c.codec import digest, digest_bytes
-from ioalab_sdk.assistant.rules import render
-from ioalab_sdk.runtime.lease import Lease
-from ioalab_sdk.assistant.role import AssistantRole
-from ioalab_sdk.runtime.__main__ import require_configuration
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_json, private_text, read_json
-from ioalab_sdk.runtime.ipc import LocalClient, public_error
-from ioalab_sdk.runtime.protocol import RuntimeFault
-from ioalab_sdk.runtime.resident import ResidentRuntime
+from ioalab_sdk.assistant import render
+from ioalab_sdk.runtime import Lease
+from ioalab_sdk.assistant import AssistantRole
+from ioalab_sdk.runtime import require_configuration
+from ioalab_sdk.runtime import RuntimeConfig
+from ioalab_sdk.runtime import private_json, private_text, read_json
+from ioalab_sdk.runtime import LocalClient, public_error
+from ioalab_sdk.runtime import RuntimeFault
+from ioalab_sdk.runtime import ResidentRuntime
 from .deployment import operator, owned, operation
 
 
@@ -88,7 +88,7 @@ def assets(deployment, state):
     if arguments.exists() and read_json(arguments)!={'profile':'admin'}:
         raise RuntimeFault('configuration_changed','Original web preparation profile differs')
     if not arguments.exists(): private_json(arguments,{'profile':'admin'})
-    from ioalab_jiuwen.web_setup import prepare_extension
+    from ioalab_jiuwen import prepare_extension
     prepare_extension(control,arguments,'assistant')
     return complete
 
@@ -157,7 +157,7 @@ def prepare(deployment):
                 raise RuntimeFault('configuration_changed','Incomplete administrator configuration was edited')
         else: private_json(deployment.runtime_path,base)
         complete=assets(deployment,state)
-        from ioalab_jiuwen.tools import ConfiguredTools
+        from ioalab_jiuwen import ConfiguredTools
         tools=ConfiguredTools(complete['host']['business_tools'],base['identities'],home=deployment.home/'resident',base_dir=deployment.home)
         runtime=None
         try:

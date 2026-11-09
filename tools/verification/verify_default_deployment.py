@@ -29,8 +29,8 @@ from deploy.jobs import SOURCE_DIRECTORIES, SOURCE_FILES, source_identity
 from deploy.layout import Layout, read_environment
 from deploy.linux import Systemd, require_host
 from deploy.processes import child_environment
-from deploy.release import read_json, sha
-from deploy.workspace import save
+from deploy.release import read_json
+from deploy.files import save, sha
 
 
 def require_fresh_host(output):

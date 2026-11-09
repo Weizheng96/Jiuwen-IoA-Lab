@@ -134,6 +134,49 @@ def test_mail_credentials_reach_only_assistant_environment(tmp_path):
     assert read_environment(layout.config/'agents/swarm-admin.env')['JIUWENSWARM_A2UI_ENABLED']=='true'
 
 
+def test_outlook_oauth_notification_reaches_recipe_without_any_token(tmp_path):
+    notice={'transport':'smtp','sender':'owner@outlook.com','host':'smtp-mail.outlook.com','port':587,'client_id':'public-app-id'}
+    layout,identity,value=fixture(tmp_path,admin_assistant={'notification':notice})
+    configuration=Configuration(layout,identity,value);configuration.base()
+    recipe=configuration.administrator(workspace(layout));data=json.loads(recipe.read_text())
+    token=layout.state/'agents/admin-assistant/outlook-smtp-token.json'
+    assert data['notification']=={**notice,'token_file':str(token)}
+    assert not token.exists() and configuration.public()['meetingConfigured'] is True
+    assert 'IOALAB_NOTIFICATION' not in (layout.config/'agents/assistant.env').read_text()
+    # The calendar factory assembles from the recipe unchanged; the missing token only
+    # makes meeting invitations not_ready until the owner's login, without reinstalling.
+    from ioalab_sdk.runtime.protocol import RuntimeFault
+    from ioalab_tools.appointments import configure
+    from ioalab_tools.schedule import LocalSchedule
+    schedule=tmp_path/'schedule/schedule.json';schedule.parent.mkdir();LocalSchedule(schedule).init()
+    token.parent.mkdir(parents=True)
+    options={'calendar':{'backend':'local','schedule_file':str(schedule)},'notification':data['notification'],'recipient':data['recipient']}
+    bundle=configure(options,home=tmp_path,profile='admin',base_dir=tmp_path)
+    try:
+        assert bundle.status()=={'state':'not_ready','ready':False,'code':'not_ready','recovery':'smtp_login',
+                                 'message':'Run ioalab-outlook smtp-login for the configured notification sender'}
+        book=next(binding for binding in bundle.bindings if binding.name=='calendar.book')
+        context={'operationId':'op-1','agentId':'agent','messageId':'m','interactionId':'i'}
+        args={'title':'评审','start':'2030-01-02T03:00:00Z','end':'2030-01-02T03:30:00Z','timeZone':'Asia/Shanghai'}
+        with pytest.raises(RuntimeFault,match='smtp-login') as caught:book.invoke(args,context)
+        assert caught.value.code=='not_ready' and not (schedule.parent/'mailbox.sqlite').exists()
+        token.write_text('{"fixture":"owner login result"}',encoding='utf-8')
+        assert bundle.status()=={'state':'ready','ready':True}
+    finally:
+        bundle.close()
+
+
+@pytest.mark.parametrize('notice,message',[
+    ({'transport':'smtp','sender':'a@outlook.com','host':'smtp-mail.outlook.com','client_id':'app','password':'x','username':'a'},'mutually exclusive'),
+    ({'transport':'smtp','sender':'a@example.test','host':'smtp.example.test','client_id':'app'},'Microsoft SMTP endpoints'),
+    ({'transport':'smtp','sender':'a@outlook.com','host':'smtp.office365.com','username':'a','password':'x'},'requires notification.client_id'),
+    ({'transport':'agentmail','sender':'a@agentmail.to','api_key':'k','client_id':'app'},'explicit AgentMail or SMTP'),
+    ({'transport':'smtp-capture','sender':'a@example.test','host':'127.0.0.1','client_id':'app'},'explicit AgentMail or SMTP')])
+def test_outlook_oauth_notification_rejections(notice,message):
+    from deploy.configuration import notification
+    with pytest.raises(ValueError,match=message):notification(notice,mode='dev')
+
+
 def test_disabled_administrator_creates_no_swarm_or_assistant_config(tmp_path):
     layout,identity,value=fixture(tmp_path,admin_assistant={'enabled':False})
     configuration=Configuration(layout,identity,value);configuration.base()

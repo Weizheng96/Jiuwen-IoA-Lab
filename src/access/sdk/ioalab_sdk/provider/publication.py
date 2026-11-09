@@ -10,12 +10,12 @@ from a2c.slots import sign_template
 from a2c.template import validate,template_digest
 from a2c.errors import A2CError
 
-from ..runtime.catalog import PROVIDER,fields,handled_by
-from ..runtime.protocol import RuntimeFault
-from ..adapters.market import read_reputation
+from ..runtime import PROVIDER,fields,handled_by
+from ..runtime import RuntimeFault
+from ..adapters import read_reputation
 from .verifiers import VerifierPublisher,platform_fault
 from .terms import covers
-from ..runtime.scheduling import JobHandler,JobOutcome
+from ..runtime import JobHandler,JobOutcome
 
 
 class ProviderRole:
@@ -79,6 +79,10 @@ class ProviderRole:
                     return {'status':'completed','data':self.execution.admission_policy.change(identity,operation,name=='resume')}
                 if name=='tasks.get':
                     return {'status':'completed','data':self.execution.tasks.get(self._identity(args['profile']),args.get('taskRef'))}
+                if name=='dispute':
+                    return self.execution.rulings.dispute(self._identity(args['profile']),operation,args)
+                if name=='dispute_status':
+                    return self.execution.rulings.dispute_status(self._identity(args['profile']),args)
                 if name=='task.resume':
                     return self.execution.tasks.resume(self._identity(args['profile']),args['taskRef'],operation,args.get('confirmationRef'))
                 if name == 'reputation':
@@ -128,7 +132,7 @@ class ProviderRole:
                 raise RuntimeFault('invalid_input', 'Use proposal/countersign templates and the configured platform payment provider')
 
     def prepare_template(self,operation,args):
-        from ..templates import draft_from_terms
+        from ..runtime import draft_from_terms
         identity=self._identity(args['profile'])
         namespace='provider:'+identity.agent_id;key='template:'+operation;fingerprint=digest(args)
         with self.lock:

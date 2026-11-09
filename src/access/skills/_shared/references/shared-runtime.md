@@ -4,8 +4,6 @@
 
 配置文件路径直接传给脚本，不用read_file或终端查看正文；SDK会报告文件缺失、格式及配置缺项。普通接入从runtime.start开始；用户只要求预装依赖时必须用runtime.install，不用runtime.start，以免已安装时意外启动SDK。缺依赖时发起独立后台安装并快速返回，不需要延长九问终端时限。安装仅访问随包wheels和配置的国内镜像，不改九问或全局Python。两种技能共用同一依赖任务。
 
-location.md已核为平台部署绑定的技能直接从`runtime.status`开始，不传`--config`；薄入口复用部署方原participant环境及原配置，校验失败明确停止，不回退安装或新建配置。以下普通导入命令在部署绑定时省略`--config`及其值即可；状态仍须分别核验，绑定存在不等于已连接或业务完成。部署方负责整套组件启停，技能不能因连接失败擅自重启九问。
-
 ```text
 python "<skill_directory>/scripts/ioalab.py" runtime.start --config "<外置配置文件>"
 python "<skill_directory>/scripts/ioalab.py" runtime.status --config "<外置配置文件>"

@@ -16,10 +16,10 @@ from a2c.payment.ap2 import AP2Payment
 from a2c.slots import verify_template,verify_card
 from a2c.errors import A2CError
 from ..adapters import ProtocolStore,SessionTransport
-from ..adapters.transport import stable
-from ..runtime.protocol import RuntimeFault
-from ..runtime.scheduling import JobOutcome
-from ..runtime.observations import model_port
+from ..adapters import stable
+from ..runtime import RuntimeFault
+from ..runtime import JobOutcome
+from ..runtime import model_port
 
 
 class Trading:

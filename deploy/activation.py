@@ -6,8 +6,8 @@ from pathlib import Path
 import re
 import uuid
 
-from .release import UNITS, digest, linked, load, read_json, regular
-from .workspace import save, path_without_links
+from .release import UNITS, digest, load, read_json, regular
+from .files import linked, path_without_links, save
 
 FORMAT = 'ioalab.environment-set/1'
 

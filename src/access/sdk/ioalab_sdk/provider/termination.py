@@ -1,7 +1,7 @@
 """Wait for original writers, then settle and close through original A2C/AP2."""
-from ..adapters.transport import stable
-from ..runtime.protocol import RuntimeFault
-from ..runtime.scheduling import JobOutcome
+from ..adapters import stable
+from ..runtime import RuntimeFault
+from ..runtime import JobOutcome
 
 
 class Termination:

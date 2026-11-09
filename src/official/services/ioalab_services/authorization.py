@@ -3,8 +3,8 @@ import httpx
 import uuid
 from urllib.parse import urlsplit
 from ioalab_sdk.provider import publication_terms
-from ioalab_sdk.runtime.files import private_json,read_json
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime import private_json,read_json
+from ioalab_sdk.runtime import RuntimeFault
 
 
 def administrator_session(deployment,username,password):

@@ -8,9 +8,9 @@ import os
 from pathlib import Path, PurePosixPath
 import platform
 import re
-import stat
 import sys
 import zipfile
+from .files import linked, sha
 
 FORMAT = 'ioalab.deployment-release/1'
 UNITS = {
@@ -33,16 +33,6 @@ def encoded(value):
 
 def digest(value):
     return hashlib.sha256(encoded(value)).hexdigest()
-
-
-def sha(path):
-    with Path(path).open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
-
-
-def linked(path):
-    info = Path(path).lstat()
-    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, 'st_file_attributes', 0) & 0x400)
 
 
 def regular(root, name):

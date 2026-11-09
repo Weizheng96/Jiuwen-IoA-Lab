@@ -9,10 +9,10 @@ from a2c.template import verifier_refs
 from a2c.verifier.package import load
 from jsonschema import Draft202012Validator
 
-from ..runtime.host import AgentDefinition,HostTurn,ToolBinding
-from ..runtime.protocol import RuntimeFault,encode
-from ..runtime.questions import native_answer
-from ..adapters.transport import stable
+from ..runtime import AgentDefinition,HostTurn,ToolBinding
+from ..runtime import RuntimeFault,encode
+from ..runtime import native_answer
+from ..adapters import stable
 from .verifiers import TASK_SCHEMA
 
 

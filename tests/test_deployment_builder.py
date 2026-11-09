@@ -7,7 +7,7 @@ import pytest
 
 from deploy import builder
 from deploy.release import read_json
-from deploy.workspace import save
+from deploy.files import save
 
 
 def selected(tmp_path):

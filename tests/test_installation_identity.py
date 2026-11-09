@@ -75,7 +75,7 @@ def test_same_config_cannot_reuse_an_old_installation_or_dispatch_business(platf
 
 
 def test_cli_preflight_cannot_switch_to_another_boot_before_a_business_request(tmp_path,monkeypatch,capsys):
-    import ioalab_sdk.runtime.__main__ as entry
+    import ioalab_sdk.runtime.lifecycle as entry
     effects=[];servers=[];home=tmp_path/'state';config=tmp_path/'settings.json'
     private_json(config,{'platform_url':'http://127.0.0.1:8750','username':'owner','password':'test-only',
         'data_dir':str(home),'identities':[{'key':'personal','role':'assistant','name':'Owner'}]})

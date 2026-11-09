@@ -4,8 +4,8 @@ from importlib.metadata import entry_points
 import re
 
 from jsonschema import Draft202012Validator
-from ioalab_sdk.runtime.host import BusinessTools,ToolBinding
-from ioalab_sdk.runtime.protocol import RuntimeFault,encode
+from ioalab_sdk.runtime import BusinessTools,ToolBinding
+from ioalab_sdk.runtime import RuntimeFault,encode
 
 
 class ConfiguredTools:

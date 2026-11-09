@@ -37,9 +37,9 @@ def query(method):
 def main():
     runtime_mode=sys.argv[1:]==['--runtime']
     if sys.argv[1:] and not runtime_mode:raise ValueError('Use only the public runtime-health option')
-    from ioalab_sdk.runtime.ipc import LocalClient
-    from ioalab_sdk.runtime.config import RuntimeConfig
-    from ioalab_services.coordinator import status
+    from ioalab_sdk.runtime import LocalClient
+    from ioalab_sdk.runtime import RuntimeConfig
+    from ioalab_services import status
     config = RuntimeConfig.load(ROOT/'assistant/config.json')
     live = LocalClient(config.home).call('runtime.status')['data']
     service_state = status(deployment())

@@ -4,16 +4,11 @@ import json
 from pathlib import Path
 import sys
 
-from ioalab_sdk.assistant.role import AssistantRole
-from ioalab_sdk.provider import ProviderRole
-from ioalab_sdk.provider.configuration import EDITABLE_SERVICE_FIELDS,validate_provider
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.resident import ResidentRuntime
-from ioalab_sdk.runtime.__main__ import start,setup_command
-from ioalab_sdk.runtime.ipc import public_error
-from ioalab_sdk.runtime.protocol import RuntimeFault,configure_stdio
-from .process import ProcessHost
-from .tools import ConfiguredTools
+from ioalab_sdk.provider import EDITABLE_SERVICE_FIELDS,validate_provider
+from ioalab_sdk.runtime import start,setup_command
+from ioalab_sdk.runtime import public_error
+from ioalab_sdk.runtime import RuntimeFault,configure_stdio
+from .assembly import assembled
 
 
 def main(argv=None):
@@ -29,7 +24,6 @@ def main(argv=None):
     elif args.command=='configure':
         if not args.args_file or args.role:parser.error('configure requires --args-file without --role')
     elif args.args_file or args.role:parser.error('--args-file is only for configure/web-extension; --role is only for web-extension')
-    runtime=tools=None
     try:
         if args.command in ('configuration','configure','validate'):
             from .configuration import HOST_FIELDS,merge_host,validate_host
@@ -48,16 +42,7 @@ def main(argv=None):
             result=start(args.config,command=[sys.executable,'-m','ioalab_jiuwen'],assembly='ioalab-jiuwen')
             print(json.dumps(result,ensure_ascii=False))
             return 0 if result['status'] in ('completed','waiting') else 1
-        config=RuntimeConfig.load(args.config)
-        host_config=dict(config.host);specs=host_config.pop('business_tools',[])
-        tools=ConfiguredTools(specs,config.identities,home=config.home,base_dir=args.config.resolve().parent)
-        host=ProcessHost.from_config(host_config,base_dir=args.config.resolve().parent)
-        personal=next((item['key'] for item in config.identities if item['role']=='assistant'),None)
-        module=AssistantRole(host,tools.for_profile(personal))
-        runtime=ResidentRuntime(config,modules=(module,ProviderRole(host,tools.by_profile)),host_status=lambda:{**host.capabilities(),'businessTools':tools.status()},assembly='ioalab-jiuwen')
-        if not host.probe()['available']:raise RuntimeFault('not_ready','Jiuwen model/capability probe did not pass','configure_host')
-        tools.start()
-        runtime.run()
+        with assembled(args.config) as assembly:assembly.run()
     except RuntimeFault as exc:
         print(json.dumps({'status':'rejected','data':None,'error':public_error(exc)},ensure_ascii=False))
         return 1
@@ -65,10 +50,6 @@ def main(argv=None):
     except Exception as exc:
         print(json.dumps({'status':'failed','data':None,'error':{'code':'not_ready','type':type(exc).__name__,'recovery':'inspect_local_configuration'}}))
         return 1
-    finally:
-        # Business resources must outlive active runtime jobs, even if shutdown fails.
-        if runtime:runtime.close()
-        if tools:tools.close()
     return 0
 
 

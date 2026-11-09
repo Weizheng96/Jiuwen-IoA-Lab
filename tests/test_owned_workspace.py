@@ -9,9 +9,9 @@ import uuid
 import pytest
 
 from deploy.configuration import load, validate, platform as platform_projection, model as validate_model
-from deploy.environment import writer
+from deploy.files import save, writer
 from deploy.release import digest
-from deploy.workspace import Workspace, read_json, save
+from deploy.workspace import Workspace, read_json
 
 MODEL = {'name': 'configured-model', 'base_url': 'https://example.invalid/v1', 'api_key': 'fake-secret-never-sent'}
 

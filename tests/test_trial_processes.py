@@ -115,3 +115,41 @@ def test_unverified_stop_keeps_supervisor_alive_until_explicit_retry(tmp_path):
             return True
     agent.shutdown_preserving(owner,ExplicitRetry())
     assert len(attempts)==2
+
+
+
+@pytest.mark.parametrize('fails',[False,True])
+def test_sdk_entry_only_wraps_the_host_assembly_with_trusted_confirmation(monkeypatch,tmp_path,fails):
+    import contextlib
+    import ctypes
+    import sys
+    import ioalab_jiuwen
+    import ioalab_sdk.runtime as runtime_package
+    from ioalab_trial import sdk_entry
+    events=[]
+    monkeypatch.setattr(ctypes,'CDLL',lambda *a,**k:SimpleNamespace(prctl=lambda *args:0))
+    monkeypatch.setenv('IOALAB_TRIAL_EPOCH','a'*32);monkeypatch.setenv('IOALAB_TRIAL_SDK_KEY','k'*40)
+    class Assembly:
+        config=SimpleNamespace(identities=[{'key':'personal','role':'assistant'}])
+        runtime=SimpleNamespace(identities=[SimpleNamespace(profile='personal',agent_id='agent-1')],confirmations='store')
+        def run(self):
+            events.append('run')
+            if fails:raise RuntimeError('host probe failed')
+    @contextlib.contextmanager
+    def assembled(path):
+        events.append(('enter',str(path)))
+        try:yield Assembly()
+        finally:events.append('exit')
+    class Server:
+        def __init__(self,port,*,key,listen_port):events.append(('server',port,listen_port))
+        def start(self):events.append('server.start');return self
+        def close(self):events.append('server.close')
+    monkeypatch.setattr(ioalab_jiuwen,'assembled',assembled)
+    monkeypatch.setattr(runtime_package,'TrustedUserServer',Server)
+    monkeypatch.setattr(runtime_package,'TrustedUserPort',lambda confirmations,*,actor,generation,authorize:('port',confirmations,actor,generation))
+    monkeypatch.setattr(sys,'argv',['sdk_entry','--config',str(tmp_path/'config.json'),'--confirmation-port','8768'])
+    if fails:
+        with pytest.raises(RuntimeError,match='probe'):sdk_entry.main()
+    else:sdk_entry.main()
+    assert events==[('enter',str(tmp_path/'config.json')),('server',('port','store','agent-1','a'*32),8768),
+                    'server.start','run','server.close','exit']

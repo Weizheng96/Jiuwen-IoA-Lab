@@ -6,10 +6,10 @@ import re
 import uuid
 
 from a2c.codec import digest
-from ioalab_sdk.runtime.lease import Lease
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_json,read_json,restrict
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime import Lease
+from ioalab_sdk.runtime import RuntimeConfig
+from ioalab_sdk.runtime import private_json,read_json,restrict
+from ioalab_sdk.runtime import RuntimeFault
 from .catalog import load_domains
 
 
