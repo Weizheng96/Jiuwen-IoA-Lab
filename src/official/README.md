@@ -66,4 +66,4 @@ ioalab-schedule replace --file <schedule_file> --args-file <修改文件>
 
 `admin-assistant/ioalab_admin_assistant/`提供安装器专用的`ioalab-admin-assistant prepare|status --config <root私有配方>`。只准备本部署ISC_001的两个包内接口，原草稿、可信确认和发布均经同一SDK；不运行模型或业务工具。缺少通知配置时会议预设停用。重复准备保留人工编辑、原身份及日程，状态明确区分原回执与当前接口。
 
-完整运行仍使用`ioalab-jiuwen serve --config <生成的SDK配置>`，不增加收件服务。输入、权限及恢复规范见[官方实例](../../设计/工程/官方实例.md)。该入口不向普通用户或模型提供批准能力；默认安装编排的实机验证仍单独记录。
+完整运行仍使用`ioalab-jiuwen serve --config <生成的SDK配置>`，不增加收件服务。输入、权限及恢复规范见[官方服务 · 预置服务与启动器](../../设计/组件/官方服务/接口/预置服务与启动器.md)。该入口不向普通用户或模型提供批准能力；默认安装编排的实机验证仍单独记录。

@@ -1,6 +1,6 @@
 # 在线试用部署
 
-配置模板`config.example.json`中的`deployment_profile`必须按目标环境填写；规则唯一归[在线试用](../../设计/工程/在线试用.md)。这只限定可选试用应用，不限制正式平台账号或普通SDK连接。Linux服务器使用linux-server；Windows本机在已准备的WSL2发行版、Linux控制器环境与Docker Desktop集成上使用windows-wsl。同一个协调器执行相同生命周期。
+配置模板`config.example.json`中的`deployment_profile`必须按目标环境填写；规则唯一归[在线试用](../../设计/组件/在线试用/接口.md)。这只限定可选试用应用，不限制正式平台账号或普通SDK连接。Linux服务器使用linux-server；Windows本机在已准备的WSL2发行版、Linux控制器环境与Docker Desktop集成上使用windows-wsl。同一个协调器执行相同生命周期。
 
 Windows在仓库根目录执行（参数都是WSL内已安装的实际路径，不是Windows虚拟环境）：
 
@@ -20,7 +20,7 @@ python deploy/trial/start_windows.py --distribution IoA-Trial --python /opt/ioal
 
 资源脚本须由已安装trial的Linux控制器解释器执行，Windows同样先进入所选WSL发行版再使用该绝对解释器，不用Windows项目Python采样。Windows资源采集使用`--deployment-profile windows-wsl`，阶段为baseline、one-idle、one-active、after-reset；三席阶段在该profile被拒绝。下文三席命令仅用于Linux服务器。目标容量及实测结果必须同时记录。
 
-实际容量及隔离规则见[在线试用](../../设计/工程/在线试用.md)，尚未完成原版业务专项验收。每席位全部可写状态归一个epoch volume。原生九问UID10003不能读写SDK UID10002、核心UID10001或服务方UID10004数据。只读程序和完整离线wheelhouse共享。
+实际容量及隔离规则见[在线试用](../../设计/组件/在线试用/接口.md)，尚未完成原版业务专项验收。每席位全部可写状态归一个epoch volume。原生九问UID10003不能读写SDK UID10002、核心UID10001或服务方UID10004数据。只读程序和完整离线wheelhouse共享。
 
 普通正式发行只含`wheels/`本地项目包，不包含可选ioalab-trial，也不是完整第三方wheelhouse。先校验普通发行，保持它不可变；在受审源码仓库根目录的Linux/WSL shell中独立构建可选包、汇总专用上下文。下列路径变量替换为真实绝对Linux路径：BUILD_PYTHON是已有setuptools/pip的维护端解释器；TRIAL_IMAGE_WHEELS是已按镜像Python3.11/bookworm核过三个Linux锁的依赖缓存；TRIAL_CONTROLLER_WHEELS与TRIAL_CONTROLLER_BOOTSTRAP须匹配控制器实际Python/平台（本机已备Python3.12缓存，不能与镜像缓存互换）。不向已核普通发行或依赖缓存回写。
 

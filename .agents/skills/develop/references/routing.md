@@ -20,10 +20,10 @@
 | `src/access/skills/` | [个人助手端 · 产品技能](../../../../设计/组件/客户端/个人助手端/接口/产品技能.md)、[服务方端 · 产品技能](../../../../设计/组件/客户端/服务方端/接口/产品技能.md)、[共用运行时](../../../../设计/组件/客户端/共用运行时/接口.md) 的 `_shared` | access_products, business_skills, skill_*, cli_encoding, private_files | `src/access/skills/VERSION` |
 | `src/access/examples/` | [共用运行时](../../../../设计/组件/客户端/共用运行时/接口.md) | external_provider, external_product_config | `src/access/examples/VERSION` |
 | `src/hosts/jiuwen/` | [宿主适配](../../../../设计/组件/客户端/宿主适配/接口.md) | jiuwen_host, host_tool_names, native_*, web_*, jiuwen_a2ui_forms | `src/hosts/jiuwen/VERSION` |
-| `src/official/services/`、`admin-assistant/` | [官方实例](../../../../设计/工程/官方实例.md)、[编程服务](../../../../设计/示例/编程服务.md) | official_*, programming_services, admin_assistant_preparation, task_verifiers, seed_manifest | `src/official/VERSION` |
-| `src/official/tools/` | [会议预约](../../../../设计/示例/会议预约.md)、[官方实例](../../../../设计/工程/官方实例.md) | business_tools, appointment_source, local_schedule, agentmail_*, calendar_outputs | 同上 |
-| `src/trial/` | [在线试用](../../../../设计/工程/在线试用.md) | trial_*, trusted_user_port | `src/trial/VERSION` |
-| `deploy/` | [安装与升级](../../../../设计/工程/安装与升级.md)、[部署教程](../../../../设计/工程/部署.md) | deployment*, linux_service_management, windows_local*, owned_workspace, production_release | `deploy/VERSION` |
+| `src/official/services/` | [官方服务](../../../../设计/组件/官方服务/接口.md)、[编程服务](../../../../设计/示例/编程服务.md) | official_*, programming_services, admin_assistant_preparation, task_verifiers, seed_manifest | `src/official/VERSION` |
+| `src/official/admin-assistant/`、`src/official/tools/` | [管理员助手](../../../../设计/组件/管理员助手/接口.md)、[会议预约](../../../../设计/示例/会议预约.md) | business_tools, appointment_source, local_schedule, agentmail_*, calendar_outputs | 同上 |
+| `src/trial/`、`deploy/trial/` | [在线试用](../../../../设计/组件/在线试用/接口.md) | trial_*, trusted_user_port | `src/trial/VERSION` |
+| `deploy/` | [部署](../../../../设计/组件/部署/接口.md)、[部署教程](../../../../设计/工程/部署.md) | deployment*, linux_service_management, windows_local*, owned_workspace, production_release | `deploy/VERSION` |
 | `vendor/` | [架构](../../../../设计/架构.md) 接入与参与方依赖 | vendor_deployment, container_images, sync_a2c | 无 |
 | `tools/verification/` | 所属专项技能 | installed_deployment_probe, trial_acceptance, trial_resources | `tools/verification/VERSION` |
 | `tools/media/` | [演示制作](../../../../设计/示例/演示制作.md) | demo_artifacts, review_story, approved_voice, booking_demo, nail_scene | `tools/media/VERSION` |
