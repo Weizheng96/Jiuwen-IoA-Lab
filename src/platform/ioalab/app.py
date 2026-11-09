@@ -302,15 +302,6 @@ class Platform:
         from .seed import seed_all
         return seed_all(self)
 
-    def service_definitions(self):
-        """Runnable service summaries from the explicit seed manifest; none without a manifest."""
-        if self.s.seed_file is None:
-            return []
-        from .seed import load_definitions
-        return [{"id": d["id"], "name": d["name"], "description": d["description"], "formation": d.get("formation", "preapproval"),
-                 "runnable": bool(d.get("runnable")), "price": d.get("pricing", {}).get("price"), "category": d.get("category")}
-                for d in load_definitions(self.s.seed_file) if d.get("runnable")]
-
 
     async def _arbitration_loop(self):
         while True:

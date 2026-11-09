@@ -87,10 +87,6 @@ class Settings:
         return f"http://{authority}:{self.port}"
 
     @property
-    def welcome_credit(self) -> str:
-        return self.login_credit
-
-    @property
     def a2x_home(self) -> Path:
         return self.data / "a2x_home"
 
@@ -99,10 +95,6 @@ class Settings:
     def open(self) -> bool:
         """trial：对外提供（限速、关 /api/docs、密码规则）；dev：本机开发。"""
         return self.mode != "dev"
-
-    @property
-    def needs_per_day(self) -> int:
-        return self.quota_needs_per_day or 20
 
     def dirs(self) -> None:
         for d in ("keys", "packages", "a2x", "a2x_home", "deliveries", "runs", "logs"):

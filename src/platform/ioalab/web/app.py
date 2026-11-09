@@ -172,9 +172,6 @@ def create_app(platform: Platform) -> FastAPI:
         return {"balance": str(platform.wallets.balance(uid)), "log": platform.wallets.log(uid)}
 
 
-    @app.get("/api/services/definitions")
-    async def definitions():
-        return platform.service_definitions()
 
 
 
@@ -295,20 +292,11 @@ def create_app(platform: Platform) -> FastAPI:
             row['observation']='connected' if row['connected'] else 'not_connected'
         return {"taxonomy": platform.discovery.taxonomy_state(), "categories": platform.discovery.categories(), "services": rows}
 
-    @app.post("/api/admin/search")
-    async def admin_search(request: Request, _: str = Depends(require_admin)):
-        b = await body(request)
-        hits = await platform._worker(platform.discovery_operations.search, b.get("query", ""), int(b.get("top_k", 8)))
-        return {"mode": platform.discovery.last_mode, "hits": [{"id": h["id"], "name": h["name"], "status": h["card"].get("status")} for h in hits]}
-
 
     @app.get("/api/admin/components")
     async def components(_: str = Depends(require_admin)):
         return await platform._worker(platform.overview.components)
 
-    @app.get("/api/admin/traffic")
-    async def traffic_get(_: str = Depends(require_admin)):
-        return {"level":"external","enabled":False}
 
 
 

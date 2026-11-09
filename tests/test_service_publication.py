@@ -76,9 +76,6 @@ def test_published_service_exposes_original_proof_keys_templates_and_actual_cate
     listing=platform.registry.listings()[identity.agent_id]
     assert (listing['name'],listing['protocol'],listing['category'])==(body['declaration']['name'],identity.protocol_id,status['categoryId'])
     assert next(row for row in account.api('GET','/me')['identities'] if row['id']==identity.agent_id)['status']=='listed'
-    owner=platform.identities.agent(identity.agent_id)['owner_id']
-    mine=next(row for row in platform.account_views.services_of(owner) if row['id']==identity.agent_id)
-    assert (mine['name'],mine['status'])==(body['declaration']['name'],'listed')
     card=account.http.get(identity.protocol_id+'/.well-known/agent-card.json').json()
     assert card['name']==body['declaration']['name']
     transport=A2ATransport(http=lambda:httpx.AsyncClient(timeout=15,trust_env=False))

@@ -65,10 +65,6 @@ class Wallets:
         conn.execute("INSERT OR IGNORE INTO wallets(user_id,balance) VALUES(?,'0')",(owner,))
         conn.execute('UPDATE wallets SET payer_thumbprint=? WHERE user_id=?',(thumbprint,owner))
 
-    def by_thumbprint(self, tp: str) -> str | None:
-        row = self.db.one("SELECT user_id FROM wallets WHERE payer_thumbprint=?", tp)
-        return row["user_id"] if row else None
-
     def _log(self, c, user_id: str, delta: Decimal, kind: str, ref: str, by: str, note: str) -> None:
         bal = c.execute("SELECT balance FROM wallets WHERE user_id=?", (user_id,)).fetchone()["balance"]
         c.execute("INSERT INTO wallet_log (at, user_id, delta, balance, kind, ref, by, note) VALUES (?,?,?,?,?,?,?,?)",

@@ -55,8 +55,7 @@ def test_v1_owner_queries_preserve_shape_scope_and_search_actor(platform, client
     client.cookies.clear()
     client.headers.pop('authorization', None)
     try:
-        for path in ('/api/v1/me', '/api/v1/provider/mine'):
-            assert client.get(path).status_code == 401
+        assert client.get('/api/v1/me').status_code == 401
         assert client.post('/api/v1/search', json={'query': 'test'}).status_code == 401
         client.headers['authorization'] = 'Bearer ' + platform.auth.token('assistant:' + owner['id'])
         changes = platform.db.conn.total_changes
@@ -69,15 +68,14 @@ def test_v1_owner_queries_preserve_shape_scope_and_search_actor(platform, client
                 {'id': assistant, 'role': 'assistant', 'name': '助手', 'status': 'disabled', 'protocolId': 'original'},
                 {'id': service, 'role': 'service', 'name': '服务', 'status': 'online', 'protocolId': service},
             ]}
-        assert client.get('/api/v1/provider/mine').json() == [
-            {'id': service, 'name': '服务', 'status': 'online', 'meta': '{"public":"original"}'}]
         assert client.post('/api/v1/search', json={'query': 'test', 'top_k': 100}).json() == {
             'hits': [], 'mode': platform.discovery.last_mode}
         assert calls == [('test', 20, assistant)]
         assert platform.db.conn.total_changes == changes
         client.headers['authorization'] = 'Bearer ' + platform.auth.token('assistant:' + other['id'])
-        assert client.get('/api/v1/provider/mine').json() == [
-            {'id': foreign, 'name': '他人服务', 'status': 'online', 'meta': '{"private":"foreign"}'}]
+        assert client.get('/api/v1/me').json()['identities'] == [
+            {'id': foreign, 'role': 'service', 'name': '他人服务', 'status': 'online', 'protocolId': foreign}]
+        assert client.get('/api/v1/provider/mine').status_code == 404
         assert client.post('/api/v1/search', json={'query': 'fallback', 'top_k': 0}).status_code == 200
         assert calls[-1] == ('fallback', 1, other['id'])
         client.headers['authorization'] = 'Bearer ' + platform.auth.token(owner['id'])

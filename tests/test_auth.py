@@ -92,7 +92,7 @@ def test_trial_invite_registration():
 
     tmp = Path(tempfile.mkdtemp(prefix="ioalab-trial-"))
     s = Settings(mode="trial", registration="invite", data=tmp)
-    assert s.open and s.needs_per_day == 20
+    assert s.open
     from ioalab.migrations import migrate
     database = DB(tmp / "trial.sqlite")
     migrate(database)

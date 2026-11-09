@@ -32,16 +32,9 @@ class AccountQueries:
                 'identities': self.identities_of(uid)}
 
     def identities_of(self, uid):
-        return self._listed(uid, self.identities.list_owned(uid))
-
-    def services_of(self, uid):
-        """Owner's provider metadata in its original HTTP shape, with registry listings applied."""
-        return self._listed(uid, self.identities.services_owned(uid))
-
-    def _listed(self, uid, identities):
         listed = {row['id']: row for row in identity_rows(self.db, uid, ('id', 'name', 'status'))}
         return [{**identity, 'name': listed[identity['id']]['name'], 'status': listed[identity['id']]['status']}
-                for identity in identities]
+                for identity in self.identities.list_owned(uid)]
 
     def admin_users(self):
         rows = self.db.rows('SELECT u.*,w.balance FROM users u LEFT JOIN wallets w ON w.user_id=u.id ORDER BY u.created')

@@ -64,13 +64,6 @@ class Discovery:
         self._bigram_vectors.pop(service_id, None)
         return self.assign(service_id, category)
 
-    def update_card(self, service_id: str, card: Mapping[str, Any]) -> None:
-        """只改 a2c / status 等索引字段（不动 name / description，不触发树失效）。"""
-        if self.svc.get_entry(DATASET, service_id) is None:
-            return
-        updates = {k: v for k, v in dict(card).items() if k in ("a2c", "status", "url", "version")}
-        self.svc.update_service(DATASET, service_id, updates)
-
     def get_card(self, service_id: str) -> dict | None:
         e = self.svc.get_entry(DATASET, service_id)
         return e.agent_card.model_dump() if e is not None and e.agent_card is not None else None

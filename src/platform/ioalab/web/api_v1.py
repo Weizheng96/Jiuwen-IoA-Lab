@@ -91,9 +91,6 @@ def build_router(platform, current_user):
 
 
 
-    @router.get("/provider/mine")
-    def mine(uid=Depends(current_user)):
-        return platform.account_views.services_of(uid)
 
     @router.post("/provider/packages")
     def packages(body: dict, uid=Depends(current_user)):

@@ -15,8 +15,6 @@ def test_admin_api(platform,client,tmp_path):
         service=next(s for s in reg['services'] if s['id']==provider.identities[0].agent_id)
         assert service['url']==provider.identities[0].protocol_id and service['connected'] and service['published']
         assert 'signature' not in service['reputation']
-        found=client.post('/api/admin/search',json={'query':service['name'],'top_k':20}).json()['hits']
-        assert service['id'] in {hit['id'] for hit in found}
     assert platform.bus.run_id in client.get('/api/admin/runs').json()
     assert client.get('/api/admin/replay/'+platform.bus.run_id).json()
     assert client.get('/api/admin/replay/no-such-run').status_code==404
@@ -30,8 +28,7 @@ def test_components_traffic_and_pool(platform,client):
     assert components['assistants']['runtime'] is False
     assert components['services']['location']=='independent-process'
     assert components['llm']['key_configured'] is False
-    assert client.get('/api/admin/traffic').json()['enabled'] is False
-    assert client.post('/api/admin/traffic',json={'level':'low'}).status_code==405
+    assert client.get('/api/admin/traffic').status_code==404
     assert client.post('/api/admin/dispatch-pool',json={'count':2}).status_code==404
 
 

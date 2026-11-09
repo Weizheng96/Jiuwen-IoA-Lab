@@ -53,13 +53,6 @@ def test_explicit_seedless_initialization_is_available(tmp_path):
     assert (tmp_path/'data/ioalab.sqlite').is_file()
 
 
-def test_seedless_catalog_is_empty(platform,client,monkeypatch):
-    monkeypatch.setattr(platform.s,'seed_file',None)
-    result=client.get('/api/services/definitions')
-    assert result.status_code==200
-    assert result.json()==[]
-
-
 def test_explicit_manifest_works_from_another_directory(tmp_path, monkeypatch):
     source=ROOT/'deploy/default-seed.json'
     manifest=tmp_path/'public.json'

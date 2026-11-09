@@ -39,6 +39,3 @@ def load_domains(path):
         categories.add(category['id'])
     return domains
 
-
-def definitions(path):
-    return [service for domain in load_domains(path) for service in domain.get('services', [])]

@@ -1,5 +1,5 @@
 """Account and category seeds only; never create an agent runtime."""
-from .domains import definitions as load_definitions, load_domains
+from .domains import load_domains
 
 def seed_all(platform):
     from .accounts import ensure_accounts
