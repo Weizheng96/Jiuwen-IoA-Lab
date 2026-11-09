@@ -1,4 +1,4 @@
-"""Module folder checks against code imports, entry files, test columns and the progress index, on an isolated tree."""
+"""Module folder checks against code imports, entry files and the entry rule, test columns and the progress index, on an isolated tree."""
 from pathlib import Path
 
 import pytest
@@ -14,6 +14,7 @@ def tree(tmp_path, monkeypatch):
         '基础': ['src/app/storage.py', 'src/app/errors.py'], '装配': ['src/app/app.py']})
     monkeypatch.setattr(check_modules, 'OUTSIDE', {'测试': ['tests']})
     monkeypatch.setattr(check_modules, 'PACKAGES', {'app': 'src/app'})
+    monkeypatch.setattr(check_modules, 'CONVERGED', {})
 
     def write(name, text):
         path = tmp_path / name
@@ -47,6 +48,7 @@ def test_consistent_tree_passes(tree):
     folders = check_modules.module_folders()
     assert check_modules.check_architecture_table(folders) == []
     assert check_modules.check_dependencies(folders) == []
+    assert check_modules.check_entries(folders) == []
     assert check_modules.check_tests(folders) == []
     assert check_modules.check_progress() == []
 
@@ -68,6 +70,59 @@ def test_missing_dependency_or_implementation_page_is_reported(tree):
     (check_modules.ROOT / '设计/组件/平台/钱包/实现.md').unlink()
     failures = check_modules.check_dependencies(check_modules.module_folders())
     assert failures == ['Missing implementation page: ' + str(Path('设计/组件/平台/钱包/实现.md'))]
+
+
+IMPLEMENTATION = '# {0} · 实现\n\n## 入口\n\n| 入口文件 | 公开名 | 说明 |\n|---|---|---|\n'
+
+
+def test_unconverged_module_is_not_judged_by_the_entry_rule(tree):
+    # 钱包 lists scopes.py beside __init__.py; outside CONVERGED that is still allowed.
+    assert check_modules.check_entries(check_modules.module_folders()) == []
+
+
+def test_converged_package_module_enters_only_through_init(tree, monkeypatch):
+    monkeypatch.setattr(check_modules, 'CONVERGED', {'钱包': check_modules.PACKAGE})
+    assert check_modules.check_entries(check_modules.module_folders()) == [
+        'Package module 钱包 has an entry other than its __init__.py: ' + str(Path('src/app/wallet/scopes.py'))]
+    tree('src/app/wallet/__init__.py', '"""Wallet."""\nfrom .ledger import Wallets, money\nfrom .scopes import ScopeLedger\n\n'
+         '__all__ = ["Wallets", "money", "ScopeLedger"]\n')
+    tree('src/app/app.py', 'from .wallet import Wallets, ScopeLedger\n')
+    tree('设计/组件/平台/钱包/实现.md', IMPLEMENTATION.format('钱包') + '| `__init__.py` | `Wallets`、`money`、`ScopeLedger` | 账本 |\n\n'
+         '## 其他入口\n\n| 文件 | 调用方式 | 说明 |\n|---|---|---|\n| `__main__.py` | `python -m app.wallet` | 命令 |\n')
+    folders = check_modules.module_folders()
+    assert check_modules.check_dependencies(folders) == []
+    assert check_modules.check_entries(folders) == []
+
+
+def test_converged_package_entry_must_not_hold_logic(tree, monkeypatch):
+    monkeypatch.setattr(check_modules, 'CONVERGED', {'钱包': check_modules.PACKAGE})
+    tree('设计/组件/平台/钱包/实现.md', IMPLEMENTATION.format('钱包') + '| `__init__.py` | `Wallets` | 账本 |\n')
+    tree('src/app/wallet/__init__.py', 'from .ledger import Wallets\n\n\nclass Extra:\n    pass\n')
+    tree('src/app/app.py', 'from .wallet import Wallets\n')
+    assert check_modules.check_entries(check_modules.module_folders()) == [
+        'Entry of package module 钱包 holds more than imports and __all__: ' + str(Path('src/app/wallet/__init__.py')) + ':4']
+
+
+def test_converged_file_module_has_at_most_eight_entries(tree, monkeypatch):
+    monkeypatch.setattr(check_modules, 'CONVERGED', {'基础': check_modules.FILES})
+    names = [f'part{index}.py' for index in range(1, 10)]
+    for name in names:
+        tree(f'src/app/{name}', '')
+    rows = [f'| `{name}` | `x` | 分区 |\n' for name in names]
+    tree('设计/组件/平台/基础/接口.md', '# 基础\n')
+    tree('设计/组件/平台/基础/依赖.md', '# 基础 · 依赖\n\n| 依赖模块 | 接口 |\n|---|---|\n')
+    tree('设计/组件/平台/基础/实现.md', IMPLEMENTATION.format('基础') + ''.join(rows))
+    assert check_modules.check_entries(check_modules.module_folders()) == [
+        'File-entry module 基础 lists 9 entry files; at most 8']
+    tree('设计/组件/平台/基础/实现.md', IMPLEMENTATION.format('基础') + ''.join(rows[:8]))
+    assert check_modules.check_entries(check_modules.module_folders()) == []
+
+
+def test_converged_module_entry_files_must_exist(tree, monkeypatch):
+    monkeypatch.setattr(check_modules, 'CONVERGED', {'钱包': check_modules.FILES})
+    tree('设计/组件/平台/钱包/实现.md', IMPLEMENTATION.format('钱包') + '| `__init__.py`、`gone.py` | `Wallets` | 账本 |\n')
+    assert check_modules.check_entries(check_modules.module_folders()) == [
+        'Entry file of 钱包 does not exist: ' + str(Path('src/app/wallet/gone.py'))]
 
 
 def test_test_column_names_must_exist(tree):
@@ -105,5 +160,6 @@ def test_repository_module_folders_pass():
     folders = check_modules.module_folders()
     assert check_modules.check_architecture_table(folders) == []
     assert check_modules.check_dependencies(folders) == []
+    assert check_modules.check_entries(folders) == []
     assert check_modules.check_tests(folders) == []
     assert check_modules.check_progress() == []

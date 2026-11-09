@@ -1,4 +1,4 @@
-"""Check module folders against the code: declared dependencies, entry files, test columns and the progress index."""
+"""Check module folders against the code: declared dependencies, entry files and the entry rule, test columns and the progress index."""
 
 from __future__ import annotations
 
@@ -48,6 +48,15 @@ PACKAGES = {
     "ioalab_admin_assistant": "src/official/admin-assistant/ioalab_admin_assistant",
     "ioalab_tools": "src/official/tools/ioalab_tools", "ioalab_trial": "src/trial/ioalab_trial",
     "deploy": "deploy", "tools": "tools",
+}
+# Entry rule (module-format.md · 入口). Only modules named in CONVERGED are held to it; tickets 03b—03d add one line
+# per module once its imports go through the entry. PACKAGE: every entry file is an __init__.py of the module's
+# packages and holds only imports and dunder names. FILES: at most MAX_FILE_ENTRIES entry files.
+PACKAGE, FILES = "package", "files"
+MAX_FILE_ENTRIES = 8
+CONVERGED = {
+    "平台基础": FILES,
+    "web服务": FILES,
 }
 
 
@@ -220,6 +229,64 @@ def check_dependencies(folders):
     return failures
 
 
+def package_entries(name):
+    """__init__.py files of the packages a module owns."""
+    found = set()
+    for path in MODULES[name]:
+        full = ROOT / path
+        if full.is_dir() and (full / "__init__.py").is_file():
+            found.add((full / "__init__.py").resolve())
+        elif full.name == "__init__.py" and full.is_file():
+            found.add(full.resolve())
+    return found
+
+
+def logic_in_entry(entry):
+    """Line numbers of statements other than a docstring, imports and dunder assignments such as __all__."""
+    tree = ast.parse(entry.read_text(encoding="utf-8", errors="replace"))
+    lines = []
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) else []
+        if targets and all(isinstance(t, ast.Name) and t.id.startswith("__") and t.id.endswith("__") for t in targets):
+            continue
+        lines.append(node.lineno)
+    return lines
+
+
+def check_entries(folders):
+    """Entry rule for the modules in CONVERGED; other modules are not judged yet."""
+    failures = []
+    for name, form in CONVERGED.items():
+        if name not in MODULES or name not in folders:
+            failures.append(f"Converged module has no code mapping or module folder: {name}")
+            continue
+        entries = entry_files(name, folders[name])
+        if not entries:
+            failures.append(f"Converged module lists no entry files: {name}")
+            continue
+        relative = {entry: entry.relative_to(ROOT.resolve()) if entry.is_relative_to(ROOT.resolve()) else entry
+                    for entry in entries}
+        failures += [f"Entry file of {name} does not exist: {relative[entry]}"
+                     for entry in sorted(entries) if not entry.is_file()]
+        if form == PACKAGE:
+            packages = package_entries(name)
+            failures += [f"Package module {name} has an entry other than its __init__.py: {relative[entry]}"
+                         for entry in sorted(entries - packages)]
+            for entry in sorted(entries & packages):
+                failures += [f"Entry of package module {name} holds more than imports and __all__: {relative[entry]}:{line}"
+                             for line in logic_in_entry(entry)]
+        elif form == FILES:
+            if len(entries) > MAX_FILE_ENTRIES:
+                failures.append(f"File-entry module {name} lists {len(entries)} entry files; at most {MAX_FILE_ENTRIES}")
+        else:
+            failures.append(f"Converged module {name} has unknown entry form {form!r}; use PACKAGE or FILES")
+    return failures
+
+
 def check_tests(folders):
     failures = []
     for name, folder in folders.items():
@@ -279,12 +346,14 @@ def check_progress():
 
 def main():
     folders = module_folders()
-    failures = check_architecture_table(folders) + check_dependencies(folders) + check_tests(folders) + check_progress()
+    failures = (check_architecture_table(folders) + check_dependencies(folders) + check_entries(folders)
+                + check_tests(folders) + check_progress())
     if failures:
         print("\n".join(failures))
         return 1
     print(f"Module folders passed: {len(folders)} migrated of {len(MODULES)} modules; "
-          f"{sum(1 for _ in edges())} cross-module imports checked")
+          f"{sum(1 for _ in edges())} cross-module imports checked; "
+          f"entry rule holds for {len(CONVERGED)} converged modules")
     return 0
 
 
