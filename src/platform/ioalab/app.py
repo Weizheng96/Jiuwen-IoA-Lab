@@ -100,7 +100,7 @@ class Platform:
         from .identity import IdentityDirectory
         self.identities=IdentityDirectory(self.db,self.auth,settings)
         from .registry import RegistryView
-        self.registry=RegistryView(self.db)
+        self.registry=RegistryView(self.db,self.identities)
         self.packages = PackageStore(settings.data / "packages")
         self.discovery_models = DiscoveryModels(settings)
         self.arbitration_models = ArbitrationModels(settings)
@@ -154,8 +154,6 @@ class Platform:
         self.delivery=DeliveryBroker(self.db,self.identities,settings,
             record_in=lambda conn,**event:self.bus.record_in(conn,**event),
             publish=lambda event:self.bus.publish(event))
-        self.delivery.scopes=self.scopes
-        self.delivery.publications=self.publications
         from .delegation import Admissions
         from .operations import PaymentOperations,MarketOperations
         self.admissions=Admissions(self.db,self.identities,self.publications,self.scopes,self.payment_provider)
@@ -169,8 +167,6 @@ class Platform:
         self.market_operations=MarketOperations(self.db,self.identities,self.admissions,self.market,contracts=self.contracts,psp=self.psp,
             close=self.delivery.contract_closed_in,record=self.contract_views.record_in)
         self.delivery.admissions=self.admissions
-        self.delivery.payment_operations=self.payment_operations
-        self.delivery.market_operations=self.market_operations
         self.psp.requires_admission=self.identities.bound_service
         self.market.market.requires_admission=self.identities.bound_service
         from .delegation.relay import ProtocolRelay
@@ -183,7 +179,6 @@ class Platform:
             self.arbitration_evidence,self.files,model_binding=self.arbitration_models.binding,
             clock=lambda:self.arbitration_evidence.clock(),market=self.market,
             notify_in=self.delivery.ruling_in,notify=self.delivery.notify)
-        self.delivery.arbitrations=self.arbitration_cases
         self.delivery.protocol.arbitrations=self.arbitration_cases
         self.payment_operations.arbitrations=self.arbitration_cases
         self.market_operations.arbitrations=self.arbitration_cases
@@ -192,6 +187,10 @@ class Platform:
         from .observation.activity import ActivityViews
         self.activity_views=ActivityViews(self.contract_views)
         self.delivery.observe_in=self.activity_views.capture_in
+        from .operations import ControlOperations
+        self.controls=ControlOperations(self.db,self.identities,self.delivery)
+        self.controls.register_platform(scopes=self.scopes,admissions=self.admissions,arbitrations=self.arbitration_cases,
+            payments=self.payment_operations,market=self.market_operations,publications=self.publications)
         from .observation import MessageViews,ServiceViews
         self.message_views=MessageViews(self.db)
         self.service_views=ServiceViews(self.db)

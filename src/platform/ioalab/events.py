@@ -26,6 +26,17 @@ LABELS = {
     "provenance.endorse": "出处加签", "ap2.checkout": "AP2 结账", "ap2.pay": "AP2 付款（读卡过账）",
 }
 
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, at REAL, run_id TEXT, kind TEXT, op TEXT, sender TEXT, receiver TEXT, card_digest TEXT, period INTEGER, amount TEXT, outcome TEXT, detail TEXT);
+CREATE INDEX IF NOT EXISTS ix_events_card ON events (card_digest);
+CREATE INDEX IF NOT EXISTS ix_events_run ON events (run_id);
+"""
+
+
+def migrate(conn) -> None:
+    from .migrations import execute
+    execute(conn, SCHEMA)
+
 
 class EventBus:
     def __init__(self, db: DB, runs_dir: Path) -> None:
@@ -187,4 +198,4 @@ def trace_endpoint(endpoint: Endpoint, bus: EventBus, party: str) -> None:
     endpoint.finish = finish  # type: ignore[method-assign]
 
 
-__all__ = ["EventBus", "TracingTransport", "trace_endpoint", "LABELS"]
+__all__ = ["EventBus", "TracingTransport", "trace_endpoint", "LABELS", "migrate"]

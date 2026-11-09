@@ -76,6 +76,27 @@ def test_upgrade_preserves_accounts_keys_money_rulings_and_original_contracts(tm
         db.close()
 
 
+def test_event_table_belongs_to_the_event_bus_and_existing_history_survives(tmp_path):
+    from ioalab import events
+    from ioalab.events import EventBus
+    from ioalab.observation import migrations as observation
+    assert 'events' not in observation.SCHEMA and 'CREATE TABLE IF NOT EXISTS events' in events.SCHEMA
+    path = tmp_path / 'core.sqlite'
+    db = DB(path)
+    migrate(db)
+    bus = EventBus(db, tmp_path / 'runs')
+    original = bus.emit('platform', 'transfer', sender='original', outcome='ok')
+    bus.close()
+    before = db.rows('SELECT * FROM events ORDER BY seq')
+    db.close()
+    db = DB(path)
+    try:
+        migrate(db)
+        assert db.rows('SELECT * FROM events ORDER BY seq') == before and before[0]['seq'] == original['seq']
+    finally:
+        db.close()
+
+
 def test_failed_component_upgrade_rolls_back_all_ddl_and_releases_transaction(tmp_path, monkeypatch):
     from ioalab.observation import migrations as observation
     db = DB(tmp_path / 'core.sqlite')
@@ -115,3 +136,46 @@ def test_startup_migration_failure_releases_core_owner(tmp_path, monkeypatch):
             migrate(db)
         finally:
             db.close()
+
+
+def test_service_listings_move_from_identity_columns_to_the_registry(tmp_path):
+    """旧库 agents.definition 与 listed 状态整体移交注册中心，原值保留，身份行只留身份事实。"""
+    import json
+    from ioalab.registry import RegistryView
+    path = tmp_path / 'core.sqlite'
+    db = DB(path)
+    db.run("CREATE TABLE agents (id TEXT PRIMARY KEY, owner_id TEXT, role TEXT, name TEXT, definition TEXT, status TEXT DEFAULT 'online', created REAL, meta TEXT DEFAULT '{}')")
+    listing = {'id': 'svc', 'name': '公开名', 'description': '原说明', 'tags': ['原标签'], 'category': 'cat_a',
+               'url': 'https://lab.example/a2a/agents/svc', 'external': True, 'runnable': False}
+    db.run("INSERT INTO agents VALUES('svc','u','service','公开名',?,'listed',1,?)",
+           json.dumps(listing, ensure_ascii=False), json.dumps({'url': listing['url']}))
+    db.run("INSERT INTO agents VALUES('raw','u','service','未登记','{}','registered',2,'{}')")
+    db.run("INSERT INTO agents VALUES('off','u','service','停用',?,'disabled',3,?)",
+           json.dumps({**listing, 'url': 'https://lab.example/a2a/agents/off'}), json.dumps({'url': 'https://lab.example/a2a/agents/off'}))
+    db.close()
+    db = DB(path)
+    try:
+        migrate(db)
+        assert 'definition' not in {row['name'] for row in db.rows('PRAGMA table_info(agents)')}
+        assert db.rows('SELECT id,name,status FROM agents ORDER BY created') == [
+            {'id': 'svc', 'name': '公开名', 'status': 'registered'}, {'id': 'raw', 'name': '未登记', 'status': 'registered'},
+            {'id': 'off', 'name': '停用', 'status': 'disabled'}]
+        assert db.rows('SELECT * FROM registry_services ORDER BY actor') == [
+            {'actor': 'off', 'protocol': 'https://lab.example/a2a/agents/off', 'name': '公开名', 'description': '原说明',
+             'tags': '["原标签"]', 'category': 'cat_a'},
+            {'actor': 'svc', 'protocol': listing['url'], 'name': '公开名', 'description': '原说明',
+             'tags': '["原标签"]', 'category': 'cat_a'}]
+        class Identities:
+            def active_service(self, actor):
+                return db.one('SELECT status FROM agents WHERE id=?', actor)['status'] != 'disabled'
+        view = RegistryView(db, Identities())
+        with db.tx() as conn:
+            assert view.category_in(conn, listing['url']) == 'cat_a'
+            for provider in ('https://lab.example/a2a/agents/off', 'https://lab.example/a2a/agents/raw'):
+                with pytest.raises(Exception, match='not registered'):
+                    view.category_in(conn, provider)
+        schema = db.rows("SELECT name,sql FROM sqlite_master ORDER BY name")
+        migrate(db)
+        assert db.rows("SELECT name,sql FROM sqlite_master ORDER BY name") == schema
+    finally:
+        db.close()

@@ -28,7 +28,19 @@ def test_manifest_source_digests_survive_checkout_newlines_but_detect_content_ch
 def test_configuration_reports_missing_initialization_input(tmp_path):
     from ioalab.config import Settings
     settings=Settings(data=tmp_path,autoseed=True,seed_file=None,stub=True)
-    assert any('runtime.seed_file' in problem for problem in settings.check())
+    assert any('runtime.seed_file' in problem for problem in settings.check(seed_manifest=load_domains))
+    assert not any('seed' in problem for problem in Settings(data=tmp_path,autoseed=False,stub=True).check(seed_manifest=load_domains))
+
+
+def test_command_self_check_reports_missing_oversized_and_invalid_manifests(tmp_path):
+    from ioalab.cli import _problems
+    from ioalab.config import Settings
+    large=tmp_path/'large.json';large.write_bytes(b' '*(2*1024*1024+1))
+    invalid=tmp_path/'invalid.json';invalid.write_text(json.dumps({'domains':[{'account':'ISP_000','label':'x','category':{'id':'a','name':'A'}}]}),encoding='utf-8')
+    for path,message in ((None,'runtime.seed_file is required when initializing accounts and categories'),
+                         (large,'Seed manifest must be a readable JSON file of at most 2 MiB'),
+                         (invalid,'Each domain requires a unique ISP account')):
+        assert message in _problems(Settings(data=tmp_path,autoseed=True,seed_file=path,stub=True))
 
 
 def test_explicit_seedless_initialization_is_available(tmp_path):

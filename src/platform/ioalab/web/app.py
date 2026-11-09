@@ -184,11 +184,6 @@ def create_app(platform: Platform) -> FastAPI:
 
 
 
-    @app.get("/api/needs")
-    async def my_needs(uid: str = Depends(current_user)):
-        return platform.account_views.needs(uid)
-
-
     @app.get("/api/orders")
     async def my_orders(uid: str = Depends(current_user)):
         return [row for row in platform.contract_views.list(uid,private=True) if row['owner_id']==uid]

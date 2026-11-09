@@ -3,7 +3,7 @@
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS user_roles(user_id TEXT,role TEXT,PRIMARY KEY(user_id,role));
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE, pw_hash TEXT, kind TEXT DEFAULT 'external', display_name TEXT DEFAULT '', created REAL, last_login REAL, note TEXT DEFAULT '');
-CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, owner_id TEXT, role TEXT, name TEXT, definition TEXT, status TEXT DEFAULT 'online', created REAL, meta TEXT DEFAULT '{}');
+CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, owner_id TEXT, role TEXT, name TEXT, status TEXT DEFAULT 'online', created REAL, meta TEXT DEFAULT '{}');
 CREATE TABLE IF NOT EXISTS invites (code TEXT PRIMARY KEY, created REAL, used_by TEXT);
 
 CREATE TABLE IF NOT EXISTS connection_tickets(
@@ -28,3 +28,19 @@ CREATE TABLE IF NOT EXISTS identity_role_changes(
 def migrate(conn):
     from ..migrations import execute
     execute(conn, SCHEMA)
+
+
+def release_service_listings(conn):
+    """Hand the former service directory columns to the registry once, then drop them.
+
+    Returns (agent id, bound protocol address, name, definition JSON) for services that had a listing. The
+    identity status `listed` reverts to `registered`; listing state belongs to the registry.
+    """
+    if 'definition' not in {row['name'] for row in conn.execute('PRAGMA table_info(agents)')}:
+        return []
+    rows = [tuple(row) for row in conn.execute(
+        "SELECT id,json_extract(meta,'$.url'),name,definition FROM agents WHERE role='service' AND json_valid(definition) "
+        "AND json_type(definition,'$.category')='text' AND json_extract(definition,'$.category')<>''")]
+    conn.execute("UPDATE agents SET status='registered' WHERE status='listed'")
+    conn.execute('ALTER TABLE agents DROP COLUMN definition')
+    return rows

@@ -138,8 +138,9 @@ class ContractProjection:
             values.extend((owner,peer,peer,owner))
         rows=self.db.rows("""SELECT i.origin,i.closed,i.expires,i.details,i.binding,a.id AS admission,a.state AS admission_state,
             a.hold_until,rel.id AS interaction,c.id AS client,s.id AS service,c.owner_id,s.owner_id AS service_owner_id,
-            c.name AS client_name,s.name AS service_name,m.created,m.delivery_state,m.request_state,
+            c.name AS client_name,COALESCE(sr.name,s.name) AS service_name,m.created,m.delivery_state,m.request_state,
             NULL AS digest FROM delegation_intents i JOIN agents c ON c.id=i.sender JOIN agents s ON s.id=i.service
+            LEFT JOIN registry_services sr ON sr.actor=s.id
             LEFT JOIN delivery_messages m ON m.id=i.origin LEFT JOIN delivery_interactions rel ON rel.origin=i.origin
             LEFT JOIN delegation_admissions a ON a.origin=i.origin LEFT JOIN observation_contracts v ON v.admission=a.id
             LEFT JOIN delegation_contracts f ON f.admission=a.id WHERE """+where+' ORDER BY COALESCE(m.created,a.created,0) DESC LIMIT ?',*values,limit)
@@ -179,10 +180,10 @@ class ContractProjection:
         if digest is not None:clauses.append('v.digest=?');values.append(digest)
         where='WHERE '+' AND '.join(clauses) if clauses else ''
         return self.db.rows('''SELECT v.*,a.client,a.service,a.interaction,a.state AS admission_state,a.binding,
-            i.details,c.owner_id,s.owner_id AS service_owner_id,c.name AS assistant_name,s.name AS provider_name
+            i.details,c.owner_id,s.owner_id AS service_owner_id,c.name AS assistant_name,COALESCE(sr.name,s.name) AS provider_name
             FROM observation_contracts v JOIN delegation_admissions a ON a.id=v.admission
             JOIN delegation_intents i ON i.origin=a.origin JOIN agents c ON c.id=a.client
-            JOIN agents s ON s.id=a.service '''+where+' ORDER BY v.updated DESC LIMIT ?',*values,limit)
+            JOIN agents s ON s.id=a.service LEFT JOIN registry_services sr ON sr.actor=s.id '''+where+' ORDER BY v.updated DESC LIMIT ?',*values,limit)
 
     def payments(self,row):
         template=json.loads(row['details'])['template']

@@ -174,6 +174,17 @@ class SimPaymentProvider(Endpoint):
              *key,str(prepared.amount),prepared.currency,prepared.payer_key,encoded_reply,committed_at.timestamp()))
         return Reply(final),True
 
+    def operation_in(self,conn,actor,operation):
+        """Saved application `ap2.pay` receipt: owner, fingerprint and original result, or None."""
+        if conn is not self.db.conn:raise RuntimeError('Use the owned payment operation connection')
+        row=conn.execute('SELECT owner,fingerprint,result FROM delegation_payment_operations WHERE actor=? AND id=?',(actor,operation)).fetchone()
+        return None if row is None else {'owner':row['owner'],'fingerprint':row['fingerprint'],'result':json.loads(row['result'])}
+
+    def record_operation_in(self,conn,owner,actor,operation,fingerprint,result):
+        """Save the receipt with the payment, capacity and budget facts of the same transaction."""
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Payment operation receipt requires the owned application transaction')
+        conn.execute('INSERT INTO delegation_payment_operations VALUES(?,?,?,?,?)',(owner,actor,operation,fingerprint,json.dumps(result,ensure_ascii=False)))
+
     def project(self,prepared):
         if self.on_transfer:
             try:self.on_transfer({'payer':prepared.payer,'payee':prepared.payee,'amount':str(prepared.amount),

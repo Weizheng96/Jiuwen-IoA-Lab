@@ -15,7 +15,7 @@
 | `message.ack` | messageId、连续保存的游标 | 平台确认已送达；不表示已开始或已完成 |
 | `request.start` | 原请求 messageId、interactionId、当前代次 | 按原请求核验并保存 startedAt，返回原许可；已成约A2C请求另含contractCard及有实际记录时的depositVoucher，供宿主绑定原有效签1/2/3和实付凭证，不表示开工或新增授权 |
 | `interaction.close` | interactionId；未建立时使用 originMessageId；关闭原因 | 原子关闭入口，可靠产生 `interaction.closed`；委托先通过委托中心核验 |
-| `admission.reserve/commit/release/status` | 交互、服务、绑定摘要、预留及相关证据 | 委托中心原子预留/提交/核实释放；返回原台账记录 |
+| `admission.configure/reserve/commit/status` | 接单策略（expectedRevision、maxActiveDelegations、accepting）；或交互、绑定摘要、预留及相关证据 | 委托中心原子设置策略、预留、提交或查询，返回原台账记录；释放没有参与方控制操作，只由平台按到期、结清、关闭与提案到期的证据完成 |
 | `scope.register/status/close` | context/grant/proof；或 scopeDigest | 用户签名授权、原记录恢复、预算查询及拒绝新许可；关闭不解除合同 |
 | `scope.select` | scopeDigest、完整原卡和用户选择证明 | 验证后预留完整价款；只绑定一份 cardDigest，不执行 A2C 签1或付款 |
 | `contract.bind` | admissionId、完整原有效 card | 原个人助手连接登记同单生效签1/2/3；核原承诺、范围选择和双方，返回原成约事实，不开工或付款 |

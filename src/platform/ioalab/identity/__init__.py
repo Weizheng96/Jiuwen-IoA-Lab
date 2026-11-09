@@ -37,6 +37,11 @@ class IdentityDirectory:
         if not isinstance(key,dict):raise LabError('not_ready','The original user signing key is not bound',status=409)
         return key
 
+    def active_service(self,actor):
+        """A bound service identity that is not disabled; listing facts belong to the registry."""
+        row=self.db.one("SELECT status FROM agents WHERE id=? AND role='service'",actor)
+        return bool(row and row['status']!='disabled')
+
     def bound_service(self,protocol):
         """Stable enrolled services use the unified admission path, including before publication."""
         row=self.db.one("SELECT meta FROM agents WHERE role='service' AND json_extract(meta,'$.protocolId')=?",protocol)
@@ -93,6 +98,14 @@ class IdentityDirectory:
             meta=json.loads(row.pop('meta'))
             result.append({**row,'protocolId':meta.get('protocolId',meta.get('url',row['id']))})
         return result
+
+    def account(self,username):
+        """Locate an account by username for directories and allow-lists; None when absent."""
+        return self.db.one('SELECT id,username FROM users WHERE username=?',username) if isinstance(username,str) else None
+
+    def agent_ids(self,owner):
+        """Every agent identity of an account, including disabled ones, for per-account quotas."""
+        return [row['id'] for row in self.db.rows('SELECT id FROM agents WHERE owner_id=? ORDER BY id',owner)]
 
     def search_actor(self,owner):
         """Preserve the discovery audit actor, including historical identities."""

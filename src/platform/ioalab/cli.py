@@ -44,8 +44,13 @@ def _print_config(s) -> None:
     print(f"[ioalab] 注册 {s.registration} · 登录赠 {s.login_credit} · ISC {s.isc_count} · 流量 {s.traffic} · 自动注入 {s.autoseed}")
 
 
+def _problems(s) -> list[str]:
+    from .seed import load_domains
+    return s.check(seed_manifest=load_domains)
+
+
 def _require_ok(s) -> None:
-    problems = s.check()
+    problems = _problems(s)
     if problems:
         for x in problems:
             print("[ioalab] ✗ " + x)
@@ -73,7 +78,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.cmd == "check-config":
         _print_config(s)
-        problems = s.check()
+        problems = _problems(s)
         for x in problems:
             print("[ioalab] ✗ " + x)
         print("[ioalab] " + ("✓ 配置可用" if not problems else f"✗ {len(problems)} 项需要修正"))

@@ -221,6 +221,14 @@ class Auth:
             user=self.login_in(conn,verified)
         return {**user,'token':self.token(user['id'])}
 
+    def reset_default_password_in(self,conn,username,current,replacement):
+        """Replace a preset account's still-default password inside the caller's transaction."""
+        row=conn.execute('SELECT id,pw_hash FROM users WHERE username=?',(username,)).fetchone()
+        if not row or not _check_pw(current,row['pw_hash']):
+            return False
+        conn.execute('UPDATE users SET pw_hash=? WHERE id=?',(_pbkdf2(replacement),row['id']))
+        return True
+
     def new_invite(self) -> str:
         code = secrets.token_urlsafe(8)
         self.db.run("INSERT INTO invites (code, created) VALUES (?,?)", code, now())

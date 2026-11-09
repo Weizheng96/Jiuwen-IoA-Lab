@@ -120,8 +120,8 @@ class EnrollmentRegistry:
         if existing:
             conn.execute('UPDATE agents SET name=?,meta=? WHERE id=?',(body['name'],json.dumps({**json.loads(existing['meta']),**meta}),actor))
         else:
-            conn.execute("INSERT INTO agents(id,owner_id,role,name,definition,status,created,meta) VALUES(?,?,?,?,?,'registered',?,?)",
-                         (actor,owner,role,body['name'],'{}',time.time(),json.dumps(meta)))
+            conn.execute("INSERT INTO agents(id,owner_id,role,name,status,created,meta) VALUES(?,?,?,?,'registered',?,?)",
+                         (actor,owner,role,body['name'],time.time(),json.dumps(meta)))
         conn.execute('UPDATE identity_enrollments SET fingerprint=?,result=? WHERE owner=? AND operation=?',
                      (fingerprint,json.dumps(result),owner,operation))
         return result

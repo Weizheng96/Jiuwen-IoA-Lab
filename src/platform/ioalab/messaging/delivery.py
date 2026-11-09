@@ -40,15 +40,13 @@ def identifier(value,name='messageId'):
 
 
 class DeliveryBroker:
+    CONTROLS=frozenset(('message.send','message.ack','request.start','interaction.close','contract.bind'))
+
     def __init__(self,db,identities,settings,*,record_in=None,publish=None,clock=time.time):
         self.db,self.identities,self.s,self.clock=db,identities,settings,clock
         self.record_in,self.publish_event=record_in,publish
         self.interfaces=PublicInterfaces(db,identities)
-        self.scopes=None
-        self.publications=None
-        self.admissions=self.payment_operations=None
-        self.market_operations=None
-        self.arbitrations=None
+        self.admissions=None
         self.protocol=None
         self.observe_in=None
         self._listeners={}
@@ -102,7 +100,7 @@ class DeliveryBroker:
         with self.db.tx() as conn:
             for actor in actors:
                 self.lease(conn,owner,actor,connection,generations[actor])
-                conn.execute('UPDATE delivery_leases SET expires=? WHERE actor=?',(self.clock()+self.s.ws_lease_seconds,actor))
+                self.renew_in(conn,actor)
 
     def active_in(self,conn,actor):
         self.identities.agent(actor)
@@ -136,15 +134,10 @@ class DeliveryBroker:
         return result
 
     def operation(self,owner,actor,kind,operation):
+        """Original result of an operation this module accepted (its control kinds and interface publication)."""
         self.identities.owned(owner,actor)
         if not isinstance(kind,str) or not isinstance(operation,str):
             raise LabError('invalid_input','Operation type and identity must be strings')
-        if kind.startswith('scope.') and self.scopes:return self.scopes.operation(owner,actor,kind,operation)
-        if kind=='service.publish' and self.publications:return self.publications.operation(owner,actor,operation)
-        if kind.startswith('arbitration.') and self.arbitrations:return self.arbitrations.operation(owner,actor,kind,operation)
-        if kind.startswith('admission.') and self.admissions:return self.admissions.operation(owner,actor,kind,operation)
-        if kind=='ap2.pay' and self.payment_operations:return self.payment_operations.operation(owner,actor,operation)
-        if kind=='a2c.market' and self.market_operations:return self.market_operations.operation(owner,actor,operation)
         row=self.db.one('SELECT result FROM delivery_operations WHERE actor=? AND kind=? AND id=?',actor,kind,operation)
         if not row:
             key=hashlib.sha256(encode([actor,kind,operation]).encode()).hexdigest()
@@ -153,84 +146,46 @@ class DeliveryBroker:
             raise LabError('not_ready','Operation has no accepted result',status=404,recovery='retry_original')
         return json.loads(row['result'])
 
-    def control(self,owner,connection,generations,frame):
+    @staticmethod
+    def control_frame(generations,frame):
+        """Check the frame's agent and generation against this connection; return (actor,kind,payload)."""
         actor,kind=frame.get('agentId'),frame.get('type')
         if not isinstance(kind,str):raise LabError('invalid_input','Control operation type must be a string')
         if not isinstance(actor,str) or actor not in generations or not isinstance(frame.get('generation'),int) or isinstance(frame['generation'],bool) or frame['generation']!=generations[actor]:
             raise LabError('stale_generation','Invalid connection identity or generation',status=409,recovery='stop_executor')
         payload=frame.get('payload',{})
         if not isinstance(payload,dict):raise LabError('invalid_input','Control payload must be an object')
-        # Signature/card/key preparation can fetch public material; never do it
-        # inside the delivery lease/operation transaction. The owner and lease
-        # are rechecked below before committing the prepared immutable action.
-        prepared=None
-        payment=None
-        endorsement=None
-        arbitration=None
-        if kind.startswith('arbitration.'):
-            if not self.arbitrations:raise LabError('not_ready','Arbitration case authority is unavailable',status=409)
-            with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
-            arbitration=self.arbitrations.prepare(owner,actor,kind,frame.get('operationId'),payload)
-        if kind=='a2c.market':
-            if not self.market_operations:raise LabError('not_ready','Market application is unavailable',status=409)
-            with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
-            endorsement=self.market_operations.prepare(owner,actor,frame.get('operationId'),payload)
-        if kind=='ap2.pay':
-            if not self.payment_operations:raise LabError('not_ready','Payment application is unavailable',status=409)
-            with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
-            payment=self.payment_operations.prepare(owner,actor,frame.get('operationId'),payload)
-        if kind.startswith('scope.'):
-            if not self.scopes:raise LabError('not_ready','Scope authorization is not configured',status=409)
-            with self.db.lock:self.lease(self.db.conn,owner,actor,connection,generations[actor])
-            prepared=self.scopes.prepare(owner,actor,kind,payload)
+        return actor,kind,payload
+
+    def renew_in(self,conn,actor):
+        """An accepted control operation renews the execution lease inside its transaction."""
+        conn.execute('UPDATE delivery_leases SET expires=? WHERE actor=?',(self.clock()+self.s.ws_lease_seconds,actor))
+
+    def control_in(self,conn,actor,kind,operation,payload,generation):
+        """Commit one of CONTROLS after the caller rechecked the lease; returns (result, activity facts or None)."""
         handlers={'message.send':self._send,'message.ack':self._ack,'request.start':self._start,'interaction.close':self._close,'contract.bind':self._bind_contract}
-        self.cleanup()
-        inserted=False
-        transferred=False
-        activity=[]
-        recorded=[]
-        with self.db.tx() as conn:
-            self.lease(conn,owner,actor,connection,generations[actor])
-            if kind=='operation.get':
-                result=self.operation(owner,actor,payload.get('operation'),payload.get('operationId'))
-            elif prepared is not None:
-                result=self.scopes.apply_in(conn,owner,frame.get('operationId'),prepared)
-            elif payment is not None:
-                result,transferred=self.payment_operations.apply_in(conn,owner,actor,payment)
-            elif endorsement is not None:
-                fresh=not conn.execute('SELECT 1 FROM delegation_market_operations WHERE actor=? AND id=?',(actor,frame.get('operationId'))).fetchone()
-                result=self.market_operations.apply_in(conn,owner,actor,endorsement)
-                if fresh and self.observe_in:activity=self.observe_in(conn,frame,result,fresh=True)
-            elif arbitration is not None:
-                result=self.arbitrations.apply_in(conn,owner,actor,kind,arbitration)
-            elif kind.startswith('admission.'):
-                if not self.admissions:raise LabError('not_ready','Admission authority is unavailable',status=409)
-                result=self.admissions.apply_in(conn,owner,actor,kind,frame.get('operationId'),payload)
-            elif kind in handlers:
-                fresh=not conn.execute('SELECT 1 FROM delivery_operations WHERE actor=? AND kind=? AND id=?',
-                    (actor,kind,frame.get('operationId'))).fetchone()
-                prior=conn.execute('SELECT 1 FROM delivery_messages WHERE id=?',(payload.get('messageId') if isinstance(payload.get('messageId'),str) else None,)).fetchone() if kind=='message.send' else None
-                result=self._operation(conn,actor,kind,frame.get('operationId'),payload,
-                                       lambda:handlers[kind](conn,actor,payload,generations[actor]))
-                inserted=kind=='message.send' and not prior and result.get('messageId')==payload.get('messageId')
-            else:raise LabError('protocol_error','Unsupported control operation')
-            if self.observe_in and (kind=='message.send' or (kind=='request.start' and fresh)):
-                activity=self.observe_in(conn,frame,result,inserted=inserted)
-            if activity:
-                if not self.record_in:raise RuntimeError('Activity history requires its owned transaction writer')
-                recorded=[self.record_in(conn,**event) for event in activity]
-            conn.execute('UPDATE delivery_leases SET expires=? WHERE actor=?',(self.clock()+self.s.ws_lease_seconds,actor))
-        self.notify()
-        if transferred:self.payment_operations.project(payment)
-        if self.publish_event:
-            for event in recorded:
-                try:self.publish_event(event)
-                except Exception:
-                    # The accepted operation, original response and event are already
-                    # durable. A display/file/subscriber fault must not undo acceptance
-                    # or cause a caller to execute the business a second time.
-                    log.exception('Activity is persisted; live publication failed for event %s',event['seq'])
-        return result
+        fresh=not conn.execute('SELECT 1 FROM delivery_operations WHERE actor=? AND kind=? AND id=?',(actor,kind,operation)).fetchone()
+        prior=conn.execute('SELECT 1 FROM delivery_messages WHERE id=?',(payload.get('messageId') if isinstance(payload.get('messageId'),str) else None,)).fetchone() if kind=='message.send' else None
+        result=self._operation(conn,actor,kind,operation,payload,lambda:handlers[kind](conn,actor,payload,generation))
+        if kind=='message.send':return result,{'inserted':not prior and result.get('messageId')==payload.get('messageId')}
+        return result,({} if kind=='request.start' and fresh else None)
+
+    def activity_in(self,conn,frame,result,**facts):
+        """Record accepted-control activity with the operation; publish_activity runs after commit."""
+        if not self.observe_in:return []
+        activity=self.observe_in(conn,frame,result,**facts)
+        if activity and not self.record_in:raise RuntimeError('Activity history requires its owned transaction writer')
+        return [self.record_in(conn,**event) for event in activity]
+
+    def publish_activity(self,recorded):
+        if not self.publish_event:return
+        for event in recorded:
+            try:self.publish_event(event)
+            except Exception:
+                # The accepted operation, original response and event are already
+                # durable. A display/file/subscriber fault must not undo acceptance
+                # or cause a caller to execute the business a second time.
+                log.exception('Activity is persisted; live publication failed for event %s',event['seq'])
 
     @staticmethod
     def _row(conn,mid):
@@ -350,11 +305,11 @@ class DeliveryBroker:
         self._quota(conn,value)
 
     def _quota(self,conn,value):
-        owner=self.identities.agent(value['recipient'])['owner_id']
-        queued=conn.execute("SELECT COUNT(*) FROM delivery_messages m JOIN agents a ON m.recipient=a.id WHERE a.owner_id=? AND m.kind IN ('message.request','delegation.intent') AND m.request_state NOT IN ('completed','rejected','failed','expired')",(owner,)).fetchone()[0]
+        recipients=self.identities.agent_ids(self.identities.agent(value['recipient'])['owner_id'])
+        queued=conn.execute("SELECT COUNT(*) FROM delivery_messages WHERE recipient IN ("+','.join('?'*len(recipients))+") AND kind IN ('message.request','delegation.intent') AND request_state NOT IN ('completed','rejected','failed','expired')",recipients).fetchone()[0]
         if queued>=self.s.message_pending_limit:raise LabError('quota_exceeded','Recipient queue is full',status=429)
-        source_owner=self.identities.agent(value['sender'])['owner_id']
-        recent=conn.execute("SELECT COUNT(*) FROM delivery_messages m JOIN agents a ON m.sender=a.id WHERE a.owner_id=? AND m.created>? AND m.kind IN ('message.request','delegation.intent')",(source_owner,self.clock()-60)).fetchone()[0]
+        senders=self.identities.agent_ids(self.identities.agent(value['sender'])['owner_id'])
+        recent=conn.execute("SELECT COUNT(*) FROM delivery_messages WHERE sender IN ("+','.join('?'*len(senders))+") AND created>? AND kind IN ('message.request','delegation.intent')",(*senders,self.clock()-60)).fetchone()[0]
         pair=conn.execute("SELECT COUNT(*) FROM delivery_messages WHERE sender=? AND recipient=? AND created>? AND kind IN ('message.request','delegation.intent')",(value['sender'],value['recipient'],self.clock()-60)).fetchone()[0]
         if recent>=self.s.message_rate or pair>=min(20,self.s.message_rate):raise LabError('quota_exceeded','Message rate exceeded',status=429)
 

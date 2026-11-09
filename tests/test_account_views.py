@@ -104,3 +104,17 @@ def test_missing_history_and_replay_keep_original_not_found_responses(platform, 
         assert missing.json() == {'error': {'code': 'not_found', 'message': 'Not Found', 'recovery': 'correct_input'}}
     finally:
         client.headers.pop('authorization', None)
+
+
+def test_identity_lookups_for_other_modules_locate_accounts_and_all_owned_agents(platform):
+    owner, other = new_user(platform), new_user(platform)
+    first, second, foreign = username(), username(), username()
+    for actor, account, status in ((first, owner, 'registered'), (second, owner, 'disabled'), (foreign, other, 'registered')):
+        platform.db.run('INSERT INTO agents(id,owner_id,role,name,status,meta) VALUES(?,?,?,?,?,?)',
+                        actor, account['id'], 'service', actor, status, '{}')
+    changes = platform.db.conn.total_changes
+    assert platform.identities.account(owner['username']) == {'id': owner['id'], 'username': owner['username']}
+    assert platform.identities.account(username()) is None and platform.identities.account(None) is None
+    assert platform.identities.agent_ids(owner['id']) == sorted([first, second])
+    assert platform.identities.agent_ids(username()) == []
+    assert platform.db.conn.total_changes == changes

@@ -143,8 +143,8 @@ class Settings:
     def a2x_configured(self) -> bool:
         return bool(self.llm.get("api_key")) and not self.stub
 
-    def check(self) -> list[str]:
-        """部署前自检：返回问题清单（空 = 可起）。"""
+    def check(self, *, seed_manifest) -> list[str]:
+        """部署前自检：返回问题清单（空 = 可起）。seed_manifest 由装配层传入的种子清单校验函数，无效时抛 ValueError。"""
         problems = []
         if self.mode not in ("dev", "trial"):
             problems.append("runtime.mode 只能是 dev 或 trial")
@@ -153,9 +153,8 @@ class Settings:
         if self.traffic != "off":
             problems.append("平台核心不运行参与方，runtime.traffic 只能是 off")
         if self.autoseed:
-            from .seed.domains import load_domains
             try:
-                load_domains(self.seed_file)
+                seed_manifest(self.seed_file)
             except ValueError as exc:
                 problems.append(str(exc))
         if self.open and not self.stub:

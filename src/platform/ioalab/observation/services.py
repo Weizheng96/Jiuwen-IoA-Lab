@@ -4,6 +4,23 @@ import time
 from a2c.codec import parse_time
 
 
+def listed_name(agent,listing):
+    """Identity display name, replaced by the registry's public name once a service is listed."""
+    return f'COALESCE({listing}.name,{agent}.name)'
+
+
+def listed_status(agent,listing):
+    """Identity status; a listed service that is not disabled reports `listed`."""
+    return f"CASE WHEN {listing}.actor IS NOT NULL AND {agent}.status<>'disabled' THEN 'listed' ELSE {agent}.status END"
+
+
+def identity_rows(db,owner,columns):
+    """An account's identities as shown to their owner, with registry listings applied."""
+    fields={'id':'a.id','role':'a.role','name':listed_name('a','r')+' AS name','status':listed_status('a','r')+' AS status','created':'a.created'}
+    return db.rows('SELECT '+','.join(fields[c] for c in columns)+
+                   ' FROM agents a LEFT JOIN registry_services r ON r.actor=a.id WHERE a.owner_id=?',owner)
+
+
 class ServiceViews:
     def __init__(self,db,*,clock=time.time):self.db,self.clock=db,clock
 
