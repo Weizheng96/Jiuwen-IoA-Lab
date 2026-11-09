@@ -55,9 +55,6 @@ def main(argv=None):
         personal=next((item['key'] for item in config.identities if item['role']=='assistant'),None)
         module=AssistantRole(host,tools.for_profile(personal))
         runtime=ResidentRuntime(config,modules=(module,ProviderRole(host,tools.by_profile)),host_status=lambda:{**host.capabilities(),'businessTools':tools.status()},assembly='ioalab-jiuwen')
-        notices={identity.agent_id:tools.for_profile(identity.profile).get('owner.notify') for identity in runtime.identities}
-        notices={actor:tool for actor,tool in notices.items() if tool is not None}
-        if notices:host.notifier=lambda message:tools.notify(message,notices)
         if not host.probe()['available']:raise RuntimeFault('not_ready','Jiuwen model/capability probe did not pass','configure_host')
         tools.start()
         runtime.run()

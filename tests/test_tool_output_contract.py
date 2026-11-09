@@ -7,7 +7,6 @@ from jsonschema import FormatChecker
 
 from a2c.codec import digest
 from ioalab_jiuwen.process import ProcessHost
-from ioalab_jiuwen.tools import ConfiguredTools
 from ioalab_sdk.runtime.host import AgentDefinition,HostResult,HostTurn,ToolBinding,validate_output
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from test_assistant_role import INPUT,ScriptedHost,publish,runtime_at,send_and_read
@@ -75,24 +74,21 @@ def test_required_format_without_an_installed_checker_is_rejected_before_executi
 
 
 @pytest.mark.parametrize('result',[{'status':'actual'},{'status':'invented'}])
-def test_direct_notification_uses_shared_validation_and_leaves_business_receipt_with_owner(tmp_path,result):
+def test_notification_tool_uses_shared_validation_and_leaves_business_receipt_with_owner(result):
     observed={};effects=[]
     def notify(args,context):
         if context['operationId'] not in observed:
             effects.append(args);observed[context['operationId']]=result
         return observed[context['operationId']]
-    configured=ConfiguredTools([],(),home=tmp_path/'state',base_dir=tmp_path)
     tool=binding(invoke=notify)
-    message={'input':{},'context':{'agentId':'owner','operationId':'original'}}
-    try:
-        if result['status']=='actual':
-            assert configured.notify(message,{'owner':tool}) is result
-        else:
-            for _ in range(2):
-                with pytest.raises(RuntimeFault) as error:configured.notify(message,{'owner':tool})
-                assert error.value.code=='invalid_tool_output'
-        assert observed=={'original':result} and effects==[{}]
-    finally:configured.close()
+    source={'agentId':'owner','operationId':'original'}
+    if result['status']=='actual':
+        assert validate_output(tool,tool.invoke({},source)) is result
+    else:
+        for _ in range(2):
+            with pytest.raises(RuntimeFault) as error:validate_output(tool,tool.invoke({},source))
+            assert error.value.code=='invalid_tool_output'
+    assert observed=={'original':result} and effects==[{}]
 
 
 def test_native_host_keeps_supported_fields_exposes_output_in_description_and_hashes_contract(tmp_path,monkeypatch):

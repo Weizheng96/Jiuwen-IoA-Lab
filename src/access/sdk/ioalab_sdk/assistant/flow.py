@@ -7,7 +7,6 @@ from ..runtime.protocol import RuntimeFault, encode
 
 
 def begin(role, operation, args):
-    role.fields(args, ('purpose', 'budget', 'proposalFeeLimit'), ('categoryIds', 'validDays'))
     namespace = 'assistant-flow:' + role.identity.agent_id
     with role.lock:
         record = role.store.checkpoint(namespace, operation)

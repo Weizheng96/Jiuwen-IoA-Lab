@@ -97,8 +97,6 @@ class Fulfillment:
         return {'status':job['status'] if job['status'] in ('completed','rejected','failed','unknown') else 'accepted','data':{'operationId':operation,'contractRef':record['args']['contractRef'],'job':job}}
 
     def call(self,name,operation,args):
-        required=('contractRef','stepRequestDigest') if name=='answer_step' else ('contractRef','period') if name in ('fetch','verify','accept','pay') else ('contractRef',)
-        self.role.fields(args,required,('confirmationRef',))
         if 'period' in args and (type(args['period']) is not int or args['period']<1):raise RuntimeFault('invalid_input','Use a positive original period')
         with self.lock:
             value={key:item for key,item in args.items() if key!='confirmationRef'};fingerprint=digest({'name':name,'args':value})

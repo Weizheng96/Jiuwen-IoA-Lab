@@ -12,6 +12,7 @@ from a2c.errors import A2CError
 import httpx
 from jsonschema import Draft202012Validator,FormatChecker
 
+from ..runtime.catalog import ASSISTANT,CATALOG,handled_by
 from ..runtime.host import AgentDefinition,HostTurn,ToolBinding,validate_output
 from ..runtime.protocol import RuntimeFault,encode,instant,stamp
 from ..runtime.scheduling import JobHandler,JobOutcome
@@ -52,11 +53,7 @@ class AssistantRole:
         self.contracts=Contracts(self.trading)
         self.fulfillment=Fulfillment(self)
         self.termination=Termination(self.fulfillment)
-        names=('tools.list','rules.draft','rules.validate','rules.preview','rules.publish','rules.list','rules.disable',
-               'messaging.interfaces','messaging.send','messaging.status','messaging.close',
-               'delegation.begin','delegation.prepare','delegation.authorize','delegation.renew','delegation.status','delegation.close','delegation.intent','delegation.intent_status','delegation.request','delegation.inspect','delegation.search','delegation.confirm','delegation.compare')
-        names=(*names,*('delegation.'+name for name in ('start','answer_step','fetch','verify','accept','pay','termination_quote','terminate')))
-        return {'operations':{'assistant.'+name:self._operation(name) for name in names},
+        return {'operations':{name:self._operation(name.split('.',1)[1]) for name in handled_by(ASSISTANT)},
                 'jobs':{'assistant.message':JobHandler(self._process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available'))),
                         'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False),
                         'assistant.compare':JobHandler(self.comparisons.run,'assistant-compare-v1',False),
@@ -88,21 +85,20 @@ class AssistantRole:
         return execute
 
     def _call(self,name,operation,args):
+        inputs=CATALOG['assistant.'+name].inputs
+        if len(inputs)==1:self.fields(args,*inputs[0])
         if name=='delegation.begin':return begin(self,operation,args)
         if name in ('delegation.termination_quote','delegation.terminate'):return self.termination.call(name.split('.')[1],operation,args)
         if name=='tools.list':
-            self.fields(args)
             return {'status':'completed','data':{'tools':[tool.policy() for tool in self.tools.values()]}}
         if name in ('delegation.start','delegation.answer_step','delegation.fetch','delegation.verify','delegation.accept','delegation.pay'):return self.fulfillment.call(name.split('.')[1],operation,args)
         if name=='delegation.compare':return self.comparisons.start(operation,args)
         if name=='delegation.request':return self.trading.request(operation,args)
         elif name=='delegation.confirm':return self.contracts.confirm(operation,args)
         elif name=='delegation.inspect':
-            self.fields(args,('service',),('templateDigest',))
             return {'status':'completed','data':{'service':args['service'],'templates':self.trading.inspect(args['service'],args.get('templateDigest')),
                 'reputation':reputation_evidence(self.runtime.account,self.trading.public,self.trading.protocol_id(args['service']))}}
         elif name=='delegation.search':
-            self.fields(args,('taskRef','query'),('topK',))
             self.delegation.task(args['taskRef'])
             return {'status':'completed','data':self.runtime.account.api('POST','/search',{'query':args['query'],'top_k':args.get('topK',8)})}
         elif name=='delegation.status' and set(args)=={'quoteRef'}:return self.trading.status(args['quoteRef'])
@@ -114,52 +110,38 @@ class AssistantRole:
             if self.contracts.record(args['contractRef']).get('result',{}).get('formed'):return self.fulfillment.status(args['contractRef'],target)
             return self.contracts.status(args['contractRef'])
         if name=='delegation.intent':
-            self.fields(args,('taskRef','service'),('request','card','ttlSeconds'))
             return self.delegation.intent(operation,args)
         elif name=='delegation.intent_status':
-            self.fields(args,('messageRef',))
             return self.delegation.intent_status(args['messageRef'])
         elif name=='delegation.prepare':
-            self.fields(args,('purpose','budget','proposalFeeLimit'),('categoryIds','validDays'))
             return self.delegation.prepare(operation,args)
         elif name in ('delegation.authorize','delegation.renew'):
-            self.fields(args,('taskRef',),('validDays','confirmationRef'))
             return self.delegation.authorize(operation,args,renew=name.endswith('.renew'))
         elif name=='delegation.status':
             self.fields(args,('taskRef',))
             return self.delegation.status(args['taskRef'])
         elif name=='delegation.close':
-            self.fields(args,('taskRef',))
             return self.delegation.close(operation,args)
         elif name=='rules.draft':
-            self.fields(args,('declaration','instructions'))
             data=self.rules.draft(operation,args['declaration'],args['instructions'])
         elif name in ('rules.validate','rules.preview'):
-            self.fields(args,('draftRef',))
             data=getattr(self.rules,name.split('.')[1])(args['draftRef'])
         elif name=='rules.publish':
-            self.fields(args,('draftRef','contentDigest','expectedRevision'),('confirmationRef',))
             return self.rules.publish(operation,args['draftRef'],args['contentDigest'],args['expectedRevision'],args.get('confirmationRef'))
         elif name=='rules.disable':
-            self.fields(args,('name','expectedRevision'),('confirmationRef',))
             version=self.rules.version(args['name'],args['expectedRevision'],validate_tools=False)
             draft=self.rules.draft(stable(operation,'disable'),{**version['declaration'],'enabled':False},version['instructions'])
             value=self.rules.read(draft['draftRef'])
             return self.rules.publish(operation,draft['draftRef'],value['contentDigest'],args['expectedRevision'],args.get('confirmationRef'))
         elif name=='rules.list':
-            self.fields(args)
             data=self.rules.list()
         elif name=='messaging.interfaces':
-            self.fields(args,('account',))
             data=self.interfaces(args['account'])
         elif name=='messaging.send':
-            self.fields(args,('input',),('interfaceRef','interactionRef','ttlSeconds'))
             return self.send(operation,args)
         elif name=='messaging.status':
-            self.fields(args,('messageRef',),('waitSeconds',))
             data=self.status(args)
         else:
-            self.fields(args,optional=('messageRef','interactionRef','reason'))
             return self.close_interaction(operation,args)
         return {'status':'completed','data':data}
 

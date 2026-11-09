@@ -228,7 +228,7 @@ def test_actual_queue_states_validate_without_inventing_delivery_or_read(tmp_pat
         return native.deliver(notice)
     queue.client.probe, queue.client.get, queue.client.deliver = native.probe, native.get, deliver
     def notify(source, text):
-        return tools.notify({'input': {'text': text}, 'context': source}, {'owner': bindings['owner.notify']})
+        return validate_output(bindings['owner.notify'], bindings['owner.notify'].invoke({'text': text}, source))
     def query(source, receipt):
         result = bindings['owner.notification_status'].invoke({'notificationRef': receipt['notificationRef']}, source)
         return validate_output(bindings['owner.notification_status'], result)

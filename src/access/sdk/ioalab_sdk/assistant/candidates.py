@@ -108,7 +108,6 @@ class Comparisons:
         self.actor=trading.identity.agent_id;self.lock=threading.RLock()
 
     def start(self,operation,args):
-        self.role.fields(args,('taskRef','quoteRefs'))
         references=args['quoteRefs']
         if (not isinstance(references,list) or not 1<=len(references)<=32
                 or any(not isinstance(item,str) or not 1<=len(item)<=128 for item in references)

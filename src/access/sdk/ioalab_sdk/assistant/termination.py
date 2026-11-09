@@ -35,8 +35,6 @@ class Termination:
 
     def call(self,name,operation,args):
         f=self.fulfillment
-        self.role.fields(args,('contractRef',) if name=='termination_quote' else ('contractRef','mode'),
-                         () if name=='termination_quote' else ('terminationQuoteRef','reason','confirmationRef'))
         if name=='terminate':
             if args['mode'] not in ('agreed','unilateral') or ('terminationQuoteRef' in args)!=(args['mode']=='agreed'):
                 raise RuntimeFault('invalid_input','Agreed termination requires its original quote; unilateral termination does not')

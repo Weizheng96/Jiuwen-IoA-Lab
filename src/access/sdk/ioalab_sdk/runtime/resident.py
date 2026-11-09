@@ -4,6 +4,7 @@ import signal
 import threading
 import time
 
+from .catalog import ASSISTANT,CATALOG,PROVIDER,RUNTIME,handled_by
 from .lease import Lease
 from .config import RuntimeConfig
 from .connection import AgentConnection
@@ -32,7 +33,7 @@ class ResidentRuntime:
         self.stop_requested=threading.Event()
         self.closing=threading.Event()
         self._closed=False
-        reserved={'runtime.status','runtime.stop','runtime.open_ui','identity.status','operations.get','operations.resume','confirmations.get','account.refresh'}
+        reserved=set(handled_by(RUNTIME))
         if set(self.operations)&reserved or not all(callable(handler) for handler in self.operations.values()):
             raise ValueError('Register explicit non-reserved role operations')
         try:
@@ -54,6 +55,8 @@ class ResidentRuntime:
                 registration=module.bind(self)
                 registered=registration.get('operations',{})
                 if set(registered)&(reserved|set(self.operations)):raise ValueError('Duplicate role operation')
+                if any(name not in CATALOG or CATALOG[name].handler not in (ASSISTANT,PROVIDER) for name in registered):
+                    raise ValueError('Register only role operations declared in the operation catalog')
                 if set(registration.get('jobs',{}))&set(job_handlers):raise ValueError('Duplicate role job handler')
                 self.operations.update(registered)
                 job_handlers.update(registration.get('jobs',{}))

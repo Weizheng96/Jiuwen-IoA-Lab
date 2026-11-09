@@ -55,7 +55,6 @@ class Trading:
         return values
 
     def request(self,operation,args):
-        self.role.fields(args,('taskRef','service','templateDigest','spec'),('materials','confirmationRef'))
         key='quote:'+stable(self.identity.agent_id,operation)
         record=self.store.checkpoint(self.namespace,key)
         fingerprint=digest({k:v for k,v in args.items() if k!='confirmationRef'})

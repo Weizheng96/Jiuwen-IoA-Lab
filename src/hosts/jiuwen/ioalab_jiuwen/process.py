@@ -17,7 +17,7 @@ from .skills import FrozenSkills,documents
 
 
 class ProcessHost:
-    def __init__(self,command,data_dir,*,model=None,environment=None,notifier=None,skill_directories=None):
+    def __init__(self,command,data_dir,*,model=None,environment=None,skill_directories=None):
         if not isinstance(command,(list,tuple)) or not command or any(not isinstance(item,str) or not item for item in command):
             raise RuntimeFault('invalid_input','Configure the original Jiuwen process command as an argv list')
         self.command=tuple(command)
@@ -25,7 +25,6 @@ class ProcessHost:
         self.model=model
         self.environment={**os.environ,**(environment or {}),'PYTHONUTF8':'1',
                           'JIUWENSWARM_DATA_DIR':str(self.data_dir),'JIUWENSWARM_CONFIG_DIR':str(self.data_dir/'config')}
-        self.notifier=notifier
         if skill_directories is not None and not isinstance(skill_directories,dict):raise RuntimeFault('invalid_input','Business skill sources must be a name-to-directory mapping')
         self.skill_directories=dict(skill_directories or {})
         if len(self.skill_directories)>64 or any(not isinstance(name,str) or not re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]{0,63}',name) or not isinstance(path,(str,Path)) or not Path(path).expanduser().is_absolute() for name,path in self.skill_directories.items()) or len({name.casefold() for name in self.skill_directories})!=len(self.skill_directories):
@@ -68,7 +67,7 @@ class ProcessHost:
         available=capabilities.get('status')=='completed' and models.get('status')=='completed' and permissions.get('status')=='completed' and selected in choices and all(caps.get('features',{}).get(key) for key in required)
         self.model=selected
         self._capabilities={'available':bool(available),'model':selected,'protocol':caps.get('schema_version'),
-                            'features':caps.get('features',{}),'notify':self.notifier is not None,
+                            'features':caps.get('features',{}),
                             'nativeToolPolicy':{value['name']:value['level'] for value in (permissions.get('data') or {}).get('effective',{}).get('tools',[])},
                             'reason':None if available else 'Configure a supported original Jiuwen runtime and model selection'}
         sources={};errors={}
@@ -207,7 +206,3 @@ class ProcessHost:
         with self._lock:running=list(self._running.get(operation_id,()))
         for loop,event in running:loop.call_soon_threadsafe(event.set)
         return bool(running)
-
-    def notify(self,message):
-        if not self.notifier:return {'status':'not_ready','reason':'A public web notification bridge is not configured'}
-        return self.notifier(message)
