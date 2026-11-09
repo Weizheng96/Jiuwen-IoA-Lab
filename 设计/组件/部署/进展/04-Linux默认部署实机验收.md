@@ -1,0 +1,17 @@
+# 04：Linux 默认部署实机验收
+
+**目标行为：** 在用户提供的新服务器上完成默认安装，核实组件就绪、真实模型、权限、正式停启、WS 断线恢复、停服排空、实际锁、备份、升级、新配置升级与保留恢复；依赖随仓，部署期无需访问 GitHub。现状：原服务器有基础部署证据，完整官方与管理员助手就绪、组件真实模型及正式正常停启的最终回执缺失；用户要求停止对原服务器的操作，后续远端改用全新服务器。Windows 通过或 Linux 跳过不计验收。
+
+**阻塞于：** 无
+
+**状态：** ready
+
+**范围：** 部署[Linux受管安装](../接口/Linux受管安装.md)、[升级与修复](../接口/升级与修复.md)、[进程与数据](../接口/进程与数据.md)与[部署教程](../../../工程/部署.md)。排在开发准备专题“只保留 Linux 部署”之后；按 deployment 技能执行，每次远端操作须用户明确授权。
+
+**定向测试：** deployment_lifecycle、deployment_upgrade_flow、deployment_repair、deployment_backup、linux_service_management、production_release、installed_upgrade、installed_deployment_probe
+
+- [ ] 新服务器按部署教程全新安装，全组件就绪有最终回执，含官方服务与管理员助手
+- [ ] 真实模型在各组件实际调用并记录证据
+- [ ] systemd 启停、权限、Nginx、WS 断线、停服排空与实际锁逐项通过
+- [ ] 备份、升级、配置升级与恢复实测，运行数据保留
+- [ ] 确认可运行后按用户要求合入 main 并同步 GitCode

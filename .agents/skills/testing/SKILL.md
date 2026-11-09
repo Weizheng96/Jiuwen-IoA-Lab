@@ -4,7 +4,7 @@ description: 选择并执行本仓轻量、定向、完整及环境专项检查�
 ---
 # 检查与验证
 
-按 develop 的[路由表](../develop/references/routing.md)确定受影响模块与定向测试；[设计验收](../../../设计/工程/验收.md)只查对应编号的条件，不通读。Windows 使用 `.venv/Scripts/python.exe`，Linux 使用 `.venv/bin/python`。
+按 develop 的[路由表](../develop/references/routing.md)确定受影响模块，定向测试取其 接口.md 的测试列；验收条件只查受影响模块接口页的“验收条件”表与所涉流程页的“端到端验收”节，不通读。Windows 使用 `.venv/Scripts/python.exe`，Linux 使用 `.venv/bin/python`。
 
 | 层级 | 触发与唯一入口 |
 |---|---|

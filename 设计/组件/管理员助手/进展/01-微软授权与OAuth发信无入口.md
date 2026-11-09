@@ -4,7 +4,7 @@
 
 **阻塞于：** 无
 
-**状态：** ready
+**状态：** claimed（admin）
 
 **范围：** 管理员助手。需读[日历业务工具](../接口.md#日历业务工具)与[会议预约](../../../流程/场景/会议预约.md)的“可选 Graph 与 Outlook SMTP”。部署配方的通知字段（`deploy/configuration.py` 的 `notification`）若需支持 OAuth，另在部署模块登记。
 

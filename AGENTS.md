@@ -4,15 +4,15 @@
 
 ## 1. 版本与提交
 
-在develop小步开发、验证、提交并推送GitHub；AI自行完成的提交与推送只到develop，不直接向main提交。提交为`v0.0.x.y：主题`：x是当前[设计VERSION](设计/VERSION)的第三位，y是该设计版本下的开发推送序号，每次提交递增第四位；设计VERSION第三位只在职责页的不变量变化时递增，此后第四位从1重新计起；前两位由用户决定。仅在用户明确要求时将develop合入main并随后同步GitCode。版本、变更登记与合入步骤只在[交付](.agents/skills/develop/references/delivery.md)。
+在develop小步开发、验证、提交并推送GitHub；AI自行完成的提交与推送只到develop，不直接向main提交。提交为`v0.0.x.y：主题`：x是当前[设计VERSION](设计/VERSION)的第三位，y是该设计版本下的开发推送序号，每次提交递增第四位；设计VERSION第三位只在模块接口页的不变量变化时递增，此后第四位从1重新计起；前两位由用户决定。仅在用户明确要求时将develop合入main并随后同步GitCode。版本、变更登记与合入步骤只在[交付](.agents/skills/develop/references/delivery.md)。
 
 ## 2. 设计
 
-[设计索引](设计/README.md)是唯一现行规范，编修遵循[design](.agents/skills/design/SKILL.md)；方案有多个开放问题时先按[grilling](.agents/skills/grilling/SKILL.md)分轮问清。改动先分类：改变代码应有行为的是不变量变化，先改职责页并升版再实现；只让文档追平代码的是事实性修正，随代码一起改或攒批收口，不单独升版。实现偏离正确规范时，在开发计划标“开发中，与当前设计有偏离”并写修复方案，不为bug改规范。完工更新职责页、删除已完成进展项；根README只讲理念与使用。
+[设计索引](设计/README.md)是唯一现行规范，编修遵循[design](.agents/skills/design/SKILL.md)；方案有多个开放问题时先按[grilling](.agents/skills/grilling/SKILL.md)分轮问清。改动先分类：改变代码应有行为的是不变量变化，先改模块接口页并升版再实现；只让文档追平代码的是事实性修正，随代码一起改或攒批收口，不单独升版。实现偏离正确规范时，在模块进展票据标“开发中，与当前设计有偏离”并写修复方案，不为bug改规范。完工更新接口页与实现页、删除已完成票据；根README只讲理念与使用。
 
 ## 3. 开发
 
-按[develop](.agents/skills/develop/SKILL.md)的路由表只读改动涉及的职责页与测试，不通读全部规范；保持架构简洁，不增兼容别名、旧格式回退或双执行链。产物VERSION只在发布时更新，不随每次改模块递增，不高于设计。合同、授权、付款及沙箱边界从设计入口读取，不以模型文字代替用户批准。产品Skill与开发技能分别归src/access/skills与.agents/skills。
+按[develop](.agents/skills/develop/SKILL.md)的路由表进入模块文件夹，只读本模块、所依赖模块的接口页及所列测试，不通读全部规范；保持架构简洁，不增兼容别名、旧格式回退或双执行链。产物VERSION只在发布时更新，不随每次改模块递增，不高于设计。合同、授权、付款及沙箱边界从设计入口读取，不以模型文字代替用户批准。产品Skill与开发技能分别归src/access/skills与.agents/skills。
 
 ## 4. 测试
 
