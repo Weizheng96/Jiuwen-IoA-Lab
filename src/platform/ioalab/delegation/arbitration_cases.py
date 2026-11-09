@@ -1,21 +1,20 @@
 """Owned arbitration cases and frozen submissions; A2C owns protocol criteria."""
 from dataclasses import dataclass
-from datetime import datetime,timezone
 import json
 import re
 import threading
 import uuid
 
-from a2c.codec import digest,digest_bytes,canonical,fmt_time
+from a2c.codec import digest
 from a2c.template import acceptance_of,deliverable_of
-from .arbitration_evidence import EvidenceSnapshot,GROUNDS,NO_PERIOD,CLIENT,PROVIDER,encoded,public_evidence
+from .arbitration_evidence import EvidenceSnapshot,GROUNDS,NO_PERIOD,CLIENT,PROVIDER,encoded,public_evidence,reference,stamp
+from .arbitration_admin import CaseReview
+from .arbitration_execution import CaseExecution
+from .arbitration_worker import CaseEvaluation
 from ..errors import LabError
 
 
 GROUPS={'deliveryFiles','fetchEvidence','inputMaterials'}
-
-
-def stamp(value):return fmt_time(datetime.fromtimestamp(value,timezone.utc)) if value is not None else None
 
 
 @dataclass(frozen=True)
@@ -28,23 +27,15 @@ class PreparedCase:
     result:str|None=None
 
 
-def reference(value):
-    if not isinstance(value,str):raise LabError('invalid_input','Use the original UUID reference')
-    try:parsed=str(uuid.UUID(value))
-    except ValueError:raise LabError('invalid_input','Use the original UUID reference') from None
-    if parsed!=value:raise LabError('invalid_input','Use the canonical original UUID reference')
-    return value
-
-
-class ArbitrationCases:
-    def __init__(self,db,identities,auth,admissions,evidence,files,*,model_binding,clock,market,notify_in,notify):
+class ArbitrationCases(CaseEvaluation,CaseReview,CaseExecution):
+    def __init__(self,db,identities,auth,admissions,evidence,files,*,model_binding,clock,market,notify_in,notify,contracts,close_in):
         self.db,self.identities,self.auth=db,identities,auth
         self.admissions,self.evidence,self.files=admissions,evidence,files
         self.model_binding,self.clock=model_binding,clock
         self.market,self.notify_in,self.notify=market,notify_in,notify
+        self.contracts,self.close_in=contracts,close_in
         self.processing=threading.Lock()
         self.active_case=None
-
 
     def _shape(self,operation,payload):
         if not isinstance(operation,str) or not 1<=len(operation)<=128:
@@ -115,6 +106,9 @@ class ArbitrationCases:
         return encoded(self.model_binding(tuple(sorted(models))))
 
     def prepare(self,owner,actor,kind,operation,payload):
+        if kind=='arbitration.finish':
+            self._finish_shape(operation,payload)
+            return PreparedCase(operation,digest(payload),encoded(payload))
         if kind!='arbitration.request':raise LabError('not_ready','This arbitration operation is not yet available',status=409)
         self._shape(operation,payload);body=encoded(payload);fingerprint=digest(payload)
         with self.db.lock:
@@ -139,6 +133,7 @@ class ArbitrationCases:
 
     def apply_in(self,conn,owner,actor,kind,prepared):
         if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Arbitration admission needs its original application transaction')
+        if kind=='arbitration.finish':return self._finish_in(conn,owner,actor,prepared)
         payload=json.loads(prepared.payload);self._shape(prepared.operation,payload)
         if kind!='arbitration.request' or digest(payload)!=prepared.fingerprint:
             raise LabError('id_conflict','Original arbitration action changed',status=409)
@@ -215,38 +210,6 @@ class ArbitrationCases:
             row=self.db.conn.execute('SELECT * FROM arbitration_cases WHERE admission=?',(admission,)).fetchone()
             return self.public(self.db.conn,row) if row else None
 
-    def _admin(self,operator,row=None):
-        if not self.auth.is_admin(operator):raise LabError('forbidden','Independent web administrator permission is required',status=403)
-        if row and operator in (row['client_owner'],row['service_owner']):
-            raise LabError('forbidden','A party cannot independently review its own case',status=403)
-
-    def _audit(self,conn,operator,action,row=None):
-        conn.execute('INSERT INTO arbitration_audit(case_id,operator,action,at) VALUES(?,?,?,?)',
-            (row['id'] if row else None,operator,action,self.clock()))
-
-    def admin_get(self,operator,case_ref):
-        with self.db.tx() as conn:
-            row=self._case(conn,case_ref);self._admin(operator,row);self._audit(conn,operator,'read',row)
-            result=self.public(conn,row)
-            result['review']=self._review(conn,row)[0]
-            return result
-
-    def admin_list(self,operator,*,state=None,limit=50,cursor=None):
-        if type(limit) is not int or not 1<=limit<=100 or state not in (None,'queued','evaluating','needs_review','unknown','ruled'):
-            raise LabError('invalid_input','Use a documented case state and bounded page size')
-        if cursor is not None and (not isinstance(cursor,str) or not re.fullmatch(r'[1-9][0-9]{0,18}',cursor) or int(cursor)>=2**63):
-            raise LabError('invalid_input','Use the original case page cursor')
-        with self.db.tx() as conn:
-            self._admin(operator)
-            rows=conn.execute('''SELECT * FROM arbitration_cases WHERE client_owner!=? AND service_owner!=?
-                AND (? IS NULL OR state=?) AND seq<? ORDER BY seq DESC LIMIT ?''',
-                (operator,operator,state,state,int(cursor) if cursor else 2**63-1,limit+1)).fetchall()
-            self._audit(conn,operator,'list')
-            return {'cases':[{'caseRef':row['id'],'admissionId':row['admission'],'subject':json.loads(row['basis'])['subject'],
-                'ground':json.loads(row['basis'])['ground'],'state':row['state'],'createdAt':stamp(row['created']),
-                'updatedAt':stamp(row['updated'])} for row in rows[:limit]],
-                'nextCursor':str(rows[limit-1]['seq']) if len(rows)>limit else None}
-
     def material(self,case_ref,file_id,*,owner=None,actor=None,operator=None):
         with self.db.lock:
             row=self._case(self.db.conn,case_ref)
@@ -260,119 +223,6 @@ class ArbitrationCases:
             else:self._owned(conn,owner,actor,row)
         return actual,data
 
-    def recover(self):
-        """Call once after acquiring Core ownership, before dispatching any work."""
-        with self.db.tx() as conn:
-            at=self.clock()
-            conn.execute("UPDATE arbitration_attempts SET state='unknown',finished=?,error='core_interrupted' WHERE state='evaluating' AND case_id IN (SELECT id FROM arbitration_cases WHERE state='evaluating' AND result IS NULL)",(at,))
-            conn.execute("UPDATE arbitration_cases SET state='unknown',updated=? WHERE state='evaluating' AND result IS NULL",(at,))
-
-    def _fresh(self,row):
-        payload=json.loads(row['request'])
-        fresh=self._capture(row['owner'],row['actor'],payload)
-        if not fresh.eligible or fresh.basis!=row['basis']:
-            raise LabError('revision_conflict','Original case facts changed; independent review is required',status=409)
-        if self._binding(fresh)!=row['model_binding']:
-            raise LabError('revision_conflict','Restore the original dispute model mapping',status=409)
-        return fresh
-
-    def _claim(self):
-        with self.db.tx() as conn:
-            row=conn.execute("SELECT * FROM arbitration_cases WHERE state='queued' OR state='evaluating' AND result IS NOT NULL ORDER BY seq LIMIT 1").fetchone()
-            if row is None:return None
-            self.public(conn,row)  # Verify frozen input before claiming anything.
-            if row['result'] is not None:return dict(row),None
-            at=self.clock();attempt=str(uuid.uuid4())
-            sequence=conn.execute('SELECT COUNT(*) FROM arbitration_attempts WHERE case_id=?',(row['id'],)).fetchone()[0]+1
-            conn.execute('INSERT INTO arbitration_attempts(id,case_id,sequence,state,started) VALUES(?,?,?,?,?)',
-                (attempt,row['id'],sequence,'evaluating',at))
-            conn.execute("UPDATE arbitration_cases SET state='evaluating',updated=? WHERE id=?",(at,row['id']))
-            return dict(self._case(conn,row['id'])),attempt
-
-    def _interrupted(self,case_ref,attempt,error):
-        with self.db.tx() as conn:
-            row=self._case(conn,case_ref)
-            if row['state']!='evaluating' or row['result'] is not None:return
-            state='needs_review' if isinstance(error,LabError) and error.code in ('revision_conflict','history_gap') else 'unknown'
-            at=self.clock()
-            # Exception text may contain model endpoints or credentials.
-            code=error.code if isinstance(error,LabError) else type(error).__name__
-            conn.execute('UPDATE arbitration_cases SET state=?,updated=? WHERE id=?',(state,at,case_ref))
-            conn.execute("UPDATE arbitration_attempts SET state=?,finished=?,error=? WHERE id=? AND state='evaluating'",
-                (state,at,code,attempt))
-
-    def _save_result(self,row,attempt,result):
-        result={**result,'basisDigest':digest(json.loads(row['basis'])),
-            'materialsDigest':digest(json.loads(row['materials'])),
-            'modelBindingDigest':digest(json.loads(row['model_binding'])),'evaluatedAt':stamp(self.clock())}
-        with self.db.tx() as conn:
-            current=self._case(conn,row['id'])
-            original=conn.execute('SELECT * FROM arbitration_attempts WHERE id=?',(attempt,)).fetchone()
-            if current['state']!='evaluating' or current['result'] is not None or not original or original['state']!='evaluating':
-                raise LabError('revision_conflict','Recover the already recorded evaluation',status=409)
-            body=encoded(result);at=self.clock()
-            conn.execute('UPDATE arbitration_cases SET result=?,updated=? WHERE id=?',(body,at,row['id']))
-            conn.execute("UPDATE arbitration_attempts SET state='evaluated',finished=?,result=? WHERE id=?",(at,body,attempt))
-
-    def _finalize(self,case_ref):
-        with self.db.tx() as conn:
-            row=self._case(conn,case_ref)
-            if row['state']=='ruled':return json.loads(row['ruling'])
-            if row['state']!='evaluating' or row['result'] is None:
-                raise LabError('not_ready','No completed original evaluation is available',status=409)
-            result=json.loads(row['result']);basis=json.loads(row['basis'])
-            expected={'basisDigest':digest(basis),'materialsDigest':digest(json.loads(row['materials'])),
-                'modelBindingDigest':digest(json.loads(row['model_binding']))}
-            if any(result.get(key)!=value for key,value in expected.items()):
-                conn.execute("UPDATE arbitration_cases SET state='needs_review',updated=? WHERE id=?",(self.clock(),case_ref))
-                return None
-            try:self._fresh(row)
-            except LabError:
-                conn.execute("UPDATE arbitration_cases SET state='needs_review',updated=? WHERE id=?",(self.clock(),case_ref))
-                return None
-            return self._publish_in(conn,row,basis,result)
-
-    def _publish_in(self,conn,row,decision,result):
-        original=json.loads(row['basis'])
-        ruling=self.market.prepare_ruling(row['id'],row['admission'],original,result,json.loads(row['materials']),public_evidence(decision))
-        self.market.commit_ruling_in(conn,decision,ruling)
-        self.notify_in(conn,row['admission'],ruling)
-        outcome=decision.get('marketOutcome')
-        execution='finished' if outcome and outcome['outcome'] in ('completed','client-terminated') else 'pending'
-        conn.execute("UPDATE arbitration_cases SET state='ruled',ruling=?,decision_basis=?,execution=?,updated=? WHERE id=?",
-            (encoded(ruling),encoded(decision),execution,self.clock(),row['id']))
-        return ruling
-
-    def process_one(self):
-        """One owned worker; completed output commits separately from evaluation."""
-        if not self.processing.acquire(blocking=False):return False
-        try:
-            claimed=self._claim()
-            if claimed is None:return False
-            row,attempt=claimed
-            with self.db.lock:self.active_case=row['id']
-            if attempt is not None:
-                try:
-                    snapshot=self._fresh(row);materials={}
-                    for group,refs in json.loads(row['materials']).items():
-                        materials[group]={}
-                        for name,ref in refs.items():
-                            actual,data=self.files.get(row['owner'],row['actor'],ref['fileId'])
-                            if actual!=ref:raise LabError('history_gap','Restore original submitted bytes',status=409)
-                            materials[group][name]=data
-                    result=self.market.evaluate_case(json.loads(row['basis']),snapshot.route,materials)
-                    self._save_result(row,attempt,result)
-                except Exception as exc:
-                    self._interrupted(row['id'],attempt,exc)
-                    return True
-            # A commit failure retains the known result; never repeat a model.
-            self._finalize(row['id'])
-            self.notify()
-            return True
-        finally:
-            with self.db.lock:self.active_case=None
-            self.processing.release()
-
     def request_outcomes(self,provider):
         """Only original request rulings, not fabricated contract ledger entries."""
         with self.db.lock:
@@ -382,130 +232,3 @@ class ArbitrationCases:
                 if basis['subject']['kind']=='proposal-request' and basis['template']['provider']==provider:
                     result.append(json.loads(row['ruling']))
             return result
-
-    def ruled_in(self,conn,admission):
-        row=conn.execute("SELECT * FROM arbitration_cases WHERE admission=? AND state='ruled'",(admission,)).fetchone()
-        if row and not row['decision_basis']:raise LabError('history_gap','Restore the original decision evidence',status=409)
-        return json.loads(row['decision_basis']) if row else None
-
-    def guard_in(self,conn,admission,op,body):
-        """A ruling leaves original payment/control recovery, never new fulfillment."""
-        basis=self.ruled_in(conn,admission)
-        if basis is None:return
-        if basis['subject']['kind']=='contract':
-            if op=='payment.notify':return
-            if op=='ap2.checkout' and body.get('purpose') in ('installment','termination'):
-                if body['purpose']=='termination' and basis['card']['fulfillment'].get('termination',{}).get('quote'):return
-                period=body.get('period')
-                if body['purpose']=='installment' and type(period) is int and 1<=period<=len(basis['card']['signatures']['7']):return
-        raise LabError('closed','The original case ruling ended new fulfillment; recover the original case',status=409)
-
-    def payment_in(self,conn,admission,payment,original):
-        basis=self.ruled_in(conn,admission)
-        if basis is None:return
-        from .contracts import evidence_extends
-        card=original.get('card') if isinstance(original,dict) else None
-        frozen=basis['card']
-        if basis['subject']['kind']!='contract' or not isinstance(card,dict) or not evidence_extends(card,frozen):
-            raise LabError('closed','A ruling cannot authorize new payment evidence',status=409)
-        if payment.purpose=='installment' and type(payment.period) is int and 1<=payment.period<=len(frozen['signatures']['7']):return
-        if payment.purpose=='termination' and frozen['fulfillment'].get('termination',{}).get('quote') and card['fulfillment'].get('termination')==frozen['fulfillment']['termination']:return
-        raise LabError('closed','Only previously accepted prices or agreed termination balances remain payable',status=409)
-
-    def _current(self,row):
-        payload=json.loads(row['request'])
-        return self.evidence.current(row['owner'],{'agentId':row['actor'],**{key:payload[key]
-            for key in ('admissionId','ground','period') if key in payload}})
-
-    def _review(self,conn,row):
-        basis=json.loads(row['decision_basis']) if row['state']=='ruled' and row['decision_basis'] else self._current(row)
-        evidence=public_evidence(basis);meta=json.loads(row['assessment'])
-        snapshot=EvidenceSnapshot(encoded(basis),meta['assessedAt'],meta['deadline'],True,meta['route'],meta['reason'],tuple(meta['requiredEvidence']))
-        current_binding=self._binding(snapshot)
-        value={'basisDigest':digest(json.loads(row['basis'])),'decisionEvidenceDigest':digest(evidence),
-            'materialsDigest':digest(json.loads(row['materials'])),
-            'evaluationDigest':digest_bytes(canonical(json.loads(row['result']) if row['result'] else None)),
-            'modelBindingDigest':digest(json.loads(row['model_binding'])),
-            'currentModelBindingDigest':digest(json.loads(current_binding)),'state':row['state']}
-        actions=[]
-        if self.active_case!=row['id']:
-            if row['state'] in ('unknown','needs_review'):actions.append('review')
-            if (row['state']=='unknown' and row['result'] is None and encoded(basis)==row['basis']
-                    and current_binding==row['model_binding']):actions.append('reevaluate')
-        outcome=basis.get('marketOutcome')
-        if outcome and outcome['outcome']=='arbitrated' and row['state']!='ruled':actions=[]
-        return {'evidence':evidence,'evidenceDigest':digest(evidence),
-            'expectedEvidenceDigest':digest(value),'availableActions':actions},basis
-
-    def _admin_operation(self,conn,operator,kind,case_ref,payload):
-        from .arbitration_review import request
-        request(kind,payload)
-        row=self._case(conn,case_ref);self._admin(operator,row)
-        fingerprint=digest({'kind':kind,'caseRef':case_ref,'payload':payload})
-        old=conn.execute('SELECT * FROM arbitration_admin_operations WHERE operator=? AND id=?',
-            (operator,payload['operationId'])).fetchone()
-        if old and old['fingerprint']!=fingerprint:
-            raise LabError('id_conflict','The original independent review operation changed',status=409)
-        return row,fingerprint,json.loads(old['result']) if old else None
-
-    def _save_admin(self,conn,operator,kind,row,payload,fingerprint,result):
-        conn.execute('INSERT INTO arbitration_admin_operations(operator,id,case_id,fingerprint,result) VALUES(?,?,?,?,?)',
-            (operator,payload['operationId'],row['id'],fingerprint,encoded(result)))
-        self._audit(conn,operator,kind,row)
-        return result
-
-    def _review_inputs(self,operator,kind,case_ref,payload):
-        with self.db.lock:
-            row,_,old=self._admin_operation(self.db.conn,operator,kind,case_ref,payload)
-            if old is not None:return old
-            materials=json.loads(row['materials'])
-        # Verify actual immutable bytes outside the application transaction.
-        for refs in materials.values():
-            for ref in refs.values():
-                actual,_=self.files.get(row['owner'],row['actor'],ref['fileId'])
-                if actual!=ref:raise LabError('history_gap','Restore the original submitted evidence',status=409)
-        return None
-
-    def admin_review(self,operator,case_ref,payload):
-        from .arbitration_review import decision
-        old=self._review_inputs(operator,'review',case_ref,payload)
-        if old is not None:return old
-        with self.db.tx() as conn:
-            row,fingerprint,old=self._admin_operation(conn,operator,'review',case_ref,payload)
-            if old is not None:return old
-            view,basis=self._review(conn,row)
-            if payload['expectedEvidenceDigest']!=view['expectedEvidenceDigest']:
-                raise LabError('revision_conflict','Refresh the actual original case evidence before deciding',status=409)
-            if 'review' not in view['availableActions']:
-                raise LabError('not_ready','This original case cannot be independently reviewed now',status=409)
-            known=json.loads(row['result']) if row['result'] else None
-            route=json.loads(row['assessment'])['route'];deterministic=None
-            if route=='deterministic' and known is None:
-                try:current=self._capture(row['owner'],row['actor'],json.loads(row['request']))
-                except LabError as exc:
-                    if exc.code!='invalid_input':raise
-                else:
-                    if current.eligible:deterministic=self.market.evaluate_case(basis,'deterministic',{})
-            result=decision(basis,route,known,payload,operator,deterministic=deterministic)
-            ruling=self._publish_in(conn,row,basis,result)
-            result=self._save_admin(conn,operator,'review',row,payload,fingerprint,
-                {'caseRef':case_ref,'state':'ruled','ruling':ruling})
-        self.notify()
-        return result
-
-    def admin_reevaluate(self,operator,case_ref,payload):
-        old=self._review_inputs(operator,'reevaluate',case_ref,payload)
-        if old is not None:return old
-        with self.db.tx() as conn:
-            row,fingerprint,old=self._admin_operation(conn,operator,'reevaluate',case_ref,payload)
-            if old is not None:return old
-            view,_=self._review(conn,row)
-            if payload['expectedEvidenceDigest']!=view['expectedEvidenceDigest']:
-                raise LabError('revision_conflict','Refresh the actual original case evidence before reevaluation',status=409)
-            if 'reevaluate' not in view['availableActions']:
-                raise LabError('not_ready','Only the same unknown input with no result or active writer can be reevaluated',status=409)
-            self._fresh(row)
-            conn.execute("UPDATE arbitration_cases SET state='queued',updated=? WHERE id=?",(self.clock(),case_ref))
-            result=self._save_admin(conn,operator,'reevaluate',row,payload,fingerprint,
-                {'caseRef':case_ref,'state':'queued'})
-        return result

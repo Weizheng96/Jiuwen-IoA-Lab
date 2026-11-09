@@ -1,8 +1,6 @@
 """Delegation owns its table definitions and additive upgrades."""
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS needs (id TEXT PRIMARY KEY, owner_id TEXT, assistant_id TEXT, text TEXT, scope TEXT, auto_sign INTEGER DEFAULT 1, state TEXT DEFAULT 'queued', card_digest TEXT, result TEXT, created REAL, updated REAL, llm_calls INTEGER DEFAULT 0, tokens INTEGER DEFAULT 0, trace TEXT DEFAULT '[]', driver TEXT DEFAULT 'hosted');
-CREATE TABLE IF NOT EXISTS confirmations (id TEXT PRIMARY KEY, owner_id TEXT, need_id TEXT, card_digest TEXT, kind TEXT, text TEXT, state TEXT DEFAULT 'pending', created REAL, answered REAL);
 CREATE TABLE IF NOT EXISTS rulings (card_digest TEXT, period INTEGER, at REAL, ruling TEXT, PRIMARY KEY (card_digest, period));
 
 CREATE TABLE IF NOT EXISTS admission_policies(service TEXT PRIMARY KEY,revision INTEGER NOT NULL,maximum INTEGER NOT NULL,accepting INTEGER NOT NULL);
@@ -56,8 +54,6 @@ def migrate(conn):
     from ..migrations import execute
     execute(conn, SCHEMA)
     execute(conn, PROTOCOL_CALLS)
-    if 'driver' not in {row["name"] for row in conn.execute("PRAGMA table_info(needs)")}:
-        conn.execute("ALTER TABLE needs ADD COLUMN driver TEXT DEFAULT 'hosted'")
     if 'progress' not in {row["name"] for row in conn.execute("PRAGMA table_info(delegation_contracts)")}:
         conn.execute("ALTER TABLE delegation_contracts ADD COLUMN progress TEXT")
     if 'decision_basis' not in {row["name"] for row in conn.execute("PRAGMA table_info(arbitration_cases)")}:

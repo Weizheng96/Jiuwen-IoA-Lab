@@ -22,8 +22,7 @@ class AccountQueries:
         if not account:
             raise LabError('forbidden', '账号不可用', status=401)
         return {**account, 'roles': self.auth.roles(uid), 'wallet': str(self.wallets.balance(uid)),
-                'agents': identity_rows(self.db, uid, ('id', 'role', 'name', 'status', 'created')),
-                'pending': self.db.rows("SELECT * FROM confirmations WHERE owner_id=? AND state='pending' ORDER BY created", uid)}
+                'agents': identity_rows(self.db, uid, ('id', 'role', 'name', 'status', 'created'))}
 
     def sdk_me(self, uid):
         account = self.db.one('SELECT id,username,display_name,kind FROM users WHERE id=?', uid)
@@ -71,9 +70,6 @@ class AccountQueries:
         return {'services': len(self.services.list()),
                 'assistants': self.db.one("SELECT COUNT(*) AS n FROM agents WHERE role='assistant' AND status<>'disabled'")['n'],
                 'interactions': self.db.one('SELECT COUNT(*) AS n FROM delivery_interactions')['n']}
-
-    def needs(self, uid):
-        return self.db.rows('SELECT id,text,state,card_digest,created,updated,llm_calls,tokens FROM needs WHERE owner_id=? ORDER BY created DESC', uid)
 
     def events(self, run='', after=0, limit=300):
         rows = self.db.rows('SELECT * FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT ?',

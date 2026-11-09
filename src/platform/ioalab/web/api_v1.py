@@ -33,14 +33,11 @@ def build_router(platform, current_user):
 
     @router.post('/files/{agentId}')
     async def file_upload(agentId:str,operationId:str,name:str,digest:str,request:Request,uid=Depends(sdk_user)):
-        from ..files import MAX_FILE
         platform.identities.owned(uid,agentId)
         chunks=[];size=0
         async for chunk in request.stream():
             size+=len(chunk)
-            if size>MAX_FILE:
-                from ..errors import LabError
-                raise LabError('invalid_input','A protocol file may contain at most16MiB')
+            platform.files.check_size(size)
             chunks.append(chunk)
         return await platform._worker(platform.files.put,uid,agentId,operationId,name,digest,b''.join(chunks))
 

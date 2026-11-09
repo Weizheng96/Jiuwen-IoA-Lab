@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from a2c.codec import digest
 
 from a2c.errors import A2CError
-from .identity.sessions import AccountSessions
-from .identity.keys import thumbprint
+from .identity import AccountSessions
+from .identity import thumbprint
 from .errors import LabError
 from .payments import money
 

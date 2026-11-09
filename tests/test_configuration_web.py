@@ -22,7 +22,7 @@ def configured(tmp_path):
     document=defaults();document['runtime'].update(mode='dev',stub=True,autoseed=False,data=str(tmp_path/'data'),public_url='http://localhost')
     document['admin']['username']='operator'
     config=PlatformConfiguration.create(home/'platform.json',document)
-    platform=Platform(config.settings())
+    platform=Platform(config.settings(),configuration=config)
     try:yield platform,config
     finally:platform.close()
 
@@ -84,7 +84,7 @@ def test_https_ip_session_uses_one_host_cookie_and_logout_removes_it(configured,
 
 def test_admin_can_save_trial_ports_but_cannot_apply_or_change_core_identity(tmp_path):
     from test_platform_configuration import network_configuration
-    config=network_configuration(tmp_path);platform=Platform(config.settings())
+    config=network_configuration(tmp_path);platform=Platform(config.settings(),configuration=config)
     async def scenario():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(platform)),base_url='https://192.0.2.10') as client:
             response=await client.post('/api/admin/login',json={'username':'admin','password':'admin1234'})
@@ -143,7 +143,8 @@ def test_configuration_concurrent_writers_publish_one_revision(configured):
         except LabError as exc:return exc.status
     with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(update,['11.00','12.00']))
     assert sorted(results)==[2,409]
-    assert Settings.load(config.path)._configuration.view()==config.view()
+    reloaded=PlatformConfiguration.load(config.path);reloaded.settings()
+    assert reloaded.view()==config.view()
 
 
 def test_sdk_http_source_keeps_public_proxy_clients_out_of_loopback_exemption(configured):

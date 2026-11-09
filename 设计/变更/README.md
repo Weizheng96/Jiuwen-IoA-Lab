@@ -8,6 +8,7 @@
 
 | 版本 | 日期 | 改了什么 | 来龙去脉 |
 |---|---|---|---|
+| v0.0.143 | 2026-11-10 | 仲裁新增参与方控制操作 `arbitration.finish`：终局裁定后原服务方提交结束回执，平台在同一事务核裁定、原协议调用已收敛与冻结卡应付款齐全后释放接单容量、以 ruling-finished 关闭交互并置案件执行为 finished，重传恢复原结果，未核实不释放；`/api/me` 去掉恒空的 pending | [委托中心 · 仲裁](../组件/平台/委托中心/接口/仲裁.md) |
 | v0.0.142 | 2026-11-10 | 宿主接口 AgentHost 改为 capabilities、run、cancel 三方法，网页通知只经 `owner.notify` 业务工具，`runtime.status` 宿主状态去掉 notify；新增智能体操作目录 `runtime/catalog.py`：常驻运行时与两角色只从目录注册操作，新增、改名或删除操作须先改目录，产品技能与目录双向一致 | [共用运行时接口](../组件/客户端/共用运行时/接口.md) |
 | v0.0.141 | 2026-11-09 | 平台边界收拢：服务目录事实（公开名、分类、协议地址、listed）归注册中心 `registry_services`，已禁用服务重新发布不再恢复 listed；付款与市场操作记录归支付中心与委托中心接口；参与方控制帧分派移到 web服务 应用层 `ControlOperations`；`events` 表归平台基础事件总线；消息中心经身份中心接口取账号；接单释放无参与方控制操作；删除 `/api/needs` | [平台模块](../组件/平台/README.md) |
 | v0.0.140 | 2026-11-09 | 管理员助手：status 报告常驻实例实际状态（not_running、not_queried、ready、not_ready）；预约新增主人本机 reconcile、accept、release 后续转换且不重发邀请；新增 `ioalab-outlook` 微软日历与 SMTP 设备码授权及 XOAUTH2 发信配置。官方服务 `Deployment` 接受 `services` 受限目录；在线试用只接受 linux-server；部署构建链迁入 `deploy/` 不再导入开发工具 | [管理员助手接口](../组件/管理员助手/接口.md)、[官方服务接口](../组件/官方服务/接口.md)、[部署接口](../组件/部署/接口.md) |

@@ -463,12 +463,12 @@ class DeliveryBroker:
                 'originMessageId':row['origin'],'expiresAt':stamp(self.clock()+self.s.message_ttl_days*86400),
                 'body':{'caseRef':ruling['caseRef'],'admissionId':admission,'subject':ruling['subject'],'ruling':ruling}})
 
-    def contract_closed_in(self,conn,iid):
-        """Application calls only after original market/payment/admission validation."""
+    def contract_closed_in(self,conn,iid,reason='contract-closed'):
+        """Callers close only after original market/payment/admission validation or a finished ruling."""
         interaction=self._interaction(conn,iid)
         if interaction['kind']!='delegation' or not self.admissions.can_close_in(conn,interaction['origin']):
             raise LabError('not_ready','Reconcile the original contract before closing its delivery relation',status=409)
-        self._end(conn,interaction,'contract-closed')
+        self._end(conn,interaction,reason)
 
     def _retain(self,conn,interaction,origin,sender,recipient):
         conn.execute('UPDATE delivery_messages SET retain_until=MAX(retain_until,?) WHERE interaction=? OR id=? OR origin=?',

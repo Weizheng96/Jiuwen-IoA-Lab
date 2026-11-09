@@ -17,7 +17,7 @@ def build_router(platform,require_admin,cookie):
         return token
 
     def authority():
-        config=platform.s._configuration
+        config=platform.configuration
         if config is None:raise LabError('not_ready','Platform configuration file is not loaded',status=503)
         return config
 

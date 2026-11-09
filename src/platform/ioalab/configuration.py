@@ -25,7 +25,7 @@ _LOCK=threading.Lock()
 SPECIAL={'llm','agent_model','a2x_model','embedding_model','llm_concurrency','round1_attempts','arbitration_models',
          'admin_username','admin_password','initial_credit','login_credit','repeat_daily_credit','auth_max_failures',
          'auth_window_seconds','registration_limit','registration_window_seconds','local_unlimited','local_addresses',
-         'trusted_proxy_addresses','_configuration'}
+         'trusted_proxy_addresses','policy_source'}
 RUNTIME={f.name for f in fields(Settings)}-SPECIAL-{'currency','sandbox_concurrency','sandbox_fuel'}
 
 
@@ -153,6 +153,14 @@ class PlatformConfiguration:
         self.audit=None
         self._active_network=None
 
+    @classmethod
+    def load(cls,path=None):
+        """The one entry from a private file: an explicit path, else IOALAB_CONFIG as a locator only."""
+        path=path or os.environ.get("IOALAB_CONFIG")
+        if not path:
+            raise ValueError("Select the private platform configuration file with --config or IOALAB_CONFIG")
+        return cls(path)
+
     def _read(self):
         private(self.path.parent);private(self.path)
         if self.path.stat().st_size>1024*1024:invalid()
@@ -231,5 +239,5 @@ class PlatformConfiguration:
             auth_max_failures=auth['max_failures'],auth_window_seconds=auth['window_seconds'],
             registration_limit=auth['registration_limit'],registration_window_seconds=auth['registration_window_seconds'],
             local_unlimited=auth['local_unlimited'],local_addresses=tuple(auth['local_addresses']),
-            trusted_proxy_addresses=tuple(auth['trusted_proxy_addresses']),_configuration=self)
+            trusted_proxy_addresses=tuple(auth['trusted_proxy_addresses']),policy_source=self.policy)
         return Settings(**runtime)

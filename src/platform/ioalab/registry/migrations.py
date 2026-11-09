@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS registry_services_protocol ON registry_services(proto
 
 def migrate(conn):
     from ..migrations import execute
-    from ..identity.migrations import release_service_listings
+    from ..identity import release_service_listings
     execute(conn, SCHEMA)
     for actor, protocol, name, definition in release_service_listings(conn):
         listing = json.loads(definition)

@@ -14,7 +14,7 @@ def execute(conn, script):
 
 
 def migrate(db):
-    from ..identity.migrations import migrate as identity
+    from ..identity import migrate as identity
     from ..payments.migrations import migrate as payments
     from ..registry.migrations import migrate as registry
     from ..delegation.migrations import migrate as delegation

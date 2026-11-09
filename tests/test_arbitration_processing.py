@@ -225,3 +225,54 @@ def test_actual_previous_core_ends_before_unknown_or_known_result_recovery(tmp_p
         assert not calls
         ledger=restarted.market.market.store.get('ledger',ref)
         assert (ledger is not None) is known
+
+
+def finish(runtime,case_ref,admission,operation=None):
+    return runtime.connection.call(actor(runtime),'arbitration.finish',{'caseRef':case_ref,'admissionId':admission},operation_id=operation or uid())
+
+
+def test_ruled_service_finish_releases_once_only_after_convergence_and_actual_payables(platform,tmp_path,monkeypatch):
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        ref,admission=formed(a,candidate(a,p,t,task))
+        with monkeypatch.context() as patch:
+            patch.setattr(platform.arbitration_cases,'process_one',lambda:False)
+            receipt=submit(a,due(platform,a,admission,monkeypatch));case=receipt['caseRef']
+            with pytest.raises(RuntimeFault) as unruled:finish(p,case,admission)
+            assert unruled.value.code=='not_ready'
+        wait_for(lambda:snapshot(platform,case)['state']=='ruled')
+        row=platform.db.one('SELECT * FROM delegation_admissions WHERE id=?',admission);iid=row['interaction']
+        def kept():
+            assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='committed'
+            assert platform.db.one('SELECT state FROM delivery_interactions WHERE id=?',iid)['state']=='open'
+            assert snapshot(platform,case)['execution']=='pending'
+        with pytest.raises(RuntimeFault) as client:finish(a,case,admission)
+        assert client.value.code=='forbidden';kept()
+        with pytest.raises(RuntimeFault) as other:finish(p,case,uid())
+        assert other.value.code=='id_conflict';kept()
+        call=platform.db.one('SELECT message,state FROM delegation_protocol_calls WHERE admission=? LIMIT 1',admission)
+        platform.db.run("UPDATE delegation_protocol_calls SET state='working' WHERE message=?",call['message'])
+        try:
+            with pytest.raises(RuntimeFault) as running:finish(p,case,admission)
+            assert running.value.code=='not_ready';kept()
+        finally:platform.db.run('UPDATE delegation_protocol_calls SET state=? WHERE message=?',call['state'],call['message'])
+        from ioalab.errors import LabError
+        def unpaid(*args,**kwargs):raise LabError('not_ready','Actual required contract payment is missing',status=409,recovery='reconcile_original')
+        with monkeypatch.context() as patch:
+            patch.setattr(platform.psp,'require_contract_payments_in',unpaid)
+            with pytest.raises(RuntimeFault) as missing:finish(p,case,admission)
+            assert missing.value.code=='not_ready';kept()
+        def active():
+            with platform.db.lock:return platform.admissions.policy(platform.db.conn,actor(p))['active']
+        before=active();operation=uid()
+        done=finish(p,case,admission,operation)
+        assert done['released'] is True and done['execution']=='finished' and done['interactionId']==iid
+        assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='released'
+        assert platform.db.one('SELECT state FROM delivery_interactions WHERE id=?',iid)['state']=='closed'
+        assert active()==before-1
+        closed=platform.db.rows("SELECT envelope FROM delivery_messages WHERE interaction=? AND kind='interaction.closed'",iid)
+        assert len(closed)==2 and all(json.loads(n['envelope'])['body']['reason']=='ruling-finished' for n in closed)
+        assert finish(p,case,admission,operation)==done
+        again=finish(p,case,admission)
+        assert again['released'] is False and again['finishedAt']==done['finishedAt']
+        assert read(p,'/arbitrations/'+case,agentId=actor(p))['execution']=='finished'
+        assert platform.market.market.store.get('ledger',ref)['outcome']=='arbitrated'

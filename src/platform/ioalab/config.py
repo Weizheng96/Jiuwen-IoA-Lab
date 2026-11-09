@@ -12,7 +12,7 @@ DEFAULT_LLM_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 @dataclass
 class Settings:
-    """Explicit settings objects support isolated component construction; CLI requires a private file."""
+    """Explicit settings objects support isolated component construction; files are read only by PlatformConfiguration."""
     mode: str = "dev"
     bind: str = "127.0.0.1"
     port: int = 8750
@@ -62,18 +62,11 @@ class Settings:
     local_unlimited: bool = True
     local_addresses: tuple = ("127.0.0.1","::1")
     trusted_proxy_addresses: tuple = ()
-    _configuration: object = field(default=None,repr=False,compare=False)
-
-    @classmethod
-    def load(cls,path=None):
-        from .configuration import PlatformConfiguration
-        path=path or os.environ.get("IOALAB_CONFIG")
-        if not path:
-            raise ValueError("Select the private platform configuration file with --config or IOALAB_CONFIG")
-        return PlatformConfiguration(path).settings()
+    policy_source: object = field(default=None,repr=False,compare=False)
 
     def policy(self):
-        if self._configuration is not None:return self._configuration.policy()
+        """Current hot-editable policy: from the injected source, else these field values."""
+        if self.policy_source is not None:return self.policy_source()
         return {"authentication":{"max_failures":self.auth_max_failures,"window_seconds":self.auth_window_seconds,"registration_limit":self.registration_limit,"registration_window_seconds":self.registration_window_seconds,"local_unlimited":self.local_unlimited},"credits":{"initial":self.initial_credit,"login":self.login_credit,"repeat_daily":self.repeat_daily_credit,"day_timezone":"Asia/Shanghai"}}
 
     # ── 地址 ─────────────────────────────────────────────────────────
@@ -112,7 +105,7 @@ class Settings:
         return self.quota_needs_per_day or 20
 
     def dirs(self) -> None:
-        for d in ("keys", "packages", "a2x", "a2x_home", "deliveries", "runs", "needs", "logs"):
+        for d in ("keys", "packages", "a2x", "a2x_home", "deliveries", "runs", "logs"):
             (self.data / d).mkdir(parents=True, exist_ok=True)
 
     def secret(self) -> bytes:

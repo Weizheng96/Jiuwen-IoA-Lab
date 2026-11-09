@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
-from ..identity.trial import entry
+from ..identity import trial as admission
 from .cookies import session_cookie_name
 
 
@@ -43,6 +43,6 @@ def build_router(platform):
         if (not origin or urlsplit(origin).netloc != request.headers.get('host')
                 or urlsplit(origin).scheme != urlsplit(platform.s.public_url).scheme):
             raise HTTPException(403, '请从当前平台页面进入试用')
-        return entry(platform.s, owner(request), confirmation=confirmation)
+        return admission.entry(platform.s, owner(request), confirmation=confirmation)
 
     return router

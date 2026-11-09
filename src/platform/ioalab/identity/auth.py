@@ -107,6 +107,10 @@ class Auth:
     def is_auditor(self,subject):
         return bool(subject and subject!='admin' and self.is_admin(subject) and 'auditor' in self.roles(subject))
 
+    def grant_admin_in(self,conn,user_id):
+        """Deployment preset: add the admin role inside the caller's transaction; never removes roles."""
+        return conn.execute("INSERT OR IGNORE INTO user_roles(user_id,role) VALUES(?, 'admin')",(user_id,)).rowcount==1
+
     def set_roles(self,operator,target,roles,expected):
         from ..errors import LabError
         def valid(value):return isinstance(value,list) and len(value)<=2 and all(type(x) is str and x in ('admin','auditor') for x in value) and len(set(value))==len(value)

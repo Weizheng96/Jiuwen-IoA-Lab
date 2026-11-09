@@ -21,7 +21,6 @@ from ..errors import LabError
 
 from ..app import Platform
 from ..payments import money
-from ..storage import jdump, jload
 from ..observation import event_view
 
 log = logging.getLogger("ioalab.web")
@@ -175,12 +174,7 @@ def create_app(platform: Platform) -> FastAPI:
 
     @app.get("/api/services/definitions")
     async def definitions():
-        from ..seed import load_definitions
-        if platform.s.seed_file is None:
-            return []
-        return [{"id": d["id"], "name": d["name"], "description": d["description"], "formation": d.get("formation", "preapproval"),
-                 "runnable": bool(d.get("runnable")), "price": d.get("pricing", {}).get("price"), "category": d.get("category")}
-                for d in load_definitions(platform.s.seed_file) if d.get("runnable")]
+        return platform.service_definitions()
 
 
 
@@ -320,10 +314,8 @@ def create_app(platform: Platform) -> FastAPI:
 
 
     @app.post("/api/admin/seed")
-    async def seed(request: Request, _: str = Depends(require_admin)):
-        from ..seed import seed_all
-        b = await body(request)
-        return await platform._worker(seed_all, platform, only=b.get("only"))
+    async def seed(_: str = Depends(require_admin)):
+        return await platform._worker(platform.ensure_seeded)
 
     @app.post("/api/admin/run")
     async def new_run(_: str = Depends(require_admin)):

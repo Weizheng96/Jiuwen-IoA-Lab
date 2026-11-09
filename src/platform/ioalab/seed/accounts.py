@@ -27,13 +27,14 @@ def ensure_accounts(platform, *, domains=None) -> dict:
                 platform.auth.reset_default_password_in(conn,'ISC_001','001',password)
         uid = _ensure(platform, f"ISC_{i:03d}", password, "isc", f"内部用户 {i:03d}")
         if i==1:
-            platform.db.run("INSERT OR IGNORE INTO user_roles VALUES (?, 'admin')",uid)
+            with platform.db.tx() as conn:
+                platform.auth.grant_admin_in(conn,uid)
         out["isc"].append(uid)
     return out
 
 
 def _ensure(platform, username: str, password: str, kind: str, display_name: str) -> str:
-    row = platform.db.one("SELECT id FROM users WHERE username=?", username)
+    row = platform.identities.account(username)
     if row:
         return row["id"]
     return platform.accounts.create_account(username, password, kind=kind, display_name=display_name, note="部署自带")["id"]

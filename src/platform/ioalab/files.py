@@ -31,12 +31,18 @@ class PrivateFiles:
     @staticmethod
     def descriptor(row):return {key:row[key] for key in ('name','digest','size')}|{'fileId':row['id']}
 
+    @staticmethod
+    def check_size(size):
+        """The one protocol file size bound, also applied while an upload is still streaming."""
+        if size>MAX_FILE:raise LabError('invalid_input','A protocol file may contain at most16MiB')
+
     def put(self,owner,actor,operation,name,expected,data):
         self.identities.owned(owner,actor)
         if not isinstance(operation,str) or not 1<=len(operation)<=128:raise LabError('invalid_input','Use a stable upload operationId')
         if not isinstance(name,str) or not 1<=len(name)<=240 or any(ord(c)<32 for c in name) or name.startswith('/') or any(c in name for c in ('\\',':')) or any(part in ('','.','..') for part in name.split('/')):
             raise LabError('invalid_input','Use a portable relative protocol file name')
-        if not isinstance(data,bytes) or len(data)>MAX_FILE:raise LabError('invalid_input','A protocol file may contain at most16MiB')
+        if not isinstance(data,bytes):raise LabError('invalid_input','A protocol file must be bytes')
+        self.check_size(len(data))
         actual=digest_bytes(data)
         if actual!=expected:raise LabError('invalid_input','Uploaded bytes do not match the declared digest')
         path=self.path(actual);fingerprint=digest({'name':name,'digest':actual,'size':len(data)})

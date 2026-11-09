@@ -13,7 +13,7 @@ from .keys import KeyStore
 from .registry.discovery import Discovery
 from .delegation.service import MarketService
 from .payments import SimPaymentProvider, Wallets
-from .identity.auth import Auth
+from .identity import Auth
 from .registry.models import DiscoveryModels
 from .delegation.models import ArbitrationModels
 from .delegation.packages import PackageStore
@@ -65,8 +65,9 @@ class A2ARouter:
 
 
 class Platform:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, configuration=None):
         self.s = settings
+        self.configuration = configuration
         self._owner = DataOwner(settings.data)
         self._closed = False
         self._closing = False
@@ -90,8 +91,8 @@ class Platform:
         from .migrations import migrate
         migrate(self.db)
         self.bus = EventBus(self.db, settings.data / "runs")
-        if settings._configuration:
-            settings._configuration.audit=lambda actor,previous,revision,changed:self.bus.emit('configuration','configuration.update',sender=actor,
+        if self.configuration is not None:
+            self.configuration.audit=lambda actor,previous,revision,changed:self.bus.emit('configuration','configuration.update',sender=actor,
                 outcome='saved',detail={'previousRevision':previous,'revision':revision,'fields':changed})
         self.wallets, self.auth = Wallets(self.db), Auth(self.db, settings)
         from .operations import AccountOperations,LedgerOperations
@@ -122,7 +123,7 @@ class Platform:
         from .payments.scopes import ScopeLedger
         self.scopes=ScopeLedger(self.db,self.identities,settings.base_url,keys=self.keys,
                                 template=self.market.template,category=self.registry.category_in)
-        from .identity.enrollment import EnrollmentRegistry
+        from .identity import EnrollmentRegistry
         saved_keys,_=self.identities.saved_keys()
         self.identities.enrollment=EnrollmentRegistry(self.db,settings,existing_keys=saved_keys)
         from .web.identity import public_identity_app
@@ -178,7 +179,8 @@ class Platform:
         self.arbitration_cases=ArbitrationCases(self.db,self.identities,self.auth,self.admissions,
             self.arbitration_evidence,self.files,model_binding=self.arbitration_models.binding,
             clock=lambda:self.arbitration_evidence.clock(),market=self.market,
-            notify_in=self.delivery.ruling_in,notify=self.delivery.notify)
+            notify_in=self.delivery.ruling_in,notify=self.delivery.notify,
+            contracts=self.contracts,close_in=self.delivery.contract_closed_in)
         self.delivery.protocol.arbitrations=self.arbitration_cases
         self.payment_operations.arbitrations=self.arbitration_cases
         self.market_operations.arbitrations=self.arbitration_cases
@@ -296,9 +298,18 @@ class Platform:
         self.started = False
         self._closed = True
 
-    def ensure_seeded(self, *, force=False):
+    def ensure_seeded(self):
         from .seed import seed_all
         return seed_all(self)
+
+    def service_definitions(self):
+        """Runnable service summaries from the explicit seed manifest; none without a manifest."""
+        if self.s.seed_file is None:
+            return []
+        from .seed import load_definitions
+        return [{"id": d["id"], "name": d["name"], "description": d["description"], "formation": d.get("formation", "preapproval"),
+                 "runnable": bool(d.get("runnable")), "price": d.get("pricing", {}).get("price"), "category": d.get("category")}
+                for d in load_definitions(self.s.seed_file) if d.get("runnable")]
 
 
     async def _arbitration_loop(self):

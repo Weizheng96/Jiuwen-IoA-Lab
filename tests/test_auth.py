@@ -145,6 +145,7 @@ def test_internal_accounts_seeded_idempotent(platform):
     assert row["username"] == "ISP_001" and row["kind"] == "isp" and row["display_name"].startswith("内部服务方")
     assert pf.auth.login("ISC_001", "001")["kind"] == "isc"
     assert not pf.db.one("SELECT id FROM agents WHERE owner_id=?", acc["isc"][0])
+    assert pf.auth.roles(acc["isc"][0]) == ["admin"] and all(not pf.auth.roles(uid) for uid in acc["isc"][1:])
 
 
 def test_default_password_reset_runs_inside_the_callers_transaction(platform):
@@ -164,3 +165,17 @@ def test_default_password_reset_runs_inside_the_callers_transaction(platform):
     assert platform.auth.login(name, "replacement-secret")["username"] == name
     with pytest.raises(LabError):
         platform.auth.login(name, "001")
+
+
+def test_preset_admin_grant_only_adds_inside_the_callers_transaction(platform):
+    user = platform.auth.register(username(), "001", kind="isc")
+    with pytest.raises(RuntimeError):
+        with platform.db.tx() as conn:
+            assert platform.auth.grant_admin_in(conn, user["id"])
+            raise RuntimeError("rollback")
+    assert platform.auth.roles(user["id"]) == []
+    with platform.db.tx() as conn:
+        assert platform.auth.grant_admin_in(conn, user["id"])
+    with platform.db.tx() as conn:
+        assert not platform.auth.grant_admin_in(conn, user["id"])
+    assert platform.auth.roles(user["id"]) == ["admin"] and platform.auth.is_admin(user["id"])

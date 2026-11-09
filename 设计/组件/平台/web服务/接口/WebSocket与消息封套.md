@@ -18,6 +18,7 @@
 | `admission.configure/reserve/commit/status` | 接单策略（expectedRevision、maxActiveDelegations、accepting）；或交互、绑定摘要、预留及相关证据 | 委托中心原子设置策略、预留、提交或查询，返回原台账记录；释放没有参与方控制操作，只由平台按到期、结清、关闭与提案到期的证据完成 |
 | `scope.register/status/close` | context/grant/proof；或 scopeDigest | 用户签名授权、原记录恢复、预算查询及拒绝新许可；关闭不解除合同 |
 | `scope.select` | scopeDigest、完整原卡和用户选择证明 | 验证后预留完整价款；只绑定一份 cardDigest，不执行 A2C 签1或付款 |
+| `arbitration.request`、`arbitration.finish` | 申请：admissionId、ground、必要period、basisDigest、materials；结束：caseRef、admissionId | 委托中心受理原案件或核收敛与原应付款后原子释放并关闭；返回原受理回执或结束回执，见[仲裁接口](仲裁接口.md#仲裁接口) |
 | `contract.bind` | admissionId、完整原有效 card | 原个人助手连接登记同单生效签1/2/3；核原承诺、范围选择和双方，返回原成约事实，不开工或付款 |
 | `a2c.market` | admissionId、op、原 body；card.endorse 另带原 signed request | 当前服务连接申请 card.endorse、delivery.anchor 或 card.close；按阶段核承诺/成约、实际原件与付款证据，返回原 A2C Reply |
 | `operation.get` | 原操作标识与类型 | 查询同一操作的已存结果；与 HTTP 恢复查询读同一记录 |

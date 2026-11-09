@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 import json
+import uuid
 
 from a2c import objects
 from a2c.card import card_digest, request_digest, validate_card, validate_request, verify_request
@@ -25,6 +26,17 @@ NO_PERIOD={'start-overdue','proposal-overdue'}
 
 
 def encoded(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False)
+def stamp(value):return fmt_time(datetime.fromtimestamp(value,timezone.utc)) if value is not None else None
+
+
+def reference(value):
+    if not isinstance(value,str):raise LabError('invalid_input','Use the original UUID reference')
+    try:parsed=str(uuid.UUID(value))
+    except ValueError:raise LabError('invalid_input','Use the original UUID reference') from None
+    if parsed!=value:raise LabError('invalid_input','Use the canonical original UUID reference')
+    return value
+
+
 def corrupt(message):raise LabError('history_gap',message,status=409,recovery='reconcile_original')
 
 

@@ -17,7 +17,7 @@ from a2c.payment.psp import PaymentProvider
 from a2c.payment.terms import payment_terms,termination_balance
 
 from ..errors import LabError
-from ..identity.keys import thumbprint
+from ..identity import thumbprint
 from .ledger import money
 
 

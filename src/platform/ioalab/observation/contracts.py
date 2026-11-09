@@ -11,7 +11,7 @@ from a2c.jws import header_of
 from a2c.slots import verify_card
 
 from ..payments import money
-from ..delegation.contracts import evidence_extends
+from ..delegation import evidence_extends
 
 
 
