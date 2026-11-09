@@ -89,9 +89,16 @@ class Rulings:
                 if exc.code!='not_ready':raise
                 job=None
             if job and job['status']=='unknown' and not self.runtime.scheduler.is_executing(reference):
-                # Consume only the saved original platform response for this exact operation.
+                # Consume only the saved original platform response for this exact operation. An
+                # unanswered saved operation stays in the outbox, which every new connection resends.
                 response=self.runtime.store.response(actor,'arbitration.finish',operation)
-                if response and response['ok']:
+                if response is None and self.runtime.store.operation(actor,'arbitration.finish',operation) is None:
+                    # The interrupted job never saved its platform operation, so nothing was sent:
+                    # close it as rejected and let the next scan submit a new attempt at once.
+                    error={'code':'not_sent','message':'The interrupted finish receipt never reached the local outbox','recovery':'retry_new'}
+                    endpoint.store.put('arbitration','case',{**case,'retryAt':0,'lastError':error})
+                    self.runtime.scheduler.resolve(reference,JobOutcome('rejected',{'caseRef':case['caseRef'],'error':error}))
+                elif response and response['ok']:
                     self._finished(endpoint,case,response['result'])
                     self.runtime.scheduler.resolve(reference,JobOutcome('completed',{'caseRef':case['caseRef'],'executionDrained':True,'finish':response['result']}))
                 elif response:

@@ -324,3 +324,36 @@ def test_assistant_reads_the_current_case_before_new_protected_contract_actions(
         assert cases.saved(admission)['caseRef']==case
         status=local.call('assistant.delegation.status',{'contractRef':ref})
         assert status['data']['arbitration']['caseRef']==case and status['data']['arbitration']['liable']=='provider'
+
+
+def test_service_finish_closes_late_rejections_and_interrupted_jobs_then_releases_once(platform,tmp_path,monkeypatch):
+    import ioalab_sdk.provider.arbitration as arbitration
+    from ioalab.errors import LabError
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        ref,admission=formed(a,candidate(a,p,t,task));connection=p.connection;original=connection.call;mode={'value':'late'}
+        monkeypatch.setattr(arbitration,'RETRY_SECONDS',.5)
+        def call(actor,kind,payload,*,operation_id=None,timeout=10):
+            if kind=='arbitration.finish' and mode['value']=='late':
+                connection.submit(actor,kind,payload,operation_id)  # Saved and sent, then the local wait times out.
+                raise RuntimeFault('unknown_result','Original operation is saved; resume it without changing its identity','resume_original')
+            if kind=='arbitration.finish' and mode['value']=='crash':raise RuntimeError('interrupted before the outbox')
+            return original(actor,kind,payload,operation_id=operation_id,timeout=timeout)
+        monkeypatch.setattr(connection,'call',call)
+        def unpaid(*args,**kwargs):raise LabError('not_ready','Actual required contract payment is missing',status=409,recovery='reconcile_original')
+        monkeypatch.setattr(platform.psp,'require_contract_payments_in',unpaid)
+        def errors():
+            return [((job['result'] and json.loads(job['result'])) or {}).get('error',{}).get('code') for job in
+                    p.scheduler.records(actor(p),('provider.arbitration',)) if job['state']=='rejected']
+        receipt=submit(a,due(platform,a,admission,monkeypatch));case=receipt['caseRef']
+        wait_for(lambda:'not_ready' in errors(),timeout=30)  # A late platform rejection closes the unknown job.
+        assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='committed'
+        mode['value']='crash';monkeypatch.setattr(platform.psp,'require_contract_payments_in',
+            type(platform.psp).require_contract_payments_in.__get__(platform.psp))
+        wait_for(lambda:'not_sent' in errors(),timeout=30)  # An interrupted job that never sent anything retries at once.
+        mode['value']=None
+        wait_for(lambda:platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='released',timeout=30)
+        endpoint=next(e for e in p.modules[0].execution.contexts.values() if e.provider.transport.admission==admission)
+        wait_for(lambda:(p.modules[0].execution.rulings.ruled(endpoint) or {}).get('finish'))
+        saved=p.modules[0].execution.rulings.ruled(endpoint)
+        assert saved['finish']['released'] is True and saved['attempt']>=3 and snapshot(platform,case)['execution']=='finished'
+        wait_for(lambda:[job['state'] for job in p.scheduler.records(actor(p),('provider.arbitration',))].count('completed')==1)
