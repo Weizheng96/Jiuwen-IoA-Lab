@@ -4,7 +4,7 @@
 
 ## 常驻接入入口
 
-`assistant.delegation.begin` 可一次准备任务并申请委托授权，返回waiting后仍须真实用户确认，再沿原operationId恢复；不合并具体合同、环节或验收批准。`nextActions` 提供当前允许的下一步及原引用；本机确认页从绑定原件展示中文分项和完整依据。产品交互和授权边界见[共用机制](../../../设计/接入/SDK共用机制.md)。
+`assistant.delegation.begin` 可一次准备任务并申请委托授权，返回waiting后仍须真实用户确认，再沿原operationId恢复；不合并具体合同、环节或验收批准。`nextActions` 提供当前允许的下一步及原引用；本机确认页从绑定原件展示中文分项和完整依据。产品交互和授权边界见[共用机制](../../../设计/组件/客户端/共用运行时/接口.md)。
 
 共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。默认装配已提供助手收信设置、消息、服务公示及候选提案；没有宿主时不执行入站业务。可选[九问适配](../../hosts/jiuwen/README.md)装配助手入站处理与服务方提案/审查。合同与履约由同一常驻运行时处理，未覆盖能力与验证差距见[开发计划](../../../设计/工程/实施资料/开发计划.md)。
 
@@ -21,7 +21,7 @@ start 同时核对账号、配置和安装信息后复用已运行实例；启�
 
 ## 不向模型展示账号配置
 
-用户私下填好外置设置后，九问可调用两产品技能的runtime.configuration/configure：前者只返回配置摘要、身份和可改字段，后者按独立changes参数局部合并，保留账号、密码和其他角色。指向既有九问的宿主配置由九问适配器校验，不修改九问。活跃实例必须先安全停止；配置保存不代表启动、公示或业务就绪。输入、限制与重复调用规则见[SDK共用机制](../../../设计/接入/SDK共用机制/配置.md#不读取凭据的配置辅助)。直接SDK的启动前入口为：
+用户私下填好外置设置后，九问可调用两产品技能的runtime.configuration/configure：前者只返回配置摘要、身份和可改字段，后者按独立changes参数局部合并，保留账号、密码和其他角色。指向既有九问的宿主配置由九问适配器校验，不修改九问。活跃实例必须先安全停止；配置保存不代表启动、公示或业务就绪。输入、限制与重复调用规则见[SDK共用机制](../../../设计/组件/客户端/共用运行时/接口/配置.md#不读取凭据的配置辅助)。直接SDK的启动前入口为：
 
 ```text
 python -m ioalab_sdk.runtime configuration --config <本机配置文件>
@@ -32,7 +32,7 @@ python -m ioalab_sdk.runtime configure --config <本机配置文件> --args-file
 
 ## 助手收信设置与通信
 
-统一调用格式为 `python -m ioalab_sdk.runtime call <operation> --config <本机配置文件> --args-file <已创建的JSON文件>`；参数文件与账号配置及SDK数据分开，不能使用配置文件的路径别名；SDK在完整配置与实例核对后保存原operationId，重复调用复用原操作。诊断与安全停止只需配置中的data_dir，不要求凭据及业务字段仍完整。接口和流程规范见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
+统一调用格式为 `python -m ioalab_sdk.runtime call <operation> --config <本机配置文件> --args-file <已创建的JSON文件>`；参数文件与账号配置及SDK数据分开，不能使用配置文件的路径别名；SDK在完整配置与实例核对后保存原operationId，重复调用复用原操作。诊断与安全停止只需配置中的data_dir，不要求凭据及业务字段仍完整。接口和流程规范见[个人助手端 SDK](../../../设计/组件/客户端/个人助手端/接口.md)。
 
 | 操作 | 参数 |
 |---|---|
@@ -71,7 +71,7 @@ python -m ioalab_sdk.runtime configure --config <本机配置文件> --args-file
 | `assistant.delegation.termination_quote` | contractRef；异步取得原签名报价及 terminationQuoteRef，不解除或付款 |
 | `assistant.delegation.terminate` | contractRef、mode；agreed须提供原terminationQuoteRef，可选reason、confirmationRef；独立确认后执行原解除，状态分别列通知、结算与结清 |
 
-金额可以输入整数或两位小数，SDK 规范化后供用户检查；分类 null 表示不限、空数组表示不允许新候选。context 的摘要稳定，grant 修订独立。签名请求发送前持久保存；响应丢失从原操作恢复，不重新签发或延长时间。数据中 authorizationReceipt 是原接受记录，authorization 才是平台当前状态。具体契约见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
+金额可以输入整数或两位小数，SDK 规范化后供用户检查；分类 null 表示不限、空数组表示不允许新候选。context 的摘要稳定，grant 修订独立。签名请求发送前持久保存；响应丢失从原操作恢复，不重新签发或延长时间。数据中 authorizationReceipt 是原接受记录，authorization 才是平台当前状态。具体契约见[个人助手端 SDK](../../../设计/组件/客户端/个人助手端/接口.md)。
 
 materials 以模板材料名为键，每项提供 text 或 bytesBase64，可选 spec；不接受任意本地路径。预签审查材料须先经本机用户确认。候选的预算、报价和验收条件均来自实际授权、模板及服务方决定；SDK 不固定候选数量或中选服务。未知结果核对原操作及已签原件，不重新拟卡、收费或运行模型。
 
