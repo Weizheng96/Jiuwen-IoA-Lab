@@ -14,6 +14,6 @@
 交付时确认读者能从索引找到唯一规则来源；不要以附录、补丁页或旧方案解释当前矛盾。
 
 
-设计 VERSION 是三段当前规范入口；历史仅解释取舍，不作为现行规则。较高两段由用户决定，Codex只递增第三段。规范变更先改职责页及术语，再维护 `设计/变更/README.md` 和 `YYYY-MM-DD-vX.Y.Z-主题.md`，创建并推送对应 design 标签。README、docstring 与设计正文不散写平台版本号；A2C 依据只在设计入口标记并匹配 `vendor/wheels/SOURCE.json`。
+设计 VERSION 是三段当前规范入口；历史仅解释取舍，不作为现行规则。较高两段由用户决定；每次修改更新设计文档递增第三段，用户要求合入 main 时再按[交付](../../develop/references/delivery.md#合入-main)加一。规范变更先改职责页及术语，再在同一提交维护 `设计/变更/README.md` 和 `YYYY-MM-DD-vX.Y.Z-主题.md`，创建并推送对应 design 标签。README、docstring 与设计正文不散写平台版本号；A2C 依据只在设计入口标记并匹配 `vendor/wheels/SOURCE.json`。
 
 产物 VERSION 的归属从架构交付表读取，只记录实际符合依据。场景专属值进入示例，不进入通用 Skill/SDK。产品文案的付款与授权边界从术语、支付中心及相应界面职责页读取，不另造全仓规则。
