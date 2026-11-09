@@ -122,7 +122,7 @@ def test_installed_preparation_does_not_require_access_to_private_source_directo
     assert calls[-1]['cwd']==home and calls[-1]['user']==1201 and calls[-1]['extra_groups']==[]
     subject.command(['/installed/python','-I','-m','public-module'])
     assert calls[-1]['cwd']==layout.private and 'user' not in calls[-1]
-    subject.command(['/builder/python','-m','tools.build_deployment'],cwd=subject.request['source']['root'])
+    subject.command(['/builder/python','-m','deploy.build'],cwd=subject.request['source']['root'])
     assert calls[-1]['cwd']==Path(subject.request['source']['root'])
 
 

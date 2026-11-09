@@ -1,16 +1,8 @@
 # 在线试用部署
 
-配置模板`config.example.json`中的`deployment_profile`必须按目标环境填写；规则唯一归[在线试用](../../设计/组件/在线试用/接口.md)。这只限定可选试用应用，不限制正式平台账号或普通SDK连接。Linux服务器使用linux-server；Windows本机在已准备的WSL2发行版、Linux控制器环境与Docker Desktop集成上使用windows-wsl。同一个协调器执行相同生命周期。
+配置模板`config.example.json`中的`deployment_profile`固定填写linux-server，其他取值在打开控制库前被拒绝；规则唯一归[在线试用](../../设计/组件/在线试用/接口.md)。这只限定可选试用应用，不限制正式平台账号或普通SDK连接。试用只在实际Linux服务器上提供，Windows与WSL不提供试用。
 
-Windows在仓库根目录执行（参数都是WSL内已安装的实际路径，不是Windows虚拟环境）：
-
-```powershell
-python deploy/trial/start_windows.py --distribution IoA-Trial --python /opt/ioalab-trial-controller/bin/python --config /etc/ioalab-trial/config.json
-```
-
-该薄入口不安装WSL/Docker、不复制密钥、不修改全局设置；启动或环境核对失败返回非零。配置须填写windows-wsl，调用指定发行版原解释器运行普通ioalab_trial模块，WSL内核不匹配时拒绝。Linux服务器直接执行下文控制器入口，配置须填写linux-server。
-
-已有无profile控制库或切换profile/容量时启动会拒绝并保留原库；先在原部署完整结束全部轮次、撤销旧访问并核任务及数据重置成功，再选新的专用control_directory。不要删除旧数据库或改profile字段来绕过拒绝；新目录不能证明旧容器或业务已清退。原版网页、可信确认与整轮重置未过时仍不提供试用。
+已有无profile或profile/容量不符的控制库时启动会拒绝并保留原库；先在原部署完整结束全部轮次、撤销旧访问并核任务及数据重置成功，再选新的专用control_directory。不要删除旧数据库或改profile字段来绕过拒绝；新目录不能证明旧容器或业务已清退。原版网页、可信确认与整轮重置未过时仍不提供试用。
 
 程序、控制库、镜像能力和资源标签必须绑定当前epoch-ingress/1布局；旧两容器控制库不能补记版本后接管。入口在开放网关前核镜像布局与固定ingress能力，原镜像缺声明时明确失败。仍先沿原部署完整清退原轮次，再启用新的专用控制目录；不删库绕过。
 
@@ -18,11 +10,11 @@ python deploy/trial/start_windows.py --distribution IoA-Trial --python /opt/ioal
 
 每轮由seat、model、ingress三个容器组成：seat仅连接禁用IPv6的isolated内部桥，供应商secret仍只归model；ingress无secret/卷、非root，只发布loopback并透明转发到本轮seat的8080/8767，不解释CONNECT为新目标。Docker按已核seat ID与数值IPv4固定hosts映射，不依赖运行期DNS解析；程序核真实发布、全部网络和角色归属后才向端口发控制请求。不支持isolated或IPv6隔离时拒绝准备，不给seat添加外网。
 
-资源脚本须由已安装trial的Linux控制器解释器执行，Windows同样先进入所选WSL发行版再使用该绝对解释器，不用Windows项目Python采样。Windows资源采集使用`--deployment-profile windows-wsl`，阶段为baseline、one-idle、one-active、after-reset；三席阶段在该profile被拒绝。下文三席命令仅用于Linux服务器。目标容量及实测结果必须同时记录。
+资源脚本须由已安装trial的Linux控制器解释器执行，阶段为baseline、three-idle、one-active、three-active、after-reset。目标容量及实测结果必须同时记录。
 
 实际容量及隔离规则见[在线试用](../../设计/组件/在线试用/接口.md)，尚未完成原版业务专项验收。每席位全部可写状态归一个epoch volume。原生九问UID10003不能读写SDK UID10002、核心UID10001或服务方UID10004数据。只读程序和完整离线wheelhouse共享。
 
-普通正式发行只含`wheels/`本地项目包，不包含可选ioalab-trial，也不是完整第三方wheelhouse。先校验普通发行，保持它不可变；在受审源码仓库根目录的Linux/WSL shell中独立构建可选包、汇总专用上下文。下列路径变量替换为真实绝对Linux路径：BUILD_PYTHON是已有setuptools/pip的维护端解释器；TRIAL_IMAGE_WHEELS是已按镜像Python3.11/bookworm核过三个Linux锁的依赖缓存；TRIAL_CONTROLLER_WHEELS与TRIAL_CONTROLLER_BOOTSTRAP须匹配控制器实际Python/平台（本机已备Python3.12缓存，不能与镜像缓存互换）。不向已核普通发行或依赖缓存回写。
+普通正式发行只含`wheels/`本地项目包，不包含可选ioalab-trial，也不是完整第三方wheelhouse。先校验普通发行，保持它不可变；在受审源码仓库根目录的Linux shell中独立构建可选包、汇总专用上下文。下列路径变量替换为真实绝对Linux路径：BUILD_PYTHON是已有setuptools/pip的维护端解释器；TRIAL_IMAGE_WHEELS是已按镜像Python3.11/bookworm核过三个Linux锁的依赖缓存；TRIAL_CONTROLLER_WHEELS与TRIAL_CONTROLLER_BOOTSTRAP须匹配控制器实际Python/平台（本机已备Python3.12缓存，不能与镜像缓存互换）。不向已核普通发行或依赖缓存回写。
 
 ```sh
 REVIEWED_RELEASE=/absolute/reviewed-release

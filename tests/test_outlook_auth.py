@@ -106,3 +106,82 @@ def test_outlook_refuses_password_and_token_transmission_to_other_hosts(tmp_path
         with pytest.raises(ValueError):SMTPNotification(host,port,'sender@example.test',oauth=oauth)
     with pytest.raises(ValueError,match='match'):
         SMTPNotification('smtp-mail.outlook.com',587,'other@example.test',oauth=oauth)
+
+
+def boundary_http(monkeypatch,**kwargs):
+    # Only the HTTP boundary is replaced; the owner command builds its real clients.
+    import ioalab_tools.calendar as calendar
+    real=httpx.Client;transport=device_transport(**kwargs)._transport
+    monkeypatch.setattr(calendar.httpx,'Client',lambda **_:real(transport=transport))
+
+
+def login(argv,capsys):
+    from ioalab_tools.outlook_login import main
+    code=main(argv);captured=capsys.readouterr()
+    return code,json.loads(captured.out),captured.err
+
+
+def test_owner_commands_cache_graph_and_smtp_tokens_separately(tmp_path,smtp,monkeypatch,capsys):
+    boundary_http(monkeypatch,mail='owner@example.test')
+    graph=tmp_path/'graph-token.json';mail=tmp_path/'smtp-token.json'
+    code,value,prompt=login(['graph-login','--client-id','test-app','--account','owner@example.test','--token-file',str(graph)],capsys)
+    assert code==0 and value=={'status':'authorized','resource':'graph','account':'owner@example.test','tokenFile':str(graph.resolve()),'messageSent':False}
+    assert prompt.strip()=='Local test only' and 'new-access' not in json.dumps(value)
+    code,value,_=login(['smtp-login','--client-id','test-app','--sender','sender@example.test','--token-file',str(mail)],capsys)
+    assert code==0 and value['resource']=='smtp'
+    bindings=[json.loads(path.read_text())['ioalabBinding'] for path in (graph,mail)]
+    assert [b['account'] for b in bindings]==['owner@example.test','sender@example.test']
+    assert 'Calendars.Read' in bindings[0]['scopes'] and bindings[1]['scopes']==SMTP_SCOPES
+    assert not any(isinstance(c,tuple) and c[0]=='mail' for c in smtp.calls)
+    # The login output is what backend=graph needs: the factory now gets a usable authorization.
+    from ioalab_tools.appointments import configure
+    options={'calendar':{'backend':'graph','client_id':'test-app','token_file':str(graph)},
+             'notification':{'transport':'smtp-capture','host':'127.0.0.1','sender':'notice@example.test'},'recipient':'owner@example.test'}
+    tools=configure(options,home=tmp_path,profile='owner',base_dir=tmp_path)
+    try:
+        service=tools.bindings[0].invoke.__self__
+        assert service.calendar.token()=='new-access'
+    finally:tools.close()
+
+
+def test_owner_command_with_wrong_account_keeps_valid_authorization(tmp_path,monkeypatch,capsys):
+    boundary_http(monkeypatch,mail='other@example.test')
+    graph=tmp_path/'graph-token.json';graph.write_text('previous authorization')
+    code,value,_=login(['graph-login','--client-id','test-app','--account','owner@example.test','--token-file',str(graph)],capsys)
+    assert code==1 and 'does not match' in value['error'] and graph.read_text()=='previous authorization'
+    code,value,_=login(['smtp-login','--client-id','test-app','--sender','sender@example.test','--token-file',str(graph),'--host','other.example.test'],capsys)
+    assert code==1 and 'Microsoft SMTP' in value['error'] and graph.read_text()=='previous authorization'
+
+
+def test_calendar_factory_sends_outlook_invitation_over_xoauth2(tmp_path,smtp):
+    from ioalab_tools.appointments import configure
+    from ioalab_tools.schedule import LocalSchedule
+    from ioalab_sdk.runtime.protocol import RuntimeFault
+    from test_assistant import appointment
+    from test_business_tools import context
+    LocalSchedule(tmp_path/'schedule.json').init()
+    notice={'transport':'smtp','host':'smtp-mail.outlook.com','port':587,'sender':'sender@example.test','client_id':'test-app','token_file':'smtp-token.json'}
+    options={'calendar':{'backend':'local','schedule_file':'schedule.json'},'notification':notice,'recipient':'owner@example.test'}
+    with pytest.raises(RuntimeFault,match='ioalab-outlook smtp-login') as error:configure(options,home=tmp_path,profile='owner',base_dir=tmp_path)
+    assert error.value.code=='not_ready'
+    OutlookSMTPAuth('test-app',tmp_path/'smtp-token.json','sender@example.test').save({'access_token':'local-token','expires_at':time.time()+3600})
+    for bad in ({**notice,'password_env':'SMTP_PASSWORD'},{key:value for key,value in notice.items() if key!='client_id'},
+                {**notice,'token_file':'schedule.json'},{**notice,'transport':'smtp-capture'},{**notice,'transport':'agentmail'}):
+        with pytest.raises(RuntimeFault) as error:configure({**options,'notification':bad},home=tmp_path,profile='owner',base_dir=tmp_path)
+        assert error.value.code=='invalid_input'
+    tools=configure(options,home=tmp_path,profile='owner',base_dir=tmp_path)
+    try:
+        book=next(tool for tool in tools.bindings if tool.name=='calendar.book')
+        assert book.invoke(appointment(),context())['status']=='invite_submitted'
+    finally:tools.close()
+    assert ('XOAUTH2','user=sender@example.test\x01auth=Bearer local-token\x01\x01','') in smtp.calls
+    message=next(c[1] for c in smtp.calls if isinstance(c,tuple) and c[0]=='mail')
+    assert message['From']=='sender@example.test' and message['To']=='owner@example.test'
+
+
+def test_error_messages_point_only_to_existing_commands_and_fields(tmp_path):
+    with pytest.raises(ValueError) as error:
+        SMTPNotification('smtp-mail.outlook.com',587,'sender@example.test',username='sender@example.test',password='test-only')
+    assert 'IOALAB_SMTP_AUTH' not in str(error.value) and 'ioalab-outlook smtp-login' in str(error.value)
+    assert 'client_id and token_file' in str(error.value)
+    with pytest.raises(RuntimeError,match='ioalab-outlook graph-login'):GraphCalendar('test-app',tmp_path/'missing.json','owner@example.test').token()

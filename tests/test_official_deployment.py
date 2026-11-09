@@ -328,3 +328,31 @@ def test_incomplete_completed_recipe_is_not_reported_as_success(deployment):
     before=snapshot(deployment.home)
     with pytest.raises(RuntimeFault,match='incomplete'):prepare(deployment)
     assert snapshot(deployment.home)==before
+
+
+
+def standalone(tmp_path):
+    path=tmp_path/'official.json'
+    private_json(path,{'platform_url':'http://127.0.0.1:8750','data_dir':'./deployment',
+                      'host':{'command':[sys.executable,'-m','unused-fixture-host'],'data_dir':'./swarm'}})
+    return path
+
+
+def test_service_restriction_keeps_only_named_services_and_binds_them(tmp_path):
+    path=standalone(tmp_path)
+    full=Deployment(path)
+    domain=next(d for d in full.domains if len(d['services'])>2)
+    wanted=[s['id'] for s in domain['services'][:2]]
+    restricted=Deployment(path,services=wanted)
+    assert [d['account'] for d in restricted.domains]==[domain['account']]
+    assert [s['id'] for s in restricted.domains[0]['services']]==wanted
+    assert {k:v for k,v in restricted.domains[0].items() if k!='services'}=={k:v for k,v in domain.items() if k!='services'}
+    assert restricted.binding!=full.binding and Deployment(path,services=wanted).binding==restricted.binding
+    assert Deployment(path).binding==full.binding and len(full.domains)==len(load_domains())
+    assert not (tmp_path/'deployment').exists()
+
+
+@pytest.mark.parametrize('services',[[],['missing-service'],'wechat-posts',[1],{'wechat-posts':True}])
+def test_service_restriction_rejects_unknown_or_malformed_ids(tmp_path,services):
+    with pytest.raises(RuntimeFault) as caught:Deployment(standalone(tmp_path),services=services)
+    assert caught.value.code=='invalid_input'

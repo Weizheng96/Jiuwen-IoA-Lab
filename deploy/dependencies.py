@@ -6,7 +6,7 @@ from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
-from deploy.release import TARGETS, UNITS, canonical, digest, wheel_metadata
+from .release import TARGETS, UNITS, canonical, digest, wheel_metadata
 
 
 def inputs(unit, target, wheels):

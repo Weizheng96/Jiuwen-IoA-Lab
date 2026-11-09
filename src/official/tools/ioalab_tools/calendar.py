@@ -1,7 +1,6 @@
 """Read-only personal Outlook availability and standards-based invitation email."""
 from __future__ import annotations
 import json
-import os
 import smtplib
 import ssl
 import time
@@ -11,6 +10,7 @@ from email.message import EmailMessage
 from email.utils import parseaddr,formatdate
 from pathlib import Path
 import httpx
+from ioalab_sdk.runtime.files import private_text
 
 SCOPES='offline_access Calendars.Read User.Read'
 SMTP_SCOPES='offline_access https://outlook.office.com/SMTP.Send'
@@ -32,11 +32,7 @@ class MicrosoftDeviceAuth:
     def authority(self): return f'https://login.microsoftonline.com/{self.tenant}/oauth2/v2.0'
 
     def save(self,token):
-        self.path.parent.mkdir(parents=True,exist_ok=True)
-        temp=self.path.with_suffix('.tmp');temp.write_text(json.dumps({**token,'ioalabBinding':self.binding}),encoding='utf-8')
-        try: os.chmod(temp,0o600)
-        except OSError: pass
-        os.replace(temp,self.path)
+        private_text(self.path,json.dumps({**token,'ioalabBinding':self.binding}))
 
     def login(self,prompt=print):
         device=self.http.post(self.authority+'/devicecode',data={'client_id':self.client_id,'scope':self.scopes}).raise_for_status().json()
@@ -55,12 +51,12 @@ class MicrosoftDeviceAuth:
         raise TimeoutError('Microsoft authorization expired')
 
     def token(self):
-        if not self.path.exists(): raise RuntimeError('Microsoft authorization missing; run the corresponding login command')
+        if not self.path.exists(): raise RuntimeError('Microsoft authorization missing; run ioalab-outlook graph-login or smtp-login for this token file')
         token=json.loads(self.path.read_text(encoding='utf-8'))
-        if token.get('ioalabBinding',self.binding)!=self.binding: raise RuntimeError('Authorization account, application or scopes changed; log in again')
+        if token.get('ioalabBinding',self.binding)!=self.binding: raise RuntimeError('Authorization account, application or scopes changed; run the matching ioalab-outlook login again')
         if token.get('expires_at',0)<time.time()+120:
             r=self.http.post(self.authority+'/token',data={'client_id':self.client_id,'grant_type':'refresh_token','refresh_token':token['refresh_token'],'scope':self.scopes})
-            if not r.is_success: raise RuntimeError('Microsoft authorization expired; log in again')
+            if not r.is_success: raise RuntimeError('Microsoft authorization expired; run the matching ioalab-outlook login again')
             new=r.json();new.setdefault('refresh_token',token['refresh_token']);new['expires_at']=time.time()+new['expires_in'];self.save(new);token=new
         return token['access_token']
 
@@ -136,7 +132,7 @@ class SMTPNotification:
             if test or host.casefold() not in MICROSOFT_SMTP or self.port!=587: raise ValueError('Microsoft OAuth2 tokens may only be sent over STARTTLS to Microsoft SMTP on port 587')
             if username or password: raise ValueError('Do not combine SMTP OAuth2 with password credentials')
             if oauth.account.casefold()!=self.sender.casefold(): raise ValueError('SMTP OAuth2 account must match the invitation organizer')
-        elif not test and host.casefold() in MICROSOFT_SMTP: raise ValueError('Outlook SMTP requires OAuth2; configure IOALAB_SMTP_AUTH=oauth2 and run smtp-login')
+        elif not test and host.casefold() in MICROSOFT_SMTP: raise ValueError('Outlook SMTP requires OAuth2; set notification client_id and token_file, then run ioalab-outlook smtp-login')
 
     @contextmanager
     def connection(self,access_token=None):

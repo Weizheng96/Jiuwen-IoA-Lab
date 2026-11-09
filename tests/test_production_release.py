@@ -13,8 +13,8 @@ import pytest
 
 from deploy.environment import Environment, atomic, writer
 from deploy.release import FORMAT, UNITS, current_target, digest, load, pins, sha
-from tools.build_deployment import assemble
-from tools.deployment_dependencies import inputs
+from deploy.build import assemble
+from deploy.dependencies import inputs
 
 
 def wheel(folder, name, *, requirements=(), payload='original'):

@@ -73,3 +73,16 @@ def test_prepare_requires_published_owned_reference_and_does_not_mutate_inputs()
 def test_verifier_source_cannot_escape_owned_resources(script):
     with pytest.raises(ValueError, match='owned resource'):
         materialize({'id': 'untrusted', 'verifier': {'id': 'untrusted@1', 'script': script}}, 'test')
+
+
+def unowned_verifiers(directory):
+    from ioalab_services import catalog
+    referenced={definition['verifier'].get('script') for definition in catalog.definitions()}
+    return {path.name for path in directory.iterdir() if path.is_file() and path.name.endswith('.py')}-referenced-{'common.py'}
+
+
+def test_every_packaged_verifier_script_is_referenced_by_a_definition(tmp_path):
+    from ioalab_services import catalog
+    assert unowned_verifiers(catalog.VERIFIERS_DIR)==set()
+    (tmp_path/'common.py').write_text('',encoding='utf-8');(tmp_path/'wechat_posts.py').write_text('',encoding='utf-8');(tmp_path/'orphan.py').write_text('',encoding='utf-8')
+    assert unowned_verifiers(tmp_path)=={'orphan.py'}

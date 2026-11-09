@@ -188,3 +188,44 @@ def test_budget_probe_failure_stays_unready_without_login(code):
     with httpx.Client(base_url='http://local',transport=httpx.MockTransport(api)) as client:
         with pytest.raises(httpx.HTTPStatusError):sample_budget(client,{'cookie':'original'})
     assert len(calls)==1 and calls[0].method=='GET' and calls[0].url.path=='/api/wallet'
+
+
+
+def restricted_trial(tmp_path,monkeypatch,ids):
+    from ioalab_trial import bootstrap
+    from ioalab_sdk.runtime.files import private_json
+    (tmp_path/'services').mkdir()
+    private_json(tmp_path/'services/config.json',{'platform_url':'http://127.0.0.1:8750','data_dir':str(tmp_path/'services/official'),
+        'host':{'command':['/opt/swarm/bin/jiuwenswarm-process'],'data_dir':str(tmp_path/'services/swarm')},'max_model_runs':1})
+    (tmp_path/'service-ids.json').write_text(json.dumps(ids))
+    monkeypatch.setattr(bootstrap,'ROOT',tmp_path)
+    monkeypatch.setattr(bootstrap,'SERVICE_IDS',tmp_path/'service-ids.json')
+    return bootstrap
+
+
+def test_trial_deployment_is_built_by_the_official_owner_without_rewriting_it(tmp_path,monkeypatch):
+    from ioalab_services.deployment import Deployment
+    bootstrap=restricted_trial(tmp_path,monkeypatch,IDS)
+    result=bootstrap.deployment()
+    assert [d['slug'] for d in result.domains]==['dev']
+    assert {s['id'] for s in result.domains[0]['services']}==set(IDS)
+    official=Deployment(tmp_path/'services/config.json',services=IDS)
+    assert result.binding==official.binding!=Deployment(tmp_path/'services/config.json').binding
+    assert not (tmp_path/'services/official').exists()
+    from pathlib import Path
+    assert 'a2c' not in Path(bootstrap.__file__).read_text(encoding='utf-8')
+
+
+@pytest.mark.parametrize('ids,error',[
+    ([*IDS[:3],'wechat-posts'],ValueError),
+    (IDS[:3],ValueError),
+    ([*IDS[:3],IDS[0]],ValueError),
+    ([*IDS[:3],'missing-service'],'invalid_input')])
+def test_trial_deployment_rejects_anything_but_the_four_programming_services(tmp_path,monkeypatch,ids,error):
+    from ioalab_sdk.runtime.protocol import RuntimeFault
+    bootstrap=restricted_trial(tmp_path,monkeypatch,ids)
+    if error=='invalid_input':
+        with pytest.raises(RuntimeFault) as caught:bootstrap.deployment()
+        assert caught.value.code=='invalid_input'
+    else:
+        with pytest.raises(error):bootstrap.deployment()

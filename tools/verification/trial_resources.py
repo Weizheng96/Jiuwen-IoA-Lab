@@ -11,8 +11,8 @@ import re
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--deployment',required=True)
-    parser.add_argument('--deployment-profile',required=True,choices=['linux-server','windows-wsl'])
-    parser.add_argument('--phase',required=True,choices=['baseline','one-idle','three-idle','one-active','three-active','after-reset'])
+    parser.add_argument('--deployment-profile',required=True,choices=['linux-server'])
+    parser.add_argument('--phase',required=True,choices=['baseline','three-idle','one-active','three-active','after-reset'])
     parser.add_argument('--seconds',type=int,default=60)
     parser.add_argument('--out',required=True,type=Path)
     args=parser.parse_args()
@@ -24,8 +24,6 @@ def main():
         if exc.name not in ('ioalab_trial','ioalab_trial.profile'):raise
         parser.error('Install the reviewed optional ioalab-trial wheel and run this script with /opt/ioalab-trial-controller/bin/python inside the Linux controller environment; see deploy/trial/README.md')
     seats=capacity(args.deployment_profile)
-    if args.phase in ('three-idle','three-active') and seats!=3:parser.error('Three-seat phases require linux-server')
-    if args.phase=='one-idle' and seats!=1:parser.error('one-idle requires a single-seat deployment')
     until=time.monotonic()+args.seconds
     with args.out.open('x',encoding='utf-8') as stream:
         while time.monotonic()<until:

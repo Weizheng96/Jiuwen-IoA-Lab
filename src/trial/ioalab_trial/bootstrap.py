@@ -12,6 +12,7 @@ ROOT = Path('/epoch')
 PYTHON = sys.executable
 CORE_PYTHON = '/opt/core/bin/python'
 SWARM_PYTHON = '/opt/swarm/bin/python'
+SERVICE_IDS = Path('/opt/trial/service-ids.json')
 
 
 def public_seed(service_ids, manifest=None):
@@ -73,23 +74,15 @@ def native_env(name):
 
 
 def deployment():
-    # The existing resource coordinator is reused with an explicitly restricted
-    # catalog. Neither SDK nor official resources import this optional recipe.
+    # The official deployment owner restricts its catalog and binding to the
+    # explicit service list. Neither SDK nor official resources import this recipe.
     from ioalab_services.deployment import Deployment
-    from a2c.codec import digest
-    result = Deployment(ROOT/'services/config.json')
-    ids = set(json.loads(Path('/opt/trial/service-ids.json').read_text()))
-    if len(ids) != 4:
+    ids = json.loads(SERVICE_IDS.read_text())
+    if not isinstance(ids,list) or len(set(ids)) != 4 or len(ids) != 4:
         raise ValueError('Trial requires the reviewed four programming candidates')
-    domains = []
-    for original in result.domains:
-        selected = [service for service in original['services'] if service['id'] in ids]
-        if selected:
-            domains.append({**original,'services':selected})
-    if {s['id'] for d in domains for s in d['services']} != ids or len(domains) != 1 or domains[0]['slug'] != 'dev':
+    result = Deployment(ROOT/'services/config.json',services=ids)
+    if len(result.domains) != 1 or result.domains[0]['slug'] != 'dev':
         raise ValueError('Only the explicit programming trial catalog is supported')
-    result.domains = domains
-    result.binding = digest({'configuration':result.value,'trialDomains':domains})
     return result
 
 
@@ -135,7 +128,7 @@ update_config(change)
     write(ROOT/'services/config.json',{'platform_url':core['runtime']['public_url'],
         'data_dir':'/epoch/services/official','host':{'command':['/opt/swarm/bin/jiuwenswarm-process'],
         'data_dir':'/epoch/services/swarm'},'max_model_runs':1},10004)
-    ids=json.loads(Path('/opt/trial/service-ids.json').read_text())
+    ids=json.loads(SERVICE_IDS.read_text())
     write(ROOT/'core/seed.json',public_seed(ids),10001)
     write(ROOT/'assistant/config.json',{'platform_url':core['runtime']['public_url'],
         'username':'trial-user','password':assistant,'data_dir':'/epoch/assistant/resident',
@@ -171,7 +164,6 @@ home=Path('/epoch/native/.ioalab');home.mkdir()
             receipt=register_assistant(http,assistant,os.environ['IOALAB_TRIAL_EPOCH'])
         write(ROOT/'control/probe-session.json',receipt,0)
         # Account/category bootstrap is the public core startup operation; no trial SQL.
-        from ioalab_services.preparation import prepare
         # Resource preparation runs under service UID through this recipe's entry point.
         subprocess.run([PYTHON,'-m','ioalab_trial.bootstrap','prepare-services'],env={**os.environ,'HOME':'/epoch/services','TMPDIR':'/epoch/services/tmp'},cwd=ROOT/'services',
                        user=10004,group=10004,extra_groups=[],check=True,timeout=90,stdout=subprocess.DEVNULL)

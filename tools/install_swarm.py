@@ -10,7 +10,7 @@ import venv
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from tools.check_vendor import validate
+from deploy.vendor import validate
 
 
 def run(argv,**kwargs):subprocess.run([str(a) for a in argv],check=True,**kwargs)

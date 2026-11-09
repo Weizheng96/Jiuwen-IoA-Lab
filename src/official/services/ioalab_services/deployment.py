@@ -14,7 +14,7 @@ from .catalog import load_domains
 
 
 class Deployment:
-    def __init__(self,path):
+    def __init__(self,path,*,services=None):
         self.path=Path(path).resolve();self.value=read_json(self.path)
         required={'platform_url','data_dir','host'}
         if not isinstance(self.value,dict) or not required<=set(self.value) or set(self.value)-required-{'accounts','max_model_runs','native_tools'}:
@@ -34,7 +34,7 @@ class Deployment:
         if not isinstance(tools,dict) or len(tools)>64 or any(not isinstance(k,str) or not re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',k) or k=='ask_user' or v not in ('allow','ask','deny') for k,v in tools.items()):
             raise RuntimeFault('invalid_input','Use explicit native tool names and permissions')
         self.tools=dict(tools);self.home=self.resolve(value['data_dir'])
-        self.domains=load_domains()
+        self.domains=restricted(load_domains(),services)
         accounts=value.get('accounts',{})
         if not isinstance(accounts,dict) or set(accounts)-{d['account'] for d in self.domains}:
             raise RuntimeFault('invalid_input','Account overrides must name configured internal ISP accounts')
@@ -98,6 +98,18 @@ class Deployment:
         return result
 
     def save(self,state):private_json(self.home/'state.json',state)
+
+
+def restricted(domains,services):
+    """All domains, or only the domains and services named by an explicit service id list."""
+    if services is None:return domains
+    known={s['id'] for d in domains for s in d['services']}
+    if (isinstance(services,(str,bytes,dict)) or not isinstance(services,(list,tuple,set,frozenset)) or not services
+            or any(not isinstance(item,str) for item in services) or set(services)-known):
+        raise RuntimeFault('invalid_input','Restrict the deployment only to known official service ids')
+    wanted=set(services)
+    return [{**d,'services':[s for s in d['services'] if s['id'] in wanted]} for d in domains
+            if any(s['id'] in wanted for s in d['services'])]
 
 
 def operation(*parts):return str(uuid.uuid5(uuid.NAMESPACE_URL,digest({'parts':list(parts)})))

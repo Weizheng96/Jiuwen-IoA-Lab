@@ -11,7 +11,7 @@ import sys
 import zipfile
 
 import pytest
-from tools.check_vendor import validate
+from deploy.vendor import validate
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -68,14 +68,14 @@ def test_archive_traversal_and_git_checkout_are_rejected(tmp_path):
 
 
 def test_verify_only_needs_no_git_npm_or_package_index(tmp_path):
-    result=subprocess.run([sys.executable,str(ROOT/'deploy/install_swarm.py'),'--verify-only'],cwd=tmp_path,
+    result=subprocess.run([sys.executable,str(ROOT/'tools/install_swarm.py'),'--verify-only'],cwd=tmp_path,
         env={**os.environ,'PATH':str(tmp_path),'PIP_NO_INDEX':'1','PYTHONUTF8':'1'},capture_output=True,text=True,encoding='utf-8')
     assert result.returncode==0,result.stderr
     assert 'local Jiuwen inputs verified' in result.stdout
 
 
 def test_same_version_new_wheel_reinstalls_without_overwriting_workspace(tmp_path,monkeypatch):
-    spec=importlib.util.spec_from_file_location('local_swarm_installer',ROOT/'deploy/install_swarm.py');installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
+    spec=importlib.util.spec_from_file_location('local_swarm_installer',ROOT/'tools/install_swarm.py');installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
     environment=tmp_path/'venv';environment.mkdir();data=tmp_path/'workspace';data.mkdir();config=data/'config.yaml';config.write_text('existing user settings')
     manifest={'components':[{'id':'runtime','delivery':'build-wheel','wheelInfo':{'sha256':'first'}}]};wheel=tmp_path/'runtime.whl';calls=[]
     monkeypatch.setattr(installer,'installation_plan',lambda:(manifest,[wheel],'local requirements\n'))
@@ -145,7 +145,7 @@ def test_default_entries_forward_literal_local_configuration_without_git(tmp_pat
 
 
 def test_initialization_preserves_packaged_template_and_existing_user_configuration(tmp_path,monkeypatch):
-    spec=importlib.util.spec_from_file_location('workspace_installer',ROOT/'deploy/install_swarm.py');installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
+    spec=importlib.util.spec_from_file_location('workspace_installer',ROOT/'tools/install_swarm.py');installer=importlib.util.module_from_spec(spec);spec.loader.exec_module(installer)
     package=tmp_path/'fake/jiuwenswarm';(package/'common').mkdir(parents=True);(package/'resources').mkdir()
     (package/'__init__.py').write_text('');(package/'common/__init__.py').write_text('')
     template=package/'resources/config.yaml';template.write_text(json.dumps({'updater':{'enabled':True},'preferred_language':'zh'}));original=template.read_bytes()

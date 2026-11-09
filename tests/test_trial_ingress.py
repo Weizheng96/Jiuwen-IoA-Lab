@@ -102,7 +102,7 @@ def test_pinned_numeric_address_has_no_dns_or_configurable_target(tmp_path,monke
         with pytest.raises(ValueError):ingress.seat_connector(hosts)
 
 
-@pytest.mark.skipif(sys.platform=='win32',reason='SIGTERM requires POSIX; run this same node in the WSL deployment check')
+@pytest.mark.skipif(sys.platform=='win32',reason='SIGTERM requires POSIX')
 def test_sigterm_during_connect_and_blocked_write_closes_clients_and_exits():
     # Controlled child code exercises real SIGTERM without sending the signal to pytest.
     program=r'''

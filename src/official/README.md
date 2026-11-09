@@ -50,6 +50,8 @@ AgentMail 的配置形式为 `{"transport":"agentmail","sender":"自己的通知
 ioalab-schedule init --file <schedule_file>
 ioalab-schedule show --file <schedule_file>
 ioalab-schedule replace --file <schedule_file> --args-file <修改文件>
+ioalab-schedule reconcile|accept|release --file <schedule_file> ...   # 预约后续状态，由主人执行
+ioalab-outlook graph-login|smtp-login --client-id <id> --token-file <文件> ...   # 可选微软日历读取与 Outlook 发信授权
 ```
 
 修改文件是 `{"document": <完整安排>, "revision": "show返回的摘要"}`；安排内容、规则、备份和冲突检查见[会议示例](../../设计/流程/场景/会议预约.md)。命令可离线运行，不注册账号或创建 SDK 身份。日程文件必须显式指定，只读取该文件对应的新预约记录，不扫描旧邮箱数据库。

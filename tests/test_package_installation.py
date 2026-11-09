@@ -23,7 +23,7 @@ def run(command, cwd):
 @pytest.fixture(scope='module')
 def official_snapshot(tmp_path_factory):
     """One immutable baseline wheel; consumers mutate only their own copies."""
-    from tools.build_packages import build_wheel
+    from deploy.wheels import build_wheel
     root=tmp_path_factory.mktemp('official-wheel')
     source=root/'source'
     shutil.copytree(ROOT/'src/official',source,ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
@@ -67,6 +67,7 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
         assert len([name for name in archive.namelist() if name.startswith('ioalab_services/assets/domains/') and name.endswith('.json')]) == 8
         entries=archive.read(next(name for name in archive.namelist() if name.endswith('.dist-info/entry_points.txt'))).decode()
         assert 'calendar = ioalab_tools.appointments:configure' in entries and 'ioalab-schedule = ioalab_tools.schedule_cli:main' in entries
+        assert 'ioalab-outlook = ioalab_tools.outlook_login:main' in entries and 'ioalab_tools/outlook_login.py' in archive.namelist()
     environment = tmp_path/'installed'
     venv.EnvBuilder(with_pip=True).create(environment)
     python = environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
@@ -101,7 +102,7 @@ print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host
 
 
 def test_official_wheel_is_reproducible_when_source_mtimes_change(tmp_path,official_snapshot):
-    from tools.build_packages import build_wheel
+    from deploy.wheels import build_wheel
     source=tmp_path/'official'
     shutil.copytree(official_snapshot[0],source)
     first=official_snapshot[1].read_bytes()

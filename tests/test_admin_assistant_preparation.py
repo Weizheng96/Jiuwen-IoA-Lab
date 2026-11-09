@@ -74,7 +74,7 @@ def test_fixed_presets_use_same_sdk_without_running_host_or_business(platform,ma
     before=(managed.workspace/'config/config.yaml').read_bytes()
     value=preparation.prepare(managed)
     assert value['status']=='completed' and value['modelStarted'] is False
-    assert value['runtimeChecked'] is value['currentInterfacesChecked'] is False
+    assert value['runtime']=={'state':'not_queried'} and value['currentInterfacesChecked'] is False
     assert (managed.workspace/'config/config.yaml').read_bytes()==before
     assert (managed.workspace/'application_plugins/ioa-notifications/extension.yaml').is_file()
     interfaces=rows(platform)
@@ -190,10 +190,84 @@ def test_full_notification_explicitly_initializes_schedule_and_preserves_edits(p
 
 def test_status_is_read_only_and_unregistered_instance_is_refused(managed):
     before=snapshot(managed.state_root)
-    assert preparation.status(managed)['phase']=='preparing'
-    assert snapshot(managed.state_root)==before
+    value=preparation.status(managed)
+    assert value['phase']=='preparing' and value['runtime']=={'state':'not_running'}
+    assert snapshot(managed.state_root)==before and not managed.home.exists()
     managed.home.mkdir(parents=True)
     with pytest.raises(RuntimeFault,match='unregistered administrator'):preparation.prepare(managed)
+
+
+class AvailableHost:
+    def __init__(self,available=True):self.available=available
+    def capabilities(self):return {'available':self.available,'testDouble':True}
+    def cancel(self,operation):return True
+    def run(self,turn):pytest.fail('Status must not run a model')
+
+
+def running(managed,host):
+    from ioalab_sdk.assistant.role import AssistantRole
+    return ResidentRuntime(RuntimeConfig.load(managed.runtime_path),modules=(AssistantRole(host),),
+                           host_status=host.capabilities,assembly='ioalab-jiuwen').start()
+
+
+def test_status_reports_not_running_without_login_or_writes(managed,monkeypatch):
+    preparation.prepare(managed)
+    before=snapshot(managed.state_root)
+    monkeypatch.setattr(httpx.Client,'request',lambda *_a,**_k:pytest.fail('Status must not log in or call the platform'))
+    monkeypatch.setattr(preparation,'ResidentRuntime',lambda *_a,**_k:pytest.fail('Status must not create a runtime'))
+    value=preparation.status(managed)
+    assert value['status']=='completed' and value['runtime']=={'state':'not_running'} and value['modelStarted'] is False
+    assert snapshot(managed.state_root)==before
+
+
+def test_status_reports_actual_readiness_of_the_running_instance(managed):
+    preparation.prepare(managed)
+    record=managed.record_path.read_bytes()
+    runtime=running(managed,AvailableHost())
+    try:
+        wait_for(lambda:preparation.status(managed)['runtime']['state']=='ready')
+        value=preparation.status(managed)['runtime']
+        assert value=={'state':'ready','bootId':runtime.ipc.boot_id,'executionReady':True,'stopping':False,
+                       'platformConnected':True,'hostAvailable':True}
+    finally:runtime.close()
+    assert preparation.status(managed)['runtime']=={'state':'not_running'}
+    assert managed.record_path.read_bytes()==record
+
+
+def test_status_reports_running_instance_without_host_as_not_ready(managed):
+    preparation.prepare(managed)
+    runtime=running(managed,AvailableHost(available=False))
+    try:
+        wait_for(lambda:preparation.status(managed)['runtime'].get('platformConnected'))
+        value=preparation.status(managed)['runtime']
+        assert value['state']=='not_ready' and value['hostAvailable'] is False and value['executionReady'] is False
+    finally:runtime.close()
+
+
+def test_status_separates_stale_descriptor_from_a_failed_query(managed):
+    preparation.prepare(managed)
+    home=managed.home/'resident'
+    private_json(home/'runtime.json',{'schemaVersion':1,'url':'http://127.0.0.1:'+str(free_port()),
+                                      'token':'isolated','bootId':'stale','runtimeId':'stale'})
+    assert preparation.status(managed)['runtime']=={'state':'not_running'}
+    with Lease(home/'client.lock',timeout=0):
+        value=preparation.status(managed)['runtime']
+    assert value['state']=='not_queried' and value['error']['code']=='unknown_result'
+    (home/'runtime.json').unlink()
+    with Lease(home/'client.lock',timeout=0):
+        value=preparation.status(managed)['runtime']
+    assert value['state']=='not_queried' and value['error']['code']=='not_ready'
+
+
+def test_status_does_not_report_an_instance_with_another_configuration_as_ready(managed):
+    preparation.prepare(managed)
+    runtime=running(managed,AvailableHost())
+    try:
+        wait_for(lambda:preparation.status(managed)['runtime']['state']=='ready')
+        config=read_json(managed.runtime_path);config['max_model_runs']=7;private_json(managed.runtime_path,config)
+        value=preparation.status(managed)['runtime']
+        assert value['state']=='not_queried' and value['error']['code']=='configuration_changed'
+    finally:runtime.close()
 
 
 @pytest.mark.parametrize('field,value',[

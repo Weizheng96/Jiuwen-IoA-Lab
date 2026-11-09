@@ -1,25 +1,22 @@
-"""Explicit deployment capacity; WSL is never inferred to be a Linux server."""
+"""Explicit Linux-server capacity; WSL is never inferred to be a Linux server."""
 import platform
 import sys
 
-CAPACITIES={'linux-server':3,'windows-wsl':1}
+CAPACITY=3
 RESOURCE_LAYOUT='epoch-ingress/1'
 INGRESS_CAPABILITY='fixed-seat-tcp-8080-8767'
 DOCKER_COMMAND=('docker','--host','unix:///var/run/docker.sock')
 
 
 def capacity(profile):
-    if not isinstance(profile,str) or profile not in CAPACITIES:
-        raise ValueError('deployment_profile must explicitly be linux-server or windows-wsl')
-    return CAPACITIES[profile]
+    if profile!='linux-server':
+        raise ValueError('deployment_profile must explicitly be linux-server')
+    return CAPACITY
 
 
 def validate_environment(profile, *, system=None, release=None):
     capacity(profile)
     system=sys.platform if system is None else system
-    release=platform.release() if release is None else release
-    wsl='microsoft' in release.lower() or 'wsl' in release.lower()
-    if system!='linux' or (profile=='windows-wsl') != wsl:
-        raise ValueError('Deployment profile does not match the Linux host; Windows must use the WSL launcher')
-    if profile=='windows-wsl' and 'wsl2' not in release.lower():
-        raise ValueError('The Windows trial requires a verified WSL2 kernel')
+    release=(platform.release() if release is None else release).lower()
+    if system!='linux' or 'microsoft' in release or 'wsl' in release:
+        raise ValueError('Online trial runs only on a real Linux server; Windows and WSL are not supported')
