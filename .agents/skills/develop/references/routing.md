@@ -4,19 +4,19 @@
 
 | 改动目录 | 先读职责页 | 定向测试 | 产物 VERSION |
 |---|---|---|---|
-| `src/platform/ioalab/identity/` | [身份中心](../../../../设计/组件/身份中心.md) | auth, auth_failures, authentication_recovery, account_enrollment | `src/platform/VERSION` |
-| `src/platform/ioalab/registry/` | [注册中心](../../../../设计/组件/注册中心.md) | category_preview, search_availability, service_publication, publication_authorizations | 同上 |
-| `src/platform/ioalab/delegation/` | [委托中心](../../../../设计/组件/委托中心.md)、[A2C适配](../../../../设计/接入/A2C适配.md) | delegation_*, protocol_relay, provider_admission, arbitration*, payment_rejection, rule_boundaries | 同上 |
+| `src/platform/ioalab/identity/` | [身份中心](../../../../设计/组件/平台/身份中心/接口.md) | auth, auth_failures, authentication_recovery, account_enrollment | `src/platform/VERSION` |
+| `src/platform/ioalab/registry/` | [注册中心](../../../../设计/组件/平台/注册中心/接口.md) | category_preview, search_availability, service_publication, publication_authorizations | 同上 |
+| `src/platform/ioalab/delegation/` | [委托中心](../../../../设计/组件/平台/委托中心/接口.md)、[A2C适配](../../../../设计/接入/A2C适配.md) | delegation_*, protocol_relay, provider_admission, arbitration*, payment_rejection, rule_boundaries | 同上 |
 | `src/platform/ioalab/payments/` | [支付中心](../../../../设计/组件/平台/支付中心/接口.md) | payment_*, account_rewards, delegation_scopes, rule_boundaries | 同上 |
-| `src/platform/ioalab/messaging/` | [消息中心](../../../../设计/组件/消息中心.md) | agent_delivery, message_boundaries, protocol_relay, runtime_delivery | 同上 |
-| `src/platform/ioalab/observation/`、`web/` | [通用规范](../../../../设计/界面/通用规范.md)、对应界面页、[平台接口](../../../../设计/接入/平台接口.md) | admin_api, observation_views, workbench_*, frontend, account_views | 同上 |
-| `src/platform/ioalab/configuration*.py`、`web/configuration.py` | [平台配置](../../../../设计/工程/平台配置.md) | platform_configuration, configuration_web, configuration_migration | 同上 |
-| `src/platform/ioalab/migrations/`、各组件 `migrations.py`、`storage.py` | [架构](../../../../设计/架构.md) 数据归属 | domain_migrations, protocol_operations, core_ownership | 同上 |
-| `src/platform/ioalab/app.py`、`operations.py`、`readiness.py` | [架构](../../../../设计/架构.md#模块表) | core_*, protocol_operations | 同上 |
+| `src/platform/ioalab/messaging/` | [消息中心](../../../../设计/组件/平台/消息中心/接口.md) | agent_delivery, message_boundaries, protocol_relay, runtime_delivery | 同上 |
+| `src/platform/ioalab/observation/` | [观测](../../../../设计/组件/平台/观测/接口.md) | observation_views, observation_transactions, account_views, workbench_network, admin_api | 同上 |
+| `src/platform/ioalab/web/*.py`、`app.py`、`operations.py`、`cli.py`、`bootstrap.py`、`seed/`、`readiness.py` | [web服务](../../../../设计/组件/平台/web服务/接口.md) | core_*, boundary, configuration_web, seed*, search_availability, payment_atomicity, resident_delegation, service_publication, frontend | 同上 |
+| `src/platform/ioalab/web/static/` | [网页UI](../../../../设计/组件/平台/网页UI/接口.md) | frontend, workbench_*, account_views, admin_api | 同上 |
+| `src/platform/ioalab/storage.py`、`migrations/`、`errors.py`、`files.py`、`keys.py`、`events.py`、`config*.py` | [平台基础](../../../../设计/组件/平台/平台基础/接口.md) | core_ownership, domain_migrations, protocol_operations, private_files, platform_configuration, configuration_web, configuration_migration, observation_transactions | 同上 |
 | `src/access/sdk/ioalab_sdk/runtime/` | [SDK共用机制](../../../../设计/接入/SDK共用机制.md)、[本地接入组件](../../../../设计/组件/本地接入组件.md) | runtime_*, resident_runtime, lease, installation_identity, configuration_boundary, user_confirmations | `src/access/sdk/VERSION` |
 | `src/access/sdk/ioalab_sdk/assistant/` | [个人助手端SDK](../../../../设计/接入/个人助手端SDK.md)、[委托交易](../../../../设计/流程/委托交易.md)、[助手通信](../../../../设计/流程/助手通信.md) | assistant_role, resident_delegation, resident_contracts, resident_fulfillment, inbox_rules, candidate_evidence | 同上 |
 | `src/access/sdk/ioalab_sdk/provider/` | [服务方端SDK](../../../../设计/接入/服务方端SDK.md)、[服务方接入](../../../../设计/流程/服务方接入.md) | provider_*, service_publication, publication_authorizations, task_*, template_renewal, rule_boundaries | 同上 |
-| `src/access/sdk/ioalab_sdk/adapters/` | [A2C适配](../../../../设计/接入/A2C适配.md)、[平台接口](../../../../设计/接入/平台接口.md) | runtime_delivery, payment_transport_recovery, payment_atomicity, protocol_relay, arbitration_review, rule_boundaries | 同上 |
+| `src/access/sdk/ioalab_sdk/adapters/` | [A2C适配](../../../../设计/接入/A2C适配.md)、[web服务](../../../../设计/组件/平台/web服务/接口.md) | runtime_delivery, payment_transport_recovery, payment_atomicity, protocol_relay, arbitration_review, rule_boundaries | 同上 |
 | `src/access/skills/` | [个人助手技能](../../../../设计/接入/个人助手技能.md)、[服务方技能](../../../../设计/接入/服务方技能.md)、[个人助手接入](../../../../设计/流程/个人助手接入.md) | access_products, business_skills, skill_*, cli_encoding, private_files | `src/access/skills/VERSION` |
 | `src/access/examples/` | [SDK共用机制](../../../../设计/接入/SDK共用机制.md) | external_provider, external_product_config | `src/access/examples/VERSION` |
 | `src/hosts/jiuwen/` | [九问网页通知](../../../../设计/接入/九问网页通知.md)、[本地接入组件](../../../../设计/组件/本地接入组件.md) 宿主接口 | jiuwen_host, host_tool_names, native_*, web_*, jiuwen_a2ui_forms | `src/hosts/jiuwen/VERSION` |

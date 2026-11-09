@@ -8,10 +8,10 @@
 | 注册中心 | `registry/` | [接口](注册中心/接口.md) · [依赖](注册中心/依赖.md) · [实现](注册中心/实现.md) |
 | 委托中心 | `delegation/` | [接口](委托中心/接口.md) · [依赖](委托中心/依赖.md) · [实现](委托中心/实现.md) |
 | 支付中心 | `payments/` | [接口](支付中心/接口.md) · [依赖](支付中心/依赖.md) · [实现](支付中心/实现.md) |
-| 消息中心 | `messaging/` | 待迁入，现为[消息中心](../消息中心.md) |
-| 观测 | `observation/` | 待迁入，现为[界面通用规范](../../界面/通用规范.md) |
-| web服务 | `web/*.py`、`app.py`、`operations.py`、`cli.py`、`bootstrap.py`、`seed/`、`readiness.py` | 待迁入，现为[平台接口](../../接入/平台接口.md) |
-| 网页UI | `web/static/` | 待迁入，现为[界面](../../界面/通用规范.md)六页 |
-| 平台基础 | `storage.py`、`migrations/`、`errors.py`、`files.py`、`keys.py`、`events.py`、`config*.py` | 待迁入，现为[平台配置](../../工程/平台配置.md) |
+| 消息中心 | `messaging/` | [接口](消息中心/接口.md) · [依赖](消息中心/依赖.md) · [实现](消息中心/实现.md) |
+| 观测 | `observation/` | [接口](观测/接口.md) · [依赖](观测/依赖.md) · [实现](观测/实现.md) |
+| web服务 | `web/*.py`、`app.py`、`operations.py`、`cli.py`、`bootstrap.py`、`seed/`、`readiness.py` | [接口](web服务/接口.md) · [依赖](web服务/依赖.md) · [实现](web服务/实现.md) |
+| 网页UI | `web/static/` | [接口](网页UI/接口.md) · [依赖](网页UI/依赖.md) · [实现](网页UI/实现.md) |
+| 平台基础 | `storage.py`、`migrations/`、`errors.py`、`files.py`、`keys.py`、`events.py`、`config*.py` | [接口](平台基础/接口.md) · [依赖](平台基础/依赖.md) · [实现](平台基础/实现.md) |
 
 组内依赖方向为 web服务 → 各中心与观测的入口 → 平台基础；各中心独占所属表的写入，跨中心用例集中在 web服务 的应用用例，取舍见[应用短事务协调接单与付款](../../决策/0001-应用短事务协调接单与付款.md)。迁入顺序与票据见[设计文档按模块重组](../../工程/专题/设计文档按模块重组.md)。
