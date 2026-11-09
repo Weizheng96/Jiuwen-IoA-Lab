@@ -104,7 +104,7 @@ def test_event_table_belongs_to_the_event_bus_and_existing_history_survives(tmp_
 
 
 def test_failed_component_upgrade_rolls_back_all_ddl_and_releases_transaction(tmp_path, monkeypatch):
-    from ioalab.observation import migrations as observation
+    import ioalab.observation as observation
     db = DB(tmp_path / 'core.sqlite')
     try:
         db.run('CREATE TABLE original(id TEXT PRIMARY KEY,value TEXT)')

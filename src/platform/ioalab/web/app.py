@@ -197,7 +197,7 @@ def create_app(platform: Platform) -> FastAPI:
     from .arbitrations import build_router as arbitration_router
     app.include_router(arbitration_router(platform,require_admin))
     from .workbench import build_router as workbench_router
-    from ..messaging.directory import build_router as messaging_router
+    from ..messaging import build_router as messaging_router
     app.include_router(messaging_router(platform.interface_directory,current_user))
     from .agents import build_router as agents_router
     app.include_router(agents_router(platform,current_user))

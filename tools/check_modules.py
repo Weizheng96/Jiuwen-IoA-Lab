@@ -58,6 +58,12 @@ MAX_FILE_ENTRIES = 8
 CONVERGED = {
     "平台基础": FILES,
     "web服务": FILES,
+    "身份中心": PACKAGE,
+    "注册中心": PACKAGE,
+    "委托中心": PACKAGE,
+    "支付中心": PACKAGE,
+    "消息中心": PACKAGE,
+    "观测": PACKAGE,
 }
 
 

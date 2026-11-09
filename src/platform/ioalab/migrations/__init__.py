@@ -15,11 +15,11 @@ def execute(conn, script):
 
 def migrate(db):
     from ..identity import migrate as identity
-    from ..payments.migrations import migrate as payments
-    from ..registry.migrations import migrate as registry
-    from ..delegation.migrations import migrate as delegation
-    from ..messaging.migrations import migrate as messaging
-    from ..observation.migrations import migrate as observation
+    from ..payments import migrate as payments
+    from ..registry import migrate as registry
+    from ..delegation import migrate as delegation
+    from ..messaging import migrate as messaging
+    from ..observation import migrate as observation
     from ..storage import initialize_adapter
     from ..events import migrate as events
     from ..files import migrate as files
