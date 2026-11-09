@@ -6,7 +6,7 @@ description: 会话或阶段完成后复盘智能体的工作环境：导航、�
 
 目标是改进下一次开发的环境，不是总结本次做了什么。先读 [writing-for-agents](references/writing-for-agents.md) 取得判断尺度：context pointer、两种负载、信息层级、leading word、no-op；技能专属机制读 [skill-mechanics](references/skill-mechanics.md)；原始方法见 [retro](references/retro.md)。
 
-1. 取材：本会话的工具调用、读过的页面、`temp/checks/` 报告、提交 diff；用户指定其他会话时读其记录。
+1. 取材：本会话的工具调用、读过的页面、`temp/checks/` 报告、提交 diff；用户指定其他会话时读其记录。运行 `tools/reading_budget.py --json <新记录>` 与上次记录比较，必读字数上涨的模块列为导航候选。
 2. 按下表找候选，每条附适用信号对应的证据。
 
 | 类别 | 适用信号 | 落点 |

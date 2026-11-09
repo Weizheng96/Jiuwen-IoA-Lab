@@ -1,0 +1,7 @@
+# 只影响 ripgrep 类搜索（Claude Code 的 Grep/Glob、Codex 的 rg），不影响 Git、构建与检查脚本。
+# 默认搜索只覆盖现行代码与规范。需要时显式给出目录（如 rg 关键字 vendor/A2X-registry）或文件；
+# 搜索全部变更详情用 rg --no-ignore-dot 关键字 设计/变更。
+/历史备份/
+/vendor/
+# 变更详情是历史取舍，不作为现行规范；变更表 README 仍可搜索。
+/设计/变更/20*.md
