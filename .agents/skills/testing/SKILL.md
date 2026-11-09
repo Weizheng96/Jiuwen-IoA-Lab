@@ -4,12 +4,12 @@ description: 选择并执行本仓轻量、定向、完整及环境专项检查�
 ---
 # 检查与验证
 
-先读根 AGENTS.md、[设计验收](../../../设计/工程/验收.md)及受影响职责页。Windows 使用 `.venv/Scripts/python.exe`，Linux 使用 `.venv/bin/python`。
+按 develop 的[路由表](../develop/references/routing.md)确定受影响模块与定向测试；[设计验收](../../../设计/工程/验收.md)只查对应编号的条件，不通读。Windows 使用 `.venv/Scripts/python.exe`，Linux 使用 `.venv/bin/python`。
 
 | 层级 | 触发与唯一入口 |
 |---|---|
-| A | 文档及技能说明：`python .agents/skills/develop/scripts/check.py`；技能修改另做结构校验 |
-| B | 代码迭代：上述入口加 `--tests <路径或nodeid...>`，覆盖受影响模块和相邻边界 |
+| A | 文档及技能说明：`python .agents/skills/develop/scripts/check.py` |
+| B | 代码迭代：上述入口加 `--tests <路径或nodeid...>`，或加 `--changed-from <已提交基线>` 自动选择；覆盖受影响模块和相邻边界 |
 | C | 阶段交付和发布：加 `--full`，执行设计、文档、整仓 pytest、selfcheck |
 | D | 构建安装、真实模型、原生九问、Linux/systemd、外部业务与视频按所属技能显式触发 |
 
