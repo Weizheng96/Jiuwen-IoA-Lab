@@ -19,7 +19,7 @@ def test_same_type_candidates_share_one_official_account_and_duplicate_owners_fa
     assert len(domains)==8 and len(mapping)==52
     programming=next(domain for domain in domains if domain['slug']=='dev')
     assert len(programming['services'])==10 and {mapping[service['id']] for service in programming['services']}=={'ISP_008'}
-    raw=json.loads(catalog.domain_files()[0].read_text())
+    raw=json.loads(catalog.domain_files()[0].read_text(encoding='utf-8'))
     one=tmp_path/'one.json';two=tmp_path/'two.json'
     one.write_text(json.dumps(raw),encoding='utf-8')
     for duplicated in ('category','account'):
