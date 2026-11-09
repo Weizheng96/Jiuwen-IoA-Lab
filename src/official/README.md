@@ -16,7 +16,7 @@
 
 部署协调器提供批量准备、公示及续期；默认安装与验证范围见[开发计划](../../设计/工程/实施资料/开发计划.md)。源变更后用 `python tools/build_seed.py` 重新生成显式初始化清单。
 
-编程服务通过 `ioalab_services.programming.definition()` 读取同一官方资产，提供小程序基础/可靠、网站与Android源码候选；业务参数支持预约或项目目录。Demo只映射场景值。能力与证明分层见[编程服务](../../设计/示例/编程服务.md)，源码结构和WASM核心行为通过不表示前端、构建或部署通过。
+编程服务通过 `ioalab_services.programming.definition()` 读取同一官方资产，提供小程序基础/可靠、网站与Android源码候选；业务参数支持预约或项目目录。Demo只映射场景值。能力与证明分层见[编程服务](../../设计/流程/场景/编程服务.md)，源码结构和WASM核心行为通过不表示前端、构建或部署通过。
 
 ## 官方部署协调器
 
@@ -39,7 +39,7 @@
 | `options.recipient` | 主人指定的通知收件邮箱 | 固定本机值，不由来信指定 |
 | `options.notification` | `transport`、`sender`；SMTP 另含 `host`、`port` | 显式选择 agentmail / smtp / smtp-capture；默认不发信 |
 | 通知凭据 | `api_key_env`，或 `username_env` / `password_env` | 填变量名；值从本进程环境或显式 `credentials_file` 读取，不送入模型 |
-| `options.rules` | 可选可预约规则，见[会议示例](../../设计/示例/会议预约.md) | 本地安排文件的规则优先；Graph 使用配置规则 |
+| `options.rules` | 可选可预约规则，见[会议示例](../../设计/流程/场景/会议预约.md) | 本地安排文件的规则优先；Graph 使用配置规则 |
 | `options.requires_steps` | 可选服务方 A2C 环节名数组 | 仅服务身份可用；程序核对本卡本期的真实同意 |
 
 AgentMail 的配置形式为 `{"transport":"agentmail","sender":"自己的通知邮箱","api_key_env":"AGENTMAIL_API_KEY","credentials_file":"notification.env"}`。本包不创建邮箱；先单独配置可用的通知账号。AgentMail 使用 Calendar API，SMTP 用于明确配置的兼容通道；服务受理不代表收件人接受。
@@ -52,7 +52,7 @@ ioalab-schedule show --file <schedule_file>
 ioalab-schedule replace --file <schedule_file> --args-file <修改文件>
 ```
 
-修改文件是 `{"document": <完整安排>, "revision": "show返回的摘要"}`；安排内容、规则、备份和冲突检查见[会议示例](../../设计/示例/会议预约.md)。命令可离线运行，不注册账号或创建 SDK 身份。日程文件必须显式指定，只读取该文件对应的新预约记录，不扫描旧邮箱数据库。
+修改文件是 `{"document": <完整安排>, "revision": "show返回的摘要"}`；安排内容、规则、备份和冲突检查见[会议示例](../../设计/流程/场景/会议预约.md)。命令可离线运行，不注册账号或创建 SDK 身份。日程文件必须显式指定，只读取该文件对应的新预约记录，不扫描旧邮箱数据库。
 
 工具目录通过 `assistant.tools.list` 或服务方的 `provider.tools.list` 查询。`calendar.book` 按主人安排原子预留，冲突返回建议；成功仅返回 `invite_submitted` 与 `awaiting_acceptance`。`calendar.status` 只读取本交互已有预约。受理接口仍需用户检查并确认后发布，不因安装工具而自动开放收件。
 
