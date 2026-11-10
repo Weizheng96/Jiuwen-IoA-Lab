@@ -2,45 +2,59 @@
 from __future__ import annotations
 
 import argparse
+import base64
 from contextlib import contextmanager
+import hashlib
+import json
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / '.agents/server_new.txt'
-HOSTS = ROOT / '.agents/data/ssh/new-server-known-hosts'
+SOURCE = ROOT / '.agents/server-connection.json'
+
+
+def configuration(source=SOURCE):
+    try:
+        value = json.loads(Path(source).read_text(encoding='utf-8-sig'))
+        fields = {'format', 'host', 'port', 'username', 'password', 'host_key_type',
+                  'host_key_base64', 'host_key_sha256', 'connect_timeout_seconds'}
+        if not isinstance(value, dict) or set(value) != fields or value['format'] != 'ioalab.server-connection/1':
+            raise ValueError()
+        from ipaddress import ip_address
+        ip_address(value['host'])
+        if (not isinstance(value['username'], str) or not value['username'].strip()
+                or value['username'] != value['username'].strip()
+                or not isinstance(value['password'], str) or not value['password']
+                or type(value['port']) is not int or not 1 <= value['port'] <= 65535
+                or type(value['connect_timeout_seconds']) is not int or not 1 <= value['connect_timeout_seconds'] <= 120
+                or not isinstance(value['host_key_type'], str) or not value['host_key_type']):
+            raise ValueError()
+        key = base64.b64decode(value['host_key_base64'], validate=True)
+        fingerprint = 'SHA256:' + base64.b64encode(hashlib.sha256(key).digest()).decode().rstrip('=')
+        if not key or fingerprint != value['host_key_sha256']:
+            raise ValueError()
+        return value
+    except (OSError, ValueError, TypeError, KeyError):
+        raise RuntimeError('Private server connection configuration unavailable or invalid') from None
 
 
 def credentials(source=SOURCE):
-    try:
-        user, password, host = Path(source).read_text(encoding='utf-8-sig').splitlines()
-        from ipaddress import ip_address
-        ip_address(host)
-        if not user.strip() or not password or user != user.strip():
-            raise ValueError()
-        return user, password, host
-    except (OSError, ValueError):
-        raise RuntimeError('New-server private connection source unavailable or invalid') from None
+    value = configuration(source)
+    return value['username'], value['password'], value['host']
 
 
 @contextmanager
-def connect(*, source=SOURCE, known_hosts=HOSTS, trust_new_host=False):
+def connect(*, source=SOURCE):
     import paramiko
-    user, password, host = credentials(source)
-    known_hosts = Path(known_hosts)
+    value = configuration(source)
+    host, port = value['host'], value['port']
+    key = paramiko.PKey.from_type_string(value['host_key_type'], base64.b64decode(value['host_key_base64']))
     client = paramiko.SSHClient()
-    if known_hosts.exists():
-        client.load_host_keys(str(known_hosts))
-    if trust_new_host:
-        known_hosts.parent.mkdir(parents=True, exist_ok=True)
-        # AutoAddPolicy saves only previously unknown hosts; changed keys still fail.
-        if not known_hosts.exists():
-            known_hosts.touch(mode=0o600)
-        client.load_host_keys(str(known_hosts))
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.get_host_keys().add(host if port == 22 else '[' + host + ']:' + str(port), key.get_name(), key)
     try:
-        client.connect(host, username=user, password=password, look_for_keys=False,
-                       allow_agent=False, timeout=20, banner_timeout=20, auth_timeout=20)
+        timeout = value['connect_timeout_seconds']
+        client.connect(host, port=port, username=value['username'], password=value['password'], look_for_keys=False,
+                       allow_agent=False, timeout=timeout, banner_timeout=timeout, auth_timeout=timeout)
         yield client
     finally:
         client.close()
@@ -48,15 +62,13 @@ def connect(*, source=SOURCE, known_hosts=HOSTS, trust_new_host=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--trust-new-host', action='store_true', help='Record first host key; changed keys are rejected')
-    parser.add_argument('--known-hosts', type=Path, default=HOSTS)
     parser.add_argument('--script', type=Path, help='UTF-8 Bash script, sent through stdin')
     parser.add_argument('--upload', nargs=2, metavar=('LOCAL', 'REMOTE'))
     args = parser.parse_args()
     if bool(args.script) == bool(args.upload):
         parser.error('Select exactly one script or upload')
     try:
-        with connect(known_hosts=args.known_hosts, trust_new_host=args.trust_new_host) as client:
+        with connect() as client:
             if args.upload:
                 with client.open_sftp() as sftp:
                     sftp.put(*args.upload)
