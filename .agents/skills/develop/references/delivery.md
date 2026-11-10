@@ -39,6 +39,21 @@ develop 的提交标题为 `v0.0.x.y：主题`。前两位由用户决定；x �
 
 ## 发布与核对
 
-推送前 fetch 核远端历史，保留历史；推送后核实际远端引用。GitHub 可按需使用命令级代理，不改系统全局代理，不因直连失败自动换代理。GitCode 只在用户要求合入 main 后依 gitcode-sync 同步并保存实际退出及引用；连接边界归该技能。共享历史回退优先 git revert，不改写历史。
+推送前 fetch 核远端历史，保留历史；推送后核实际远端引用。GitCode 只在用户要求合入 main 后依 gitcode-sync 同步并保存实际退出及引用；连接边界归该技能。共享历史回退优先 git revert，不改写历史。
+
+### GitHub 命令级代理
+
+每次向 GitHub 推送前检查现有 Git/环境代理；本机已有确认可用的代理时，先核当前监听与 `git ls-remote` 连通性，再对本次 fetch、push 和远端引用核验统一使用 `git -c http.proxy=<地址>`。可主动复用本项目已验证的本机代理，不必等待用户再次提醒；不自动尝试未经确认的新代理，不改系统或 Git 全局代理，保持 TLS 验证。
+
+2026-11-10 在此 Windows 开发机实测：直连 github.com:443 失败，`verge-mihomo` 在 `127.0.0.1:7897` 提供的 HTTP 代理可完成 GitHub 推送。此地址是后续候选，使用前仍核实当前监听；不可假定其他机器或以后端口不变。命令示例：
+
+```powershell
+git -c http.proxy=http://127.0.0.1:7897 ls-remote origin refs/heads/develop
+git -c http.proxy=http://127.0.0.1:7897 fetch origin develop
+git -c http.proxy=http://127.0.0.1:7897 push origin develop
+git -c http.proxy=http://127.0.0.1:7897 ls-remote origin refs/heads/develop
+```
+
+有设计标签时按本次交付范围显式补推并核对标签，不因分支已同步就漏推。连接失败、鉴权失败和远端历史冲突分别处理；失败时报告真实结果，不把本地提交称为已推送。
 
 报告真实提交哈希、GitHub/GitCode同步结果、失败检查和未验证范围。已发设计规范不等于实现或阶段验收完成。
