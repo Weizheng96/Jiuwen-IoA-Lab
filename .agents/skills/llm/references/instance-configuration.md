@@ -4,10 +4,20 @@
 
 ## 操作者初始化与运行边界
 
-1. 使用已授权的统一私有源 `.agents/llm_apikey`，选明确 profile；本仓当前已准备的 profile 名为 `default`。只在操作者初始化进程内读取 `tools.llm.profile()`，不打印对象、key 或提供方错误正文，不把值放参数、全局环境或 Git。保留原空间 API 入口，不能换成猜测的公共默认地址。`default` 现由 `.agents/newllmkey.txt` 生成，其供应商的模型名与平台模板默认值不同：初始化只写入主模型、入口和密钥，`llm.discovery_model` 与 `llm.embedding_model` 须由操作者改成该供应商模型列表中实际存在的名称，再按下表分别验证，不能沿用模板里的阿里云模型名。
+1. 使用已授权的统一私有源 `.agents/llm_apikey`，按用户最新选择取明确 profile；当前新Linux平台与官方服务选择见技能正文，不能仅因 profile 名含 tts 就忽略已授权的 LLM 用途。只在操作者初始化进程内读取 `tools.llm.profile()`，不打印对象、key 或提供方错误正文，不把值放参数、全局环境或 Git。保留原空间 API 入口，不能换成猜测的公共默认地址。主模型、`llm.discovery_model` 与 `llm.embedding_model` 按实际供应商权限与调用结果填写；模板名称和模型目录均不能单独证明可调用。
 2. 新实例使用选定发布源码实际提供的 `deploy.configure.initialize(..., llm=...)` 或 `python -m tools.llm`，只创建唯一平台 JSON。Windows 指定实际已构建资源路径时使用 initialize 的 assets 参数；现有 tools.llm CLI 不提供 assets 参数，不虚构该选项。旧发布没有 llm 参数时，先用其 deploy.configure 创建新私有文件，再由操作者显式映射同一 profile 的 api_key/base_url/name 到该文件 llm.api_key/base_url/model。已经存在的文件不重复初始化，变更沿原部署 owner 的停机/配置或显式迁移流程。
 3. Linux 原远程操作使用已核主机指纹的 pin SSH/SFTP 会话，私有载体先受 root 所有及0600权限保护，只传所选模型输入，不复制完整开发凭据库或把秘密放命令文本。没有已核会话或安全载体时，部署 owner 先向主控给最小方案，不请求用户贴 key。初始化后运行服务只读取自己的实例配置，不跨读开发源或临时传输载体。
 4. 配置中的主模型、检索、嵌入和仲裁等实际用途分别核供应商权限与类型；单一主模型字段非空不能证明所有用途可调用。已配置实例及人工修改保留，换 profile 不自动覆盖运行文件或重建参与方工作区。
+
+## 目标主机诊断
+
+先核访问策略和实际路由：某服务器仅接受指定局域网来源时，关闭请求级代理仍不等于绕过系统VPN/TUN；浏览器还要核系统代理及该IP的精确绕过项。只按用户授权调整目标，不关闭全局代理、不放通外部来源来迎合探针。
+
+按 DNS → TCP → TLS → HTTP 状态/结构 → 组件实际调用记录故障层次。用目标主机选定 profile 做低量无业务聊天及嵌入请求；错误只记类型、状态码、耗时，原正文与凭据留受限资料。同一输入本机成功、服务器失败，只能先认定路径/来源差异，不能猜定密钥失效或云防火墙故障。对照实际客户端栈；urllib、requests、httpx 的代理和CA行为不同。供应商切换须用户明确选择，保留原件，分别更新平台配置和所属九问工作区，不只改平台 key 后声称所有组件已切换。
+
+内部 CA 情况分别验证系统 curl、SDK/官方授权 HTTP 以及 WSS。`httpx.Client(trust_env=False)` 默认使用的 CA 集合可能不含系统新增 CA，且不能靠设置 `SSL_CERT_FILE` 就假定生效；当前 SDK账号/投递及官方管理员登录/授权已在源码显式传 `ssl.create_default_context()`，保留证书链/IP验证与直连。遇同类缺陷回源码和真实TLS成功/未知CA/错IP拒绝测试修复，不改已装venv的certifi文件，不关闭校验。
+
+本轮目标服务器曾对原供应商 HTTP 超时；用户改选原阿里云后，原空间端点的 `qwen3.7-flash` 聊天及 `text-embedding-v4` 嵌入直连均200。该结果仅是供应商连通证明，组件调用仍按下表独立验收，不把具体名称推广到其他 profile。
 
 ## 三类调用路径与证明
 

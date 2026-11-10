@@ -5,6 +5,7 @@ import ipaddress
 import json
 import ssl
 import threading
+from types import SimpleNamespace
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -35,6 +36,11 @@ def https_platform(tmp_path):
             body = json.dumps({'publicUrl': 'https://127.0.0.1'}).encode()
             self.send_response(200 if self.path == '/api/config' else 401)
             self.end_headers(); self.wfile.write(body)
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get('Content-Length', '0')))
+            self.send_response(200)
+            self.send_header('Set-Cookie', '__Host-ioalab_session=tls-test-session; Secure; Path=/; HttpOnly')
+            self.end_headers(); self.wfile.write(b'{}')
         def log_message(self, *_): pass
     server = ThreadingHTTPServer(('0.0.0.0', 0), Handler)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); context.load_cert_chain(ca, private)
@@ -44,7 +50,7 @@ def https_platform(tmp_path):
     server.shutdown(); server.server_close(); thread.join(5)
 
 
-@pytest.mark.parametrize('transport', ['account', 'delivery'])
+@pytest.mark.parametrize('transport', ['account', 'delivery', 'official-admin'])
 @pytest.mark.parametrize('trust', ['trusted', 'unknown', 'wrong_ip'])
 def test_sdk_uses_os_trust_and_still_rejects_unknown_ca_and_wrong_ip(tmp_path, monkeypatch, https_platform, transport, trust):
     ca, port = https_platform
@@ -59,6 +65,14 @@ def test_sdk_uses_os_trust_and_still_rejects_unknown_ca_and_wrong_ip(tmp_path, m
         else:
             with pytest.raises(httpx.ConnectError):
                 AccountSession(base, 'test', '', tmp_path/'account', connect=False)
+    elif transport == 'official-admin':
+        from ioalab_services import administrator_session
+        deployment = SimpleNamespace(value={'platform_url': base})
+        if trust == 'trusted':
+            assert administrator_session(deployment, 'admin', 'fixture-password') == 'tls-test-session'
+        else:
+            with pytest.raises(httpx.ConnectError):
+                administrator_session(deployment, 'admin', 'fixture-password')
     else:
         store = RuntimeStore(tmp_path/'runtime.sqlite', base, ['actor'], owner_id='test')
         connection = AgentConnection(base, 'token', ['actor'], store)

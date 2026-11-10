@@ -1,5 +1,6 @@
 """Explicit initial deployment authorization; longrunning participants never receive this token."""
 import httpx
+import ssl
 import uuid
 from urllib.parse import urlsplit
 from ioalab_sdk.provider import publication_terms
@@ -10,7 +11,8 @@ from ioalab_sdk.runtime import RuntimeFault
 def administrator_session(deployment,username,password):
     if not isinstance(username,str) or not username:raise RuntimeFault('forbidden','The configured administrator username is unavailable')
     if not isinstance(password,str) or not password:raise RuntimeFault('forbidden','The configured deployment administrator password is unavailable')
-    with httpx.Client(base_url=deployment.value['platform_url'].rstrip('/'),trust_env=False,timeout=30) as http:
+    with httpx.Client(base_url=deployment.value['platform_url'].rstrip('/'),trust_env=False,timeout=30,
+                      verify=ssl.create_default_context()) as http:
         response=http.post('/api/admin/login',json={'username':username,'password':password});response.raise_for_status()
         cookie='__Host-ioalab_session' if urlsplit(deployment.value['platform_url']).scheme=='https' else 'ioalab_session'
         token=response.cookies.get(cookie)
@@ -29,7 +31,7 @@ def authorize(deployment,token):
                 changes.append({'agentId':identity['agentId'],'expectedRevision':0,
                     'termsDigest':publication_terms(identity['protocolId'],service),'maxTemplateSeconds':30*86400,'enabled':True})
         with httpx.Client(base_url=deployment.value['platform_url'].rstrip('/'),trust_env=False,timeout=120,
-                          headers={'Authorization':'Bearer '+token}) as http:
+                          headers={'Authorization':'Bearer '+token},verify=ssl.create_default_context()) as http:
             if path.exists():
                 request=read_json(path)
                 if request['binding']!=deployment.binding:raise RuntimeFault('configuration_changed','Original deployment authorization belongs to another configuration')
