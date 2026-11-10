@@ -14,12 +14,15 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[4]
+# Highest required reading measured on 2026-11-10 (部署 92411) plus 10%; raising it needs user consent.
+READING_BUDGET = 101652
 
 
 def base_steps():
     return [("Design versions", ["设计/check.py"]),
             ("Documentation links and index", ["tools/check_docs.py"]),
-            ("Module folders", ["tools/check_modules.py"])]
+            ("Module folders", ["tools/check_modules.py"]),
+            ("Reading budget", ["tools/reading_budget.py", "--max-required", str(READING_BUDGET)])]
 
 
 def test_step(targets):

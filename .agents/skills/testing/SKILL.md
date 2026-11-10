@@ -8,7 +8,7 @@ description: 选择并执行本仓轻量、定向、完整及环境专项检查�
 
 | 层级 | 触发与唯一入口 |
 |---|---|
-| A | 文档、技能与模块文件夹：`python .agents/skills/develop/scripts/check.py`，含版本、链接与索引、模块文件夹对代码四项核对 |
+| A | 文档、技能与模块文件夹：`python .agents/skills/develop/scripts/check.py`，含版本、链接与索引、模块文件夹对代码、阅读预算门槛四项核对 |
 | B | 代码迭代：上述入口加 `--module <模块名>`（接口页测试列并集）、`--tests <路径或nodeid...>`，或 `--changed-from <已提交基线>` 按同一测试列自动选择 |
 | B+ | 提交前回归：加 `--layer fast`，跑清单外全部用例，数分钟；整链路与真实宿主用例归 `--layer chain` |
 | C | 阶段交付和发布：加 `--full`，执行设计、文档、整仓 pytest（两层全部）、selfcheck |
