@@ -23,4 +23,4 @@ python tools/media/script_documents.py --drafts --check
 
 sources-only 只验证入库批准源和镜头规则，适用于 fresh clone；生成稿、配音计划与素材默认写 .agents/data/demo。需要私有素材的 --check、录制、TTS、剪辑、原生业务或历史成片核验属于显式专项，不因源码检查通过而报告成功。命令参数以相应工具 --help 为准。
 
-工具复用原交易、会话与授权，未知结果沿原 ID 核回执；不为媒体整理触发模型、邮件或付款。原始记录保留当年路径与字节，迁移清单在本机 .agents/data/maintenance/migration-manifest.json；历史源码追溯见[历史备份](../../历史备份/README.md)，不导入旧执行链恢复兼容入口。
+工具复用原交易、会话与授权，未知结果沿原 ID 核回执；不为媒体整理触发模型、邮件或付款。原始记录保留当年路径与字节，迁移清单在本机 .agents/data/maintenance/migration-manifest.json；历史源码从 Git 历史中的 `历史备份/` 追溯，不导入旧执行链恢复兼容入口。

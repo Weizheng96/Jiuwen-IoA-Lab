@@ -56,7 +56,7 @@ def local_targets(path):
 
 
 def current_documents():
-    files = [ROOT / name for name in ("README.md", "AGENTS.md", "历史备份/README.md")]
+    files = [ROOT / name for name in ("README.md", "AGENTS.md")]
     files.extend(design_documents())
     files.append(ROOT / "设计/变更/README.md")
     files.extend((ROOT / ".agents/skills").rglob("*.md"))
