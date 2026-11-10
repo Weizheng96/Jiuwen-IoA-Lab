@@ -6,12 +6,12 @@ import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
 
-from a2c.binding import A2ATransport
 from a2c.card import request_digest
 from a2c.codec import digest,digest_bytes
 from a2c.common import Reply,Task
 from a2c.errors import A2CError,CARD_INVALID,CODES
 from a2c.jws import header_of
+from .public import PublicTransport
 from ..runtime.files_api import PrivateFiles
 from ..runtime.protocol import RuntimeFault,stamp
 
@@ -28,8 +28,7 @@ class SessionTransport:
         self.request=copy.deepcopy(request)
         self.namespace='a2c-transport:'+identity.agent_id+':'+interaction
         self.files=PrivateFiles(runtime.account,identity.agent_id)
-        self.public=public or A2ATransport()
-        self.owns_public=public is None
+        self.public=public if public is not None else PublicTransport(runtime.account.network)
         self._operation=ContextVar('ioa-original-operation',default=None)
 
     @contextmanager
@@ -155,7 +154,7 @@ class SessionTransport:
         return task
 
     def close(self):
-        if self.owns_public:self.public.close()
+        pass
 
     def control_receipt(self,kind):
         if kind=='ap2.pay':

@@ -4,6 +4,7 @@ Other modules import the shared runtime only from here; submodules stay importab
 from .catalog import AGENT, ASSISTANT, CATALOG, INTERNAL, OPERATIONS, PROVIDER, RUNTIME, SCRIPT, Operation, fields, handled_by
 from .config import RuntimeConfig, data_directory, read_configuration
 from .connection import AgentConnection
+from .network import Network
 from .files import prepare_home, private_json, private_text, read_arguments, read_json, restrict, windows_sid
 from .files_api import PrivateFiles
 from .host import AgentDefinition, AgentHost, BusinessTools, HostResult, HostTurn, ToolBinding, validate_output
@@ -22,7 +23,7 @@ from ..templates import TEMPLATE_LIFETIME, TEMPLATE_RENEW_BEFORE, draft_from_ter
 
 __all__ = [
     'AGENT', 'ASSISTANT', 'CATALOG', 'INTERNAL', 'OPERATIONS', 'PROVIDER', 'RUNTIME', 'SCRIPT', 'Operation', 'fields',
-    'handled_by', 'RuntimeConfig', 'data_directory', 'read_configuration', 'AgentConnection', 'prepare_home',
+    'handled_by', 'RuntimeConfig', 'data_directory', 'read_configuration', 'AgentConnection', 'Network', 'prepare_home',
     'private_json', 'private_text', 'read_arguments', 'read_json', 'restrict', 'windows_sid', 'PrivateFiles', 'AgentDefinition',
     'AgentHost', 'BusinessTools', 'HostResult', 'HostTurn', 'ToolBinding', 'validate_output', 'SAFE_CALLS', 'current',
     'require_matching', 'LocalClient', 'public_error', 'Lease', 'require_configuration', 'run', 'setup_command', 'start',

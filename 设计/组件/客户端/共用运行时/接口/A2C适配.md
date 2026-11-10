@@ -8,6 +8,16 @@
 
 SDK 发送的控制种类与消息 kind 只取 web服务[种类契约](../../../平台/web服务/接口/WebSocket与消息封套.md#种类契约)，判断的错误码只取[错误码](../../../平台/web服务/接口/幂等与错误.md#错误码)表；`tests/test_sdk_contract.py` 解析两表核对 SDK 源码，不导入平台代码。
 
+## 网络资源归属
+
+同一常驻实例由共用运行时唯一持有 Network：系统默认 SSL 上下文、共享同步 HTTPS 连接池与 WSS 信任策略。AccountSession 持有并关闭 Network，AgentConnection 和两角色只借用；角色或 SessionTransport 关闭不关闭共享资源。显式登录等独立进程使用同一构造并自行释放，不依赖常驻实例。
+
+账号、目录、文件、恢复查询及公开 A2A 模板、公钥和 Agent Card 均经过同一池；业务仍由 SessionTransport 经原 WSS 执行。公共适配只允许 template.get 和公钥读取，继续使用原 A2A JSONRPC、A2C 编解码及角色验签，不增加业务 HTTP 回退。两角色不创建 A2ATransport、异步 HTTP 池或专用事件循环；SessionTransport 缺少共享资源时拒绝构造，不能隐式创建网络。
+
+HTTPS 与 WSS 均验证系统 CA、证书链和主机/IP，不提供跳过校验；不继承代理、不自动重定向、不保存 Cookie。账号 Bearer 仅由账号模块显式加到本平台认证路径，公共请求不携带凭据；公共目标及 Agent Card 声明的 RPC/JWKS 目标必须同平台源，不跟随外部 URL。不同操作保留独立超时（控制10秒、公共20秒、文件120秒），共享连接池不持全局业务锁；慢请求不阻塞独立心跳线程。未知结果继续恢复原操作，不无限重试或换号重做。
+
+改造前资源：AccountSession HTTPS池 + AgentConnection HTTPS池/WSS + 助手 A2ATransport池/循环 + 服务方 A2ATransport池/循环。改造后资源：AccountSession → Network单池/SSL ← AgentConnection与两角色公共适配；SessionTransport业务 → 原WSS。失败初始化及最终安全停止由owner关闭池，借用者不得提前关闭。
+
 ## 原操作与协议存储
 
 | 对象 | 契约 |

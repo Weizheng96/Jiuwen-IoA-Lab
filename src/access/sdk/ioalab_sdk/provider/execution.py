@@ -3,14 +3,14 @@ import threading
 import time
 import httpx
 
-from a2c.binding import A2ATransport
+
 from a2c.common import Directory
 from a2c.codec import parse_time,utcnow
 from a2c.provider import Provider
 from a2c.payment.ap2 import AP2Payment
 from a2c.errors import A2CError
 from a2c.slots import verify_template
-from ..adapters import ProtocolStore,SessionTransport
+from ..adapters import ProtocolStore,SessionTransport,PublicTransport
 from ..adapters import EndpointSession
 from ..adapters import stable
 from ..runtime import RuntimeFault,instant,stamp,encode
@@ -26,7 +26,7 @@ class ProviderExecution:
         self.configs=validate_provider(runtime.config.provider,runtime.config.identities)
         self.stop=threading.Event();self.changed=threading.Event();self.thread=None
         self.active=set();self.contexts={};self.lock=threading.RLock()
-        self.public=A2ATransport(http=lambda:httpx.AsyncClient(timeout=20,trust_env=False))
+        self.public=PublicTransport(self.runtime.account.network)
         self.published={};self.refresh=set(self.configs)
         self.errors={}
         from .admission import AdmissionPolicy
@@ -94,7 +94,6 @@ class ProviderExecution:
 
     def close(self):
         self.quiesce()
-        self.public.close()
 
     def listen(self):
         while not self.stop.is_set():

@@ -39,7 +39,7 @@
 
 - 先确认可达来源：仅指定局域网可直连的服务器不具备公网 HTTP-01 前提。已确认此策略后停止公网签发重试，按教程由用户选择内部CA；不关闭源限制或用VPN凑可达。SSH不经代理不代表浏览器也直连，需另核Windows路由、系统ProxyOverride及目标IP例外；保持其他地址的代理配置。
 - 内部CA的服务端系统信任、每个客户端系统信任与各HTTP库信任是三件事。CA私钥留服务器；只经固定SSH传公共CA、核指纹后按明确授权加入客户端当前用户库。Windows导入可能等待“安全警告”，需用户处理实际弹窗，再查目标指纹确已入库；命令发起不等于导入完成。浏览器仍有警告时不自动越过。
-- 系统curl/readiness成功而SDK、官方授权或A2C执行握手出现ConnectError，先查具体请求URL、异常链与实际Python客户端的CA来源；同步 `httpx.Client` 和异步 `httpx.AsyncClient` 工厂分别核对，不能由账号登录成功推定服务执行HTTPS已通。按[模型诊断](../../llm/references/instance-configuration.md#目标主机诊断)做真实TLS对照并回所属源码修复；不能在发行venv里改certifi或禁用验证。发布/索引就绪而执行未就绪时先查该段握手，不据此更换LLM。Nginx reload后核实际握手证书与指纹，不凭一次旧worker响应反复重签。
+- 系统curl/readiness成功而SDK、官方授权或A2C执行握手出现ConnectError，先查具体请求URL、异常链与实际Python客户端的CA来源；先核 SDK 共用 Network owner、两角色注入与短期授权入口是否都采用同一信任策略；账号登录成功不证明模板、公钥或服务执行 HTTPS 已通。按[模型诊断](../../llm/references/instance-configuration.md#目标主机诊断)做真实TLS对照并回所属源码修复；不能在发行venv里改certifi或禁用验证。发布/索引就绪而执行未就绪时先查该段握手，不据此更换LLM。Nginx reload后核实际握手证书与指纹，不凭一次旧worker响应反复重签。
 
 - IP证书核SAN的实际IP、默认信任链、到期时间及服务器续期任务。已有证书复用，不每次应用发布都签发。诊断先查`nginx -t`、指定续期timer状态及日志，再按教程执行一次dry-run；禁止`curl -k`或关闭验证。
 - 历史环境中ACME协商失败，曾仅为独立Certbot进程指定受限`OPENSSL_CONF`约束TLS1.2后签发及续期dry-run通过。这个网络专项不能写成所有服务器的默认SSL设置；若确需复用，先以该主机实际握手证据确认，并确保续期service引用同一配置，不能只在临时SSH shell设置。主站TLS不降级，系统OpenSSL配置不改。

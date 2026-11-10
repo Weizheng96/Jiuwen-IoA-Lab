@@ -48,7 +48,7 @@ class ResidentRuntime:
             self.identities=[load_identity(self.account,config.home,profile) for profile in config.identities]
             actors=[p.agent_id for p in self.identities]
             self.store=RuntimeStore(config.home/'runtime.sqlite',config.platform,actors,owner_id=self.account.account['id'])
-            self.connection=AgentConnection(config.platform,self.account.bearer,actors,self.store)
+            self.connection=AgentConnection(config.platform,self.account.bearer,actors,self.store,network=self.account.network)
             self.confirmations=Confirmations(self.store)
             job_handlers=dict(jobs or {})
             for module in self.modules:

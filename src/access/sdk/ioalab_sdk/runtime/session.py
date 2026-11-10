@@ -6,12 +6,12 @@ import hashlib
 import hmac
 import json
 import secrets
-import ssl
 import time
 import uuid
 
 import httpx
 from a2c.codec import digest_bytes
+from .network import Network
 from .account_store import LocalStore
 from .protocol import RuntimeFault,instant
 
@@ -26,7 +26,11 @@ class AccountSession:
         self.home.mkdir(mode=0o700,parents=True,exist_ok=True)
         self.cache=LocalStore(self.home/'account.sqlite')
         if os.name!='nt':os.chmod(self.cache.path,0o600)
-        self.http=httpx.Client(timeout=120,trust_env=False,verify=ssl.create_default_context())
+        try:self.network=Network(self.base)
+        except BaseException:
+            self.cache.close()
+            raise
+        self.http=self.network.http
         self.account={}
         self.allow_offline,self.verified=allow_offline,False
         try:
@@ -228,5 +232,5 @@ class AccountSession:
                 'verifiedOnline':self.verified,'expiresAt':expires,'operationId':self.account.get('operationId')}
 
     def close(self):
-        self.http.close()
+        self.network.close()
         self.cache.close()

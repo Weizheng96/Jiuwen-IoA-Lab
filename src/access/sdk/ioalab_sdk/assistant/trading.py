@@ -3,10 +3,10 @@ import base64
 import copy
 import time
 import uuid
+import httpx
 from urllib.parse import quote
 
-import httpx
-from a2c.binding import A2ATransport
+
 from a2c.codec import digest,utcnow,parse_time
 from a2c.card import card_digest,request_digest,validate_card
 from a2c.jws import header_of
@@ -15,7 +15,7 @@ from a2c.client import Client
 from a2c.payment.ap2 import AP2Payment
 from a2c.slots import verify_template,verify_card
 from a2c.errors import A2CError
-from ..adapters import ProtocolStore,SessionTransport
+from ..adapters import ProtocolStore,SessionTransport,PublicTransport
 from ..adapters import stable
 from ..runtime import RuntimeFault
 from ..runtime import JobOutcome
@@ -26,9 +26,9 @@ class Trading:
     def __init__(self,role):
         self.role,self.runtime,self.identity=role,role.runtime,role.identity
         self.store=self.runtime.store;self.namespace='quotes:'+self.identity.agent_id
-        self.public=A2ATransport(http=lambda:httpx.AsyncClient(timeout=20,trust_env=False))
+        self.public=PublicTransport(self.runtime.account.network)
 
-    def close(self):self.public.close()
+    def close(self):pass
 
     def protocol_id(self,service):
         try:
