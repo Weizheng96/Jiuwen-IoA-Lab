@@ -59,7 +59,7 @@ def plans(layout, *, administrator, core, trial=None):
         'official':{'unit':'ioalab-official.service','user':layout.agents_user,'directory':official,
             'environment':configuration/'official.env','after':['core'],
             'command':python(participant,'ioalab_services','serve','--config',configuration/'official.json'),
-            'pre':[python(participant,'ioalab_sdk.runtime','login','--config',
+            'pre':[python(participant,'ioalab_sdk.access','login','--config',
                           official/'accounts/ISP_001/config.json')]}}
     if administrator:
         for key,module,after in (
@@ -73,7 +73,7 @@ def plans(layout, *, administrator, core, trial=None):
         rows['assistant']={'unit':'ioalab-admin-assistant.service','user':layout.agents_user,
             'directory':agents/'admin-assistant','environment':configuration/'assistant.env',
             'after':['core','swarm-web'],'command':python(participant,'ioalab_jiuwen','serve','--config',runtime),
-            'pre':[python(participant,'ioalab_sdk.runtime','login','--config',runtime)]}
+            'pre':[python(participant,'ioalab_sdk.access','login','--config',runtime)]}
     if trial:
         # Admission/epochs/model secrets remain in this one trial-owned config.
         # The controller needs the Docker socket; never give it to seat users.

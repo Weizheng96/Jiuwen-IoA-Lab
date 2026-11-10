@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 from ioalab_sdk.runtime import installation
-from ioalab_sdk.runtime.__main__ import main,start
+from ioalab_sdk.access import main
+from ioalab_sdk.runtime import start
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json
 from ioalab_sdk.runtime.ipc import IpcServer,LocalClient

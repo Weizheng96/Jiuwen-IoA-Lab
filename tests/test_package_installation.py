@@ -45,6 +45,7 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
         assert not any(name.startswith('ioalab/psp/') for name in archive.namelist())
     with zipfile.ZipFile(next(wheels.glob('ioalab_sdk-*.whl'))) as archive:
         assert 'ioalab_sdk/runtime/web/user.html' in archive.namelist()
+        assert 'ioalab_sdk/runtime/__main__.py' not in archive.namelist()
         assert not any(name.startswith('ioalab_jiuwen/') for name in archive.namelist())
         assert 'ioalab_sdk/assistant.py' not in archive.namelist()
         assert 'ioalab_sdk/provider.py' not in archive.namelist()
@@ -54,7 +55,7 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
         assert not {'ioalab_sdk/'+name for name in retired}.intersection(archive.namelist())
         assert 'ioalab_sdk/provider/agent.py' not in archive.namelist()
         entries=archive.read(next(name for name in archive.namelist() if name.endswith('.dist-info/entry_points.txt'))).decode()
-        assert 'ioalab-access = ioalab_sdk.runtime.__main__:main' in entries
+        assert 'ioalab-access = ioalab_sdk.access:main' in entries
         assert 'ioalab-client' not in entries
         assert not any(name.startswith('ioalab_tools/') for name in archive.namelist())
         assert not {'ioalab_sdk/calendar.py','ioalab_sdk/agentmail.py','ioalab_sdk/schedule.py','ioalab_sdk/schedule_cli.py'}.intersection(archive.namelist())
@@ -100,7 +101,7 @@ print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host
     assert result['resource'] and result['userPage']
     assert result['ownedServices'] == 52 and result['ownedSeed'] == 8
     assert result['hostEntry']=='ioalab_jiuwen.__main__:main'
-    assert result['accessEntry']=='ioalab_sdk.runtime.__main__:main'
+    assert result['accessEntry']=='ioalab_sdk.access:main'
     assert Path(result['data']).resolve() == (tmp_path/'data').resolve()
     for name in ('coreModuleFile', 'catalogModuleFile'):
         assert environment.resolve() in Path(result[name]).resolve().parents

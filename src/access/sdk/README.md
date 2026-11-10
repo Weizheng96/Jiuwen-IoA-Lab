@@ -11,28 +11,28 @@
 复制[配置模板](../../../deploy/access-runtime.json.example)，填写平台和账号，并在本机设置模板引用的密码环境变量；服务方可将 identities 改为 service profile，服务绑定不创建个人助手。数据目录相对配置文件定位，作为 SDK 专用目录；配置及调用参数文件放在其外。每个 profile 的稳定身份及私钥保存在该目录，不能删除重建。既有直接客户端数据不自动导入；保留原身份和业务记录，不能将其目录作为新的常驻数据目录。
 
 ```text
-python -m ioalab_sdk.runtime start --config <本机配置文件>
-python -m ioalab_sdk.runtime call runtime.status --config <本机配置文件>
-python -m ioalab_sdk.runtime call identity.status --config <本机配置文件>
-python -m ioalab_sdk.runtime call runtime.stop --config <本机配置文件> --args-file <已创建的空JSON参数文件>
+python -m ioalab_sdk.access start --config <本机配置文件>
+python -m ioalab_sdk.access call runtime.status --config <本机配置文件>
+python -m ioalab_sdk.access call identity.status --config <本机配置文件>
+python -m ioalab_sdk.access call runtime.stop --config <本机配置文件> --args-file <已创建的空JSON参数文件>
 ```
 
-start 同时核对账号、配置和安装信息后复用已运行实例；启动仍在进行时报告 waiting，不重新创建竞争实例。状态分别报告 IPC、账号、身份、连接和执行能力，不能将进程运行当作业务完成。stop 在参数文件保存目标实例及原操作标识，等待实际轮次收敛并保留数据。运行数据、配置、端点凭据与日志均不入库。SDK 还提供 `ioalab-access` 命令，行为与模块入口一致。installation_changed要求安全停止后按原目录启动当前安装；普通业务调用也核对安装及同一bootId，instance_changed时先查实际实例。诊断与停止仍可使用，不删除身份或合同。自管环境先停止再升级，不支持源码热替换。
+start 同时核对账号、配置和安装信息后复用已运行实例；启动仍在进行时报告 waiting，不重新创建竞争实例。状态分别报告 IPC、账号、身份、连接和执行能力，不能将进程运行当作业务完成。stop 在参数文件保存目标实例及原操作标识，等待实际轮次收敛并保留数据。运行数据、配置、端点凭据与日志均不入库。SDK 还提供 `ioalab-access` 命令，行为与模块入口一致。旧命令 `python -m ioalab_sdk.runtime` 已删除：自管环境按常规升级同时换新 SDK 与产品技能后改用上述命令；受管部署与产品技能脚本随发行一起换到新命令，输出与退出码不变。installation_changed要求安全停止后按原目录启动当前安装；普通业务调用也核对安装及同一bootId，instance_changed时先查实际实例。诊断与停止仍可使用，不删除身份或合同。自管环境先停止再升级，不支持源码热替换。
 
 ## 不向模型展示账号配置
 
 用户私下填好外置设置后，九问可调用两产品技能的runtime.configuration/configure：前者只返回配置摘要、身份和可改字段，后者按独立changes参数局部合并，保留账号、密码和其他角色。指向既有九问的宿主配置由九问适配器校验，不修改九问。活跃实例必须先安全停止；配置保存不代表启动、公示或业务就绪。输入、限制与重复调用规则见[SDK共用机制](../../../设计/组件/客户端/共用运行时/接口/配置.md#不读取凭据的配置辅助)。直接SDK的启动前入口为：
 
 ```text
-python -m ioalab_sdk.runtime configuration --config <本机配置文件>
-python -m ioalab_sdk.runtime configure --config <本机配置文件> --args-file <非凭据修改参数文件>
+python -m ioalab_sdk.access configuration --config <本机配置文件>
+python -m ioalab_sdk.access configure --config <本机配置文件> --args-file <非凭据修改参数文件>
 ```
 
 上述SDK入口只接受共用字段；通过原版九问接入时，技能统一交给ioalab_jiuwen的同名命令装配宿主字段校验。查询和validate不创建运行数据或联网，实际能力在启动后分别探测。
 
 ## 助手收信设置与通信
 
-统一调用格式为 `python -m ioalab_sdk.runtime call <operation> --config <本机配置文件> --args-file <已创建的JSON文件>`；参数文件与账号配置及SDK数据分开，不能使用配置文件的路径别名；SDK在完整配置与实例核对后保存原operationId，重复调用复用原操作。诊断与安全停止只需配置中的data_dir，不要求凭据及业务字段仍完整。接口和流程规范见[个人助手端 SDK](../../../设计/组件/客户端/个人助手端/接口.md)。
+统一调用格式为 `python -m ioalab_sdk.access call <operation> --config <本机配置文件> --args-file <已创建的JSON文件>`；参数文件与账号配置及SDK数据分开，不能使用配置文件的路径别名；SDK在完整配置与实例核对后保存原operationId，重复调用复用原操作。诊断与安全停止只需配置中的data_dir，不要求凭据及业务字段仍完整。接口和流程规范见[个人助手端 SDK](../../../设计/组件/客户端/个人助手端/接口.md)。
 
 | 操作 | 参数 |
 |---|---|

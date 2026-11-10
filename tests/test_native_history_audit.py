@@ -43,7 +43,7 @@ def test_sdk_config_forwarding_with_business_result_reads_is_not_a_body_access()
     config=r'D:\never-exists\settings.provider.local.json'
     calls=[('shell-sdk','bash',{'command':f'python "skills/ioalab.py" provider.status --config "{config}"; cat result.json'}),
            ('python-sdk','bash',{'command':f"subprocess.run(['python','ioalab.py','provider.preview','--config',r'{config}']); open('result.json').read()"}),
-           ('module-sdk','bash',{'command':f'python -m ioalab_sdk.runtime call provider.status --config={config}'}),
+           ('module-sdk','bash',{'command':f'python -m ioalab_sdk.access call provider.status --config={config}'}),
            ('body','write_file',{'file_path':'/work/arguments.json','content':config})]
     report=audit_metadata(calls,[config])
     assert report['configurationBodyReadCalls']==[]

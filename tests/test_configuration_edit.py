@@ -187,7 +187,7 @@ def test_edit_detects_change_while_waiting_for_ownership(tmp_path,monkeypatch,ca
 
 
 def test_plain_sdk_setup_has_no_concrete_host_write_authority(tmp_path,capsys):
-    from ioalab_sdk.runtime.__main__ import main as sdk_main
+    from ioalab_sdk.access import main as sdk_main
     path,_=settings(tmp_path)
     args=arguments(tmp_path,path,{'max_model_runs':1})
     assert sdk_main(['configure','--config',str(path),'--args-file',str(args)])==0

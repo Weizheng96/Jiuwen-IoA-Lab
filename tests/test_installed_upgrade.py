@@ -19,7 +19,7 @@ def test_installed_release_restarts_with_original_identity_contract_authorizatio
     environment={key:value for key,value in os.environ.items() if key not in ('PYTHONPATH','PYTHONHOME','PYTHONUSERBASE')}
     environment['PYTHONUTF8']='1'
     def command(*args):
-        result=subprocess.run([python,'-I','-m','ioalab_sdk.runtime',*args],cwd=tmp_path,env=environment,
+        result=subprocess.run([python,'-I','-m','ioalab_sdk.access',*args],cwd=tmp_path,env=environment,
                               capture_output=True,timeout=30)
         return result.returncode,json.loads(result.stdout)
     # Prove the shipped CLI accepts the new owner-only option outside source paths.
@@ -51,7 +51,7 @@ def test_installed_release_restarts_with_original_identity_contract_authorizatio
         assistant.close()
         # Keep an actual child handle throughout the new installed process lifecycle.
         with (tmp_path/'installed-runtime.log').open('w',encoding='utf-8') as log:
-            child=subprocess.Popen([python,'-I','-m','ioalab_sdk.runtime','serve','--config',str(config)],
+            child=subprocess.Popen([python,'-I','-m','ioalab_sdk.access','serve','--config',str(config)],
                 cwd=tmp_path,env=environment,stdin=subprocess.DEVNULL,stdout=log,stderr=log,
                 creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             try:

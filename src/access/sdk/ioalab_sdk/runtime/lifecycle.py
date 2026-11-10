@@ -65,7 +65,7 @@ def start(config_path,*,timeout=15,command=None,assembly=None,environment=None):
     log_path=config.home/'runtime.log'
     with log_path.open('a',encoding='utf-8') as stream:
         if os.name!='nt':os.chmod(log_path,0o600)
-        entry=command or [sys.executable,'-m','ioalab_sdk.runtime']
+        entry=command or [sys.executable,'-m','ioalab_sdk.access']
         child=subprocess.Popen([*entry,'serve','--config',str(Path(config_path).resolve())],
                                cwd=Path(config_path).resolve().parent,stdin=subprocess.DEVNULL,stdout=stream,stderr=stream,
                                creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),env=environment)

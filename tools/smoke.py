@@ -165,7 +165,7 @@ def run_smoke():
                 private_json(path,{'platform_url':base,'username':name,'password':password,'data_dir':f'./participant-{index}',
                     'identities':[{'key':'personal','role':'assistant','name':'Explicit smoke participant'}]})
                 config=RuntimeConfig.load(path);rpc=LocalClient(config.home,timeout=1)
-                child=launch([sys.executable,'-m','ioalab_sdk.runtime','serve','--config',str(path)])
+                child=launch([sys.executable,'-m','ioalab_sdk.access','serve','--config',str(path)])
                 def ready():
                     result=rpc.call('runtime.status')
                     return result['data'] if result['status']=='completed' and result['data']['platformConnected'] else None

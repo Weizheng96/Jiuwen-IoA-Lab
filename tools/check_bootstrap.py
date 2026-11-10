@@ -85,7 +85,7 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--report',type=Path);args=parser.parse_args(argv)
     with verification_workspace() as folder:
         python,manifest,background=install_products(folder)
-        for entry in ('ioalab_sdk.runtime','ioalab_jiuwen','ioalab_tools.schedule_cli'):
+        for entry in ('ioalab_sdk.access','ioalab_jiuwen','ioalab_tools.schedule_cli'):
             subprocess.run([str(python),'-I','-m',entry,'--help'],check=True,cwd=folder,capture_output=True,text=True)
         subprocess.run([str(python),'-I','-c','import importlib.util as u; from ioalab_sdk.runtime.installation import current; assert current()["releaseId"]; assert u.find_spec("ioalab") is None; assert u.find_spec("jiuwenswarm") is None; assert u.find_spec("ioalab_tools") is not None'],check=True,cwd=folder)
         result=subprocess.run([sys.executable,'-B','-m','pytest','-q','tests/test_installed_upgrade.py','--maxfail=1'],cwd=ROOT,
@@ -94,7 +94,7 @@ def main(argv=None):
         print(result.stdout,end='');print(result.stderr,end='',file=sys.stderr)
         if result.returncode:raise RuntimeError('Installed contract verification failed; preserve its original workspace')
         if args.report:
-            sources=['src/access/sdk/ioalab_sdk/runtime/installation.py','src/access/sdk/ioalab_sdk/runtime/__main__.py',
+            sources=['src/access/sdk/ioalab_sdk/runtime/installation.py','src/access/sdk/ioalab_sdk/access.py',
                      'src/access/sdk/ioalab_sdk/runtime/ipc.py','src/access/sdk/ioalab_sdk/runtime/resident.py',
                      'src/access/skills/_shared/ioalab.py','src/access/skills/_shared/installer.py',
                      'tools/build_access_skills.py','tools/check_bootstrap.py','tests/test_installed_upgrade.py']

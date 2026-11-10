@@ -63,7 +63,7 @@ print(json.dumps(LocalClient(sys.argv[1],timeout=2).call(sys.argv[2],json.loads(
 
 
 def account_login(python, config, home):
-    result = subprocess.run([str(python), '-I', '-m', 'ioalab_sdk.runtime', 'login', '--config', str(config)],
+    result = subprocess.run([str(python), '-I', '-m', 'ioalab_sdk.access', 'login', '--config', str(config)],
                             cwd=Path(home).parent, env=child_environment(), capture_output=True, timeout=25)
     if result.returncode: raise RuntimeError('Installed explicit login failed; retain its original account state')
     value = json.loads(result.stdout)
@@ -149,7 +149,7 @@ def exercise(layout, release, installations, report):
             identities = None; boots = []; balances = []
             for attempt in range(3):
                 with (layout.private/('sdk-' + str(attempt) + '.log')).open('w', encoding='utf-8') as sdk_log:
-                    sdk = subprocess.Popen([str(sdk_python), '-I', '-m', 'ioalab_sdk.runtime', 'serve', '--config', str(config)],
+                    sdk = subprocess.Popen([str(sdk_python), '-I', '-m', 'ioalab_sdk.access', 'serve', '--config', str(config)],
                                            cwd=layout.state, env=child_environment(), stdout=sdk_log, stderr=sdk_log)
                     status = await_status(sdk_python, home, sdk)
                     assert status['installation']['releaseId'] == installations['participant']['environmentId']

@@ -1,4 +1,6 @@
-"""SDK role assembly behind `ioalab-access`; the shared runtime receives these roles and never imports them."""
+"""`ioalab-access` and `python -m ioalab_sdk.access`: the SDK role assembly.
+
+The shared runtime receives these roles through `run` and never imports this module."""
 from .runtime import run
 
 
@@ -20,3 +22,6 @@ def service_fields():
 
 def main(argv=None):
     return run(argv,modules=modules,validate=validate,service_fields=service_fields)
+
+
+if __name__=='__main__':raise SystemExit(main())

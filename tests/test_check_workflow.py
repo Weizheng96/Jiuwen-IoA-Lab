@@ -22,7 +22,7 @@ def repository(path, *, design_exit=0):
     (path / 'AGENTS.md').write_text('Isolated runner test\n')
     for name, marker, code in [('设计/check.py', 'design', design_exit),
                                ('tools/check_docs.py', 'docs', 0), ('tools/check_modules.py', 'modules', 0),
-                               ('tools/selfcheck.py', 'selfcheck', 0)]:
+                               ('tools/reading_budget.py', 'budget', 0), ('tools/selfcheck.py', 'selfcheck', 0)]:
         script = path / name
         script.parent.mkdir(parents=True, exist_ok=True)
         script.write_text(f'print("{marker}", flush=True)\nraise SystemExit({code})\n', encoding='utf-8')
@@ -49,7 +49,7 @@ def test_default_check_does_not_launch_pytest_or_selfcheck(tmp_path, skill):
     (path / 'tests/test_selected.py').write_text('def test_selected():\n    assert False\n', encoding='utf-8')
     result, report = run(path, skill=skill)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert report['status'] == 'passed' and len(report['steps']) == 3
+    assert report['status'] == 'passed' and len(report['steps']) == 4
     assert all(step['exitCode'] == 0 for step in report['steps'])
     assert 'selfcheck' not in result.stdout and 'test session starts' not in result.stdout
 
@@ -59,9 +59,9 @@ def test_focused_check_runs_only_the_selected_test(tmp_path):
     (path / 'tests/test_other.py').write_text('def test_other():\n    assert False\n', encoding='utf-8')
     result, report = run(path, '--tests', 'tests/test_selected.py::test_selected')
     assert result.returncode == 0, result.stdout + result.stderr
-    assert report['status'] == 'passed' and len(report['steps']) == 4
+    assert report['status'] == 'passed' and len(report['steps']) == 5
     assert '1 passed' in result.stdout and 'selfcheck' not in result.stdout
-    assert 'test_selected.py::test_selected' in (path / 'result/04.log').read_text(encoding='utf-8')
+    assert 'test_selected.py::test_selected' in (path / 'result' / report['steps'][-1]['log']).read_text(encoding='utf-8')
 
 
 def test_module_check_runs_the_module_interface_column(tmp_path):
@@ -75,7 +75,7 @@ def test_module_check_runs_the_module_interface_column(tmp_path):
     (path / 'tests/test_other.py').write_text('def test_other():\n    assert False\n', encoding='utf-8')
     result, report = run(path, '--module', '钱包')
     assert result.returncode == 0, result.stdout + result.stderr
-    assert report['status'] == 'passed' and len(report['steps']) == 4
+    assert report['status'] == 'passed' and len(report['steps']) == 5
     assert '1 passed' in result.stdout and 'Module tests:' in result.stdout
     unknown = subprocess.run(command(path, '--module', '不存在'), capture_output=True, text=True, encoding='utf-8')
     assert unknown.returncode == 2 and 'Unknown module' in unknown.stderr
@@ -85,13 +85,13 @@ def test_explicit_full_check_runs_all_four_gates(tmp_path):
     path = repository(tmp_path)
     result, report = run(path, '--full')
     assert result.returncode == 0, result.stdout + result.stderr
-    assert report['status'] == 'passed' and len(report['steps']) == 5
+    assert report['status'] == 'passed' and len(report['steps']) == 6
     assert '2 passed' in result.stdout and 'selfcheck' in result.stdout
     assert all(step['exitCode'] == 0 and step['seconds'] >= 0 for step in report['steps'])
-    assert '--durations=20' in report['steps'][3]['command']
+    assert '--durations=20' in report['steps'][4]['command']
     cases = ET.parse(path / 'result/pytest.xml').findall('.//testcase')
     assert len(cases) == 2 and all(float(case.attrib['time']) >= 0 for case in cases)
-    assert '--basetemp=' + str(path / 'result/pytest-work') in report['steps'][3]['command']
+    assert '--basetemp=' + str(path / 'result/pytest-work') in report['steps'][4]['command']
 
 
 def test_failure_preserves_real_exit_output_and_stops_later_gates(tmp_path):
@@ -136,15 +136,15 @@ def test_failed_pytest_stops_full_selfcheck_and_preserves_failure_details(tmp_pa
     (path / 'tests/test_selected.py').write_text('def test_selected():\n    assert False, "failure-detail"\n', encoding='utf-8')
     result, report = run(path, '--full')
     assert result.returncode == 1 and report['status'] == 'failed'
-    assert len(report['steps']) == 4 and report['steps'][-1]['exitCode'] == 1
-    assert report['finishedAt'] and 'failure-detail' in (path / 'result/04.log').read_text(encoding='utf-8')
+    assert len(report['steps']) == 5 and report['steps'][-1]['exitCode'] == 1
+    assert report['finishedAt'] and 'failure-detail' in (path / 'result' / report['steps'][-1]['log']).read_text(encoding='utf-8')
     assert ET.parse(path / 'result/pytest.xml').find('.//failure') is not None
     assert 'Running: Repository selfcheck' not in result.stdout
 
 
 def test_conflicting_scope_flags_fail_before_starting_checks(tmp_path):
     path = repository(tmp_path)
-    result = subprocess.run(command(path, '--full', '--tests', 'tests'), capture_output=True, text=True)
+    result = subprocess.run(command(path, '--full', '--tests', 'tests'), capture_output=True, text=True, encoding='utf-8')
     assert result.returncode == 2 and not (path / 'result').exists()
 
 
@@ -153,11 +153,11 @@ def test_existing_report_is_preserved_instead_of_overwritten(tmp_path):
     result, _ = run(path)
     assert result.returncode == 0
     before = (path / 'result/report.json').read_bytes()
-    second = subprocess.run(command(path), capture_output=True, text=True)
+    second = subprocess.run(command(path), capture_output=True, text=True, encoding='utf-8')
     assert second.returncode != 0 and (path / 'result/report.json').read_bytes() == before
 
 
 def test_invalid_committed_scope_fails_without_reporting_success(tmp_path):
     path = repository(tmp_path)
-    result = subprocess.run(command(path, '--changed-from', 'missing-base'), capture_output=True, text=True)
+    result = subprocess.run(command(path, '--changed-from', 'missing-base'), capture_output=True, text=True, encoding='utf-8')
     assert result.returncode == 2 and not (path / 'result').exists()

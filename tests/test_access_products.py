@@ -11,7 +11,8 @@ import zipfile
 import pytest
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.resident import ResidentRuntime
-from ioalab_sdk.runtime.__main__ import start,main
+from ioalab_sdk.access import main
+from ioalab_sdk.runtime import start
 from ioalab_sdk.runtime.files import private_json,read_json
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.protocol import RuntimeFault
@@ -115,7 +116,7 @@ def test_complete_role_operation_is_forwarded_without_alias_or_error_reclassific
     monkeypatch.setattr(module,'invoke',invoke)
     assert module.main([operation,'--config',str(config),'--args-file',str(arguments)])==(1 if status=='rejected' else 0)
     assert json.loads(capsys.readouterr().out)==expected
-    assert calls==[(python,['-m','ioalab_sdk.runtime','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
+    assert calls==[(python,['-m','ioalab_sdk.access','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
     assert json.loads(arguments.read_text())=={'request':'unchanged'} and not config.exists()
 
 
