@@ -6,7 +6,7 @@ description: 为开发和验收工具管理统一私有模型凭据来源及显�
 
 开发与验收工具统一读取 Git 忽略的 `.agents/llm_apikey`，调用与安全初始化复用 `tools/llm.py`。凭据内容不进入 Git、日志、命令参数或全局环境；不得输出私有源正文。
 
-统一源保留由 `.agents/newllmkey.txt`（字段 `key`、`url`）生成的 `default` 和原阿里云 `aliyun-tts` profile。用户在2026-11-10明确要求新Linux平台与官方服务改用原阿里云 key，因此本轮显式选 `aliyun-tts` 初始化这些实例；名称沿用，亦继续供配音使用。保留该 profile 的原空间 API 地址；不覆盖 `default` 或其他实例的选择。后续以用户最新明确选择为准，不把历史的“仅配音”限制继续套到本轮部署。
+统一源保留由 `.agents/newllmkey.txt`（字段 `key`、`url`）生成的 `default` 和原阿里云 `aliyun-tts` profile。profile 名是索引，用途以用户最新明确选择为准；用户已指定新Linux平台与官方服务使用原阿里云，初始化时显式选 `aliyun-tts`，不因名称含 tts 沿用旧的“仅配音”限制。保留该 profile 的原空间 API 地址，不覆盖 `default` 或其他实例的选择。
 
 私有源使用 `profiles` 对象，以操作者选择的名字索引模型对象；字段复用 deploy.configuration.model 的 `name`、`base_url`、`api_key` 与可选 `provider`。开发调用使用 `tools.llm.profile()` 或 `complete()`，不在每个工具重新解析秘密源。`python -m tools.llm --profile <名字> --root <实例根> --state <状态目录> --config-dir <配置目录>` 仅经既有 deploy.configure 显式初始化；name 在写入唯一平台 JSON 时转换为 llm.model，不生成旁路运行配置。
 

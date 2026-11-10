@@ -15,7 +15,7 @@
 
 按 DNS → TCP → TLS → HTTP 状态/结构 → 组件实际调用记录故障层次。用目标主机选定 profile 做低量无业务聊天及嵌入请求；错误只记类型、状态码、耗时，原正文与凭据留受限资料。同一输入本机成功、服务器失败，只能先认定路径/来源差异，不能猜定密钥失效或云防火墙故障。对照实际客户端栈；urllib、requests、httpx 的代理和CA行为不同。供应商切换须用户明确选择，保留原件，分别更新平台配置和所属九问工作区，不只改平台 key 后声称所有组件已切换。
 
-内部 CA 情况分别验证系统 curl、SDK/官方授权 HTTP 以及 WSS。`httpx.Client(trust_env=False)` 默认使用的 CA 集合可能不含系统新增 CA，且不能靠设置 `SSL_CERT_FILE` 就假定生效；当前 SDK账号/投递及官方管理员登录/授权已在源码显式传 `ssl.create_default_context()`，保留证书链/IP验证与直连。遇同类缺陷回源码和真实TLS成功/未知CA/错IP拒绝测试修复，不改已装venv的certifi文件，不关闭校验。
+内部 CA 情况分别验证系统 curl、SDK账号/投递、官方管理员登录/授权、服务方与助手的 A2C 异步 HTTP，以及 WSS。`httpx.Client` 和 `httpx.AsyncClient` 在 `trust_env=False` 时默认 CA 集合可能不含系统新增 CA，且不能靠设置 `SSL_CERT_FILE` 就假定生效。需要系统信任时在所属源码显式传 `verify=ssl.create_default_context()`，保持直连和证书链/IP验证；同步客户端修复不会自动覆盖 A2C 的异步客户端工厂。用实际客户端执行真实TLS成功、未知CA拒绝、错IP拒绝三类对照，不能只检查构造参数或改已装venv的certifi文件。源码测试通过与服务器已安装候选分别核对。
 
 本轮目标服务器曾对原供应商 HTTP 超时；用户改选原阿里云后，原空间端点的 `qwen3.7-flash` 聊天及 `text-embedding-v4` 嵌入直连均200。该结果仅是供应商连通证明，组件调用仍按下表独立验收，不把具体名称推广到其他 profile。
 
@@ -26,6 +26,8 @@
 | 平台 | 唯一 platform.json 的 llm 段经核心设置进入所属模型调用；例如注册中心 Discovery 的真实 A2X 树导航使用检索模型，向量退路另涉及嵌入模型 | 由部署 owner 选择已存在且无业务写效果的组件入口，记录实际走的模型模式、请求结果和候选/配置修订；树、字符或缓存退路不能算 LLM 成功。没有安全入口先报最小探针方案，不加临时 debug API |
 | 官方预置服务 | 部署配置投影模型，经公开 Workspace.prepare/upsert_model_resource 准备独立官方 Swarm；官方配置 host 保存其 command/data_dir/model selection，SDK经九问适配调用所属原版 Process 执行 | 经该已装配 Host 的公开 Process 做低量无业务问答，并核同工作区/选择键/宿主来源。只证明共享模型宿主通路；不签合同、授权预算、付款或宣称所有领域生产质量通过 |
 | 试用个人助手 | 普通本机个人助手使用其所属九问模型资源与产品Skill/SDK Host；Linux在线试用由 epoch bootstrap 配置本轮个人 Swarm 与SDK，调用只经本轮模型sidecar | 核本人的公开原生/Process调用、选中模型及所属SDK/Host关联。管理员助手的模型就绪不代替个人助手；原生UI/A2UI/可信确认与Skill完整业务另验，不能伪造真人批准 |
+
+官方账号已连接、服务已发布或已入索引，但 executionReady/accepting 仍为 false 时，先定位执行握手的具体客户端和异常链；服务状态中的 ConnectError 不足以认定模型供应商失败。区分平台HTTPS、A2C与模型供应商各段请求，避免因异步TLS问题反复换模型或重装。
 
 model.list、hostAvailable、executionReady、HTTP200 和 `/api/config` 的 llm 标记只证明相应配置或探针。`tools.llm.complete()` 直调只证明供应商连接，不能充当以上组件通路。每类保留脱敏调用回执、实际运行候选、结果/失败与未验证范围；无安全入口、实例正在停止或归属未知时保持待验，不发新模型任务制造成功。
 
