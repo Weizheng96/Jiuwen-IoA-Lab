@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import ssl
 import time
 import uuid
 
@@ -25,7 +26,7 @@ class AccountSession:
         self.home.mkdir(mode=0o700,parents=True,exist_ok=True)
         self.cache=LocalStore(self.home/'account.sqlite')
         if os.name!='nt':os.chmod(self.cache.path,0o600)
-        self.http=httpx.Client(timeout=120,trust_env=False)
+        self.http=httpx.Client(timeout=120,trust_env=False,verify=ssl.create_default_context())
         self.account={}
         self.allow_offline,self.verified=allow_offline,False
         try:

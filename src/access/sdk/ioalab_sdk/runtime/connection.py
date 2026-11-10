@@ -1,6 +1,7 @@
 """Resident WebSocket transport. Never invokes a model or repeats password login."""
 import json
 import random
+import ssl
 from collections import deque
 import threading
 import time
@@ -23,7 +24,8 @@ class AgentConnection:
         if set(self.actors)!=set(store.cursors()):
             raise ValueError('Connection identities must match the local instance')
         self._token=token if callable(token) else lambda:token
-        self.http = httpx.Client(base_url=self.base, timeout=10, trust_env=False)
+        self.http = httpx.Client(base_url=self.base, timeout=10, trust_env=False,
+                                 verify=ssl.create_default_context())
         self._stop = threading.Event()
         self._changed = threading.Condition()
         self._thread = None

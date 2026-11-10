@@ -12,7 +12,6 @@
 | deploy/upgrade.sh --config <同一初始JSON> | 从已同步的本地源码生成候选，排空、备份、切换及核验；不执行Git更新 |
 | python -m deploy status --state <目录> | 读取本部署及服务的真实状态，不安装、启动或修改业务 |
 | python -m deploy repair-bootstrap --state <原状态根> --operation <失败安装操作> | 在[初次启动的控制器修复](升级与修复.md#初次启动的控制器修复)边界内复用原候选，提交关联原失败操作的修复任务 |
-| python -m deploy bootstrap-upgrade --state <原状态根> --operation <失败安装操作> | 按下述未完成初装升级准入，从已同步的新来源构建真实新候选，显式导入原配置并续接首次bootstrap |
 
 以下受管安装默认运行根为/opt/ioalab-runtime，状态根为/var/lib/ioalab，配置根为/etc/ioalab；可用--root、--state、--config-dir显式选择。三根与源码目录互不嵌套。入口使用CPython3.11、systemd及统一cgroup v2，目标只有Linux x86_64。
 
@@ -25,7 +24,7 @@
 | 模块 | 唯一职责 |
 |---|---|
 | deploy.__main__ | 命令解析、发起/观察原任务及脱敏状态 |
-| deploy.installation | 固定安装/升级阶段及原操作记录；未完成初装升级仍复用既有构建、备份、激活及bootstrap，不另建安装引擎 |
+| deploy.installation | 固定安装/升级阶段及原操作记录；失败初装恢复按重部署与保留规则，不另建安装引擎 |
 | deploy.jobs | 本部署安装临时service的发起、原任务观察、准入和不可变父子请求关联 |
 | deploy.migrate_configuration | 受审旧输入的显式一次性导入和原件归档，只生成唯一平台JSON，不承担SDK登录或业务状态迁移 |
 | deploy.linux | 系统账号、角色目录/配置权限、systemd状态及内核控制组的窄操作 |
