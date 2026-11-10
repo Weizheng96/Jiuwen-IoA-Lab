@@ -8,7 +8,7 @@
 
 **验收环境：** 先完成[部署05](05-新Linux服务器部署与验收基线打通.md)的新 Linux 服务器部署，再基于该部署执行本票验收；连接信息仅从本机私有 `.agents/server_new.txt` 读取。老服务器不再使用，本机单元/静态检查及历史证据不能代替本轮服务器验收。
 
-**范围：** 部署[Linux受管安装](../接口/Linux受管安装.md)、[升级与修复](../接口/升级与修复.md)、[进程与数据](../接口/进程与数据.md)与[部署教程](../../../工程/部署.md)。排在开发准备专题“只保留 Linux 部署”之后；按 deployment 技能执行，每次远端操作须用户明确授权。
+**范围：** 部署[Linux受管安装](../接口/Linux受管安装.md)、[升级与修复](../接口/升级与修复.md)、[进程与数据](../接口/进程与数据.md)与[部署教程](../../../工程/部署.md)。开发准备中的“只保留 Linux 部署”已完成并归档至[变更表](../../../变更/README.md)；本票继续负责真实部署验收。按 deployment 技能执行，每次远端操作须用户明确授权。
 
 **定向测试：** deployment_lifecycle、deployment_upgrade_flow、deployment_repair、deployment_backup、linux_service_management、production_release、installed_upgrade、installed_deployment_probe
 
