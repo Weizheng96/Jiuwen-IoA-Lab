@@ -10,4 +10,4 @@
 | 宿主适配 | `src/hosts/jiuwen/ioalab_jiuwen/` | [接口](宿主适配/接口.md) · [依赖](宿主适配/依赖.md) · [实现](宿主适配/实现.md) |
 | SDK装配 | `src/access/sdk/ioalab_sdk/access.py` | [接口](SDK装配/接口.md) · [依赖](SDK装配/依赖.md) · [实现](SDK装配/实现.md) |
 
-组内依赖方向为 宿主适配、SDK装配 → 两角色端 → 共用运行时。为保持 `python -m ioalab_sdk.runtime` 不变，共用运行时 `__main__.main` 仍延迟委托 SDK装配，属已知偏离，见[票据](进展/12-SDK命令入口迁出共用运行时.md)。迁入顺序见[设计文档按模块重组](../../工程/专题/设计文档按模块重组.md)。
+组内依赖方向为 宿主适配、SDK装配 → 两角色端 → 共用运行时。为保持 `python -m ioalab_sdk.runtime` 不变，共用运行时 `__main__.main` 仍延迟委托 SDK装配，属已知偏离，见[票据](进展/12-SDK命令入口迁出共用运行时.md)。
