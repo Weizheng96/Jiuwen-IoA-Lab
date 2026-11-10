@@ -23,7 +23,7 @@ def released(home):
 class Shutdown:
     def __init__(self,deployment):
         self.platform=deployment.value['platform_url'].rstrip('/')
-        domains={d['account']:d for d in deployment.domains}
+        domains={d['account']:d for d in deployment.accounts}
         self.targets=[]
         for account,entry in deployment.state(prepared=True)['accounts'].items():
             home=data_directory(deployment.config_path(account),deployment.base(domains[account]))

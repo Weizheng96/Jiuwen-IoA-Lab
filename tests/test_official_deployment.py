@@ -83,6 +83,56 @@ def test_preparation_uploads_original_verifier_and_preserves_complete_configurat
     assert snapshot(deployment.home)==before
 
 
+def test_all_official_profiles_fit_one_client_with_shared_model_limit(platform,tmp_path):
+    path=tmp_path/'official.json'
+    private_json(path,{'platform_url':platform.s.base_url,'data_dir':'./single-client',
+                      'host':{'command':['unused-host'],'data_dir':'./swarm'}})
+    deployment=Deployment(path)
+    assert len(deployment.domains)==8 and len(deployment.accounts)==1
+    config=RuntimeConfig.from_mapping(deployment.config_path('ISP_001'),deployment.base(deployment.accounts[0]))
+    assert config.username=='ISP_001' and config.max_model_runs==4
+    assert len(config.identities)==52 and len({p['key'] for p in config.identities})==52
+
+
+def test_cross_domain_services_prepare_publish_and_restart_in_one_client(platform,tmp_path,monkeypatch):
+    wanted={'wechat-posts','regex-snippet'}
+    domains=[{**d,'services':[s for s in d['services'] if s['id'] in wanted]} for d in load_domains()]
+    monkeypatch.setattr(configuration,'load_domains',lambda:[deepcopy(d) for d in domains if d['services']])
+    path=tmp_path/'official.json'
+    private_json(path,{'platform_url':platform.s.base_url,'data_dir':'./cross-domain',
+                      'host':{'command':['unused-host'],'data_dir':'./swarm'}})
+    deployment=Deployment(path)
+    assert prepare(deployment)['accounts']==1
+    state=deployment.state(prepared=True)
+    assert set(state['accounts'])=={'ISP_001'}
+    entry=state['accounts']['ISP_001']
+    assert set(entry['services'])==wanted
+    assert len({p['agentId'] for p in entry['identities']})==2
+    authorize(deployment,admin(platform))
+    with active(deployment) as (runtime,ipc,account):
+        assert runtime.scheduler.status()['maxModelRuns']==4
+        current=tick(deployment,launch=False)
+        assert len(current['accounts'])==1 and len(current['accounts'][0]['services'])==2
+        assert all(i['current']['published'] or i.get('publication',{}).get('status')=='completed'
+                   for i in current['accounts'][0]['services'])
+    identities=deepcopy(entry['identities'])
+    assert prepare(deployment)['services']==2
+    assert deployment.state(prepared=True)['accounts']['ISP_001']['identities']==identities
+
+
+def test_old_multi_account_state_is_preserved_and_never_adopted(platform,tmp_path):
+    path=tmp_path/'official.json'
+    private_json(path,{'platform_url':platform.s.base_url,'data_dir':'./original-state',
+                      'host':{'command':['unused-host'],'data_dir':'./swarm'}})
+    deployment=Deployment(path)
+    old={'schema':1,'binding':'original-multi-account-binding','accounts':{'ISP_008':{'phase':'prepared'}}}
+    private_json(deployment.home/'state.json',old)
+    with deployment.lock():pass
+    before=snapshot(deployment.home)
+    with pytest.raises(RuntimeFault,match='preserve existing state'):prepare(deployment)
+    assert snapshot(deployment.home)==before
+
+
 def test_lost_upload_reply_resumes_same_operation_identity_and_login(platform,deployment,monkeypatch):
     from ioalab_services import preparation
     original=preparation.call;lost=[]

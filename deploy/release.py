@@ -139,9 +139,9 @@ def official_catalog(root, document):
         if not isinstance(domain, dict):
             raise ValueError('Invalid release catalog domain')
         account, services = domain.get('account'), domain.get('services')
-        if (not isinstance(account, str) or not account.strip() or account in accounts
+        if (not isinstance(account, str) or not account.strip()
                 or not isinstance(services, list) or not services):
-            raise ValueError('Invalid or duplicate release catalog account')
+            raise ValueError('Invalid release catalog account')
         ids = []
         for service in services:
             identifier = service.get('id') if isinstance(service, dict) else None
@@ -149,7 +149,7 @@ def official_catalog(root, document):
                 raise ValueError('Invalid or duplicate release catalog service')
             seen.add(identifier)
             ids.append(identifier)
-        accounts[account] = tuple(ids)
+        accounts[account] = (*accounts.get(account,()),*ids)
     return accounts
 
 

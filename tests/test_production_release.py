@@ -93,6 +93,15 @@ def resign(folder, value):
     return destination
 
 
+def test_release_catalog_combines_domains_of_one_account(source,tmp_path):
+    seed={'domains':[
+        {'account':'ISP_001','services':[{'id':'alpha'},{'id':'beta'}]},
+        {'account':'ISP_001','services':[{'id':'gamma'}]}]}
+    (source/'deploy/default-seed.json').write_text(json.dumps(seed),encoding='utf-8')
+    folder=release(source,tmp_path/'single-account')
+    assert release_module.official_catalog(folder,load(folder))=={'ISP_001':('alpha','beta','gamma')}
+
+
 @pytest.mark.parametrize('system,expected', [('Linux', 'linux-x86_64'), ('Windows', None), ('Darwin', None)])
 def test_release_target_is_linux_only(monkeypatch, system, expected):
     monkeypatch.setattr(release_module.platform, 'system', lambda: system)

@@ -35,8 +35,9 @@ class Deployment:
             raise RuntimeFault('invalid_input','Use explicit native tool names and permissions')
         self.tools=dict(tools);self.home=self.resolve(value['data_dir'])
         self.domains=restricted(load_domains(),services)
+        self.accounts=[{'account':self.domains[0]['account'],'services':[s for d in self.domains for s in d['services']]}]
         accounts=value.get('accounts',{})
-        if not isinstance(accounts,dict) or set(accounts)-{d['account'] for d in self.domains}:
+        if not isinstance(accounts,dict) or set(accounts)-{d['account'] for d in self.accounts}:
             raise RuntimeFault('invalid_input','Account overrides must name configured internal ISP accounts')
         for item in accounts.values():
             if not isinstance(item,dict) or set(item) not in ({'password'},{'password_env'}):
@@ -44,7 +45,7 @@ class Deployment:
         if len({name.casefold() for name in skills})!=len(skills):raise RuntimeFault('invalid_input','Business skill source names must be distinct ignoring case')
         self.binding=digest({**value,'data_dir':str(self.home),'host':self.host,'catalogDigest':digest({'domains':self.domains})})
         # Validate all RuntimeConfig-owned input before creating any local state.
-        for domain in self.domains:RuntimeConfig.from_mapping(self.config_path(domain['account']),self.base(domain))
+        for account in self.accounts:RuntimeConfig.from_mapping(self.config_path(account['account']),self.base(account))
 
     def resolve(self,value):
         if not isinstance(value,str) or not value.strip():raise RuntimeFault('invalid_input','An explicit local directory is required')
@@ -63,7 +64,7 @@ class Deployment:
                  'PROCESSOR_ARCHITECTURE','PROCESSOR_ARCHITEW6432','NUMBER_OF_PROCESSORS',
                  'APPDATA','LOCALAPPDATA','PROGRAMDATA','HOME','USERNAME','USER','LOGNAME','LANG','LC_ALL','A2C_CACHE_DIR','SSL_CERT_FILE','SSL_CERT_DIR',
                  'REQUESTS_CA_BUNDLE','HTTP_PROXY','HTTPS_PROXY','NO_PROXY'}
-        for domain in self.domains:
+        for domain in self.accounts:
             value=read_json(self.config_path(domain['account'])) if self.config_path(domain['account']).exists() else self.base(domain)
             if value.get('password_env'):allowed.add(value['password_env'].upper())
         return {**{key:value for key,value in os.environ.items() if key.upper() in allowed},'PYTHONUTF8':'1'}
@@ -75,7 +76,7 @@ class Deployment:
         return {'platform_url':self.value['platform_url'],'username':account,
                 **self.value.get('accounts',{}).get(account,{'password':account[-3:]}),
                 'data_dir':'./resident','identities':[{'key':s['id'],'role':'service','name':s['name']} for s in domain['services']],
-                'max_model_runs':self.value.get('max_model_runs',2),
+                'max_model_runs':self.value.get('max_model_runs',4),
                 'provider':{'require_publication_authorization':True,'services':{}}}
 
     def state(self,*,prepared=False):
@@ -83,7 +84,7 @@ class Deployment:
         result=read_json(path) if path.exists() else {'schema':1,'binding':self.binding,'accounts':{}}
         if result.get('schema')!=1 or result.get('binding')!=self.binding:
             raise RuntimeFault('configuration_changed','Deployment configuration changed; preserve existing state and configure deliberately')
-        for domain in self.domains:
+        for domain in self.accounts:
             entry=result['accounts'].get(domain['account'])
             if entry and entry.get('phase')=='prepared':
                 profiles={s['id'] for s in domain['services']};identities=entry.get('identities',[])
@@ -93,7 +94,7 @@ class Deployment:
                     {p.get('profile') for p in identities}!=profiles or len({p['agentId'] for p in identities})!=len(profiles) or
                     any(not isinstance(v,dict) or not isinstance(v.get('service'),dict) or v['service'].get('profile')!=key or not isinstance(v.get('execution'),dict) for key,v in entry['services'].items())):
                     raise RuntimeFault('not_ready','Original completed preparation is incomplete; preserve it and inspect the deployment state')
-        if prepared and (set(result['accounts'])!={d['account'] for d in self.domains} or any(a.get('phase')!='prepared' for a in result['accounts'].values())):
+        if prepared and (set(result['accounts'])!={d['account'] for d in self.accounts} or any(a.get('phase')!='prepared' for a in result['accounts'].values())):
             raise RuntimeFault('not_ready','Complete official prepare before authorizing or serving','prepare')
         return result
 

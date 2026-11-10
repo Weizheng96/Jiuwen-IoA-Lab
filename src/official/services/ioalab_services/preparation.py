@@ -13,7 +13,7 @@ from .profiles import prepare as service_configuration
 def prepare(deployment):
     with deployment.lock():
         state=deployment.state()
-        for domain in deployment.domains:
+        for domain in deployment.accounts:
             account=domain['account'];path=deployment.config_path(account)
             entry=state['accounts'].setdefault(account,{'phase':'preparing','services':{}})
             if entry['phase']=='prepared':

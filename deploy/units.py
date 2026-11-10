@@ -60,7 +60,7 @@ def plans(layout, *, administrator, core, trial=None):
             'environment':configuration/'official.env','after':['core'],
             'command':python(participant,'ioalab_services','serve','--config',configuration/'official.json'),
             'pre':[python(participant,'ioalab_sdk.runtime','login','--config',
-                          official/'accounts'/('ISP_'+str(i).zfill(3))/'config.json') for i in range(1,9)]}}
+                          official/'accounts/ISP_001/config.json')]}}
     if administrator:
         for key,module,after in (
             ('swarm-agent','jiuwenswarm.server.app_agentserver',[]),

@@ -25,6 +25,6 @@ def test_domain_files_shape():
 
 def test_seed_all_idempotent_and_taxonomy(platform):
     first=platform.ensure_seeded(); second=platform.ensure_seeded()
-    assert first==second and first['isp']==8 and first['isc']==10
+    assert first==second and first['isp']==1 and first['isc']==10
     assert len(platform.discovery.categories())>=8
     assert not hasattr(platform,'assistants') and not hasattr(platform,'services')

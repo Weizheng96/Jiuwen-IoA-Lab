@@ -13,22 +13,22 @@ from ioalab_services.catalog import definitions, materialize, seed_manifest
 PAYMENT = {'id': 'https://lab.example/pay', 'jwksUri': 'https://lab.example/pay/.well-known/jwks.json'}
 
 
-def test_same_type_candidates_share_one_official_account_and_duplicate_owners_fail(tmp_path,monkeypatch):
+def test_all_domains_share_one_official_account_and_invalid_owners_fail(tmp_path,monkeypatch):
     from ioalab_services import catalog
     domains=catalog.load_domains();mapping=catalog.account_of()
     assert len(domains)==8 and len(mapping)==52
     programming=next(domain for domain in domains if domain['slug']=='dev')
-    assert len(programming['services'])==10 and {mapping[service['id']] for service in programming['services']}=={'ISP_008'}
+    assert len(programming['services'])==10 and set(mapping.values())=={'ISP_001'}
     raw=json.loads(catalog.domain_files()[0].read_text(encoding='utf-8'))
     one=tmp_path/'one.json';two=tmp_path/'two.json'
     one.write_text(json.dumps(raw),encoding='utf-8')
     for duplicated in ('category','account'):
         other=deepcopy(raw);other['slug']='other'
-        if duplicated=='category':other['account']='ISP_999'
-        else:other['category']['id']='cat_other'
+        if duplicated=='account':
+            other['account']='ISP_999';other['category']['id']='cat_other'
         two.write_text(json.dumps(other),encoding='utf-8')
         monkeypatch.setattr(catalog,'domain_files',lambda:[one,two])
-        with pytest.raises(AssertionError,match='账号'):catalog.load_domains()
+        with pytest.raises(AssertionError,match='分类' if duplicated=='category' else '账号'):catalog.load_domains()
 
 
 def test_all_owned_definitions_prepare_unsigned_templates_and_sample_free_execution(tmp_path):

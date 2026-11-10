@@ -83,7 +83,8 @@ def test_installed_commands_are_role_scoped_and_drain_without_kill():
     plans=units.plans(root,administrator=True,core={'bind':'127.0.0.1','port':8750,'public_url':'https://ioa.example'})
     rendered=units.render(root,DEPLOYMENT,plans)
     assert len(rendered)==6
-    assert len(plans['official']['pre'])==9
+    assert len(plans['official']['pre'])==2
+    assert plans['official']['pre'][1][-1]=='/var/lib/ioalab/agents/official/accounts/ISP_001/config.json'
     for key,row in plans.items():
         value=rendered[row['unit']]
         assert 'SendSIGKILL=no' in value

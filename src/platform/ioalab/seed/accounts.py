@@ -1,4 +1,4 @@
-"""内部账号：ISP_001…ISP_{N}（内部服务提供者，各负责一个领域）与 ISC_001…ISC_{M}（内部服务使用者）。
+"""内部账号：ISP_001…ISP_{N}（内部服务提供者，一个账号可覆盖多个领域）与 ISC_001…ISC_{M}（内部服务使用者）。
 
 密码 = 序号三位（001…）。N 来自显式部署种子清单；M = runtime.isc_count。
 幂等：按用户名判已存在。ISC 账号保持空闲，每次成功登录按普通账号规则获得额度。
@@ -11,9 +11,11 @@ def ensure_accounts(platform, *, domains=None) -> dict:
     if domains is None:
         from .domains import load_domains
         domains = load_domains(platform.s.seed_file)
+    accounts={}
     for domain in domains:
-        username = domain['account']
-        out["isp"].append(_ensure(platform, username, username[-3:], "isp", f"内部服务方 · {domain['label']}"))
+        accounts.setdefault(domain['account'],[]).append(domain['label'])
+    for username,labels in accounts.items():
+        out["isp"].append(_ensure(platform, username, username[-3:], "isp", '内部服务方 · '+'、'.join(labels)))
     for i in range(1, max(0, platform.s.isc_count) + 1):
         password=platform.s.assistant_password if i==1 and platform.s.assistant_password else f"{i:03d}"
         if i==1 and platform.s.open:

@@ -187,7 +187,7 @@ def validate(value):
     trial=trial_binding(value.get('trial'))
     trial_pair(path,trial)
     return {'platform_config':str(Path(path).absolute()),'pypi_index':mirror(url(index,'pypi_index')),
-        'max_model_runs':integer(value.get('max_model_runs',2),'max_model_runs',1,64),
+        'max_model_runs':integer(value.get('max_model_runs',4),'max_model_runs',1,64),
         'admin_assistant':admin_assistant(value.get('admin_assistant'),mode=source['mode']),
         'swarm_ports':swarm_ports(value.get('swarm_ports'),source['port']),
         'trial':trial}
