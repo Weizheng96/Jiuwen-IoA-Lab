@@ -16,7 +16,6 @@ import websockets
 from .coordinator import Denied
 
 
-COOKIE = '__Host-ioa_trial_native'
 HOP = {'connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade',
        'host','cookie','authorization','content-length','content-encoding','set-cookie','clear-site-data','origin'}
 

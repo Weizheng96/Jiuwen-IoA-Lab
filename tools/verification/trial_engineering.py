@@ -10,7 +10,7 @@ def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def run(action,config_path,state,inputs):
-    from ioalab_trial.sandbox import DockerSandbox
+    from ioalab_trial import DockerSandbox
     config_path=Path(config_path).resolve();state=Path(state).resolve()
     config=json.loads(config_path.read_text())
     if config.get('deployment_profile')!='linux-server' or not config['sandbox']['deployment'].endswith('-engineering'):
@@ -37,7 +37,7 @@ def run(action,config_path,state,inputs):
         if operation['phase']!='prepared':raise ValueError('Inspect partial engineering creation before proceeding')
         import httpx
         from websockets.sync.client import connect
-        from ioalab_trial.probe import has_assistant_skill
+        from ioalab_trial import has_assistant_skill
         ui=sandbox.ui(seat,epoch)
         response=httpx.get(ui+'/?user_id=trial',trust_env=False,timeout=10);response.raise_for_status()
         observations={'nativeHttp':{'status':response.status_code,'bodySha256':hashlib.sha256(response.content).hexdigest()}}

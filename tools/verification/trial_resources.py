@@ -19,9 +19,9 @@ def main():
     if not re.fullmatch(r'[a-z][a-z0-9-]{2,30}',args.deployment):parser.error('deployment must be an exact reviewed trial prefix')
     if not 1 <= args.seconds <= 3600:parser.error('seconds must be 1..3600')
     try:
-        from ioalab_trial.profile import capacity,DOCKER_COMMAND
+        from ioalab_trial import capacity,DOCKER_COMMAND
     except ModuleNotFoundError as exc:
-        if exc.name not in ('ioalab_trial','ioalab_trial.profile'):raise
+        if exc.name!='ioalab_trial':raise
         parser.error('Install the reviewed optional ioalab-trial wheel and run this script with /opt/ioalab-trial-controller/bin/python inside the Linux controller environment; see deploy/trial/README.md')
     seats=capacity(args.deployment_profile)
     until=time.monotonic()+args.seconds

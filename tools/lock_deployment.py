@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 from deploy.release import TARGETS, UNITS, pins
 from deploy.files import sha
-from deploy.dependencies import inputs
+from deploy.build import inputs
 
 
 def mirror(value):

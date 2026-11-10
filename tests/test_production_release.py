@@ -139,14 +139,14 @@ def test_participant_installed_catalog_matches_verified_release_ids(source,tmp_p
 sys.prefix=PREFIX
 versions=VERSIONS
 metadata.distributions=lambda:[types.SimpleNamespace(metadata={'Name':k},version=v) for k,v in versions.items()]
-for name in ('ioalab_sdk','ioalab_sdk.runtime','ioalab_sdk.runtime.resident','ioalab_jiuwen','ioalab_jiuwen.process','ioalab_services','ioalab_services.catalog','ioalab_admin_assistant','ioalab_admin_assistant.presets'):
+for name in ('ioalab_sdk','ioalab_sdk.runtime','ioalab_jiuwen','ioalab_services','ioalab_admin_assistant'):
  module=types.ModuleType(name);module.__path__=[];module.__file__=sys.prefix+'/'+name.replace('.','/')+'.py'
  sys.modules[name]=module
  if '.' in name:setattr(sys.modules[name.rsplit('.',1)[0]],name.rsplit('.',1)[1],module)
-sys.modules['ioalab_sdk.runtime.resident'].ResidentRuntime=object
-sys.modules['ioalab_jiuwen.process'].ProcessHost=object
-sys.modules['ioalab_services.catalog'].definitions=lambda:[{'id':item} for item in ACTUAL]
-sys.modules['ioalab_admin_assistant.presets'].load=lambda **kw:(None,['one','two'])
+sys.modules['ioalab_sdk.runtime'].ResidentRuntime=object
+sys.modules['ioalab_jiuwen'].ProcessHost=object
+sys.modules['ioalab_services'].definitions=lambda:[{'id':item} for item in ACTUAL]
+sys.modules['ioalab_admin_assistant'].load_presets=lambda **kw:(None,['one','two'])
 """.replace('PREFIX',repr(str(prefix))).replace('VERSIONS',repr(selected.versions)).replace('ACTUAL',repr(actual))
         result=subprocess.run([sys.executable,'-I','-c',bootstrap+args[1],*args[2:]],capture_output=True,text=True)
         if result.returncode:raise subprocess.CalledProcessError(result.returncode,result.args,output=result.stdout,stderr=result.stderr)

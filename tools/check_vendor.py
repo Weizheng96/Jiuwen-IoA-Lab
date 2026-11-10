@@ -5,7 +5,7 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from deploy.vendor import validate
+from deploy.build import validate
 
 
 if __name__=='__main__':

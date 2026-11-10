@@ -51,12 +51,12 @@ assert not set(actual)-set(expected)-{'pip','setuptools','wheel'}, 'Unexpected p
     if unit == 'core':
         checks += "from ioalab.config import Settings\nfrom ioalab.web.app import create_app\n"
     elif unit == 'participant':
-        checks += ("from ioalab_sdk.runtime.resident import ResidentRuntime\n"
-                   "from ioalab_jiuwen.process import ProcessHost\n"
-                   "from ioalab_services.catalog import definitions\n"
+        checks += ("from ioalab_sdk.runtime import ResidentRuntime\n"
+                   "from ioalab_jiuwen import ProcessHost\n"
+                   "from ioalab_services import definitions\n"
                    "services=[item['id'] for item in definitions()]\n"
                    "assert sorted(services)==" + repr(sorted(identifier for ids in catalog.values() for identifier in ids)) + ", 'Installed official catalog differs from the release declaration'\n"
-                   "from ioalab_admin_assistant.presets import load\nassert len(load(meetings=False)[1])==2\n")
+                   "from ioalab_admin_assistant import load_presets\nassert len(load_presets(meetings=False)[1])==2\n")
     else:
         checks += ("import jiuwenswarm,openjiuwen,sqlalchemy\n"
                    "distribution=metadata.distribution('workswarm')\n"
@@ -147,7 +147,7 @@ class Environment:
             raise RuntimeError('Environment readiness identity has changed')
         self.validate(state['attempt'], log)
         if self.unit == 'participant':
-            execute(python_in(environment), ['-c', "from ioalab_sdk.runtime.installation import current; import sys; assert current('ioalab-official')['releaseId']==sys.argv[1]", self.id], self.folder, log)
+            execute(python_in(environment), ['-c', "from ioalab_sdk.runtime import current; import sys; assert current('ioalab-official')['releaseId']==sys.argv[1]", self.id], self.folder, log)
         return environment
 
     def install(self, *, index='https://pypi.tuna.tsinghua.edu.cn/simple', retry_failed=False, verify=False):

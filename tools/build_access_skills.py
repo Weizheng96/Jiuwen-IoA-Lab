@@ -7,7 +7,7 @@ from build_requirements import constraints
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from deploy.skills import build
+from deploy.build import build_skills as build
 
 
 if __name__=='__main__':

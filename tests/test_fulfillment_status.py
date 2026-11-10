@@ -27,9 +27,9 @@ def step_status(monkeypatch):
         transport=SimpleNamespace(get_task=lambda *_:task),keys=SimpleNamespace(jwk=lambda *_:signer.jwk))
     role=SimpleNamespace(runtime=object(),store=SimpleNamespace(messages=lambda *_:[]),
         identity=SimpleNamespace(agent_id='urn:test:assistant'),
-        termination=SimpleNamespace(facts=lambda *_:{'terminated':True}))
+        termination=SimpleNamespace(facts=lambda *_:{'terminated':True}),cases=SimpleNamespace(saved=lambda *_:None))
     owner=Fulfillment(role)
-    monkeypatch.setattr(owner,'client',lambda _: (client,{'result':{'formed':True},'interactionId':'original-interaction'}))
+    monkeypatch.setattr(owner,'client',lambda _: (client,{'result':{'formed':True},'interactionId':'original-interaction','admissionId':'original-admission'}))
     return SimpleNamespace(owner=owner,client=client,task=task,card=card,record=record,request=request,signer=signer)
 
 

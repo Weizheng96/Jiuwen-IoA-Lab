@@ -275,9 +275,7 @@ class Installation:
 
     def sdk(self,operation,arguments):
         code='''import json,sys
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.__main__ import require_configuration
-from ioalab_sdk.runtime.ipc import LocalClient
+from ioalab_sdk.runtime import LocalClient, RuntimeConfig, require_configuration
 c=RuntimeConfig.load(sys.argv[1]);client=LocalClient(c.home,timeout=2)
 r=client.call('runtime.status')
 require_configuration(r['data'],c,assembly='ioalab-jiuwen')

@@ -201,10 +201,6 @@ class SessionTransport:
         code=error['code']
         return A2CError(code,error['message']) if code in CODES else A2CError(CARD_INVALID,'['+code+'] '+error['message'])
 
-    def payment_attempts(self,ref,purpose='installment',period=None):
-        from .payments import PaymentRecovery
-        return PaymentRecovery(self).attempts(ref,purpose,period)
-
     def payment_recovery(self,ref,period):
         from .payments import PaymentRecovery
         return PaymentRecovery(self).recovery(ref,period)

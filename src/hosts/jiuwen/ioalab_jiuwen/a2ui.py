@@ -26,16 +26,6 @@ def requirement_form():
                 {'key':name,'valueString':''} for name,_ in fields]}}]
 
 
-def requirement_values(event):
-    action=event.get('event',{}).get('userAction',{}) if isinstance(event,dict) else {}
-    if action.get('name')!='ioa_requirements_submit':raise ValueError('Not an IoA requirements event')
-    context=action.get('context')
-    allowed={'purpose','budget','proposalFeeLimit','carrier','requiredFeatures','materials','evidenceLevel'}
-    if not isinstance(context,dict) or set(context)-allowed or any(not isinstance(v,str) or len(v)>8000 for v in context.values()):
-        raise ValueError('Invalid ordinary requirement values')
-    return dict(context)
-
-
 def candidate_form(task_ref,candidates):
     """Project actual completed compare rows, with no approval or secret fields."""
     def check(value):

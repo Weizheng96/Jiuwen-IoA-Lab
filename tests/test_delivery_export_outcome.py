@@ -41,6 +41,7 @@ def harness(tmp_path,monkeypatch):
     lifecycle.identity=SimpleNamespace(agent_id=ACTOR)
     lifecycle.runtime=SimpleNamespace(config=SimpleNamespace(home=home),require_execution=lambda:None)
     lifecycle.namespace='fulfillment:'+ACTOR
+    lifecycle.role=SimpleNamespace(cases=SimpleNamespace(require_open=lambda *_:None))  # no open arbitration case
     lifecycle.client=lambda _: (protocol,contract)
     records={'operation':record}
     lifecycle.record=lambda operation:records[operation]

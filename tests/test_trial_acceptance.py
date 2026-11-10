@@ -53,7 +53,7 @@ def test_recorder_rejects_new_program_inputs_and_plain_boolean_claims(tmp_path):
 
 
 def test_engineering_epoch_is_never_allocated_and_partial_creation_not_retried(tmp_path,monkeypatch):
-    from ioalab_trial import sandbox
+    import ioalab_trial as sandbox  # the tool imports DockerSandbox from the package entry
     path=Path(__file__).parents[1]/'tools/verification/trial_engineering.py'
     spec=importlib.util.spec_from_file_location('trial_engineering_tool',path)
     tool=importlib.util.module_from_spec(spec);spec.loader.exec_module(tool)
@@ -83,7 +83,7 @@ def test_engineering_epoch_is_never_allocated_and_partial_creation_not_retried(t
 
 def test_engineering_observe_uses_real_local_skill_list_contract(tmp_path,monkeypatch):
     import httpx,websockets.sync.client
-    from ioalab_trial import sandbox
+    import ioalab_trial as sandbox  # the tool imports DockerSandbox from the package entry
     path=Path(__file__).parents[1]/'tools/verification/trial_engineering.py'
     spec=importlib.util.spec_from_file_location('trial_engineering_observe_tool',path)
     tool=importlib.util.module_from_spec(spec);spec.loader.exec_module(tool)

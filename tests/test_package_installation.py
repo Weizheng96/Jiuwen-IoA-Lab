@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import sysconfig
 import venv
 import shutil
 import zipfile
@@ -72,6 +73,10 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
     venv.EnvBuilder(with_pip=True).create(environment)
     python = environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
     run([str(python),'-m','pip','install','--no-index','--no-deps',*[str(p) for p in wheels.glob('*.whl')]], tmp_path)
+    # Package entries import their third-party dependencies; borrow them from the checkout's
+    # environment after the installed site, so own modules and resources still load from the wheels.
+    purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
+    Path(purelib,'zz-third-party.pth').write_text(sysconfig.get_paths()['purelib']+'\n',encoding='utf-8')
     output = run([str(python),'-I','-c', '''
 import importlib.metadata as m, importlib.resources as r, json
 import ioalab.config as core_config

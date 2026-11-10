@@ -8,9 +8,9 @@ import shutil
 import tempfile
 import zipfile
 
-from . import skills
 from .dependencies import inputs
 from .release import FORMAT, TARGETS, UNITS, digest, file_record, load, read_json, wheel_metadata
+from .skills import build as build_skills
 from .files import sha
 from .vendor import validate
 from .wheels import build_wheel
@@ -107,7 +107,7 @@ def build(output, target, *, root=ROOT):
     with tempfile.TemporaryDirectory(prefix='.ioa-build-', dir=output) as temporary:
         work = Path(temporary)
         wheels = build_wheels(root, work / 'input-wheels')
-        skills.build(work / 'skills', root=root)
+        build_skills(work / 'skills', root=root)
         folder = work / 'release'
         folder.mkdir()
         document = assemble(root, folder, target, root / 'deploy/locks' / target, wheels, work / 'skills')

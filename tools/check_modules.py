@@ -69,6 +69,10 @@ CONVERGED = {
     "服务方端": PACKAGE,
     "宿主适配": PACKAGE,
     "SDK装配": FILES,
+    "官方服务": PACKAGE,
+    "管理员助手": PACKAGE,
+    "在线试用": PACKAGE,
+    "部署": FILES,
 }
 
 

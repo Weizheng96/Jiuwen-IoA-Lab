@@ -207,7 +207,7 @@ skill 引用另外配置 disputeModels 为 ''' + json.dumps(verifier['disputeMod
 def production_document(value):
     validate(value, 'miniapp')
     original = _scene_definitions()[value['id']]
-    from ioalab_services.programming import production_document as owned_document
+    from ioalab_services import production_document as owned_document
     return ('# ' + value['name'] + '：真实生产\n\n' + owned_document(original)
             + '\n仅在production阶段按已确认合同生产，不使用样件。先核全部必需材料和authorizableSteps；'
               '需要环节时provider.task.request_step等待真实granted，不替用户同意。'
