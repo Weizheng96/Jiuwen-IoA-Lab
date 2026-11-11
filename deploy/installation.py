@@ -49,7 +49,26 @@ def execution_leases(layout,*,administrator):
     for name in sorted(accounts):
         if not re.fullmatch(r'ISP_\d{3}',name):raise RuntimeError('Restore the original official account names')
         configs.append(home/'accounts'/name/'config.json')
-    if administrator:configs.append(layout.state/'agents/admin-assistant/config.json')
+    if administrator:
+        config=layout.state/'agents/admin-assistant/config.json'
+        if config.exists():
+            configs.append(config)
+        else:
+            # An explicitly replaced instance has no new SDK config yet. Prove
+            # the old writer is released using its real archived execution lock.
+            replacement=read_json(path_without_links(layout.private/'replace-admin-assistant.json'))
+            metadata=read_json(path_without_links(layout.private/'installation.json'))
+            archive=path_without_links(layout.private/'retired-isc-assistant')
+            original=read_json(archive/'runtime/config.json')
+            preparation=read_json(archive/'preparation/state.json')
+            if (replacement.get('deploymentId')!=layout.inspect()['deploymentId']
+                    or replacement.get('phase')!='completed' or metadata.get('administratorPrepared') is not False
+                    or metadata.get('administratorAccount')!='admin' or config.parent.exists()
+                    or original.get('username')!='ISC_001'
+                    or Path(original.get('data_dir',''))!=config.parent/'resident'
+                    or preparation.get('identity',{}).get('agentId')!=replacement.get('agentId')):
+                raise RuntimeError('Missing SDK configuration is not a verified fresh administrator replacement')
+            locks.append(archive/'runtime/resident/client.lock')
     for config in configs:
         value=read_json(path_without_links(config));directory=value.get('data_dir')
         if not isinstance(directory,str) or not directory:raise RuntimeError('Restore the original participant state mapping')

@@ -48,3 +48,30 @@ def test_replacement_resumes_a_partial_archive_without_copying_old_identity(tmp_
     retire=[c for c in calls if 'retire-admin-assistant' in c]
     assert len(retire)==1
     assert administrator.replace(layout)['replacement']=='already_completed'
+
+
+def test_replacement_fence_takes_archived_execution_lock_before_new_config_exists(tmp_path):
+    from deploy.installation import execution_leases
+    from deploy.files import writer
+    state=tmp_path/'state';private=state/'.deployment';config=tmp_path/'config'
+    official=state/'agents/official'
+    archive=private/'retired-isc-assistant'
+    for directory in (config/'agents',official/'accounts/ISP_001',official/'resident',archive/'runtime/resident',archive/'preparation'):
+        directory.mkdir(parents=True)
+    save(config/'agents/official.json',{'data_dir':str(official)})
+    save(official/'state.json',{'accounts':{'ISP_001':{}}})
+    save(official/'accounts/ISP_001/config.json',{'data_dir':str(official/'resident')})
+    save(archive/'runtime/config.json',{'username':'ISC_001','data_dir':str(state/'agents/admin-assistant/resident')})
+    save(archive/'preparation/state.json',{'identity':{'agentId':'original-actor'}})
+    save(private/'replace-admin-assistant.json',{'deploymentId':'owned','phase':'completed','agentId':'original-actor'})
+    save(private/'installation.json',{'administratorPrepared':False,'administratorAccount':'admin'})
+    old_lock=archive/'runtime/resident/client.lock'
+    for path in (official/'deployment.lock',official/'resident/client.lock',old_lock):path.write_bytes(b'0')
+    layout=SimpleNamespace(config=config,state=state,private=private,inspect=lambda:{'deploymentId':'owned'})
+    with execution_leases(layout,administrator=True):pass
+    with writer(old_lock):
+        with pytest.raises((OSError,RuntimeError)):
+            with execution_leases(layout,administrator=True):pass
+    (state/'agents/admin-assistant').mkdir()
+    with pytest.raises(RuntimeError,match='verified fresh'):
+        with execution_leases(layout,administrator=True):pass
