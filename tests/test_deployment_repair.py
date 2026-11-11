@@ -286,10 +286,11 @@ def test_actual_installation_run_reuses_bootstrap_and_records_real_completion(su
     assert saved[-1]['lastReadiness']==readiness and saved[-1]['verifiedAt']
 
 
-def test_repair_actual_readiness_requires_every_initial_service_available(monkeypatch):
+@pytest.mark.parametrize('action',['install','repair-bootstrap','test-reset'])
+def test_repair_actual_readiness_requires_every_initial_service_available(monkeypatch,action):
     from deploy import installation
     installer=object.__new__(installation.Installation)
-    installer.request={'action':'repair-bootstrap'}
+    installer.request={'action':action}
     installer.progress={'requiredRunning':['official'],'candidate':{'release':'/original-release'}}
     installer.plans={'official':{'unit':'ioalab-official.service'}}
     installer.manager=SimpleNamespace(ready=lambda _:{'ActiveState':'active','UnitFileState':'enabled'})

@@ -50,7 +50,7 @@ class Job:
         self.system=Systemd(self.owner,{},lambda:None)
 
     def create(self,action,source,input_digest,*,repair=None):
-        if action not in ('install','upgrade','repair-bootstrap'):raise ValueError('Use an explicit installation action')
+        if action not in ('install','upgrade','repair-bootstrap','test-reset'):raise ValueError('Use an explicit installation action')
         if (action=='repair-bootstrap')!=isinstance(repair,dict):
             raise ValueError('Only a bootstrap repair carries an explicit original operation')
         self.folder.mkdir(mode=0o700,parents=True,exist_ok=True)

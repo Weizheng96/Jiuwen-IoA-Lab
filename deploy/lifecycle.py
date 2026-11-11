@@ -12,6 +12,37 @@ from .linux import Systemd
 from .release import read_json
 
 
+def runtime_leases(layout,plans):
+    # Reuse actual execution ownership checks, never inspect SDK business DBs.
+    from .installation import execution_leases
+    stack=ExitStack()
+    try:
+        trial=plans.get('trial')
+        if trial:
+            config=Path(trial['command'][-1]);value=read_json(regular_file(config))
+            control=Path(value['control_directory'])
+            if not control.is_absolute():raise RuntimeError('Use an absolute trial control directory')
+            receipt=read_json(regular_file(control/'shutdown.json'))
+            if (receipt.get('configSha256')!=hashlib.sha256(config.read_bytes()).hexdigest()
+                    or receipt.get('allEpochResourcesStopped') is not True):
+                raise RuntimeError('Trial epoch resource shutdown has not been verified')
+            from .processes import child_environment
+            result=subprocess.run([*trial['command'],'--verify-stopped'],env=child_environment(),
+                capture_output=True,text=True,timeout=180)
+            try:observed=json.loads(result.stdout)
+            except ValueError:observed={}
+            if result.returncode or observed.get('allEpochResourcesStopped') is not True:
+                raise RuntimeError('Current trial epoch resources are not verified stopped')
+            stack.enter_context(writer(control/'coordinator.lock'))
+        stack.enter_context(execution_leases(layout,administrator='assistant' in plans))
+        core=layout.state/'core/.core.lock'
+        if not core.is_file():raise RuntimeError('Original core execution lock is unavailable')
+        stack.enter_context(writer(core))
+        return stack
+    except BaseException:stack.close();raise
+
+
+
 class Lifecycle:
     def __init__(self,layout):
         self.layout=layout;self.owner=layout.inspect()['deploymentId']
@@ -27,33 +58,7 @@ class Lifecycle:
         self.path=layout.private/'lifecycle.json'
 
     def leases(self):
-        # Reuse actual execution ownership checks, never inspect SDK business DBs.
-        from .installation import execution_leases
-        stack=ExitStack()
-        try:
-            trial=self.plans.get('trial')
-            if trial:
-                config=Path(trial['command'][-1]);value=read_json(regular_file(config))
-                control=Path(value['control_directory'])
-                if not control.is_absolute():raise RuntimeError('Use an absolute trial control directory')
-                receipt=read_json(regular_file(control/'shutdown.json'))
-                if (receipt.get('configSha256')!=hashlib.sha256(config.read_bytes()).hexdigest()
-                        or receipt.get('allEpochResourcesStopped') is not True):
-                    raise RuntimeError('Trial epoch resource shutdown has not been verified')
-                from .processes import child_environment
-                result=subprocess.run([*trial['command'],'--verify-stopped'],env=child_environment(),
-                    capture_output=True,text=True,timeout=180)
-                try:observed=json.loads(result.stdout)
-                except ValueError:observed={}
-                if result.returncode or observed.get('allEpochResourcesStopped') is not True:
-                    raise RuntimeError('Current trial epoch resources are not verified stopped')
-                stack.enter_context(writer(control/'coordinator.lock'))
-            stack.enter_context(execution_leases(self.layout,administrator='assistant' in self.plans))
-            core=self.layout.state/'core/.core.lock'
-            if not core.is_file():raise RuntimeError('Original core execution lock is unavailable')
-            stack.enter_context(writer(core))
-            return stack
-        except BaseException:stack.close();raise
+        return runtime_leases(self.layout,self.plans)
 
     def status(self):
         rows={name:self.manager.ready(name) for name in self.metadata['units']}
