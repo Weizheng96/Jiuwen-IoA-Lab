@@ -5,8 +5,8 @@ import uuid
 
 from a2c.errors import A2CError
 
-from ..adapters.transport import stable
-from ..runtime.protocol import RuntimeFault
+from ..adapters import stable
+from ..runtime import RuntimeFault
 
 
 class ProviderTasks:

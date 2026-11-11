@@ -3,19 +3,19 @@ import threading
 import time
 import httpx
 
-from a2c.binding import A2ATransport
+
 from a2c.common import Directory
 from a2c.codec import parse_time,utcnow
 from a2c.provider import Provider
 from a2c.payment.ap2 import AP2Payment
 from a2c.errors import A2CError
 from a2c.slots import verify_template
-from ..adapters import ProtocolStore,SessionTransport
-from ..adapters.endpoint import EndpointSession
-from ..adapters.transport import stable
-from ..runtime.protocol import RuntimeFault,instant,stamp,encode
-from ..runtime.scheduling import JobHandler,JobOutcome
-from ..runtime.observations import model_port
+from ..adapters import ProtocolStore,SessionTransport,PublicTransport
+from ..adapters import EndpointSession
+from ..adapters import stable
+from ..runtime import RuntimeFault,instant,stamp,encode
+from ..runtime import JobHandler,JobOutcome
+from ..runtime import model_port
 from .policy import HostPolicy
 
 
@@ -26,7 +26,7 @@ class ProviderExecution:
         self.configs=validate_provider(runtime.config.provider,runtime.config.identities)
         self.stop=threading.Event();self.changed=threading.Event();self.thread=None
         self.active=set();self.contexts={};self.lock=threading.RLock()
-        self.public=A2ATransport(http=lambda:httpx.AsyncClient(timeout=20,trust_env=False))
+        self.public=PublicTransport(self.runtime.account.network)
         self.published={};self.refresh=set(self.configs)
         self.errors={}
         from .admission import AdmissionPolicy
@@ -37,12 +37,15 @@ class ProviderExecution:
         self.tasks=ProviderTasks(self)
         from .termination import Termination
         self.termination=Termination(self)
+        from .arbitration import Rulings
+        self.rulings=Rulings(self)
 
     def bind(self):
         if not self.role.identities:return {}
         return {'jobs':{'provider.a2c':JobHandler(self.run,'provider-a2c-v1',True,self.model_available),
                         'provider.control':JobHandler(self.run,'provider-control-v1',False,control=True),
                         'provider.settlement':JobHandler(self.termination.run,'provider-settlement-v1',False,control=True),
+                        'provider.arbitration':JobHandler(self.rulings.run,'provider-arbitration-v1',False,control=True),
                         'provider.production':JobHandler(self.production.run,'provider-production-v1',True,self.model_available)},'profiles':list(self.configs)}
 
     def business_tools(self,profile,expected=None):
@@ -91,7 +94,6 @@ class ProviderExecution:
 
     def close(self):
         self.quiesce()
-        self.public.close()
 
     def listen(self):
         while not self.stop.is_set():
@@ -132,9 +134,10 @@ class ProviderExecution:
         for profile,identity in self.role.identities.items():
             for frame in self.runtime.store.messages(identity.agent_id):
                 value=frame['message'];kind=value.get('kind')
-                if value.get('payloadAvailable') is False or kind not in ('delegation.intent','a2c.request'):continue
+                if value.get('payloadAvailable') is False or kind not in ('delegation.intent','a2c.request','contract.ruling'):continue
                 try:
-                    if kind=='delegation.intent':
+                    if kind=='contract.ruling':self.rulings.notice(identity,value)
+                    elif kind=='delegation.intent':
                         if self.ready(profile):self.intent(identity,value)
                     else:self.schedule(identity,value)
                 except RuntimeFault as exc:
@@ -144,6 +147,7 @@ class ProviderExecution:
                 except httpx.HTTPError:self.errors[value['messageId']]={'code':'platform_unavailable'}
         for endpoint in list(self.contexts.values()):
             try:
+                if self.rulings.check(endpoint):self.rulings.advance(endpoint);continue
                 self.termination.advance(endpoint)
                 self.production.advance(endpoint)
             except (RuntimeFault,A2CError,httpx.HTTPError) as exc:self.errors[endpoint.interaction]={'code':getattr(exc,'code','platform_unavailable')}

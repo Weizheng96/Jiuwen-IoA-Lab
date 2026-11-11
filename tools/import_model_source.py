@@ -25,7 +25,7 @@ def protect(path):
 
 
 def import_csv(source,*,name,model,destination=SOURCE):
-    from deploy.workspace import path_without_links
+    from deploy.files import path_without_links
     from deploy.configuration import model as validate_model
     created=False
     try:

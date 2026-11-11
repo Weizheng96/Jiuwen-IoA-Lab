@@ -8,7 +8,7 @@ import unicodedata
 import uuid
 
 from a2c.codec import digest_bytes
-from ..runtime.files import restrict
+from ..runtime import restrict
 
 
 def safe_names(names):

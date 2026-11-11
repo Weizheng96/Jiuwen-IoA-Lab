@@ -7,11 +7,11 @@ import sys
 
 from a2c.codec import digest,fmt_time,parse_time
 from ioalab_sdk.provider import publication_terms
-from ioalab_sdk.runtime.__main__ import start,require_configuration
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_json,read_json
-from ioalab_sdk.runtime.ipc import LocalClient,public_error
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime import start,require_configuration
+from ioalab_sdk.runtime import RuntimeConfig
+from ioalab_sdk.runtime import private_json,read_json
+from ioalab_sdk.runtime import LocalClient,public_error
+from ioalab_sdk.runtime import RuntimeFault
 
 
 def connected(deployment,account,*,launch):

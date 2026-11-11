@@ -1,7 +1,9 @@
-"""Coverage-preserving test plans; execution stays in the repository check runner.
+"""Two measured test layers; execution stays in the repository check runner.
 
-First keeps every existing matrix until a reviewed equivalent replaces it.
-Module diagnostics expand whole files, never QUICK_CASES representative samples.
+fast: every test not listed in tests/chain_layer.json. chain: the listed whole-chain,
+real-process and opt-in host/model functions. Module diagnostics expand whole files,
+never representative samples. The manifest is maintained from real pytest.xml timings
+with --audit; it is advisory and never edits the manifest itself.
 """
 from __future__ import annotations
 
@@ -11,6 +13,8 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
+MANIFEST = 'tests/chain_layer.json'
+LAYERS = {'fast': ['-m', 'not chain'], 'chain': ['-m', 'chain']}
 
 # Reviewed replacements preserve each old scene's spec, original values and
 # negative assertions while sharing the identical immutable verifier package.
@@ -54,19 +58,101 @@ def inventory(root=ROOT):
     return modules
 
 
-def plan(*, module=None, root=ROOT):
+def test_functions(root=ROOT):
+    """Test file -> test function names; class methods are written Class::method."""
+    root = Path(root)
+    result = {}
+    for relative in inventory(root).values():
+        tree = ast.parse((root / relative).read_text(encoding='utf-8-sig'), filename=relative)
+        names = set()
+
+        def visit(body, prefix=''):
+            for node in body:
+                if isinstance(node, ast.ClassDef):
+                    visit(node.body, prefix + node.name + '::')
+                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith('test_'):
+                    names.add(prefix + node.name)
+
+        visit(tree.body)
+        result[relative] = names
+    return result
+
+
+def manifest(root=ROOT):
+    """The chain-layer manifest, validated against the real test functions; fails closed."""
+    path = Path(root) / MANIFEST
+    if not path.is_file():
+        raise ValueError('Missing layer manifest: ' + MANIFEST)
+    data = json.loads(path.read_text(encoding='utf-8'))
+    chain, threshold = data.get('chain'), data.get('thresholdSeconds')
+    if not isinstance(chain, dict) or isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or threshold <= 0:
+        raise ValueError(MANIFEST + ' must map test files to function names and give a positive thresholdSeconds')
+    known = test_functions(root)
+    unknown = []
+    for file, names in chain.items():
+        if not isinstance(names, list) or not names or not all(isinstance(name, str) for name in names):
+            unknown.append(file)
+            continue
+        unknown.extend(file + '::' + name for name in names if name not in known.get(file, ()))
+    if unknown:
+        shown = sorted(unknown)
+        raise ValueError(MANIFEST + ' lists tests that do not exist: ' + ', '.join(shown[:8]) +
+                         (f' and {len(shown) - 8} more' if len(shown) > 8 else ''))
+    return {'threshold': float(threshold), 'chain': {file: set(names) for file, names in chain.items()}}
+
+
+def plan(*, layer=None, module=None, root=ROOT):
     modules = inventory(root)
     if module is not None and module not in modules:
         raise ValueError('Unknown diagnostic module: ' + module)
-    targets = [modules[module]] if module is not None else list(modules.values())
-    return {'layer': 'diagnose' if module is not None else 'first',
-            'tests': targets,
-            'replacements': dict(APPROVED_REPLACEMENTS),
-            'replacementCoverage': REPLACEMENT_COVERAGE,
-            'diagnostics': {name: path for name, path in modules.items()},
-            'coverage': 'All effective coverage retained, including reviewed replacement mappings; no representative sampling.',
-            'limits': 'First has no unproven matrix reductions. Environment-gated tests remain gated; '
-                      'stage selfcheck and real deployment evidence are separate.'}
+    if layer is not None and layer not in LAYERS:
+        raise ValueError('Unknown layer: ' + str(layer))
+    result = {'replacements': dict(APPROVED_REPLACEMENTS), 'replacementCoverage': REPLACEMENT_COVERAGE,
+              'diagnostics': {name: path for name, path in modules.items()},
+              'coverage': 'All effective coverage retained, including reviewed replacement mappings; no representative sampling.',
+              'limits': 'Layers select by the measured manifest only. Environment-gated tests remain gated; '
+                        'stage selfcheck and real deployment evidence are separate.'}
+    if module is not None:
+        result.update(layer='diagnose', tests=[modules[module]], pytestArgs=[])
+    elif layer is not None:
+        listed = manifest(root)['chain']
+        result.update(layer=layer, tests=['tests'], pytestArgs=list(LAYERS[layer]),
+                      manifest={'files': len(listed), 'functions': sum(len(names) for names in listed.values())})
+    else:
+        result.update(layer='all', tests=list(modules.values()), pytestArgs=[])
+    return result
+
+
+def audit(report, root=ROOT):
+    """Compare real per-test timings with the manifest. Advisory output, no manifest edits."""
+    layer = manifest(root)
+    threshold = layer['threshold']
+    dotted = {path[:-3].replace('/', '.'): path for path in test_functions(root)}
+    measured, skipped = {}, set()
+    for case in ET.parse(report).iter('testcase'):
+        classname, name = case.get('classname', ''), case.get('name', '').split('[')[0]
+        for prefix, path in dotted.items():
+            if classname == prefix or classname.startswith(prefix + '.'):
+                classes = classname[len(prefix) + 1:].split('.') if classname != prefix else []
+                key = (path, '::'.join([*classes, name]))
+                break
+        else:
+            continue
+        if case.find('skipped') is not None:
+            skipped.add(key)
+            continue
+        measured[key] = max(measured.get(key, 0.0), float(case.get('time') or 0))
+    listed = {(file, name) for file, names in layer['chain'].items() for name in names}
+    return {
+        'threshold': threshold,
+        'unlistedSlow': sorted(f'{path}::{name} {seconds:.2f}s' for (path, name), seconds in measured.items()
+                               if seconds >= threshold and (path, name) not in listed),
+        'listedFast': sorted(f'{path}::{name} {measured[(path, name)]:.2f}s' for path, name in listed
+                             if (path, name) in measured and measured[(path, name)] < threshold / 2),
+        'unmeasured': sorted(f'{path}::{name}' for path, name in listed
+                             if (path, name) not in measured and (path, name) not in skipped),
+        'skipped': sorted(f'{path}::{name}' for path, name in listed if (path, name) in skipped),
+    }
 
 
 def failed_modules(report_dir, modules):
@@ -93,11 +179,14 @@ def failed_modules(report_dir, modules):
 def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--diagnose', metavar='MODULE')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--layer', choices=sorted(LAYERS))
+    group.add_argument('--diagnose', metavar='MODULE')
+    group.add_argument('--audit', metavar='PYTEST_XML', help='compare real timings with the manifest')
     args = parser.parse_args()
     try:
-        result = plan(module=args.diagnose)
-    except (ValueError, SyntaxError, OSError) as exc:
+        result = audit(args.audit) if args.audit else plan(layer=args.layer, module=args.diagnose)
+    except (ValueError, SyntaxError, OSError, ET.ParseError) as exc:
         parser.error(str(exc))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

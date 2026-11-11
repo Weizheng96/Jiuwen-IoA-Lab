@@ -63,8 +63,11 @@ def test_automatic_deadline_ruling_is_one_atomic_document_and_two_notices_withou
         assert platform.market.market.store.get('ledger',ref)['outcome']=='arbitrated'
         notices=platform.db.rows("SELECT * FROM delivery_messages WHERE interaction=? AND kind='contract.ruling'",value['assessment']['evidence']['interactionId'])
         assert {n['recipient'] for n in notices}=={actor(a),actor(p)} and len(notices)==2
-        assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='committed'
-        assert platform.db.one('SELECT state FROM delivery_interactions WHERE id=?',value['assessment']['evidence']['interactionId'])['state']=='open'
+        # The ruling itself releases nothing; the service SDK verifies it, drains and sends the finish receipt.
+        wait_for(lambda:platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='released')
+        assert platform.db.one('SELECT state FROM delivery_interactions WHERE id=?',value['assessment']['evidence']['interactionId'])['state']=='closed'
+        assert snapshot(platform,receipt['caseRef'])['execution']=='finished'
+        wait_for(lambda:a.modules[0].cases.saved(admission) is not None)  # The assistant consumed the notice by a verified read.
         assert platform.db.rows('SELECT * FROM payment_records')==money
         assert submit(a,due_payload(value))['caseRef']==receipt['caseRef']
         client,_=a.modules[0].fulfillment.client(ref)
@@ -225,3 +228,132 @@ def test_actual_previous_core_ends_before_unknown_or_known_result_recovery(tmp_p
         assert not calls
         ledger=restarted.market.market.store.get('ledger',ref)
         assert (ledger is not None) is known
+
+
+def finish(runtime,case_ref,admission,operation=None):
+    return runtime.connection.call(actor(runtime),'arbitration.finish',{'caseRef':case_ref,'admissionId':admission},operation_id=operation or uid())
+
+
+def test_ruled_service_finish_releases_once_only_after_convergence_and_actual_payables(platform,tmp_path,monkeypatch):
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        # Drive the platform receipt directly; the SDK's automatic finish is covered separately.
+        monkeypatch.setattr(p.modules[0].execution.rulings,'advance',lambda endpoint:None)
+        ref,admission=formed(a,candidate(a,p,t,task))
+        with monkeypatch.context() as patch:
+            patch.setattr(platform.arbitration_cases,'process_one',lambda:False)
+            receipt=submit(a,due(platform,a,admission,monkeypatch));case=receipt['caseRef']
+            with pytest.raises(RuntimeFault) as unruled:finish(p,case,admission)
+            assert unruled.value.code=='not_ready'
+        wait_for(lambda:snapshot(platform,case)['state']=='ruled')
+        row=platform.db.one('SELECT * FROM delegation_admissions WHERE id=?',admission);iid=row['interaction']
+        def kept():
+            assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='committed'
+            assert platform.db.one('SELECT state FROM delivery_interactions WHERE id=?',iid)['state']=='open'
+            assert snapshot(platform,case)['execution']=='pending'
+        with pytest.raises(RuntimeFault) as client:finish(a,case,admission)
+        assert client.value.code=='forbidden';kept()
+        with pytest.raises(RuntimeFault) as other:finish(p,case,uid())
+        assert other.value.code=='id_conflict';kept()
+        call=platform.db.one('SELECT message,state FROM delegation_protocol_calls WHERE admission=? LIMIT 1',admission)
+        platform.db.run("UPDATE delegation_protocol_calls SET state='working' WHERE message=?",call['message'])
+        try:
+            with pytest.raises(RuntimeFault) as running:finish(p,case,admission)
+            assert running.value.code=='not_ready';kept()
+        finally:platform.db.run('UPDATE delegation_protocol_calls SET state=? WHERE message=?',call['state'],call['message'])
+        from ioalab.errors import LabError
+        def unpaid(*args,**kwargs):raise LabError('not_ready','Actual required contract payment is missing',status=409,recovery='reconcile_original')
+        with monkeypatch.context() as patch:
+            patch.setattr(platform.psp,'require_contract_payments_in',unpaid)
+            with pytest.raises(RuntimeFault) as missing:finish(p,case,admission)
+            assert missing.value.code=='not_ready';kept()
+        def active():
+            with platform.db.lock:return platform.admissions.policy(platform.db.conn,actor(p))['active']
+        before=active();operation=uid()
+        done=finish(p,case,admission,operation)
+        assert done['released'] is True and done['execution']=='finished' and done['interactionId']==iid
+        assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='released'
+        assert platform.db.one('SELECT state FROM delivery_interactions WHERE id=?',iid)['state']=='closed'
+        assert active()==before-1
+        closed=platform.db.rows("SELECT envelope FROM delivery_messages WHERE interaction=? AND kind='interaction.closed'",iid)
+        assert len(closed)==2 and all(json.loads(n['envelope'])['body']['reason']=='ruling-finished' for n in closed)
+        assert finish(p,case,admission,operation)==done
+        again=finish(p,case,admission)
+        assert again['released'] is False and again['finishedAt']==done['finishedAt']
+        assert read(p,'/arbitrations/'+case,agentId=actor(p))['execution']=='finished'
+        assert platform.market.market.store.get('ledger',ref)['outcome']=='arbitrated'
+
+
+def test_service_sdk_recovers_a_missed_ruling_by_case_query_and_finishes_once(platform,tmp_path,monkeypatch):
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        ref,admission=formed(a,candidate(a,p,t,task));rulings=p.modules[0].execution.rulings
+        monkeypatch.setattr(rulings,'notice',lambda identity,message:None)
+        wait_for(lambda:any(endpoint.interaction in rulings.checked for endpoint in p.modules[0].execution.contexts.values()))
+        receipt=submit(a,due(platform,a,admission,monkeypatch));case=receipt['caseRef']
+        wait_for(lambda:snapshot(platform,case)['state']=='ruled')
+        endpoint=next(e for e in p.modules[0].execution.contexts.values() if e.provider.transport.admission==admission)
+        assert rulings.ruled(endpoint) is None
+        assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='committed'
+        rulings.checked.clear()  # A restarted process reads the current case once, without the notice.
+        wait_for(lambda:platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='released')
+        wait_for(lambda:(rulings.ruled(endpoint) or {}).get('finish'));saved=rulings.ruled(endpoint)
+        assert saved['caseRef']==case and saved['finish']['released'] is True and saved['finish']['caseRef']==case
+        assert snapshot(platform,case)['execution']=='finished'
+        wait_for(lambda:[job['state'] for job in p.scheduler.records(actor(p),('provider.arbitration',))]==['completed'])
+
+
+def test_assistant_reads_the_current_case_before_new_protected_contract_actions(platform,tmp_path,monkeypatch):
+    from ioalab_sdk.runtime.ipc import LocalClient
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        ref,admission=formed(a,candidate(a,p,t,task));local=LocalClient(a.config.home)
+        cases=a.modules[0].cases
+        monkeypatch.setattr(cases,'scan',lambda:None)  # A missed notice; only the case read stops the action.
+        import ioalab_sdk.assistant.arbitration as gate
+        def unreadable(*args,**kwargs):raise RuntimeFault('unknown_result','Case read did not complete','resume_original')
+        with monkeypatch.context() as patch:
+            patch.setattr(gate,'read_case',unreadable)
+            operation=uid();blocked=local.call('assistant.delegation.start',{'contractRef':ref},operation_id=operation)
+            assert blocked['error']['code']=='unknown_result'
+            assert a.store.checkpoint('fulfillment:'+actor(a),operation) is None
+        receipt=submit(a,due(platform,a,admission,monkeypatch));case=receipt['caseRef']
+        wait_for(lambda:snapshot(platform,case)['state']=='ruled')
+        assert cases.saved(admission) is None
+        for name,args in (('assistant.delegation.start',{'contractRef':ref}),('assistant.delegation.termination_quote',{'contractRef':ref}),
+                          ('assistant.delegation.terminate',{'contractRef':ref,'mode':'unilateral'})):
+            result=local.call(name,args)
+            assert result['status']!='completed' and result['error']['code']=='closed',(name,result)
+        assert cases.saved(admission)['caseRef']==case
+        status=local.call('assistant.delegation.status',{'contractRef':ref})
+        assert status['data']['arbitration']['caseRef']==case and status['data']['arbitration']['liable']=='provider'
+
+
+def test_service_finish_closes_late_rejections_and_interrupted_jobs_then_releases_once(platform,tmp_path,monkeypatch):
+    import ioalab_sdk.provider.arbitration as arbitration
+    from ioalab.errors import LabError
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        ref,admission=formed(a,candidate(a,p,t,task));connection=p.connection;original=connection.call;mode={'value':'late'}
+        monkeypatch.setattr(arbitration,'RETRY_SECONDS',.5)
+        def call(actor,kind,payload,*,operation_id=None,timeout=10):
+            if kind=='arbitration.finish' and mode['value']=='late':
+                connection.submit(actor,kind,payload,operation_id)  # Saved and sent, then the local wait times out.
+                raise RuntimeFault('unknown_result','Original operation is saved; resume it without changing its identity','resume_original')
+            if kind=='arbitration.finish' and mode['value']=='crash':raise RuntimeError('interrupted before the outbox')
+            return original(actor,kind,payload,operation_id=operation_id,timeout=timeout)
+        monkeypatch.setattr(connection,'call',call)
+        def unpaid(*args,**kwargs):raise LabError('not_ready','Actual required contract payment is missing',status=409,recovery='reconcile_original')
+        monkeypatch.setattr(platform.psp,'require_contract_payments_in',unpaid)
+        def errors():
+            return [((job['result'] and json.loads(job['result'])) or {}).get('error',{}).get('code') for job in
+                    p.scheduler.records(actor(p),('provider.arbitration',)) if job['state']=='rejected']
+        receipt=submit(a,due(platform,a,admission,monkeypatch));case=receipt['caseRef']
+        wait_for(lambda:'not_ready' in errors(),timeout=30)  # A late platform rejection closes the unknown job.
+        assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='committed'
+        mode['value']='crash';monkeypatch.setattr(platform.psp,'require_contract_payments_in',
+            type(platform.psp).require_contract_payments_in.__get__(platform.psp))
+        wait_for(lambda:'not_sent' in errors(),timeout=30)  # An interrupted job that never sent anything retries at once.
+        mode['value']=None
+        wait_for(lambda:platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',admission)['state']=='released',timeout=30)
+        endpoint=next(e for e in p.modules[0].execution.contexts.values() if e.provider.transport.admission==admission)
+        wait_for(lambda:(p.modules[0].execution.rulings.ruled(endpoint) or {}).get('finish'))
+        saved=p.modules[0].execution.rulings.ruled(endpoint)
+        assert saved['finish']['released'] is True and saved['attempt']>=3 and snapshot(platform,case)['execution']=='finished'
+        wait_for(lambda:[job['state'] for job in p.scheduler.records(actor(p),('provider.arbitration',))].count('completed')==1)

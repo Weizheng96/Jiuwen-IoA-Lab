@@ -6,7 +6,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src/official/services'))
-from ioalab_services.catalog import seed_manifest
+from ioalab_services import seed_manifest
 OUTPUT = ROOT / 'deploy/default-seed.json'
 
 

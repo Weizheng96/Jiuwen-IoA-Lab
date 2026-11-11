@@ -14,15 +14,16 @@ def execute(conn, script):
 
 
 def migrate(db):
-    from ..identity.migrations import migrate as identity
-    from ..payments.migrations import migrate as payments
-    from ..registry.migrations import migrate as registry
-    from ..delegation.migrations import migrate as delegation
-    from ..messaging.migrations import migrate as messaging
-    from ..observation.migrations import migrate as observation
+    from ..identity import migrate as identity
+    from ..payments import migrate as payments
+    from ..registry import migrate as registry
+    from ..delegation import migrate as delegation
+    from ..messaging import migrate as messaging
+    from ..observation import migrate as observation
     from ..storage import initialize_adapter
+    from ..events import migrate as events
     from ..files import migrate as files
     with db.tx() as conn:
         initialize_adapter(conn)
-        for component in (identity, payments, registry, delegation, messaging, observation, files):
+        for component in (identity, payments, registry, delegation, messaging, observation, events, files):
             component(conn)

@@ -14,6 +14,7 @@ from a2c.common import Reply
 from a2c.jws import Signer
 from a2c.payment import PaymentRejected
 from a2c.payment.ap2 import EcKey, checkout, checkout_mandate, payment_mandate, receipt
+from ioalab_sdk.adapters.payments import PaymentRecovery
 from ioalab_sdk.adapters.store import ProtocolStore
 from ioalab_sdk.adapters.transport import SessionTransport, stable
 from ioalab_sdk.runtime import RuntimeStore, RuntimeFault
@@ -133,7 +134,7 @@ def test_unknown_attempt_cannot_fork_a_different_body_under_another_parent(payme
     with p.transport.operation('new-pay'):
         with pytest.raises(RuntimeFault,match='original payment body'):p.transport.send('pay','ap2.pay',p.body())
     assert not p.calls and p.store.pending()[0]['id']==operation
-    assert len(p.transport.payment_attempts(p.ref,period=1))==1
+    assert len(PaymentRecovery(p.transport).attempts(p.ref,period=1))==1
 
 
 @pytest.mark.parametrize('change',[{'agentId':'foreign'},{'operation':'message.send'},{'outcome':'unknown'},
@@ -188,7 +189,7 @@ def test_new_body_attempt_in_one_parent_retains_the_original_rejected_checkpoint
         assert p.transport.control_receipt('ap2.pay')['payload']['ap2']==fresh
     assert p.calls[0][0]!=operation and p.calls[0][1]['ap2']==fresh
     assert p.store.checkpoint(p.transport.namespace,'control:pay-one:ap2.pay')==before
-    assert {item['bodyDigest'] for item in p.transport.payment_attempts(p.ref,period=1)}=={digest(old),digest(fresh)}
+    assert {item['bodyDigest'] for item in PaymentRecovery(p.transport).attempts(p.ref,period=1)}=={digest(old),digest(fresh)}
 
 
 def test_reconciliation_matches_the_original_key_and_every_upstream_attempt(payments):

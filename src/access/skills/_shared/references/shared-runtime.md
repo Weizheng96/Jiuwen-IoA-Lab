@@ -2,9 +2,9 @@
 
 触发：完成本机角色配置后安装、启动、诊断、停止或打开确认页。先用skill_tool读取location.md并确定唯一脚本路径；其余流程页也使用relative_file_path读取。
 
-配置文件路径直接传给脚本，不用read_file或终端查看正文；SDK会报告文件缺失、格式及配置缺项。普通接入从runtime.start开始；用户只要求预装依赖时必须用runtime.install，不用runtime.start，以免已安装时意外启动SDK。缺依赖时发起独立后台安装并快速返回，不需要延长九问终端时限。安装仅访问随包wheels和配置的国内镜像，不改九问或全局Python。两种技能共用同一依赖任务。
+Linux先核`python3.11 --version`及该解释器的venv可用，以下命令首项使用已核的`python3.11`或其绝对路径；Windows使用已核的`python`。不把Linux默认`python3`或九问venv中的同名程序当作CPython3.11；基础解释器版本冲突时按实际回执改用系统已安装的绝对Python3.11路径，不修改九问或全局Python。
 
-location.md已核为平台部署绑定的技能直接从`runtime.status`开始，不传`--config`；薄入口复用部署方原participant环境及原配置，校验失败明确停止，不回退安装或新建配置。以下普通导入命令在部署绑定时省略`--config`及其值即可；状态仍须分别核验，绑定存在不等于已连接或业务完成。部署方负责整套组件启停，技能不能因连接失败擅自重启九问。
+配置文件路径直接传给脚本，不用read_file或终端查看正文；SDK会报告文件缺失、格式及配置缺项。普通接入从runtime.start开始；用户只要求预装依赖时必须用runtime.install，不用runtime.start，以免已安装时意外启动SDK。缺依赖时发起独立后台安装并快速返回，不需要延长九问终端时限。安装仅访问随包wheels和配置的国内镜像，不改九问或全局Python。两种技能共用同一依赖任务。
 
 ```text
 python "<skill_directory>/scripts/ioalab.py" runtime.start --config "<外置配置文件>"
@@ -36,6 +36,8 @@ python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置�
 有效凭据可在当前SDK上用独立{}参数文件调用account.refresh；不赠币，失败不自动密码登录。先按实际状态区分认证、连接和宿主能力，不能通过登录重试修复模型或发布错误。
 
 两个角色默认共用~/.ioalab/settings.local.json，也可用同一个--config指定其他外置文件。配置不要放在技能目录或data_dir中；原生覆盖导入会替换技能目录。data_dir保管稳定身份、原Session和业务，依赖缓存是另一个目录，不得删除运行数据来修复安装。
+
+明确失败的安装仅在归属记录和实际安装锁核验后，经显式runtime.install归档原自有环境再新建；回执的retainedAttempt指向原attempt、日志和归档记录。查询与runtime.start不触发归档。旧环境缺归属、状态unknown、完成标记冲突或目录链接时保留原件并报告，不删除缓存、手工补pip或把其他目录认领为本次环境。
 
 需要九问辅助增加角色、业务能力或调整并发时，先runtime.install并等完成，再调用runtime.configuration --config "<外置配置文件>"取得configurationDigest、身份和可修改字段；不要读取设置正文。生成独立UTF-8 JSON文件，例如：
 

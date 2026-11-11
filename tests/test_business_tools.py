@@ -212,3 +212,45 @@ def test_resident_meeting_conflict_retry_same_uuid_session_and_real_smtp_capture
                         'hostRounds':len(host.turns),'messageJobs':len({turn.operation_id for turn in host.turns}),
                         'limits':['No external email delivery','No Outlook acceptance','No native web menu or new film proof']},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     finally:tools.close();capture.close()
+
+
+
+@pytest.mark.parametrize('available',[True,False])
+def test_resident_assembly_probes_before_tools_and_closes_runtime_first(monkeypatch,tmp_path,available):
+    """serve and the trial share this one assembly; order is fixed here."""
+    from types import SimpleNamespace
+    from ioalab_jiuwen import assembly as module
+    events=[]
+    config=SimpleNamespace(host={'command':['original'],'business_tools':['spec']},home=tmp_path,
+                           identities=[{'key':'personal','role':'assistant'},{'key':'svc','role':'service'}])
+    class Tools:
+        by_profile={'svc':{}}
+        def __init__(self,specs,identities,*,home,base_dir):events.append(('tools',specs,base_dir))
+        def for_profile(self,key):events.append(('profile',key));return {}
+        def status(self):return {}
+        def start(self):events.append('tools.start')
+        def close(self):events.append('tools.close')
+    class Host:
+        def capabilities(self):return {}
+        def probe(self):events.append('probe');return {'available':available}
+    class Runtime:
+        def __init__(self,config,*,modules,host_status,assembly):events.append(('runtime',len(modules),assembly))
+        def run(self):events.append('runtime.run')
+        def close(self):events.append('runtime.close')
+    monkeypatch.setattr(module,'RuntimeConfig',SimpleNamespace(load=lambda path:config))
+    monkeypatch.setattr(module,'ConfiguredTools',Tools)
+    monkeypatch.setattr(module,'ProcessHost',SimpleNamespace(from_config=lambda host,base_dir:events.append(('host',host)) or Host()))
+    monkeypatch.setattr(module,'AssistantRole',lambda host,tools:'assistant')
+    monkeypatch.setattr(module,'ProviderRole',lambda host,tools:'provider')
+    monkeypatch.setattr(module,'ResidentRuntime',Runtime)
+    path=tmp_path/'config.json'
+    with module.assembled(path) as assembly:
+        assert assembly.config is config
+        if available:assembly.run()
+        else:
+            with pytest.raises(RuntimeFault,match='probe') as caught:assembly.run()
+            assert caught.value.code=='not_ready'
+    assert events[0]==('tools',['spec'],path.resolve().parent) and events[1]==('host',{'command':['original']})
+    assert ('profile','personal') in events and ('runtime',2,'ioalab-jiuwen') in events
+    tail=events[events.index('probe'):]
+    assert tail==(['probe','tools.start','runtime.run','runtime.close','tools.close'] if available else ['probe','runtime.close','tools.close'])

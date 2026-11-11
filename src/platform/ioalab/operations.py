@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from a2c.codec import digest
 
 from a2c.errors import A2CError
-from .identity.sessions import AccountSessions
-from .identity.keys import thumbprint
+from .identity import AccountSessions
+from .identity import thumbprint
 from .errors import LabError
 from .payments import money
 
@@ -73,16 +73,16 @@ class PaymentOperations:
 
     def operation(self,owner,actor,operation):
         self.identities.owned(owner,actor)
-        row=self.db.one('SELECT * FROM delegation_payment_operations WHERE actor=? AND id=?',actor,operation)
+        with self.db.lock:row=self.psp.operation_in(self.db.conn,actor,operation)
         if not row or row['owner']!=owner:raise LabError('not_ready','Original payment operation is unavailable',status=404,recovery='retry_original')
-        return json.loads(row['result'])
+        return row['result']
 
     def prepare(self,owner,actor,operation,payload):
         self.identities.owned(owner,actor)
         if not isinstance(operation,str) or not 1<=len(operation)<=128 or set(payload)!={'admissionId','ap2'} or not isinstance(payload['admissionId'],str) or not isinstance(payload['ap2'],dict):
             raise LabError('invalid_input','Use the original AP2 request and admissionId')
         fingerprint=digest(payload)
-        old=self.db.one('SELECT * FROM delegation_payment_operations WHERE actor=? AND id=?',actor,operation)
+        with self.db.lock:old=self.psp.operation_in(self.db.conn,actor,operation)
         if old:
             if old['owner']!=owner or old['fingerprint']!=fingerprint:raise LabError('id_conflict','Original payment operation changed',status=409)
             return PreparedExecution(operation,fingerprint,payload['admissionId'])
@@ -95,10 +95,10 @@ class PaymentOperations:
     def apply_in(self,conn,owner,actor,prepared):
         if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Payment execution requires the owned application transaction')
         self.identities.owned(owner,actor)
-        old=conn.execute('SELECT * FROM delegation_payment_operations WHERE actor=? AND id=?',(actor,prepared.operation)).fetchone()
+        old=self.psp.operation_in(conn,actor,prepared.operation)
         if old:
             if old['owner']!=owner or old['fingerprint']!=prepared.fingerprint:raise LabError('id_conflict','Original payment operation changed',status=409)
-            return json.loads(old['result']),False
+            return old['result'],False
         payment=prepared.payment
         if payment is None:raise LabError('unknown_result','The original operation receipt needs reconciliation',status=409)
         if self.arbitrations:self.arbitrations.payment_in(conn,prepared.admission,payment,json.loads(prepared.original) if prepared.original else None)
@@ -112,7 +112,7 @@ class PaymentOperations:
             if card:self.record(conn,prepared.admission,card)
         if created!=transferred:raise LabError('unknown_result','Capacity and original payment facts disagree; reconcile before retrying',status=409)
         result=reply.body
-        conn.execute('INSERT INTO delegation_payment_operations VALUES(?,?,?,?,?)',(owner,actor,prepared.operation,prepared.fingerprint,json.dumps(result,ensure_ascii=False)))
+        self.psp.record_operation_in(conn,owner,actor,prepared.operation,prepared.fingerprint,result)
         return result,transferred
 
 
@@ -135,9 +135,9 @@ class MarketOperations:
 
     def operation(self,owner,actor,operation):
         self.identities.owned(owner,actor)
-        row=self.db.one('SELECT * FROM delegation_market_operations WHERE actor=? AND id=?',actor,operation)
+        with self.db.lock:row=self.market.operation_in(self.db.conn,actor,operation)
         if not row or row['owner']!=owner:raise LabError('not_ready','Original market operation is unavailable',status=404,recovery='retry_original')
-        return json.loads(row['result'])
+        return row['result']
 
     def prepare(self,owner,actor,operation,payload):
         self.identities.owned(owner,actor)
@@ -145,10 +145,10 @@ class MarketOperations:
         if not isinstance(operation,str) or not 1<=len(operation)<=128 or set(payload)!={'admissionId','op','body','request'} or payload['op']!='card.endorse' or not isinstance(payload['body'],dict) or set(payload['body'])!={'card'}:
             raise LabError('invalid_input','Use original card.endorse with its admission and signed request')
         fingerprint=digest(payload)
-        old=self.db.one('SELECT * FROM delegation_market_operations WHERE actor=? AND id=?',actor,operation)
+        with self.db.lock:old=self.market.operation_in(self.db.conn,actor,operation)
         if old:
             if old['owner']!=owner or old['fingerprint']!=fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
-            return PreparedEndorsement(operation,fingerprint,json.dumps(payload),old['result'])
+            return PreparedEndorsement(operation,fingerprint,json.dumps(payload),json.dumps(old['result']))
         with self.db.tx() as conn:
             if self.arbitrations:self.arbitrations.guard_in(conn,payload['admissionId'],payload['op'],payload['body'])
             result=self.admissions.issued_offer_in(conn,owner,actor,payload['admissionId'],fingerprint)
@@ -163,10 +163,10 @@ class MarketOperations:
     def apply_in(self,conn,owner,actor,prepared):
         if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Market endorsement needs the owned application transaction')
         self.identities.owned(owner,actor)
-        old=conn.execute('SELECT * FROM delegation_market_operations WHERE actor=? AND id=?',(actor,prepared.operation)).fetchone()
+        old=self.market.operation_in(conn,actor,prepared.operation)
         if old:
             if old['owner']!=owner or old['fingerprint']!=prepared.fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
-            return json.loads(old['result'])
+            return old['result'],False
         payload=json.loads(prepared.payload)
         if self.arbitrations:self.arbitrations.guard_in(conn,payload['admissionId'],payload['op'],payload['body'])
         if payload['op']!='card.endorse':return self.apply_contract_in(conn,owner,actor,prepared,payload)
@@ -179,17 +179,17 @@ class MarketOperations:
             self.market.commit_snapshot_in(conn,card_digest(result['card']),json.loads(prepared.snapshot))
             self.admissions.record_offer_in(conn,payload['admissionId'],prepared.fingerprint,result)
         if self.record:self.record(conn,payload['admissionId'],result['card'])
-        conn.execute('INSERT INTO delegation_market_operations VALUES(?,?,?,?,?)',(owner,actor,prepared.operation,prepared.fingerprint,json.dumps(result)))
-        return result
+        self.market.record_operation_in(conn,owner,actor,prepared.operation,prepared.fingerprint,result)
+        return result,True
 
     def prepare_contract(self,owner,actor,operation,payload):
         if not self.contracts or not isinstance(operation,str) or not 1<=len(operation)<=128 or set(payload)!={'admissionId','op','body'} or not isinstance(payload['body'],dict) or set(payload['body'])!={'card'}:
             raise LabError('invalid_input','Use the original contract market method and saved operation')
         fingerprint=digest(payload)
-        old=self.db.one('SELECT * FROM delegation_market_operations WHERE actor=? AND id=?',actor,operation)
+        with self.db.lock:old=self.market.operation_in(self.db.conn,actor,operation)
         if old:
             if old['owner']!=owner or old['fingerprint']!=fingerprint:raise LabError('id_conflict','Original market operation changed',status=409)
-            return PreparedEndorsement(operation,fingerprint,json.dumps(payload),old['result'])
+            return PreparedEndorsement(operation,fingerprint,json.dumps(payload),json.dumps(old['result']))
         with self.db.tx() as conn:
             if self.arbitrations:self.arbitrations.guard_in(conn,payload['admissionId'],payload['op'],payload['body'])
             _,template=self.contracts.market_in(conn,owner,actor,payload)
@@ -212,8 +212,99 @@ class MarketOperations:
             self.admissions.finish_in(conn,row['id'])
             self.close(conn,row['interaction'])
         result=json.loads(prepared.result)
-        conn.execute('INSERT INTO delegation_market_operations VALUES(?,?,?,?,?)',(owner,actor,prepared.operation,prepared.fingerprint,json.dumps(result)))
+        self.market.record_operation_in(conn,owner,actor,prepared.operation,prepared.fingerprint,result)
+        return result,True
+
+
+@dataclass(frozen=True)
+class Control:
+    """One owner's control kind: optional preparation outside the transaction, commit inside it, original-result query.
+
+    apply_in(conn,owner,actor,kind,operationId,payload,prepared) returns
+    (result, activity facts or None, after-commit callable or None).
+    """
+    apply_in:object=None
+    prepare:object=None
+    operation:object=None
+
+
+class ControlOperations:
+    """Participant control frames: delivery frames, leases and records activity; each kind's owner prepares and commits it."""
+    def __init__(self,db,identities,delivery):
+        self.db,self.identities,self.delivery=db,identities,delivery
+        self.kinds={}
+
+    def register(self,kind,control):
+        """`kind` is exact, or a family prefix ending in '.'; delivery keeps its own kinds."""
+        if kind in self.kinds or kind in self.delivery.CONTROLS or kind=='operation.get':raise ValueError('Control kind already has an owner: '+kind)
+        self.kinds[kind]=control
+
+    def _control(self,kind):
+        return self.kinds.get(kind) or (self.kinds.get(kind.split('.',1)[0]+'.') if '.' in kind else None)
+
+    def operation(self,owner,actor,kind,operation):
+        self.identities.owned(owner,actor)
+        if not isinstance(kind,str) or not isinstance(operation,str):
+            raise LabError('invalid_input','Operation type and identity must be strings')
+        control=self._control(kind)
+        if control and control.operation:return control.operation(owner,actor,kind,operation)
+        return self.delivery.operation(owner,actor,kind,operation)
+
+    def control(self,owner,connection,generations,frame):
+        actor,kind,payload=self.delivery.control_frame(generations,frame)
+        operation,generation=frame.get('operationId'),generations[actor]
+        control=None if kind in self.delivery.CONTROLS else self._control(kind)
+        prepared=None
+        if control and control.prepare and control.apply_in:
+            # Signature/card/key preparation can fetch public material; never do it
+            # inside the delivery lease/operation transaction. The owner and lease
+            # are rechecked below before committing the prepared immutable action.
+            with self.db.lock:self.delivery.lease(self.db.conn,owner,actor,connection,generation)
+            prepared=control.prepare(owner,actor,kind,operation,payload)
+        self.delivery.cleanup()
+        after=None
+        with self.db.tx() as conn:
+            self.delivery.lease(conn,owner,actor,connection,generation)
+            if kind=='operation.get':
+                result,facts=self.operation(owner,actor,payload.get('operation'),payload.get('operationId')),None
+            elif kind in self.delivery.CONTROLS:
+                result,facts=self.delivery.control_in(conn,actor,kind,operation,payload,generation)
+            elif control and control.apply_in:
+                result,facts,after=control.apply_in(conn,owner,actor,kind,operation,payload,prepared)
+            else:raise LabError('protocol_error','Unsupported control operation')
+            recorded=[] if facts is None else self.delivery.activity_in(conn,frame,result,**facts)
+            self.delivery.renew_in(conn,actor)
+        self.delivery.notify()
+        if after:after()
+        self.delivery.publish_activity(recorded)
         return result
+
+    def register_platform(self,*,scopes,admissions,arbitrations,payments,market,publications):
+        """The control kinds owned outside delivery, each committed by its owning module.
+
+        Adapters resolve the owner's methods per call so a replaced method (fault seam) takes effect."""
+        def scope_in(conn,owner,actor,kind,operation,payload,prepared):
+            return scopes.apply_in(conn,owner,operation,prepared),None,None
+        def admission_in(conn,owner,actor,kind,operation,payload,prepared):
+            return admissions.apply_in(conn,owner,actor,kind,operation,payload),None,None
+        def arbitration_in(conn,owner,actor,kind,operation,payload,prepared):
+            return arbitrations.apply_in(conn,owner,actor,kind,prepared),None,None
+        def pay_in(conn,owner,actor,kind,operation,payload,prepared):
+            result,transferred=payments.apply_in(conn,owner,actor,prepared)
+            return result,None,(lambda:payments.project(prepared)) if transferred else None
+        def market_in(conn,owner,actor,kind,operation,payload,prepared):
+            result,fresh=market.apply_in(conn,owner,actor,prepared)
+            return result,({'fresh':True} if fresh else None),None
+        self.register('scope.',Control(scope_in,lambda owner,actor,kind,operation,payload:scopes.prepare(owner,actor,kind,payload),
+                                      lambda owner,actor,kind,operation:scopes.operation(owner,actor,kind,operation)))
+        self.register('admission.',Control(admission_in,None,lambda owner,actor,kind,operation:admissions.operation(owner,actor,kind,operation)))
+        self.register('arbitration.',Control(arbitration_in,lambda owner,actor,kind,operation,payload:arbitrations.prepare(owner,actor,kind,operation,payload),
+                                            lambda owner,actor,kind,operation:arbitrations.operation(owner,actor,kind,operation)))
+        self.register('ap2.pay',Control(pay_in,lambda owner,actor,kind,operation,payload:payments.prepare(owner,actor,operation,payload),
+                                        lambda owner,actor,kind,operation:payments.operation(owner,actor,operation)))
+        self.register('a2c.market',Control(market_in,lambda owner,actor,kind,operation,payload:market.prepare(owner,actor,operation,payload),
+                                           lambda owner,actor,kind,operation:market.operation(owner,actor,operation)))
+        self.register('service.publish',Control(operation=lambda owner,actor,kind,operation:publications.operation(owner,actor,operation)))
 
 
 class ServiceOperations:

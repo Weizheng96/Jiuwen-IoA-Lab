@@ -2,6 +2,6 @@
   "platform_url": "http://127.0.0.1:8750",
   "data_dir": "./official-data",
   "host": {"command": ["jiuwenswarm-process"], "data_dir": "./official-swarm"},
-  "max_model_runs": 2,
+  "max_model_runs": 4,
   "native_tools": {"read_file": "allow", "write_file": "allow"}
 }

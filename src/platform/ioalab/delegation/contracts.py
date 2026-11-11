@@ -39,6 +39,10 @@ class ContractAuthority:
         self.db,self.identities,self.admissions,self.scopes,self.market,self.payments=db,identities,admissions,scopes,market,payments
 
 
+    def require_payments_in(self,conn,row,template,card):
+        """Accepted installments, deposit and agreed termination balance of this card are actually paid."""
+        self.payments.require_contract_payments_in(conn,template,card,keys=self.keys(row))
+
     def facts(self,conn,admission):
         row=conn.execute('SELECT * FROM delegation_contracts WHERE admission=?',(admission,)).fetchone()
         if not row:raise LabError('not_ready','Register the original effective card before this contract action',status=409)

@@ -1,7 +1,7 @@
 """Jiuwen-owned, side-effect-free setup for existing public Process hosts."""
 import copy
 
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime import RuntimeFault
 from .process import ProcessHost
 
 

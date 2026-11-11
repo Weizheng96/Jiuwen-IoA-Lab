@@ -10,11 +10,12 @@ from a2c.slots import sign_template
 from a2c.template import validate,template_digest
 from a2c.errors import A2CError
 
-from ..runtime.protocol import RuntimeFault
-from ..adapters.market import read_reputation
+from ..runtime import PROVIDER,fields,handled_by
+from ..runtime import RuntimeFault
+from ..adapters import read_reputation
 from .verifiers import VerifierPublisher,platform_fault
 from .terms import covers
-from ..runtime.scheduling import JobHandler,JobOutcome
+from ..runtime import JobHandler,JobOutcome
 
 
 class ProviderRole:
@@ -36,7 +37,7 @@ class ProviderRole:
         self.execution=ProviderExecution(self,runtime,self.host)
         registration=self.execution.bind()
         registration['jobs']['provider.preview']=JobHandler(self.run_preview,'provider-preview-v1',False)
-        return {'operations': {'provider.' + name: self._handler(name) for name in ('preview', 'publish', 'status', 'reputation', 'categories','verifier.publish','tools.list','template.draft','pause','resume','tasks.get','task.resume')},**registration}
+        return {'operations': {name: self._handler(name.split('.', 1)[1]) for name in handled_by(PROVIDER)},**registration}
 
     def start(self):
         if self.execution:self.execution.start()
@@ -62,43 +63,37 @@ class ProviderRole:
     def _handler(self, name):
         def execute(runtime, operation, args):
             try:
+                self.fields(args,*fields('provider.'+name))
                 if name=='verifier.publish':
-                    self.fields(args,('profile','verifierId','source'),('reads','kind'))
                     identity=self._identity(args['profile'])
                     return {'status':'completed','data':self.verifiers.publish(identity,operation,{k:v for k,v in args.items() if k!='profile'})}
                 if name == 'template.draft':
-                    self.fields(args,('profile','terms'))
                     return self.prepare_template(operation,args)
                 if name == 'categories':
-                    self.fields(args, ())
                     return {'status': 'completed', 'data': runtime.account.api('GET', '/services/categories')}
                 if name=='tools.list':
-                    self.fields(args,('profile',))
                     identity=self._identity(args['profile'])
                     return {'status':'completed','data':{'tools':[tool.policy() for tool in self.execution.business_tools(identity.profile).values()]}}
                 if name in ('pause','resume'):
-                    self.fields(args,('profile',))
                     identity=self._identity(args['profile'])
                     return {'status':'completed','data':self.execution.admission_policy.change(identity,operation,name=='resume')}
                 if name=='tasks.get':
-                    self.fields(args,('profile',),('taskRef',))
                     return {'status':'completed','data':self.execution.tasks.get(self._identity(args['profile']),args.get('taskRef'))}
+                if name=='dispute':
+                    return self.execution.rulings.dispute(self._identity(args['profile']),operation,args)
+                if name=='dispute_status':
+                    return self.execution.rulings.dispute_status(self._identity(args['profile']),args)
                 if name=='task.resume':
-                    self.fields(args,('profile','taskRef'),('confirmationRef',))
                     return self.execution.tasks.resume(self._identity(args['profile']),args['taskRef'],operation,args.get('confirmationRef'))
                 if name == 'reputation':
-                    self.fields(args,('profile',))
                     identity=self._identity(args['profile'])
                     return {'status':'completed','data':{'profile':identity.profile,'reputation':read_reputation(
                         runtime.account,self.execution.public,identity.protocol_id)}}
                 if name == 'status':
-                    self.fields(args, ('profile',))
                     identity = self._identity(args['profile'])
                     return {'status': 'completed', 'data': {**self.status(identity),'localExecution':self.execution.status(identity.profile),'admissionPolicy':self.execution.admission_policy.read(identity)}}
                 if name == 'preview':
-                    self.fields(args, ('service',))
                     return self.prepare_preview(operation,args['service'])
-                self.fields(args, ('service', 'contentDigest', 'expectedRevision'), ('confirmationRef',))
                 return self.publish(operation, args)
             except (A2CError,httpx.HTTPError) as exc:
                 raise platform_fault(exc) from None
@@ -137,7 +132,7 @@ class ProviderRole:
                 raise RuntimeFault('invalid_input', 'Use proposal/countersign templates and the configured platform payment provider')
 
     def prepare_template(self,operation,args):
-        from ..templates import draft_from_terms
+        from ..runtime import draft_from_terms
         identity=self._identity(args['profile'])
         namespace='provider:'+identity.agent_id;key='template:'+operation;fingerprint=digest(args)
         with self.lock:

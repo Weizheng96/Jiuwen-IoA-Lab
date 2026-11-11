@@ -369,3 +369,21 @@ def test_ws_rejects_cross_origin_and_revokes_active_connection(gateway):
                 assert isinstance(message,dict) and message['type']=='websocket.close' and message['code']==4403
         finally:
             released.set();server.shutdown();thread.join(timeout=3)
+
+
+@pytest.mark.parametrize('change,status',[
+    (None,200),
+    ("UPDATE seats SET state='leased',owner='alice' WHERE id=1",200),
+    ("UPDATE seats SET state='reconnect_grace',owner='alice' WHERE id=1",200),
+    ("UPDATE seats SET state='preparing' WHERE id=2",503),
+    ("UPDATE seats SET state='ready',epoch=NULL WHERE id=2",503),
+    ("UPDATE seats SET state='quarantined' WHERE id=3",503),
+    ('stopping',503)])
+def test_health_is_ready_only_when_every_seat_serves_an_epoch(gateway,change,status):
+    client,coordinator,_,_=gateway
+    if change=='stopping':coordinator.stopping.set()
+    elif change:
+        with coordinator.store.transaction() as db:db.execute(change)
+    response=client.get('/health')
+    assert response.status_code==status
+    assert response.json()=={'ready':status==200,'capacity':3}

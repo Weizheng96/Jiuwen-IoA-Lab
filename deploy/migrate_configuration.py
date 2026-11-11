@@ -6,8 +6,8 @@ from pathlib import Path
 
 from .configuration import validate
 from .layout import read_environment,write_initial
-from .release import digest,read_json
-from .workspace import save,path_without_links
+from .release import digest, read_json
+from .files import path_without_links, save
 
 
 def imported(environment,template):
@@ -80,7 +80,7 @@ def main(argv=None):
     from .__main__ import existing
     try:
         layout=existing(args.state)
-        from .environment import writer
+        from .files import writer
         with writer(layout.private/'launcher.lock'):result=migrate(layout)
         print(json.dumps(result,ensure_ascii=False));return 0
     except Exception as error:

@@ -1,7 +1,7 @@
 {
  "slug": "legal",
  "label": "法律咨询",
- "account": "ISP_002",
+ "account": "ISP_001",
  "category": {
   "id": "cat_legal",
   "name": "法律咨询",

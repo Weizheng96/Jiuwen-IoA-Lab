@@ -6,8 +6,8 @@ import uuid
 from a2c.codec import digest
 from a2c.slots import verify_card
 
-from ..runtime.host import validate_output
-from ..runtime.protocol import RuntimeFault
+from ..runtime import validate_output
+from ..runtime import RuntimeFault
 from .policy import definition_digest
 
 

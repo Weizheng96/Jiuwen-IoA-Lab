@@ -1,7 +1,7 @@
 {
  "slug": "translate",
  "label": "翻译本地化",
- "account": "ISP_005",
+ "account": "ISP_001",
  "category": {
   "id": "cat_translate",
   "name": "翻译本地化",

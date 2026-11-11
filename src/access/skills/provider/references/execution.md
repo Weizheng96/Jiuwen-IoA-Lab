@@ -6,6 +6,10 @@
 
 拟约恢复仅限已明确结束的模型轮次在验收器准备上中断。生产恢复须核原合同期次尚未交付、原权限及环节仍允许、全部本单业务效果已核实，并区分runtime_verified与所有者审阅声明；原生工具效果未决时不能批准。未知交付、签署、付款或外部效果不因页面同意变为已知。新轮次开始前旧证明和批准失效；不使用operations.resume强制重跑模型，不重拟已确认合同，不改已签判据或扩大工具权限。以下本单工具属于后台受限执行入口，不授予来信任务查询所有任务或管理恢复的能力。
 
+## 本机管理中的仲裁
+
+服务所有者认为委托方违约（逾期验收、逾期付款或逾期答复环节等）并要求仲裁时，用provider.dispute，参数profile、原taskRef、ground，理由需要时含period，可选materials（仅fetchEvidence、inputMaterials分组的本服务已上传FileRef）。SDK由原任务确定本单，不接受改写合同或身份；不成立直接返回rejected及reason。成立时返回waiting与confirmationRef，按calling.md打开确认页，所有者实际核对后决定，再沿原参数文件重发；completed只表示受理，保存data.caseRef。用provider.dispute_status（profile、caseRef）读取已验签的原案件与裁定，只读。裁定后的停止新生产与结束回执由SDK自动完成，无需也不能用模型操作代替。
+
 ## 后台本单执行
 
 入站委托只由常驻 SDK 以真实阶段触发，运行在与该交互绑定的原 Session。用户前台配置对话不伪造入站任务或自己创建 UUID。

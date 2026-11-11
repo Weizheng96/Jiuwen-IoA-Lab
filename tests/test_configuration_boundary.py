@@ -10,7 +10,7 @@ from conftest import wait_for
 from ioalab_sdk.provider import ProviderRole
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json,read_json
-from ioalab_sdk.runtime.__main__ import main
+from ioalab_sdk.access import main
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from test_access_products import bootstrap
@@ -99,7 +99,7 @@ def test_parameters_cannot_rewrite_account_configuration_or_runtime_data(tmp_pat
         target=home/'runtime.json';private_json(target,{'token':'never-rewrite-runtime-token'})
     original=config.read_bytes();target_original=target.read_bytes()
     def no_rpc(*args,**kwargs):pytest.fail('Rejected files reached RPC')
-    monkeypatch.setattr('ioalab_sdk.runtime.__main__.LocalClient',no_rpc)
+    monkeypatch.setattr('ioalab_sdk.runtime.lifecycle.LocalClient',no_rpc)
     assert main(['call','runtime.stop','--config',str(config),'--args-file',str(target)])==1
     text=capsys.readouterr().out;result=json.loads(text)
     assert result['error']['code']=='invalid_input' and result['error']['recovery']=='correct_input'
@@ -149,7 +149,7 @@ def test_business_configuration_mismatch_has_no_effect_or_argument_rewrite(platf
 
 def test_bad_json_is_an_input_error_without_guessing_another_instance(tmp_path,monkeypatch,capsys):
     path=tmp_path/'settings.json';path.write_text('{bad',encoding='utf-8')
-    monkeypatch.setattr('ioalab_sdk.runtime.__main__.LocalClient',lambda *_:pytest.fail('Guessed another instance'))
+    monkeypatch.setattr('ioalab_sdk.runtime.lifecycle.LocalClient',lambda *_:pytest.fail('Guessed another instance'))
     assert main(['call','runtime.status','--config',str(path)])==1
     value=json.loads(capsys.readouterr().out)
     assert value['status']=='rejected' and value['error']['code']=='invalid_input'

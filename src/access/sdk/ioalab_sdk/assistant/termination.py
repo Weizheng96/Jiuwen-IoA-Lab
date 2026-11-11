@@ -9,9 +9,10 @@ from a2c.common import Endpoint,Reply
 from a2c.payment import verify_voucher
 from a2c.payment.terms import termination_balance,verify_quote
 
-from ..adapters.endpoint import EndpointSession
-from ..adapters.transport import stable
-from ..runtime.protocol import RuntimeFault
+from ..adapters import EndpointSession
+from ..adapters import stable
+from ..runtime import RuntimeFault
+from ..runtime import public_error
 
 
 class RefundReceiver(Endpoint):
@@ -35,8 +36,6 @@ class Termination:
 
     def call(self,name,operation,args):
         f=self.fulfillment
-        self.role.fields(args,('contractRef',) if name=='termination_quote' else ('contractRef','mode'),
-                         () if name=='termination_quote' else ('terminationQuoteRef','reason','confirmationRef'))
         if name=='terminate':
             if args['mode'] not in ('agreed','unilateral') or ('terminationQuoteRef' in args)!=(args['mode']=='agreed'):
                 raise RuntimeFault('invalid_input','Agreed termination requires its original quote; unilateral termination does not')
@@ -49,6 +48,7 @@ class Termination:
             if record and record['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original termination decision changed')
             client,contract=f.client(args['contractRef'])
             if not record:
+                self.role.cases.require_open(client,contract,args['contractRef'])
                 record={'name':name,'args':value,'fingerprint':fingerprint,'phase':'prepared','handler':'assistant.termination'}
                 if name=='terminate':
                     original=client.store.get('cards',args['contractRef'])
@@ -112,9 +112,15 @@ class Termination:
     def run(self,job):
         f=self.fulfillment;operation=job['payload']['operationId'];record=f.record(operation)
         if record.get('result') is not None:
-            from ..runtime.scheduling import JobOutcome
+            from ..runtime import JobOutcome
             return JobOutcome(record['status'],record['result'])
         client,contract=f.client(record['args']['contractRef']);ref=record['args']['contractRef']
+        if not client.store.get('cards',ref).get('terminationPending'):
+            # A late approval cannot revive a ruled contract; an already sent notice still recovers.
+            try:self.role.cases.require_open(client,contract,ref)
+            except RuntimeFault as exc:
+                if exc.code!='closed':raise
+                return f.finish(operation,record,{'error':public_error(exc)},state='rejected')
         self.runtime.require_execution()
         with client.transport.operation(operation):
             if record['name']=='termination_quote':
@@ -136,7 +142,7 @@ class Termination:
                 try:job=self.runtime.scheduler.get(reference)
                 except RuntimeFault:continue
                 if job['status']!='unknown' or self.runtime.scheduler.is_executing(reference):continue
-                from ..runtime.scheduling import JobOutcome
+                from ..runtime import JobOutcome
                 if record.get('result') is not None:
                     self.runtime.scheduler.resolve(reference,JobOutcome(record['status'],record['result']));continue
                 client,contract=f.client(record['args']['contractRef']);ref=record['args']['contractRef']
@@ -181,14 +187,14 @@ class Termination:
                 if job['status']=='unknown' and not self.runtime.scheduler.is_executing(reference):
                     result=self.receiver(client,contract).recover(message)
                     if result:
-                        from ..runtime.scheduling import JobOutcome
+                        from ..runtime import JobOutcome
                         self.runtime.scheduler.resolve(reference,JobOutcome('completed',result))
             except RuntimeFault as exc:
                 if exc.code!='not_ready':raise
                 self.runtime.scheduler.submit(self.identity.agent_id,relation['id'],handler,{'messageId':message['messageId'],'contractRef':ref},operation_id=message['messageId'],admitted=True)
 
     def receive(self,job):
-        from ..runtime.scheduling import JobOutcome
+        from ..runtime import JobOutcome
         ref=job['payload']['contractRef'];client,contract=self.fulfillment.client(ref)
         endpoint=self.receiver(client,contract)
         message=next(frame['message'] for frame in self.store.messages(self.identity.agent_id)

@@ -8,11 +8,10 @@ import uuid
 import pytest
 
 from deploy import repair
-from deploy.environment import writer
+from deploy.files import save, writer
 from deploy.jobs import Job, SOURCE_FILES, source_identity
 from deploy.layout import Layout
 from deploy.release import digest
-from deploy.workspace import save
 
 REAL_STOPPED_OWNERSHIP=repair.stopped_ownership
 
@@ -77,6 +76,18 @@ def test_child_request_is_complete_and_parent_data_is_unchanged(subject):
     assert state['ownershipChecks']==1
 
 
+def test_development_tool_changes_are_outside_the_compared_source(subject):
+    layout,parent,old,new,_=subject
+    (new/'tools/check_scope.py').write_text('changed development tool')
+    repair.submit(layout,new,parent.operation)
+    assert set(selected(subject).request()['repair']['changes'])=={'deploy/units.py'}
+    (new/'deploy/units.py').write_text('original')
+    # A development-tool-only change is no source change at all, so nothing is repairable.
+    with pytest.raises(RuntimeError,match='reviewed'):
+        repair.changed_files(parent.request()['source'],source_identity(new))
+    assert 'tools/check_scope.py' not in repair.CONTROLLER_FILES
+
+
 def test_same_child_is_observed_without_repeating_first_admission(subject):
     layout,parent,_,new,state=subject
     first=repair.submit(layout,new,parent.operation)
@@ -104,7 +115,7 @@ def test_request_to_pointer_interruption_reuses_same_immutable_child(subject,mon
     assert len(list((layout.private/'jobs').iterdir()))==2
 
 
-@pytest.mark.parametrize('change',['src/fixture.txt','vendor/fixture.txt','deploy/configs.py','tools/build.py',SOURCE_FILES[0]])
+@pytest.mark.parametrize('change',['src/fixture.txt','vendor/fixture.txt','deploy/configs.py','deploy/build.py',SOURCE_FILES[0]])
 def test_noncontroller_changes_are_rejected_before_pointer_write(subject,change):
     layout,parent,_,new,state=subject
     p=new/change;p.parent.mkdir(parents=True,exist_ok=True);p.write_text('not-controller-only')

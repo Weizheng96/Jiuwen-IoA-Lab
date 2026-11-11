@@ -4,7 +4,7 @@ import threading
 
 import pytest
 from ioalab_sdk.runtime.protocol import RuntimeFault
-from ioalab_tools.appointments import Appointments
+from ioalab_tools.appointments import Appointments, settle
 from ioalab_tools.schedule import LocalSchedule
 from test_assistant import appointment
 from test_business_tools import context, schedule, uid
@@ -111,3 +111,74 @@ def test_reserved_before_send_recovers_first_operation_and_invitation_identity(t
     assert notice.calls[0][0] == 'ioa-' + record['reservationId'] + '@jiuwen-ioa-lab'
     assert list(restarted.records()) == [original['operationId']]
     assert restarted.records()[original['operationId']]['context'] == original
+
+
+class LostReceipt(Notification):
+    def send(self, *args):
+        self.calls.append(args); raise TimeoutError('explicit lost receipt')
+
+
+def unknown_reservation(tmp_path):
+    calendar = schedule(tmp_path); notice = LostReceipt(); payload = appointment(); original = context()
+    tool = Appointments(calendar, notice, 'owner@example.test')
+    with pytest.raises(RuntimeFault, match='automatic resend'):tool.book(payload, original)
+    return calendar, notice, tool, payload, original, tool.records()[original['operationId']]['reservationId']
+
+
+def test_owner_reconciles_unknown_as_submitted_without_resending(tmp_path):
+    calendar, notice, tool, payload, original, reservation = unknown_reservation(tmp_path)
+    with pytest.raises(RuntimeFault, match='unresolved invitation'):
+        tool.book({**payload, 'title': 'other'}, context(interactionId=original['interactionId']))
+    settled = settle(calendar.path, 'reconcile', {'reservationId': reservation, 'outcome': 'submitted'})
+    assert settled['state'] == 'submitted' and settled['settlements'][0]['from'] == 'unknown'
+    receipt = {'status': 'invite_submitted', 'reservationId': reservation, 'inviteSubmitted': True, 'calendar': 'awaiting_acceptance'}
+    assert tool.book(payload, {**original, 'operationId': uid()}) == receipt
+    assert tool.status({'reservationId': reservation}, original) == receipt
+    # The verified submission still holds its slot; the interaction is no longer blocked.
+    later = context(interactionId=original['interactionId'])
+    assert tool.book(payload, later)['reason'] == 'busy'
+    assert len(notice.calls) == 1
+
+
+def test_owner_reconciles_unknown_as_failed_and_releases_slot_without_resending(tmp_path):
+    calendar, notice, tool, payload, original, reservation = unknown_reservation(tmp_path)
+    assert settle(calendar.path, 'reconcile', {'reservationId': reservation, 'outcome': 'failed'})['state'] == 'failed'
+    for call in (lambda:tool.book(payload, {**original, 'operationId': uid()}), lambda:tool.status({'reservationId': reservation}, original)):
+        with pytest.raises(RuntimeFault) as error:call()
+        assert error.value.code == 'closed' and error.value.recovery == 'send_new_message'
+    assert len(notice.calls) == 1
+    tool.notification = Notification()
+    assert tool.book(payload, context(interactionId=original['interactionId']))['status'] == 'invite_submitted'
+
+
+def test_accept_keeps_original_result_and_release_frees_the_slot(tmp_path):
+    calendar = schedule(tmp_path); notice = Notification(); payload = appointment(); original = context()
+    tool = Appointments(calendar, notice, 'owner@example.test')
+    receipt = tool.book(payload, original); reservation = receipt['reservationId']
+    with pytest.raises(RuntimeFault, match='applies only to'):
+        settle(calendar.path, 'reconcile', {'reservationId': reservation, 'outcome': 'failed'})
+    assert settle(calendar.path, 'accept', {'reservationId': reservation})['state'] == 'accepted'
+    record = tool.records()[original['operationId']]
+    assert record['state'] == 'accepted' and record['result'] == receipt
+    assert tool.status({'reservationId': reservation}, original) == receipt
+    assert tool.book(payload, context())['reason'] == 'busy'
+    released = settle(calendar.path, 'release', {'reservationId': reservation, 'reason': 'cancelled'})
+    assert released['state'] == 'released' and [step['to'] for step in released['settlements']] == ['accepted', 'released']
+    assert tool.book(payload, {**original, 'operationId': uid()}) == receipt
+    assert tool.book(payload, context())['status'] == 'invite_submitted'
+    assert len(notice.calls) == 2
+    with pytest.raises(RuntimeFault, match='applies only to'):
+        settle(calendar.path, 'accept', {'reservationId': reservation})
+
+
+@pytest.mark.parametrize('command,arguments', [
+    ('accept', {'reservationId': 'missing'}),
+    ('release', {'reservationId': 'x', 'reason': 'changed_mind'}),
+    ('reconcile', {'reservationId': 'x', 'outcome': 'accepted'}),
+    ('accept', {'reservationId': 'x', 'extra': True}),
+])
+def test_settlement_rejects_unknown_reservations_and_inputs_without_creating_storage(tmp_path, command, arguments):
+    calendar = schedule(tmp_path)
+    with pytest.raises(RuntimeFault) as error:settle(calendar.path, command, arguments)
+    assert error.value.code in ('invalid_input', 'not_ready')
+    assert not calendar.path.with_name(calendar.path.name + '.ioa').exists()

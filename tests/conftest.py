@@ -8,6 +8,23 @@ from pathlib import Path
 import pytest
 
 ROOT=Path(__file__).resolve().parents[1]
+CHAIN_LAYER=ROOT/'tests/chain_layer.json'
+
+
+def pytest_configure(config):
+    config.addinivalue_line('markers','chain: 整链路、真实进程及 opt-in 真实宿主用例；清单在 tests/chain_layer.json，由 --layer fast/chain 选择')
+
+
+def pytest_collection_modifyitems(config,items):
+    """Manifest functions carry the chain marker; parametrizations follow their function."""
+    if not CHAIN_LAYER.is_file():return
+    import json
+    listed={(path,name) for path,names in json.loads(CHAIN_LAYER.read_text(encoding='utf-8'))['chain'].items() for name in names}
+    for item in items:
+        rest=item.nodeid.split('::')[1:]
+        try:path=item.path.resolve().relative_to(ROOT).as_posix()  # independent of pytest rootdir
+        except ValueError:continue
+        if rest and (path,'::'.join([*rest[:-1],rest[-1].split('[')[0]])) in listed:item.add_marker(pytest.mark.chain)
 
 
 def platform_settings(**values):

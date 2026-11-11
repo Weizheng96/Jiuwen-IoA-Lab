@@ -16,7 +16,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config',required=True,type=Path)
     parser.add_argument('--verify-stopped',action='store_true')
-    parser.add_argument('--deployment-profile',choices=('linux-server','windows-wsl'))
+    parser.add_argument('--deployment-profile',choices=('linux-server',))
     args = parser.parse_args()
     config = json.loads(args.config.read_text('utf-8'))
     from .profile import validate_environment

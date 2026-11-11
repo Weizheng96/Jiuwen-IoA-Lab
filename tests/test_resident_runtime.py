@@ -89,7 +89,7 @@ def process(config,*,fixture=False):
     client=LocalClient(home,timeout=1)
     log=(config.parent/('fixture.log' if fixture else 'process.log')).open('a',encoding='utf-8')
     env={**os.environ,'PYTHONUTF8':'1','IOALAB_TEST_FIXTURE':'resident','IOALAB_TEST_RECEIPT':str(config.parent/'receipts.txt')}
-    command=[sys.executable,str(ROOT/'tests/resident_fixture.py'),str(config)] if fixture else [sys.executable,'-m','ioalab_sdk.runtime','serve','--config',str(config)]
+    command=[sys.executable,str(ROOT/'tests/resident_fixture.py'),str(config)] if fixture else [sys.executable,'-m','ioalab_sdk.access','serve','--config',str(config)]
     child=subprocess.Popen(command,cwd=config.parent,env=env,stdout=log,stderr=log,
                            creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     status=None
@@ -131,7 +131,7 @@ def test_two_roles_share_process_identity_login_and_cli_never_opens_sqlite(platf
             patch.setattr(sqlite3,'connect',lambda *args,**kwargs:pytest.fail('CLI opened a database'))
             assert client.call('identity.status')['status']=='completed'
         before=platform.db.one('SELECT COUNT(*) AS n FROM account_operations WHERE owner=?',user['id'])['n']
-        result=subprocess.run([sys.executable,'-m','ioalab_sdk.runtime','start','--config',str(config)],
+        result=subprocess.run([sys.executable,'-m','ioalab_sdk.access','start','--config',str(config)],
                               cwd=tmp_path,capture_output=True,text=True,encoding='utf-8',timeout=20)
         assert result.returncode==0,result.stdout+result.stderr
         assert json.loads(result.stdout)['data']['bootId']==status['bootId']
@@ -158,7 +158,7 @@ def test_local_rpc_security_and_cli_operation_persistence(platform,tmp_path):
         assert query(client)['bootId']==status['bootId']
         args=tmp_path/'args.json'
         private_json(args,{'confirmed':True})
-        command=[sys.executable,'-m','ioalab_sdk.runtime','call','assistant.delegation.confirm','--config',str(config),'--args-file',str(args)]
+        command=[sys.executable,'-m','ioalab_sdk.access','call','assistant.delegation.confirm','--config',str(config),'--args-file',str(args)]
         one=subprocess.run(command,cwd=tmp_path,capture_output=True,text=True,encoding='utf-8',timeout=15)
         two=subprocess.run(command,cwd=tmp_path,capture_output=True,text=True,encoding='utf-8',timeout=15)
         first,second=json.loads(one.stdout),json.loads(two.stdout)

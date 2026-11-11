@@ -8,9 +8,9 @@ import os
 from pathlib import Path, PurePosixPath
 import platform
 import re
-import stat
 import sys
 import zipfile
+from .files import linked, sha
 
 FORMAT = 'ioalab.deployment-release/1'
 UNITS = {
@@ -18,7 +18,7 @@ UNITS = {
     'participant': frozenset({'ioalab-sdk', 'ioalab-jiuwen', 'ioalab-official', 'a2c', 'jiuwenswarm-process-sdk'}),
     'swarm': frozenset({'workswarm', 'openjiuwen', 'a4p', 'intelli-router'}),
 }
-TARGETS = ('linux-x86_64', 'windows-x86_64')
+TARGETS = ('linux-x86_64',)
 HEX = re.compile(r'[a-f0-9]{64}')
 PIN = re.compile(r'([A-Za-z0-9][A-Za-z0-9_.-]*)==([A-Za-z0-9][A-Za-z0-9_.+!-]*)')
 
@@ -33,16 +33,6 @@ def encoded(value):
 
 def digest(value):
     return hashlib.sha256(encoded(value)).hexdigest()
-
-
-def sha(path):
-    with Path(path).open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
-
-
-def linked(path):
-    info = Path(path).lstat()
-    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, 'st_file_attributes', 0) & 0x400)
 
 
 def regular(root, name):
@@ -113,10 +103,9 @@ def current_target():
     system, machine = platform.system(), platform.machine().lower()
     if machine not in ('amd64', 'x86_64') or sys.maxsize <= 2**32:
         raise ValueError('Generate and verify a separate lock for this CPU architecture')
-    target = {'Linux': 'linux-x86_64', 'Windows': 'windows-x86_64'}.get(system)
-    if target is None:
-        raise ValueError('This operating system has no production lock')
-    return target
+    if system != 'Linux':
+        raise ValueError('Production releases run only on Linux; Windows is not a deployment target')
+    return 'linux-x86_64'
 
 
 def file_record(root, path):
@@ -150,9 +139,9 @@ def official_catalog(root, document):
         if not isinstance(domain, dict):
             raise ValueError('Invalid release catalog domain')
         account, services = domain.get('account'), domain.get('services')
-        if (not isinstance(account, str) or not account.strip() or account in accounts
+        if (not isinstance(account, str) or not account.strip()
                 or not isinstance(services, list) or not services):
-            raise ValueError('Invalid or duplicate release catalog account')
+            raise ValueError('Invalid release catalog account')
         ids = []
         for service in services:
             identifier = service.get('id') if isinstance(service, dict) else None
@@ -160,7 +149,7 @@ def official_catalog(root, document):
                 raise ValueError('Invalid or duplicate release catalog service')
             seen.add(identifier)
             ids.append(identifier)
-        accounts[account] = tuple(ids)
+        accounts[account] = (*accounts.get(account,()),*ids)
     return accounts
 
 

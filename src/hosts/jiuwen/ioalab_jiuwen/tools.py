@@ -4,8 +4,8 @@ from importlib.metadata import entry_points
 import re
 
 from jsonschema import Draft202012Validator
-from ioalab_sdk.runtime.host import BusinessTools,ToolBinding,validate_output
-from ioalab_sdk.runtime.protocol import RuntimeFault,encode
+from ioalab_sdk.runtime import BusinessTools,ToolBinding
+from ioalab_sdk.runtime import RuntimeFault,encode
 
 
 class ConfiguredTools:
@@ -60,14 +60,6 @@ class ConfiguredTools:
             raise
 
     def for_profile(self,profile):return dict(self.by_profile.get(profile,{}))
-
-    def notify(self,message,owned):
-        if not isinstance(message,dict) or set(message)!={'input','context'} or not isinstance(message['context'],dict):
-            raise RuntimeFault('invalid_input','Use SDK notification input and fixed source context')
-        tool=owned.get(message['context'].get('agentId'))
-        if tool is None:raise RuntimeFault('forbidden','Notification identity has no configured owner channel')
-        result=tool.invoke(message['input'],message['context'])
-        return validate_output(tool,result)
 
     def start(self):
         if self._started:return

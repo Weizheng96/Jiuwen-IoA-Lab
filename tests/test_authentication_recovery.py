@@ -193,7 +193,7 @@ def test_binding_survives_token_row_loss_and_rejects_same_name_new_owner(platfor
 
 def test_cli_login_uses_same_controller_and_returns_no_credentials(platform,tmp_path):
     config,user=configuration(platform,tmp_path,service=False)
-    result=subprocess.run([sys.executable,'-X','utf8','-m','ioalab_sdk.runtime','login','--config',str(config)],
+    result=subprocess.run([sys.executable,'-X','utf8','-m','ioalab_sdk.access','login','--config',str(config)],
                           cwd=tmp_path,capture_output=True,text=True,encoding='utf-8',timeout=20)
     assert result.returncode==0,result.stderr+result.stdout
     value=json.loads(result.stdout)
@@ -232,7 +232,7 @@ def test_both_skill_roles_route_login_to_installed_sdk_without_starting_host(tmp
     monkeypatch.setattr(product,'invoke',invoke)
     config=tmp_path/'outside.json'
     assert product.main(['account.login','--config',str(config)])==0
-    assert calls==[['-m','ioalab_sdk.runtime','login','--config',str(config.resolve())]]
+    assert calls==[['-m','ioalab_sdk.access','login','--config',str(config.resolve())]]
 
 
 @pytest.mark.parametrize('kind',['array','invalid-json','missing-token'])

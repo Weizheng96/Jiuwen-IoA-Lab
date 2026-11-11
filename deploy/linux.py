@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import uuid
+from .files import regular_file, sha
 
 
 def require_host():
@@ -30,14 +31,6 @@ def execute(arguments, *, check=True):
     return result
 
 
-def regular(path):
-    path=Path(path)
-    if path.absolute()!=path.resolve() or (path.exists() and not path.is_file()):
-        raise ValueError('Use an owned regular deployment file without links')
-    return path
-
-
-def fingerprint(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def protected_file(path):
@@ -156,7 +149,7 @@ class Accounts:
 
     def configuration(self,path,role):
         if role not in ('core','agents'):raise ValueError('Choose the core or agents system role')
-        path=regular(path);expected=self.layout.config/('core' if role=='core' else 'agents')
+        path=regular_file(path);expected=self.layout.config/('core' if role=='core' else 'agents')
         if not path.is_relative_to(expected):raise RuntimeError('Role configuration escaped the configured directory')
         entry=self.accounts[role]
         owners=(0,entry['uid']) if role=='core' else (0,)
@@ -195,12 +188,12 @@ class Systemd:
     def owned(self,name):
         self.name(name)
         if name not in self.record:raise RuntimeError('The unit has no recorded deployment ownership')
-        path=regular(self.directory/name)
+        path=regular_file(self.directory/name)
         entry=self.record[name]
         allowed={entry.get('sha256')}
         if entry.get('phase')=='writing':allowed.add(entry.get('previous'))
         if (entry.get('phase') not in ('writing','ready') or not path.is_file()
-                or fingerprint(path) not in allowed or not protected_file(path)):
+                or sha(path) not in allowed or not protected_file(path)):
             raise RuntimeError('A managed unit was removed or edited; preserve it for explicit review')
         live=self.inspect(name)
         if live.get('FragmentPath') not in ('',str(path)):
@@ -215,22 +208,22 @@ class Systemd:
             self.name(name)
             if not text.startswith('# ioalab-deployment:'+self.id+'\n'):
                 raise RuntimeError('Unit payload does not name this deployment')
-            path=regular(self.directory/name);sha=hashlib.sha256(text.encode('utf-8')).hexdigest()
+            path=regular_file(self.directory/name);checksum=hashlib.sha256(text.encode('utf-8')).hexdigest()
             old=self.record.get(name)
             if old is None:
                 if path.exists() or self.inspect(name).get('LoadState') not in ('not-found',None):
                     raise RuntimeError('An existing unknown service will not be replaced')
-                old={'phase':'writing','sha256':sha,'previous':None};self.record[name]=old;self.save()
+                old={'phase':'writing','sha256':checksum,'previous':None};self.record[name]=old;self.save()
             elif old.get('phase')=='ready':
                 self.owned(name)
-                old.update(phase='writing',previous=old['sha256'],sha256=sha);self.save()
-            elif old.get('phase')!='writing' or old.get('sha256')!=sha:
+                old.update(phase='writing',previous=old['sha256'],sha256=checksum);self.save()
+            elif old.get('phase')!='writing' or old.get('sha256')!=checksum:
                 raise RuntimeError('Continue the original managed unit write')
-            if path.exists() and fingerprint(path) not in {old['sha256'],old['previous']}:
+            if path.exists() and sha(path) not in {old['sha256'],old['previous']}:
                 raise RuntimeError('Unit changed during the original write; preserve it')
             planned[name]=(path,text,old)
         for name,(path,text,entry) in planned.items():
-            if not path.exists() or fingerprint(path)!=entry['sha256']:
+            if not path.exists() or sha(path)!=entry['sha256']:
                 temporary=path.with_name('.'+path.name+'.'+self.id+'.'+uuid.uuid4().hex)
                 descriptor=os.open(temporary,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
                 with os.fdopen(descriptor,'w',encoding='utf-8',newline='\n') as output:

@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import json
 from typing import Any, Callable, Mapping
 
 from a2c import objects
@@ -113,6 +114,17 @@ class MarketService:
             if table not in ('cards','ledger'):raise RuntimeError('Unexpected market store namespace')
             for key,value in values.items():self.market.store.put(table,key,value)
 
+
+    def operation_in(self, conn, actor, operation):
+        """Saved application `a2c.market` receipt: owner, fingerprint and original result, or None."""
+        if conn is not self.db.conn:raise RuntimeError('Use the owned market operation connection')
+        row=conn.execute('SELECT owner,fingerprint,result FROM delegation_market_operations WHERE actor=? AND id=?',(actor,operation)).fetchone()
+        return None if row is None else {'owner':row['owner'],'fingerprint':row['fingerprint'],'result':json.loads(row['result'])}
+
+    def record_operation_in(self, conn, owner, actor, operation, fingerprint, result):
+        """Save the receipt with the market facts committed in the same transaction."""
+        if conn is not self.db.conn or not conn.in_transaction:raise RuntimeError('Market operation receipt requires the owned application transaction')
+        conn.execute('INSERT INTO delegation_market_operations VALUES(?,?,?,?,?)',(owner,actor,operation,fingerprint,json.dumps(result)))
 
     # ── 信誉条目（协议外；依据是结清的卡与裁定）───────────────────────
     def reputation(self, provider_id: str) -> dict:

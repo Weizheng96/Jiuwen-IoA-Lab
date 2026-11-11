@@ -7,7 +7,6 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Mapping
 
 from a2c.codec import digest_bytes
 from a2c.errors import INVALID_OBJECT, fail
@@ -51,11 +50,6 @@ class PackageStore:
         if not p.exists():
             p.write_bytes(blob)
         return reference
-
-    def check_ref(self, ref: Mapping[str, Any]) -> None:
-        if not str(ref.get("uri", "")).startswith(SCHEME):
-            fail(INVALID_OBJECT, "服务定义不得自带验收器 uri")
-
 
 
 __all__ = ["PackageStore", "SCHEME"]

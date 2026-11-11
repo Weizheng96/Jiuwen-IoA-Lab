@@ -28,7 +28,19 @@ def test_manifest_source_digests_survive_checkout_newlines_but_detect_content_ch
 def test_configuration_reports_missing_initialization_input(tmp_path):
     from ioalab.config import Settings
     settings=Settings(data=tmp_path,autoseed=True,seed_file=None,stub=True)
-    assert any('runtime.seed_file' in problem for problem in settings.check())
+    assert any('runtime.seed_file' in problem for problem in settings.check(seed_manifest=load_domains))
+    assert not any('seed' in problem for problem in Settings(data=tmp_path,autoseed=False,stub=True).check(seed_manifest=load_domains))
+
+
+def test_command_self_check_reports_missing_oversized_and_invalid_manifests(tmp_path):
+    from ioalab.cli import _problems
+    from ioalab.config import Settings
+    large=tmp_path/'large.json';large.write_bytes(b' '*(2*1024*1024+1))
+    invalid=tmp_path/'invalid.json';invalid.write_text(json.dumps({'domains':[{'account':'ISP_000','label':'x','category':{'id':'a','name':'A'}}]}),encoding='utf-8')
+    for path,message in ((None,'runtime.seed_file is required when initializing accounts and categories'),
+                         (large,'Seed manifest must be a readable JSON file of at most 2 MiB'),
+                         (invalid,'Each domain requires a valid ISP account')):
+        assert message in _problems(Settings(data=tmp_path,autoseed=True,seed_file=path,stub=True))
 
 
 def test_explicit_seedless_initialization_is_available(tmp_path):
@@ -41,13 +53,6 @@ def test_explicit_seedless_initialization_is_available(tmp_path):
     assert (tmp_path/'data/ioalab.sqlite').is_file()
 
 
-def test_seedless_catalog_is_empty(platform,client,monkeypatch):
-    monkeypatch.setattr(platform.s,'seed_file',None)
-    result=client.get('/api/services/definitions')
-    assert result.status_code==200
-    assert result.json()==[]
-
-
 def test_explicit_manifest_works_from_another_directory(tmp_path, monkeypatch):
     source=ROOT/'deploy/default-seed.json'
     manifest=tmp_path/'public.json'
@@ -56,11 +61,11 @@ def test_explicit_manifest_works_from_another_directory(tmp_path, monkeypatch):
     domains=load_domains(manifest)
     assert len(domains)==8
     assert sum(len(d['services']) for d in domains)==52
-    assert {d['account'] for d in domains}=={f'ISP_{i:03d}' for i in range(1,9)}
+    assert {d['account'] for d in domains}=={'ISP_001'}
     assert all('sample' not in s and 'verifier' not in s for d in domains for s in d['services'])
 
 
-@pytest.mark.parametrize('kind',['missing','empty','duplicate_account','duplicate_category'])
+@pytest.mark.parametrize('kind',['missing','empty','invalid_account','duplicate_category'])
 def test_bad_initialization_does_not_fall_back_to_source(kind,tmp_path):
     data=json.loads((ROOT/'deploy/default-seed.json').read_text(encoding='utf-8'))
     if kind=='missing':
@@ -68,7 +73,7 @@ def test_bad_initialization_does_not_fall_back_to_source(kind,tmp_path):
             load_domains(None)
         return
     if kind=='empty':data['domains']=[]
-    elif kind=='duplicate_account':data['domains'][1]['account']=data['domains'][0]['account']
+    elif kind=='invalid_account':data['domains'][1]['account']='ISP_000'
     else:data['domains'][1]['category']['id']=data['domains'][0]['category']['id']
     path=tmp_path/'bad.json'
     path.write_text(json.dumps(data),encoding='utf-8')

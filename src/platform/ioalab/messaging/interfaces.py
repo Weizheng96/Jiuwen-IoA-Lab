@@ -47,7 +47,7 @@ class PublicInterfaces:
                 raise LabError('invalid_input','Invalid allowedSenders')
             ids=[]
             for username in allow:
-                row=conn.execute('SELECT id FROM users WHERE username=?',(username,)).fetchone()
+                row=self.identities.account(username)
                 if not row:raise LabError('invalid_input','An allowed account does not exist')
                 ids.append(row['id'])
         old=conn.execute('SELECT revision FROM message_interfaces WHERE owner=? AND name=?',(owner,name)).fetchone()

@@ -7,19 +7,18 @@ from pathlib import Path
 import time
 
 from . import activation,units
-from .environment import writer
-from .linux import Systemd,regular
+from .files import regular_file, save, writer
+from .linux import Systemd
 from .release import read_json
-from .workspace import save
 
 
 class Lifecycle:
     def __init__(self,layout):
         self.layout=layout;self.owner=layout.inspect()['deploymentId']
-        self.metadata=read_json(regular(layout.private/'installation.json'))
+        self.metadata=read_json(regular_file(layout.private/'installation.json'))
         if self.metadata.get('deploymentId')!=self.owner:
             raise RuntimeError('Deployment ownership changed')
-        initial=read_json(regular(layout.private/'initial.json'))['input']
+        initial=read_json(regular_file(layout.private/'initial.json'))['input']
         from .configuration import platform
         self.plans=units.plans(layout,administrator=initial['admin_assistant']['enabled'],core=platform(initial['platform_config']),trial=initial.get('trial'))
         if set(self.metadata['units'])!={row['unit'] for row in self.plans.values()}:
@@ -34,10 +33,10 @@ class Lifecycle:
         try:
             trial=self.plans.get('trial')
             if trial:
-                config=Path(trial['command'][-1]);value=read_json(regular(config))
+                config=Path(trial['command'][-1]);value=read_json(regular_file(config))
                 control=Path(value['control_directory'])
                 if not control.is_absolute():raise RuntimeError('Use an absolute trial control directory')
-                receipt=read_json(regular(control/'shutdown.json'))
+                receipt=read_json(regular_file(control/'shutdown.json'))
                 if (receipt.get('configSha256')!=hashlib.sha256(config.read_bytes()).hexdigest()
                         or receipt.get('allEpochResourcesStopped') is not True):
                     raise RuntimeError('Trial epoch resource shutdown has not been verified')
@@ -79,8 +78,8 @@ class Lifecycle:
         from .configs import Configuration
         from .jobs import Job
         from .installation import Installation
-        initial=read_json(regular(self.layout.private/'initial.json'))
-        pointer=read_json(regular(self.layout.private/'current-job.json'))
+        initial=read_json(regular_file(self.layout.private/'initial.json'))
+        pointer=read_json(regular_file(self.layout.private/'current-job.json'))
         installer=Installation(Job(self.layout,pointer['operationId']),
             Configuration(self.layout,self.layout.inspect(),initial['input']))
         installer.progress={**installer.progress,'requiredRunning':list(self.plans),'recheck':True}

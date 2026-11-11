@@ -12,8 +12,8 @@ import httpx
 from jsonschema import Draft202012Validator
 import yaml
 
-from ..runtime.files import private_text
-from ..runtime.protocol import RuntimeFault,encode
+from ..runtime import private_text
+from ..runtime import RuntimeFault,encode
 
 
 FIELDS={'name','description','inputSchema','outputSchema','allowedSenders','enabled','tools'}
@@ -153,10 +153,9 @@ class Rules:
         if result.get('agentId')!=self.identity.agent_id or result.get('name')!=record['name'] or result.get('contentDigest')!=record['contentDigest']:
             raise RuntimeFault('protocol_error','Published rule result differs from the original local content')
         version={'type':'version','name':record['name'],'revision':result['revision'],'contentDigest':record['contentDigest'],'tools':record['tools']}
-        with self.lock,self.store.transaction() as conn:
-            conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',(self.namespace,'version:'+record['name']+':'+str(result['revision']),encode(version)))
-            record={**record,'result':result}
-            conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',(self.namespace,'publish:'+operation,encode(record)))
+        with self.lock:
+            self.store.checkpoint_update(self.namespace,{'version:'+record['name']+':'+str(result['revision']):version,
+                                                         'publish:'+operation:{**record,'result':result}})
         return {'status':'completed','data':version}
 
     def publish(self,operation,reference,content_digest,expected_revision,confirmation=None):

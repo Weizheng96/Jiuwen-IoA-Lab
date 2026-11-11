@@ -196,8 +196,6 @@ class ServicePublications:
             raise LabError('revision_conflict', 'Index does not reflect the current publication', status=409)
         conn.execute('INSERT OR REPLACE INTO registry_projection VALUES(?,?,?,?)',
                      (actor, declaration['revision'], actual_category, self.clock()))
-        definition = {'id': actor, 'name': declaration['name'], 'description': declaration['description'],
-                      'tags': declaration['tags'], 'category': actual_category, 'url': declaration['protocolId'],
-                      'external': True, 'runnable': False}
-        conn.execute("UPDATE agents SET name=?,definition=?,status='listed' WHERE id=?",
-                     (declaration['name'], encode(definition), actor))
+        conn.execute('INSERT OR REPLACE INTO registry_services VALUES(?,?,?,?,?,?)',
+                     (actor, declaration['protocolId'], declaration['name'], declaration['description'],
+                      encode(declaration['tags']), actual_category))

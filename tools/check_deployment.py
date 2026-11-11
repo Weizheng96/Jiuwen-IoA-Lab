@@ -2,8 +2,9 @@
 import argparse
 from pathlib import Path
 
-from deploy.release import HEX, TARGETS, UNITS, pins, read_json, sha
-from tools.deployment_dependencies import inputs
+from deploy.release import HEX, TARGETS, UNITS, pins, read_json
+from deploy.files import sha
+from deploy.build import inputs
 
 ROOT = Path(__file__).resolve().parents[1]
 

@@ -107,6 +107,10 @@ class Auth:
     def is_auditor(self,subject):
         return bool(subject and subject!='admin' and self.is_admin(subject) and 'auditor' in self.roles(subject))
 
+    def grant_admin_in(self,conn,user_id):
+        """Deployment preset: add the admin role inside the caller's transaction; never removes roles."""
+        return conn.execute("INSERT OR IGNORE INTO user_roles(user_id,role) VALUES(?, 'admin')",(user_id,)).rowcount==1
+
     def set_roles(self,operator,target,roles,expected):
         from ..errors import LabError
         def valid(value):return isinstance(value,list) and len(value)<=2 and all(type(x) is str and x in ('admin','auditor') for x in value) and len(set(value))==len(value)
@@ -220,6 +224,14 @@ class Auth:
         with self.db.tx() as conn:
             user=self.login_in(conn,verified)
         return {**user,'token':self.token(user['id'])}
+
+    def reset_default_password_in(self,conn,username,current,replacement):
+        """Replace a preset account's still-default password inside the caller's transaction."""
+        row=conn.execute('SELECT id,pw_hash FROM users WHERE username=?',(username,)).fetchone()
+        if not row or not _check_pw(current,row['pw_hash']):
+            return False
+        conn.execute('UPDATE users SET pw_hash=? WHERE id=?',(_pbkdf2(replacement),row['id']))
+        return True
 
     def new_invite(self) -> str:
         code = secrets.token_urlsafe(8)

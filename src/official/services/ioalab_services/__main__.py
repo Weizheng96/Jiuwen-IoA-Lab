@@ -4,8 +4,8 @@ import json
 import os
 from pathlib import Path
 
-from ioalab_sdk.runtime.protocol import RuntimeFault,configure_stdio
-from ioalab_sdk.runtime.ipc import public_error
+from ioalab_sdk.runtime import RuntimeFault,configure_stdio
+from ioalab_sdk.runtime import public_error
 from .deployment import Deployment
 
 

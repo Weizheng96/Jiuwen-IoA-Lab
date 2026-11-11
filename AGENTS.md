@@ -1,21 +1,18 @@
 # 九问 IoA Lab · 项目约定
 
-本文件只留通用规则与阅读入口。秘密、私人消息和运行数据不入库；只改并提交本任务，保护并发改动、原数据与进程；报告真实验证结果及未验证范围。
+本文件只留通用规则与阅读入口。秘密、私人消息和运行数据不入库；只改并提交本任务，保护并发改动、原数据与进程；报告真实验证结果及未验证范围。两个AI默认串行开发，需要并行时由用户明确下令。
 
 ## 1. 版本与提交
 
-在main小步开发、验证、提交，主要迭代GitHub，定期依[同步技能](.agents/skills/gitcode-sync/SKILL.md)同步GitCode。提交为`v<设计三段>.<开发序号>：主题`，序号从该设计下main已有提交顺延。
-以[设计VERSION](设计/VERSION)为当前版本：Codex只递增第三位，前两位由用户决定。产物可落后，差异见[开发计划](设计/工程/实施资料/开发计划.md)，不因提交编号虚升设计。
+在develop小步开发、验证、提交并推送GitHub；AI自行完成的提交与推送只到develop，不直接向main提交。提交为`v0.0.x.y：主题`：x是当前[设计VERSION](设计/VERSION)的第三位，y是该设计版本下的开发推送序号，每次提交递增第四位；设计VERSION第三位只在模块接口页的不变量变化时递增，此后第四位从1重新计起；前两位由用户决定。仅在用户明确要求时将develop合入main并随后同步GitCode。版本、变更登记与合入步骤只在[交付](.agents/skills/develop/references/delivery.md)。
 
 ## 2. 设计
 
-[设计索引](设计/README.md)是唯一现行规范，编修遵循[design](.agents/skills/design/SKILL.md)。规则变化先给初始方案，在开发计划标开发中，更新职责页与版本再实现；仅实现偏离正确规范时，在开发计划标“开发中，与当前设计有偏离”并写修复方案。
-完工更新职责页、删除已完成进展项，不叠补丁规则；根README只讲理念与使用。
+[设计索引](设计/README.md)是唯一现行规范，编修遵循[design](.agents/skills/design/SKILL.md)；方案有多个开放问题时先按[grilling](.agents/skills/grilling/SKILL.md)分轮问清。改动先分类：改变代码应有行为的是不变量变化，先改模块接口页并升版再实现；只让文档追平代码的是事实性修正，随代码一起改或攒批收口，不单独升版。实现偏离正确规范时，在模块进展票据标“开发中，与当前设计有偏离”并写修复方案，不为bug改规范。完工更新接口页与实现页、删除已完成票据；根README只讲理念与使用。
 
 ## 3. 开发
 
-遵循[develop](.agents/skills/develop/SKILL.md)及其模块技能索引；内部阶段保持架构简洁，不增兼容别名、旧格式回退或双执行链。改模块时更新所属产物VERSION，不高于设计；依据与未完成差异分别报告。
-合同、授权、付款及沙箱边界从设计入口读取，不以模型文字代替用户批准。产品Skill与Codex开发技能分别归src/access/skills与.agents/skills。
+按[develop](.agents/skills/develop/SKILL.md)的路由表进入模块文件夹，只读本模块、所依赖模块的接口页及所列测试，不通读全部规范；保持架构简洁，不增兼容别名、旧格式回退或双执行链。产物VERSION只在发布时更新，不随每次改模块递增，不高于设计。合同、授权、付款及沙箱边界从设计入口读取，不以模型文字代替用户批准。产品Skill与开发技能分别归src/access/skills与.agents/skills。
 
 ## 4. 测试
 
@@ -23,7 +20,7 @@
 
 ## 5. 部署
 
-常规部署只读[部署教程](设计/工程/部署.md)，选择Windows本地或Linux服务器部分；[deployment](.agents/skills/deployment/SKILL.md)提供异常处理及专项入口。现行安装、进程归属与数据保留规则归[安装与升级](设计/工程/安装与升级.md)。
+平台、官方实例与在线试用只在Linux服务器部署，常规部署只读[部署教程](设计/工程/部署.md)；Windows开发机只做单元测试、自检与本机平台开发运行（见develop）；[deployment](.agents/skills/deployment/SKILL.md)提供异常处理及专项入口。现行安装、进程归属与数据保留规则归[部署模块](设计/组件/部署/接口.md)。
 
 ## 6. 模型
 
@@ -31,7 +28,7 @@
 
 ## 7. 工具与数据
 
-可复用工具归tools，由[工具索引](tools/README.md)按所属技能查找；所有复用数据归.agents/data，一次性脚本、草稿及数据归temp，数据均不远端同步。现有目录迁移须同步所有消费者，保留原数据及摘要。
+可复用工具归tools，由[工具索引](tools/README.md)按所属技能查找；所有复用数据归.agents/data，一次性脚本、草稿及数据归temp，数据均不远端同步。现有目录迁移须同步所有消费者，保留原数据及摘要。检索文件与内容只用rg（Claude Code的Grep/Glob），不用find、递归列目录或git grep扫全仓；根目录.ignore默认排除temp、vendor与旧变更详情，需要时显式给路径或用rg --no-ignore-dot，用户点名的文件直接读。
 
 ## 8. Demo
 
@@ -39,5 +36,5 @@
 
 ## 9. 技能
 
-SKILL.md只保留用途、边界、流程与按需入口；专题进references，稳定步骤复用脚本。完工提炼有价值经验，更新或按需新建技能，合并替换旧内容，不追加流水复盘。
+SKILL.md不超过40行，写要做什么而不是罗列禁止；专题进references按需读，能脚本化的规则写成检查并从文字删除。阶段完成按[retro](.agents/skills/retro/SKILL.md)复盘环境，更新或按需新建技能，合并替换旧内容，不追加流水复盘。
 用户明确授权多智能体协作时，按[parallel-development](.agents/skills/parallel-development/SKILL.md)划分职责、协调共享资源并接棒验收。

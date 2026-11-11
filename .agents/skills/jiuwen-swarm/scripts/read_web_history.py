@@ -50,7 +50,7 @@ def configuration_access(call,arguments,paths):
     # Passing a path to the product SDK is not a model reading its body. Remove
     # only literal --config arguments on an observed SDK invocation; leave any
     # separate direct access to that same path visible to the matcher.
-    sdk=bool(re.search(r'ioalab\.py|ioalab_sdk\.runtime|ioalab_jiuwen',command))
+    sdk=bool(re.search(r'ioalab\.py|ioalab_sdk\.(?:access|runtime)|ioalab_jiuwen',command))  # runtime: histories recorded before v0.0.146
     if sdk:
         command=re.sub(r'''(["'])--config\1\s*,\s*r?(["'])(.*?)\2''','--config SDK_PATH',command)
         command=re.sub(r'''--config(?:=|\s+)r?(["'])(.*?)\1''','--config SDK_PATH',command)

@@ -8,7 +8,7 @@ import re
 import uuid
 
 from .release import read_json
-from .workspace import path_without_links
+from .files import path_without_links
 
 FORMAT = 'ioalab.deployment-layout/1'
 MARKER = '.ioalab-deployment.json'

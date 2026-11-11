@@ -5,6 +5,7 @@ All queries read existing component facts and never create business state.
 from ..errors import LabError
 from ..storage import jload
 from .events import event_view
+from .services import identity_rows
 
 
 class AccountQueries:
@@ -21,21 +22,25 @@ class AccountQueries:
         if not account:
             raise LabError('forbidden', '账号不可用', status=401)
         return {**account, 'roles': self.auth.roles(uid), 'wallet': str(self.wallets.balance(uid)),
-                'agents': self.db.rows('SELECT id,role,name,status,created FROM agents WHERE owner_id=?', uid),
-                'pending': self.db.rows("SELECT * FROM confirmations WHERE owner_id=? AND state='pending' ORDER BY created", uid)}
+                'agents': identity_rows(self.db, uid, ('id', 'role', 'name', 'status', 'created'))}
 
     def sdk_me(self, uid):
         account = self.db.one('SELECT id,username,display_name,kind FROM users WHERE id=?', uid)
         if not account:
             raise LabError('forbidden', 'Account is unavailable', status=401)
         return {**account, 'wallet': str(self.wallets.balance(uid)), 'roles': self.auth.roles(uid),
-                'identities': self.identities.list_owned(uid)}
+                'identities': self.identities_of(uid)}
+
+    def identities_of(self, uid):
+        listed = {row['id']: row for row in identity_rows(self.db, uid, ('id', 'name', 'status'))}
+        return [{**identity, 'name': listed[identity['id']]['name'], 'status': listed[identity['id']]['status']}
+                for identity in self.identities.list_owned(uid)]
 
     def admin_users(self):
         rows = self.db.rows('SELECT u.*,w.balance FROM users u LEFT JOIN wallets w ON w.user_id=u.id ORDER BY u.created')
         for row in rows:
             row.pop('pw_hash', None)
-            row['agents'] = self.db.rows('SELECT id,role,name,status FROM agents WHERE owner_id=?', row['id'])
+            row['agents'] = identity_rows(self.db, row['id'], ('id', 'role', 'name', 'status'))
             row['roles'] = self.auth.roles(row['id'])
         return rows
 
@@ -58,9 +63,6 @@ class AccountQueries:
         return {'services': len(self.services.list()),
                 'assistants': self.db.one("SELECT COUNT(*) AS n FROM agents WHERE role='assistant' AND status<>'disabled'")['n'],
                 'interactions': self.db.one('SELECT COUNT(*) AS n FROM delivery_interactions')['n']}
-
-    def needs(self, uid):
-        return self.db.rows('SELECT id,text,state,card_digest,created,updated,llm_calls,tokens FROM needs WHERE owner_id=? ORDER BY created DESC', uid)
 
     def events(self, run='', after=0, limit=300):
         rows = self.db.rows('SELECT * FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT ?',

@@ -6,9 +6,9 @@ import re
 import secrets
 import tempfile
 
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_text, restrict, read_arguments
-from ioalab_sdk.runtime.protocol import RuntimeFault, encode
+from ioalab_sdk.runtime import RuntimeConfig
+from ioalab_sdk.runtime import private_text, restrict, read_arguments
+from ioalab_sdk.runtime import RuntimeFault, encode
 from .process import ProcessHost
 from .web_notifications import WebNotifications
 

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -13,47 +12,12 @@ from urllib.parse import urlsplit
 import uuid
 import venv
 
-from .release import UNITS, current_target, digest, linked, load, official_catalog, pins, read_json, regular
+from .release import UNITS, current_target, digest, load, official_catalog, pins, read_json, regular
+from .files import linked, save, writer
 from .processes import child_environment
 
 
-def atomic(path, value):
-    temporary = path.with_name('.' + path.name + '.' + uuid.uuid4().hex)
-    with temporary.open('x', encoding='utf-8', newline='\n') as stream:
-        stream.write(json.dumps(value, ensure_ascii=False, sort_keys=True) + '\n')
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, path)
 
-
-@contextmanager
-def writer(path):
-    if path.exists() and linked(path):
-        raise ValueError('Installation lock cannot be a link')
-    descriptor = os.open(path, os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
-    try:
-        if os.fstat(descriptor).st_size == 0:
-            os.write(descriptor, b'0')
-        os.lseek(descriptor, 0, os.SEEK_SET)
-        try:
-            if os.name == 'nt':
-                import msvcrt
-                msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            raise RuntimeError('Another installer holds this environment writer lock; inspect that original attempt') from None
-        try:
-            yield
-        finally:
-            os.lseek(descriptor, 0, os.SEEK_SET)
-            if os.name == 'nt':
-                msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
-            else:
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
-    finally:
-        os.close(descriptor)
 
 
 def mirror(value):
@@ -73,14 +37,6 @@ def python_in(environment):
     return environment / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
 
 
-def native_paths(environment):
-    if os.name != 'nt':
-        return
-    for path in environment.rglob('*'):
-        if path.suffix.lower() in ('.pyd', '.dll') and len(str(path.absolute()).encode('utf-16-le')) // 2 > 240:
-            raise RuntimeError('A Windows native library path is too long; preserve this attempt and choose a shorter --root')
-
-
 def validation_code(unit, expected, catalog):
     checks = '''
 import importlib.metadata as metadata
@@ -95,12 +51,12 @@ assert not set(actual)-set(expected)-{'pip','setuptools','wheel'}, 'Unexpected p
     if unit == 'core':
         checks += "from ioalab.config import Settings\nfrom ioalab.web.app import create_app\n"
     elif unit == 'participant':
-        checks += ("from ioalab_sdk.runtime.resident import ResidentRuntime\n"
-                   "from ioalab_jiuwen.process import ProcessHost\n"
-                   "from ioalab_services.catalog import definitions\n"
+        checks += ("from ioalab_sdk.runtime import ResidentRuntime\n"
+                   "from ioalab_jiuwen import ProcessHost\n"
+                   "from ioalab_services import definitions\n"
                    "services=[item['id'] for item in definitions()]\n"
                    "assert sorted(services)==" + repr(sorted(identifier for ids in catalog.values() for identifier in ids)) + ", 'Installed official catalog differs from the release declaration'\n"
-                   "from ioalab_admin_assistant.presets import load\nassert len(load(meetings=False)[1])==2\n")
+                   "from ioalab_admin_assistant import load_presets\nassert len(load_presets(meetings=False)[1])==2\n")
     else:
         checks += ("import jiuwenswarm,openjiuwen,sqlalchemy\n"
                    "distribution=metadata.distribution('workswarm')\n"
@@ -134,8 +90,6 @@ class Environment:
         if self.root.resolve().is_relative_to(prefix) or prefix.is_relative_to(self.root.resolve()):
             raise ValueError('Choose a dedicated environment root separate from this running interpreter')
         self.folder = self.root / (unit + '-' + self.id[:16])
-        if os.name == 'nt' and len(str(self.folder / ('a-' + '0' * 16)).encode('utf-16-le')) // 2 > 145:
-            raise ValueError('Choose a shorter --root for Windows native dependencies; the environment prefix must fit 145 UTF-16 characters')
         self.versions = pins(regular(self.release, self.plan['lock']['path']).read_text(encoding='utf-8'))
         self.versions.update({wheel['name']: wheel['version'] for wheel in self.plan['wheels']})
 
@@ -153,7 +107,7 @@ class Environment:
         with writer(self.folder / 'writer.lock'):
             owner = self.folder / 'owner.json'
             if created:
-                atomic(owner, self.identity)
+                save(owner, self.identity)
             elif not owner.is_file() or linked(owner) or read_json(owner) != self.identity:
                 raise RuntimeError('Existing environment has unknown ownership; preserve and inspect it')
 
@@ -172,7 +126,6 @@ class Environment:
         environment = self.folder / attempt
         if linked(environment) or not environment.is_dir():
             raise RuntimeError('Installed environment path has changed')
-        native_paths(environment)
         python = python_in(environment)
         catalog = official_catalog(self.release, self.document) if self.unit == 'participant' else None
         execute(python, validation_code(self.unit, self.versions, catalog), self.folder, log)
@@ -194,7 +147,7 @@ class Environment:
             raise RuntimeError('Environment readiness identity has changed')
         self.validate(state['attempt'], log)
         if self.unit == 'participant':
-            execute(python_in(environment), ['-c', "from ioalab_sdk.runtime.installation import current; import sys; assert current('ioalab-official')['releaseId']==sys.argv[1]", self.id], self.folder, log)
+            execute(python_in(environment), ['-c', "from ioalab_sdk.runtime import current; import sys; assert current('ioalab-official')['releaseId']==sys.argv[1]", self.id], self.folder, log)
         return environment
 
     def install(self, *, index='https://pypi.tuna.tsinghua.edu.cn/simple', retry_failed=False, verify=False):
@@ -216,7 +169,7 @@ class Environment:
             attempt = 'a-' + uuid.uuid4().hex[:16]
             environment, log = self.folder / attempt, self.folder / (attempt + '.log')
             state = {'environmentId': self.id, 'phase': 'installing', 'attempt': attempt}
-            atomic(self.folder / 'state.json', state)
+            save(self.folder / 'state.json', state)
             print(self.unit + ': installing a new isolated environment', flush=True)
             try:
                 venv.EnvBuilder(with_pip=True, system_site_packages=False).create(environment)
@@ -232,16 +185,16 @@ class Environment:
                 self.validate(attempt, log)
                 if load(self.release, require_target=True) != self.document:
                     raise RuntimeError('Release inputs changed during installation')
-                atomic(environment / 'deployment.json', {'environmentId': self.id, 'identity': self.identity, 'versions': self.versions})
+                save(environment / 'deployment.json', {'environmentId': self.id, 'identity': self.identity, 'versions': self.versions})
                 if self.unit == 'participant':
-                    atomic(environment / 'ioalab-release.json', {'format': 'ioalab.access-installation/1', 'releaseId': self.id, 'versions': self.versions})
+                    save(environment / 'ioalab-release.json', {'format': 'ioalab.access-installation/1', 'releaseId': self.id, 'versions': self.versions})
                 (environment / '.ready').write_text(self.id, encoding='utf-8')
                 state['phase'] = 'ready'
                 self.ready(state, log)
-                atomic(self.folder / 'state.json', state)
+                save(self.folder / 'state.json', state)
             except Exception:
                 state['phase'] = 'failed'
-                atomic(self.folder / 'state.json', state)
+                save(self.folder / 'state.json', state)
                 raise RuntimeError('Installation failed; the original environment and log were preserved: ' + str(log)) from None
             return self.result(environment, reused=False)
 

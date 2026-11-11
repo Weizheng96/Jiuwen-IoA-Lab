@@ -5,7 +5,6 @@ import os
 
 import pytest
 
-from ioalab.config import Settings
 from ioalab.configuration import PlatformConfiguration, defaults,validate
 from ioalab.configuration_permissions import protect_new
 from ioalab.errors import LabError
@@ -20,7 +19,7 @@ def configuration(tmp_path):
 
 
 def test_single_file_roundtrip_dynamic_snapshot_redaction_and_revision_conflict(configuration,monkeypatch):
-    settings=Settings.load(configuration.path)
+    authority=PlatformConfiguration.load(configuration.path);settings=authority.settings()
     monkeypatch.setenv('IOALAB_LOGIN_CREDIT','999')
     assert settings.login_credit=='100.00'
     assert settings.initial_credit=='500.00'
@@ -31,10 +30,10 @@ def test_single_file_roundtrip_dynamic_snapshot_redaction_and_revision_conflict(
     assert 'admin1234' not in json.dumps(configuration.view())
     assert configuration.view()['restart']['llmKeyConfigured'] is True
     stale=PlatformConfiguration(configuration.path)
-    settings._configuration.update(1,{'credits':{'login':'7.25','repeat_daily':True},'authentication':{'max_failures':9}})
+    authority.update(1,{'credits':{'login':'7.25','repeat_daily':True},'authentication':{'max_failures':9}})
     assert settings.policy()['credits']['login']=='7.25'
     assert settings.policy()['authentication']['max_failures']==9
-    assert Settings.load(configuration.path).login_credit=='7.25'
+    assert PlatformConfiguration.load(configuration.path).settings().login_credit=='7.25'
     before=configuration.path.read_bytes()
     with pytest.raises(LabError):stale.update(1,{'credits':{'initial':'999.00'}})
     assert configuration.path.read_bytes()==before
@@ -91,9 +90,9 @@ def test_trial_ports_are_saved_without_changing_active_audience_until_restart(tm
     assert entry(settings,'owner',confirmation=True)['url'].startswith('https://192.0.2.10:9443/entry#')
     authority.settings()
     assert authority.view()['network']['active']==result['network']['active']
-    restarted=Settings.load(authority.path)
+    reloaded=PlatformConfiguration.load(authority.path);restarted=reloaded.settings()
     assert entry(restarted,'owner')['url'].startswith('https://192.0.2.10:8000/entry#')
-    assert not restarted._configuration.view()['network']['pending']
+    assert not reloaded.view()['network']['pending']
     assert restarted.port==settings.port and restarted.public_url==settings.public_url
     assert 'PRIVATE-ADMISSION' not in json.dumps(result)
     with pytest.raises(LabError) as error:authority.update(1,changes)
@@ -131,15 +130,15 @@ def test_saving_ports_does_not_claim_missing_admission_secret_is_configured(tmp_
     authority.settings()
     result=authority.update(1,{'runtime':{'trial_url':'https://192.0.2.10:8000','trial_confirm_url':'https://192.0.2.10:8001'}})
     assert result['network']['admissionKeyConfigured'] is False
-    with pytest.raises(LabError) as error:entry(Settings.load(authority.path),'owner')
+    with pytest.raises(LabError) as error:entry(PlatformConfiguration.load(authority.path).settings(),'owner')
     assert error.value.code=='not_ready'
 
 
 def test_missing_and_hardlinked_private_configuration_are_rejected(configuration,tmp_path):
-    with pytest.raises(FileNotFoundError):Settings.load(configuration.path.parent/'missing.json')
+    with pytest.raises(FileNotFoundError):PlatformConfiguration.load(configuration.path.parent/'missing.json')
     alias=tmp_path/'configuration-alias.json';os.link(configuration.path,alias)
     try:
-        with pytest.raises(LabError):Settings.load(configuration.path)
+        with pytest.raises(LabError):PlatformConfiguration.load(configuration.path)
     finally:alias.unlink()
 
 

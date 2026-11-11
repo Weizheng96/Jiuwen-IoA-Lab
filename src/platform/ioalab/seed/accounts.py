@@ -1,4 +1,4 @@
-"""内部账号：ISP_001…ISP_{N}（内部服务提供者，各负责一个领域）与 ISC_001…ISC_{M}（内部服务使用者）。
+"""内部账号：ISP_001…ISP_{N}（内部服务提供者，一个账号可覆盖多个领域）与 ISC_001…ISC_{M}（内部服务使用者）。
 
 密码 = 序号三位（001…）。N 来自显式部署种子清单；M = runtime.isc_count。
 幂等：按用户名判已存在。ISC 账号保持空闲，每次成功登录按普通账号规则获得额度。
@@ -11,31 +11,32 @@ def ensure_accounts(platform, *, domains=None) -> dict:
     if domains is None:
         from .domains import load_domains
         domains = load_domains(platform.s.seed_file)
+    accounts={}
     for domain in domains:
-        username = domain['account']
-        out["isp"].append(_ensure(platform, username, username[-3:], "isp", f"内部服务方 · {domain['label']}"))
+        accounts.setdefault(domain['account'],[]).append(domain['label'])
+    for username,labels in accounts.items():
+        out["isp"].append(_ensure(platform, username, username[-3:], "isp", '内部服务方 · '+'、'.join(labels)))
     for i in range(1, max(0, platform.s.isc_count) + 1):
         password=platform.s.assistant_password if i==1 and platform.s.assistant_password else f"{i:03d}"
         if i==1 and platform.s.open:
-            from ..identity.auth import _check_pw,_pbkdf2
             import secrets
             if password=='001':
                 path=platform.s.data/'assistant.secret'
                 if not path.exists(): path.write_text(secrets.token_urlsafe(18),encoding='utf-8')
                 password=path.read_text(encoding='utf-8').strip()
             if len(password)<12: raise ValueError('ISC_001 requires a password of at least 12 characters in trial mode')
-            existing=platform.db.one("SELECT id,pw_hash FROM users WHERE username='ISC_001'")
-            if existing and _check_pw('001',existing['pw_hash']):
-                platform.db.run('UPDATE users SET pw_hash=? WHERE id=?',_pbkdf2(password),existing['id'])
+            with platform.db.tx() as conn:
+                platform.auth.reset_default_password_in(conn,'ISC_001','001',password)
         uid = _ensure(platform, f"ISC_{i:03d}", password, "isc", f"内部用户 {i:03d}")
         if i==1:
-            platform.db.run("INSERT OR IGNORE INTO user_roles VALUES (?, 'admin')",uid)
+            with platform.db.tx() as conn:
+                platform.auth.grant_admin_in(conn,uid)
         out["isc"].append(uid)
     return out
 
 
 def _ensure(platform, username: str, password: str, kind: str, display_name: str) -> str:
-    row = platform.db.one("SELECT id FROM users WHERE username=?", username)
+    row = platform.identities.account(username)
     if row:
         return row["id"]
     return platform.accounts.create_account(username, password, kind=kind, display_name=display_name, note="部署自带")["id"]

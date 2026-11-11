@@ -12,7 +12,7 @@ def prepare(service_id, *, profile, verifier_ref, payment_provider, now=None):
     Upload the owned verifier using provider.verifier.publish first. The SDK checks
     its actual bytes/kind again when publishing and executing the service.
     """
-    from ioalab_sdk.templates import template_from_definition
+    from ioalab_sdk.runtime import template_from_definition
 
     if not isinstance(profile, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', profile):
         raise ValueError('A local service profile is required')

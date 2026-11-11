@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import sysconfig
 import venv
 import shutil
 import zipfile
@@ -23,7 +24,7 @@ def run(command, cwd):
 @pytest.fixture(scope='module')
 def official_snapshot(tmp_path_factory):
     """One immutable baseline wheel; consumers mutate only their own copies."""
-    from tools.build_packages import build_wheel
+    from deploy.wheels import build_wheel
     root=tmp_path_factory.mktemp('official-wheel')
     source=root/'source'
     shutil.copytree(ROOT/'src/official',source,ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
@@ -44,6 +45,7 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
         assert not any(name.startswith('ioalab/psp/') for name in archive.namelist())
     with zipfile.ZipFile(next(wheels.glob('ioalab_sdk-*.whl'))) as archive:
         assert 'ioalab_sdk/runtime/web/user.html' in archive.namelist()
+        assert 'ioalab_sdk/runtime/__main__.py' not in archive.namelist()
         assert not any(name.startswith('ioalab_jiuwen/') for name in archive.namelist())
         assert 'ioalab_sdk/assistant.py' not in archive.namelist()
         assert 'ioalab_sdk/provider.py' not in archive.namelist()
@@ -53,7 +55,7 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
         assert not {'ioalab_sdk/'+name for name in retired}.intersection(archive.namelist())
         assert 'ioalab_sdk/provider/agent.py' not in archive.namelist()
         entries=archive.read(next(name for name in archive.namelist() if name.endswith('.dist-info/entry_points.txt'))).decode()
-        assert 'ioalab-access = ioalab_sdk.runtime.__main__:main' in entries
+        assert 'ioalab-access = ioalab_sdk.access:main' in entries
         assert 'ioalab-client' not in entries
         assert not any(name.startswith('ioalab_tools/') for name in archive.namelist())
         assert not {'ioalab_sdk/calendar.py','ioalab_sdk/agentmail.py','ioalab_sdk/schedule.py','ioalab_sdk/schedule_cli.py'}.intersection(archive.namelist())
@@ -67,10 +69,15 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
         assert len([name for name in archive.namelist() if name.startswith('ioalab_services/assets/domains/') and name.endswith('.json')]) == 8
         entries=archive.read(next(name for name in archive.namelist() if name.endswith('.dist-info/entry_points.txt'))).decode()
         assert 'calendar = ioalab_tools.appointments:configure' in entries and 'ioalab-schedule = ioalab_tools.schedule_cli:main' in entries
+        assert 'ioalab-outlook = ioalab_tools.outlook_login:main' in entries and 'ioalab_tools/outlook_login.py' in archive.namelist()
     environment = tmp_path/'installed'
     venv.EnvBuilder(with_pip=True).create(environment)
     python = environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
     run([str(python),'-m','pip','install','--no-index','--no-deps',*[str(p) for p in wheels.glob('*.whl')]], tmp_path)
+    # Package entries import their third-party dependencies; borrow them from the checkout's
+    # environment after the installed site, so own modules and resources still load from the wheels.
+    purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
+    Path(purelib,'zz-third-party.pth').write_text(sysconfig.get_paths()['purelib']+'\n',encoding='utf-8')
     output = run([str(python),'-I','-c', '''
 import importlib.metadata as m, importlib.resources as r, json
 import ioalab.config as core_config
@@ -94,14 +101,14 @@ print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host
     assert result['resource'] and result['userPage']
     assert result['ownedServices'] == 52 and result['ownedSeed'] == 8
     assert result['hostEntry']=='ioalab_jiuwen.__main__:main'
-    assert result['accessEntry']=='ioalab_sdk.runtime.__main__:main'
+    assert result['accessEntry']=='ioalab_sdk.access:main'
     assert Path(result['data']).resolve() == (tmp_path/'data').resolve()
     for name in ('coreModuleFile', 'catalogModuleFile'):
         assert environment.resolve() in Path(result[name]).resolve().parents
 
 
 def test_official_wheel_is_reproducible_when_source_mtimes_change(tmp_path,official_snapshot):
-    from tools.build_packages import build_wheel
+    from deploy.wheels import build_wheel
     source=tmp_path/'official'
     shutil.copytree(official_snapshot[0],source)
     first=official_snapshot[1].read_bytes()

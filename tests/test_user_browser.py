@@ -13,7 +13,7 @@ from ioalab_sdk.runtime.files import private_json,read_json
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.resident import ResidentRuntime
-from ioalab_sdk.runtime.__main__ import start
+from ioalab_sdk.runtime import start
 from test_resident_runtime import configuration
 
 

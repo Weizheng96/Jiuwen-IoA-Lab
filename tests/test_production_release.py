@@ -11,10 +11,14 @@ import zipfile
 
 import pytest
 
-from deploy.environment import Environment, atomic, writer
-from deploy.release import FORMAT, UNITS, current_target, digest, load, pins, sha
-from tools.build_deployment import assemble
-from tools.deployment_dependencies import inputs
+from deploy.environment import Environment
+from deploy.files import save, sha, writer
+from deploy.release import FORMAT, UNITS, digest, load, pins
+from deploy.build import assemble
+from deploy.dependencies import inputs
+from deploy import release as release_module
+
+ACTUAL_TARGET = release_module.current_target
 
 
 def wheel(folder, name, *, requirements=(), payload='original'):
@@ -25,6 +29,13 @@ def wheel(folder, name, *, requirements=(), payload='original'):
         archive.writestr(name.replace('-', '_') + '-1.0.dist-info/METADATA', metadata)
         archive.writestr(name.replace('-', '_') + '/__init__.py', payload)
     return path
+
+
+@pytest.fixture(autouse=True)
+def linux_target(monkeypatch):
+    """Releases target Linux only; a Windows development host stands in for unit tests."""
+    monkeypatch.setattr('deploy.release.current_target', lambda: 'linux-x86_64')
+    monkeypatch.setattr('deploy.environment.current_target', lambda: 'linux-x86_64')
 
 
 @pytest.fixture
@@ -49,7 +60,7 @@ def environment_root(tmp_path_factory):
 
 
 def release(source, output, target=None):
-    target = target or current_target()
+    target = target or 'linux-x86_64'
     wheels = sorted((source / 'wheels').glob('*.whl'))
     locks = output / 'locks'
     locks.mkdir(parents=True)
@@ -82,15 +93,34 @@ def resign(folder, value):
     return destination
 
 
+def test_release_catalog_combines_domains_of_one_account(source,tmp_path):
+    seed={'domains':[
+        {'account':'ISP_001','services':[{'id':'alpha'},{'id':'beta'}]},
+        {'account':'ISP_001','services':[{'id':'gamma'}]}]}
+    (source/'deploy/default-seed.json').write_text(json.dumps(seed),encoding='utf-8')
+    folder=release(source,tmp_path/'single-account')
+    assert release_module.official_catalog(folder,load(folder))=={'ISP_001':('alpha','beta','gamma')}
+
+
+@pytest.mark.parametrize('system,expected', [('Linux', 'linux-x86_64'), ('Windows', None), ('Darwin', None)])
+def test_release_target_is_linux_only(monkeypatch, system, expected):
+    monkeypatch.setattr(release_module.platform, 'system', lambda: system)
+    monkeypatch.setattr(release_module.platform, 'machine', lambda: 'x86_64')
+    if expected:
+        assert ACTUAL_TARGET() == expected
+    else:
+        with pytest.raises(ValueError, match='only on Linux'):
+            ACTUAL_TARGET()
+
+
 def test_target_markers_extras_and_local_direct_urls(source):
     pool = source / 'wheels'
     wheel(pool, 'ioalab', requirements=['a2c[server] @ https://github.com/example/a2c', 'ordinary>=1'])
     wheel(pool, 'a2c', requirements=['linux-only==2; sys_platform == "linux"', 'extra-package>=3; extra == "server"'])
     linux = inputs('core', 'linux-x86_64', pool.glob('*.whl'))
-    windows = inputs('core', 'windows-x86_64', pool.glob('*.whl'))
     assert linux['requirements'] == ['extra-package>=3', 'linux-only==2', 'ordinary>=1']
-    assert windows['requirements'] == ['extra-package>=3', 'ordinary>=1']
-    assert linux['inputSha256'] != windows['inputSha256']
+    with pytest.raises(ValueError, match='Unknown deployment unit or target'):
+        inputs('core', 'macos-arm64', pool.glob('*.whl'))
     wheel(pool, 'a2c', requirements=['ioalab-sdk>=1'])
     with pytest.raises(ValueError, match='crosses runtime boundary'):
         inputs('core', 'linux-x86_64', pool.glob('*.whl'))
@@ -118,14 +148,14 @@ def test_participant_installed_catalog_matches_verified_release_ids(source,tmp_p
 sys.prefix=PREFIX
 versions=VERSIONS
 metadata.distributions=lambda:[types.SimpleNamespace(metadata={'Name':k},version=v) for k,v in versions.items()]
-for name in ('ioalab_sdk','ioalab_sdk.runtime','ioalab_sdk.runtime.resident','ioalab_jiuwen','ioalab_jiuwen.process','ioalab_services','ioalab_services.catalog','ioalab_admin_assistant','ioalab_admin_assistant.presets'):
+for name in ('ioalab_sdk','ioalab_sdk.runtime','ioalab_jiuwen','ioalab_services','ioalab_admin_assistant'):
  module=types.ModuleType(name);module.__path__=[];module.__file__=sys.prefix+'/'+name.replace('.','/')+'.py'
  sys.modules[name]=module
  if '.' in name:setattr(sys.modules[name.rsplit('.',1)[0]],name.rsplit('.',1)[1],module)
-sys.modules['ioalab_sdk.runtime.resident'].ResidentRuntime=object
-sys.modules['ioalab_jiuwen.process'].ProcessHost=object
-sys.modules['ioalab_services.catalog'].definitions=lambda:[{'id':item} for item in ACTUAL]
-sys.modules['ioalab_admin_assistant.presets'].load=lambda **kw:(None,['one','two'])
+sys.modules['ioalab_sdk.runtime'].ResidentRuntime=object
+sys.modules['ioalab_jiuwen'].ProcessHost=object
+sys.modules['ioalab_services'].definitions=lambda:[{'id':item} for item in ACTUAL]
+sys.modules['ioalab_admin_assistant'].load_presets=lambda **kw:(None,['one','two'])
 """.replace('PREFIX',repr(str(prefix))).replace('VERSIONS',repr(selected.versions)).replace('ACTUAL',repr(actual))
         result=subprocess.run([sys.executable,'-I','-c',bootstrap+args[1],*args[2:]],capture_output=True,text=True)
         if result.returncode:raise subprocess.CalledProcessError(result.returncode,result.args,output=result.stdout,stderr=result.stderr)
@@ -153,12 +183,12 @@ sys.modules['ioalab_admin_assistant.presets'].load=lambda **kw:(None,['one','two
 def test_release_and_unit_identity_change_for_same_version_new_bytes(source, tmp_path, environment_root):
     first = release(source, tmp_path / 'one')
     one = Environment(first, 'participant', environment_root)
-    previous = inputs('participant', current_target(), (source / 'wheels').glob('*.whl'))
+    previous = inputs('participant', 'linux-x86_64', (source / 'wheels').glob('*.whl'))
     wheel(source / 'wheels', 'ioalab-sdk', requirements=['ordinary>=1'], payload='fixed implementation')
     second = release(source, tmp_path / 'two')
     two = Environment(second, 'participant', environment_root)
     assert first.name != second.name and one.id != two.id
-    assert previous == inputs('participant', current_target(), (source / 'wheels').glob('*.whl'))
+    assert previous == inputs('participant', 'linux-x86_64', (source / 'wheels').glob('*.whl'))
     assert load(first)['format'] == FORMAT
     assert load(second)['format'] == FORMAT
     one.prepare_folder()
@@ -198,7 +228,7 @@ def test_changed_requirements_reject_old_lock(source, tmp_path):
     wheel(source / 'wheels', 'ioalab-sdk', requirements=['different>=2'])
     (tmp_path / 'new').mkdir()
     with pytest.raises(ValueError, match='Rebuild the target lock'):
-        assemble(source, tmp_path / 'new', current_target(), tmp_path / 'prepared/locks',
+        assemble(source, tmp_path / 'new', 'linux-x86_64', tmp_path / 'prepared/locks',
                  sorted((source / 'wheels').glob('*.whl')), tmp_path / 'prepared/skills')
 
 
@@ -211,11 +241,11 @@ def test_unknown_owner_unknown_attempt_and_os_writer_do_not_repair(source, tmp_p
     with pytest.raises(RuntimeError, match='unknown ownership'):
         environment.install()
     assert sentinel.read_text() == 'must survive'
-    atomic(environment.folder / 'owner.json', environment.identity)
+    save(environment.folder / 'owner.json', environment.identity)
     with pytest.raises(RuntimeError, match='Unrecorded'):
         environment.install(retry_failed=True)
     state = {'environmentId': environment.id, 'phase': 'installing', 'attempt': 'a-' + 'a' * 16}
-    atomic(environment.folder / 'state.json', state)
+    save(environment.folder / 'state.json', state)
     with pytest.raises(RuntimeError, match='result is unknown'):
         environment.install(retry_failed=True)
     with writer(environment.folder / 'writer.lock'):
@@ -248,11 +278,12 @@ def test_failed_retry_uses_new_prefix_and_preserves_original(source, tmp_path, m
     assert (environment.folder / second['attempt'] / 'failure-evidence').read_text() == 'original'
 
 
-def test_target_mismatch_and_mirror_credentials_are_rejected_before_install(source, tmp_path, environment_root):
-    other = 'linux-x86_64' if os.name == 'nt' else 'windows-x86_64'
-    folder = release(source, tmp_path / 'other', other)
+def test_target_mismatch_and_mirror_credentials_are_rejected_before_install(source, tmp_path, environment_root, monkeypatch):
+    folder = release(source, tmp_path / 'other')
+    monkeypatch.setattr('deploy.release.current_target', lambda: 'other-target')
     with pytest.raises(ValueError, match='target differs'):
         Environment(folder, 'core', environment_root)
+    monkeypatch.setattr('deploy.release.current_target', lambda: 'linux-x86_64')
     folder = release(source, tmp_path / 'native')
     environment = Environment(folder, 'core', environment_root)
     with pytest.raises(ValueError, match='embedded credentials'):
@@ -267,8 +298,8 @@ def test_changed_ready_identity_is_rejected_before_executing_python(source, tmp_
     state = {'environmentId': environment.id, 'phase': 'ready', 'attempt': 'a-' + 'b' * 16}
     attempt = environment.folder / state['attempt']
     attempt.mkdir()
-    atomic(attempt / 'deployment.json', {'identity': 'changed'})
-    atomic(environment.folder / 'state.json', state)
+    save(attempt / 'deployment.json', {'identity': 'changed'})
+    save(environment.folder / 'state.json', state)
     def forbidden(*args):
         pytest.fail('An unverified environment must not execute its interpreter')
     monkeypatch.setattr('deploy.environment.execute', forbidden)
@@ -280,7 +311,7 @@ def test_changed_ready_identity_is_rejected_before_executing_python(source, tmp_
 def test_checked_in_target_lock_records():
     from tools.check_deployment import validate
     records = validate()
-    assert len(records) == 6
+    assert len(records) == 3 and {record['target'] for record in records} == {'linux-x86_64'}
     assert all(record['ordinaryPackages'] > 0 for record in records)
 
 
@@ -301,12 +332,3 @@ def test_generated_lock_digest_survives_git_lf_normalization(tmp_path):
     import hashlib
     assert stored == b'ordinary==1.0\n'
     assert hashlib.sha256(stored).hexdigest() == expected
-
-
-@pytest.mark.skipif(os.name != 'nt', reason='Windows native loader path budget')
-def test_long_windows_root_is_rejected_before_creating_any_installation(source, tmp_path):
-    folder = release(source, tmp_path / 'release')
-    too_long = tmp_path / ('long-root-' + 'x' * 150)
-    with pytest.raises(ValueError, match='shorter --root'):
-        Environment(folder, 'swarm', too_long)
-    assert not too_long.exists()

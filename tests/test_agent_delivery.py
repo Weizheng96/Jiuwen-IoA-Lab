@@ -406,3 +406,26 @@ def test_expired_operation_receipt_is_history_gap_in_http_and_ws(platform,client
     assert sender.call('operation.get',{'operation':'message.send','operationId':operation},ok=False)['code']=='history_gap'
     assert sender.call('message.send',value,operation=operation,ok=False)['code']=='history_gap'
     assert platform.db.one('SELECT 1 FROM delivery_messages WHERE id=?',value['messageId'])
+
+
+def test_new_control_kind_is_registered_with_the_application_dispatcher(platform,client,people,peers):
+    from ioalab.operations import Control
+    a,_,_=people;peer=peers(a);calls=[];saved={}
+    def prepare(owner,actor,kind,operation,payload):
+        calls.append(('prepare',platform.db.conn.in_transaction));return payload['value']
+    def apply_in(conn,owner,actor,kind,operation,payload,prepared):
+        calls.append(('apply',conn.in_transaction));saved[operation]={'value':prepared}
+        return saved[operation],None,lambda:calls.append(('after',platform.db.conn.in_transaction))
+    with pytest.raises(ValueError):platform.controls.register('message.send',Control(apply_in))
+    platform.controls.register('demo.',Control(apply_in,prepare,lambda owner,actor,kind,operation:saved[operation]))
+    try:
+        operation=uid()
+        assert peer.call('demo.echo',{'value':7},operation=operation)=={'value':7}
+        assert calls==[('prepare',False),('apply',True),('after',False)]
+        assert peer.call('operation.get',{'operation':'demo.echo','operationId':operation})=={'value':7}
+        assert peer.call('demo',{},ok=False)['code']=='protocol_error'
+        peer.generation-=1
+        assert peer.call('demo.echo',{'value':8},ok=False)['code']=='stale_generation'
+        assert len(calls)==3
+    finally:
+        platform.controls.kinds.pop('demo.')

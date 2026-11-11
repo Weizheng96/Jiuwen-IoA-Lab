@@ -5,10 +5,10 @@ import threading
 import time
 import uuid
 
-from ioalab_sdk.runtime.lease import Lease
-from ioalab_sdk.runtime.config import data_directory
-from ioalab_sdk.runtime.ipc import LocalClient,public_error
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime import Lease
+from ioalab_sdk.runtime import data_directory
+from ioalab_sdk.runtime import LocalClient,public_error
+from ioalab_sdk.runtime import RuntimeFault
 
 
 def released(home):
@@ -23,7 +23,7 @@ def released(home):
 class Shutdown:
     def __init__(self,deployment):
         self.platform=deployment.value['platform_url'].rstrip('/')
-        domains={d['account']:d for d in deployment.domains}
+        domains={d['account']:d for d in deployment.accounts}
         self.targets=[]
         for account,entry in deployment.state(prepared=True)['accounts'].items():
             home=data_directory(deployment.config_path(account),deployment.base(domains[account]))

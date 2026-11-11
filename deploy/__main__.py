@@ -8,16 +8,15 @@ import uuid
 from . import activation
 from .configuration import load
 from .configs import Configuration
-from .environment import writer
+from .files import path_without_links, regular_file, save, writer
 from .jobs import Job,source_identity
 from .layout import Layout,MARKER
-from .linux import require_host,Systemd,regular
+from .linux import require_host, Systemd
 from .release import read_json
-from .workspace import path_without_links,save
 
 
 def existing(state):
-    state=path_without_links(state);value=read_json(regular(state/MARKER))
+    state=path_without_links(state);value=read_json(regular_file(state/MARKER))
     if value.get('state')!=str(state):raise ValueError('Use the original recorded deployment state directory')
     layout=Layout(value['root'],state,value['config'],core_user=value['users']['core'],agents_user=value['users']['agents'])
     if layout.inspect()!=value:raise ValueError('Restore the original shared deployment identity')
@@ -26,7 +25,7 @@ def existing(state):
 
 def status(layout):
     metadata=layout.private/'installation.json'
-    value=read_json(regular(metadata)) if metadata.exists() else {'units':{}}
+    value=read_json(regular_file(metadata)) if metadata.exists() else {'units':{}}
     manager=Systemd(layout.inspect()['deploymentId'],value['units'],lambda:None)
     units={}
     for name,entry in value['units'].items():
@@ -38,7 +37,7 @@ def status(layout):
             units[name]={'ownership':'unverified','filePhase':entry.get('phase'),
                          'recovery':'inspect_original_unit_and_record'}
     pointer=layout.private/'current-job.json'
-    task=Job(layout,read_json(regular(pointer))['operationId']).observe() if pointer.exists() else {'status':'not_started'}
+    task=Job(layout,read_json(regular_file(pointer))['operationId']).observe() if pointer.exists() else {'status':'not_started'}
     current=activation.current(layout)
     result={'status':'completed','deploymentId':layout.inspect()['deploymentId'],'task':task,
         'currentSet':current['setId'] if current else None,'units':units,
@@ -65,7 +64,7 @@ def submit(args):
         pointer=layout.private/'current-job.json'
         selected=None
         if pointer.exists():
-            previous=read_json(regular(pointer));selected=Job(layout,previous['operationId'])
+            previous=read_json(regular_file(pointer));selected=Job(layout,previous['operationId'])
             if (previous['action'],previous['source'],previous['inputDigest'])!=(args.command,snapshot,configuration.owner['inputDigest']):
                 if selected.observe()['status']!='completed':
                     raise RuntimeError('The original installation is unfinished; observe/resume it before another source or action')
@@ -83,7 +82,7 @@ def worker(args):
     layout=existing(args.state);job=Job(layout,args.operation)
     with writer(layout.private/'installer.lock'):
         request=job.bind_worker(args.attempt)
-        initial=read_json(regular(layout.private/'initial.json'))
+        initial=read_json(regular_file(layout.private/'initial.json'))
         config=Configuration(layout,layout.inspect(),initial['input'])
         if request['inputDigest']!=config.owner['inputDigest']:
             raise RuntimeError('Restore the original installation input')

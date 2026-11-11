@@ -4,35 +4,35 @@
 
 ## 常驻接入入口
 
-`assistant.delegation.begin` 可一次准备任务并申请委托授权，返回waiting后仍须真实用户确认，再沿原operationId恢复；不合并具体合同、环节或验收批准。`nextActions` 提供当前允许的下一步及原引用；本机确认页从绑定原件展示中文分项和完整依据。产品交互和授权边界见[共用机制](../../../设计/接入/SDK共用机制.md)。
+`assistant.delegation.begin` 可一次准备任务并申请委托授权，返回waiting后仍须真实用户确认，再沿原operationId恢复；不合并具体合同、环节或验收批准。`nextActions` 提供当前允许的下一步及原引用；本机确认页从绑定原件展示中文分项和完整依据。产品交互和授权边界见[共用机制](../../../设计/组件/客户端/共用运行时/接口.md)。
 
-共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。默认装配已提供助手收信设置、消息、服务公示及候选提案；没有宿主时不执行入站业务。可选[九问适配](../../hosts/jiuwen/README.md)装配助手入站处理与服务方提案/审查。合同与履约由同一常驻运行时处理，未覆盖能力与验证差距见[开发计划](../../../设计/工程/实施资料/开发计划.md)。
+共用运行时提供账号、独立角色身份、WS 连接、可靠收发箱、持久调度及受认证的本机调用。后台进程统一持有本地数据，CLI 只读取端点描述并调用。默认装配已提供助手收信设置、消息、服务公示及候选提案；没有宿主时不执行入站业务。可选[九问适配](../../hosts/jiuwen/README.md)装配助手入站处理与服务方提案/审查。合同与履约由同一常驻运行时处理，未覆盖能力与验证差距见[进展](../../../设计/工程/进展.md)。
 
 复制[配置模板](../../../deploy/access-runtime.json.example)，填写平台和账号，并在本机设置模板引用的密码环境变量；服务方可将 identities 改为 service profile，服务绑定不创建个人助手。数据目录相对配置文件定位，作为 SDK 专用目录；配置及调用参数文件放在其外。每个 profile 的稳定身份及私钥保存在该目录，不能删除重建。既有直接客户端数据不自动导入；保留原身份和业务记录，不能将其目录作为新的常驻数据目录。
 
 ```text
-python -m ioalab_sdk.runtime start --config <本机配置文件>
-python -m ioalab_sdk.runtime call runtime.status --config <本机配置文件>
-python -m ioalab_sdk.runtime call identity.status --config <本机配置文件>
-python -m ioalab_sdk.runtime call runtime.stop --config <本机配置文件> --args-file <已创建的空JSON参数文件>
+python -m ioalab_sdk.access start --config <本机配置文件>
+python -m ioalab_sdk.access call runtime.status --config <本机配置文件>
+python -m ioalab_sdk.access call identity.status --config <本机配置文件>
+python -m ioalab_sdk.access call runtime.stop --config <本机配置文件> --args-file <已创建的空JSON参数文件>
 ```
 
-start 同时核对账号、配置和安装信息后复用已运行实例；启动仍在进行时报告 waiting，不重新创建竞争实例。状态分别报告 IPC、账号、身份、连接和执行能力，不能将进程运行当作业务完成。stop 在参数文件保存目标实例及原操作标识，等待实际轮次收敛并保留数据。运行数据、配置、端点凭据与日志均不入库。SDK 还提供 `ioalab-access` 命令，行为与模块入口一致。installation_changed要求安全停止后按原目录启动当前安装；普通业务调用也核对安装及同一bootId，instance_changed时先查实际实例。诊断与停止仍可使用，不删除身份或合同。自管环境先停止再升级，不支持源码热替换。
+start 同时核对账号、配置和安装信息后复用已运行实例；启动仍在进行时报告 waiting，不重新创建竞争实例。状态分别报告 IPC、账号、身份、连接和执行能力，不能将进程运行当作业务完成。stop 在参数文件保存目标实例及原操作标识，等待实际轮次收敛并保留数据。运行数据、配置、端点凭据与日志均不入库。SDK 还提供 `ioalab-access` 命令，行为与模块入口一致。旧命令 `python -m ioalab_sdk.runtime` 已删除：自管环境按常规升级同时换新 SDK 与产品技能后改用上述命令；受管部署与产品技能脚本随发行一起换到新命令，输出与退出码不变。installation_changed要求安全停止后按原目录启动当前安装；普通业务调用也核对安装及同一bootId，instance_changed时先查实际实例。诊断与停止仍可使用，不删除身份或合同。自管环境先停止再升级，不支持源码热替换。
 
 ## 不向模型展示账号配置
 
-用户私下填好外置设置后，九问可调用两产品技能的runtime.configuration/configure：前者只返回配置摘要、身份和可改字段，后者按独立changes参数局部合并，保留账号、密码和其他角色。指向既有九问的宿主配置由九问适配器校验，不修改九问。活跃实例必须先安全停止；配置保存不代表启动、公示或业务就绪。输入、限制与重复调用规则见[SDK共用机制](../../../设计/接入/SDK共用机制.md#不读取凭据的配置辅助)。直接SDK的启动前入口为：
+用户私下填好外置设置后，九问可调用两产品技能的runtime.configuration/configure：前者只返回配置摘要、身份和可改字段，后者按独立changes参数局部合并，保留账号、密码和其他角色。指向既有九问的宿主配置由九问适配器校验，不修改九问。活跃实例必须先安全停止；配置保存不代表启动、公示或业务就绪。输入、限制与重复调用规则见[SDK共用机制](../../../设计/组件/客户端/共用运行时/接口/配置.md#不读取凭据的配置辅助)。直接SDK的启动前入口为：
 
 ```text
-python -m ioalab_sdk.runtime configuration --config <本机配置文件>
-python -m ioalab_sdk.runtime configure --config <本机配置文件> --args-file <非凭据修改参数文件>
+python -m ioalab_sdk.access configuration --config <本机配置文件>
+python -m ioalab_sdk.access configure --config <本机配置文件> --args-file <非凭据修改参数文件>
 ```
 
 上述SDK入口只接受共用字段；通过原版九问接入时，技能统一交给ioalab_jiuwen的同名命令装配宿主字段校验。查询和validate不创建运行数据或联网，实际能力在启动后分别探测。
 
 ## 助手收信设置与通信
 
-统一调用格式为 `python -m ioalab_sdk.runtime call <operation> --config <本机配置文件> --args-file <已创建的JSON文件>`；参数文件与账号配置及SDK数据分开，不能使用配置文件的路径别名；SDK在完整配置与实例核对后保存原operationId，重复调用复用原操作。诊断与安全停止只需配置中的data_dir，不要求凭据及业务字段仍完整。接口和流程规范见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
+统一调用格式为 `python -m ioalab_sdk.access call <operation> --config <本机配置文件> --args-file <已创建的JSON文件>`；参数文件与账号配置及SDK数据分开，不能使用配置文件的路径别名；SDK在完整配置与实例核对后保存原operationId，重复调用复用原操作。诊断与安全停止只需配置中的data_dir，不要求凭据及业务字段仍完整。接口和流程规范见[个人助手端 SDK](../../../设计/组件/客户端/个人助手端/接口.md)。
 
 | 操作 | 参数 |
 |---|---|
@@ -51,7 +51,7 @@ python -m ioalab_sdk.runtime configure --config <本机配置文件> --args-file
 
 ## 委托授权入口
 
-同一常驻调用格式支持授权、发现、候选与具体合同确认。两种成约方式复用原 A2C Client/Provider；常驻链路已支持正常履约、真实环节、WASM 验收与 AP2 付款，旧官方入口和完整异常矩阵仍按开发计划迁移。
+同一常驻调用格式支持授权、发现、候选与具体合同确认。两种成约方式复用原 A2C Client/Provider；常驻链路已支持正常履约、真实环节、WASM 验收与 AP2 付款，旧官方入口和完整异常矩阵见进展票据。
 
 | 操作 | 参数及真实结果 |
 |---|---|
@@ -71,7 +71,7 @@ python -m ioalab_sdk.runtime configure --config <本机配置文件> --args-file
 | `assistant.delegation.termination_quote` | contractRef；异步取得原签名报价及 terminationQuoteRef，不解除或付款 |
 | `assistant.delegation.terminate` | contractRef、mode；agreed须提供原terminationQuoteRef，可选reason、confirmationRef；独立确认后执行原解除，状态分别列通知、结算与结清 |
 
-金额可以输入整数或两位小数，SDK 规范化后供用户检查；分类 null 表示不限、空数组表示不允许新候选。context 的摘要稳定，grant 修订独立。签名请求发送前持久保存；响应丢失从原操作恢复，不重新签发或延长时间。数据中 authorizationReceipt 是原接受记录，authorization 才是平台当前状态。具体契约见[个人助手端 SDK](../../../设计/接入/个人助手端SDK.md)。
+金额可以输入整数或两位小数，SDK 规范化后供用户检查；分类 null 表示不限、空数组表示不允许新候选。context 的摘要稳定，grant 修订独立。签名请求发送前持久保存；响应丢失从原操作恢复，不重新签发或延长时间。数据中 authorizationReceipt 是原接受记录，authorization 才是平台当前状态。具体契约见[个人助手端 SDK](../../../设计/组件/客户端/个人助手端/接口.md)。
 
 materials 以模板材料名为键，每项提供 text 或 bytesBase64，可选 spec；不接受任意本地路径。预签审查材料须先经本机用户确认。候选的预算、报价和验收条件均来自实际授权、模板及服务方决定；SDK 不固定候选数量或中选服务。未知结果核对原操作及已签原件，不重新拟卡、收费或运行模型。
 
@@ -93,6 +93,6 @@ materials 以模板材料名为键，每项提供 text 或 bytesBase64，可选 
 
 模板仅允许待批准或提案，并选择配置中的平台支付提供者。稳定签名请求在上传前保存，响应丢失或重启后沿用原操作，不重签、不延期。公开地址由绑定身份导出，平台不抓取用户任意 URL。
 
-服务方执行还需在本机配置 provider.services，以 service profile 为键，声明 instructions、skills、max_active_delegations、accepting；resources 保存真实验收器引用等业务数据，native_tools 只列用户明确配置的原生工具及权限。skills 对应的明确本机源目录由可选[九问适配](../../hosts/jiuwen/README.md)配置并冻结，文档不是授权。重启常驻实例后读取配置，原身份与业务数据保留。只有公示、宿主和配置均就绪才接新意向；容量限制承接数量，max_model_runs 单独限制模型。正常生产、环节授权、WASM验收、原AP2付款及结清已开放；进一步故障矩阵与官方业务切换见开发计划。
+服务方执行还需在本机配置 provider.services，以 service profile 为键，声明 instructions、skills、max_active_delegations、accepting；resources 保存真实验收器引用等业务数据，native_tools 只列用户明确配置的原生工具及权限。skills 对应的明确本机源目录由可选[九问适配](../../hosts/jiuwen/README.md)配置并冻结，文档不是授权。重启常驻实例后读取配置，原身份与业务数据保留。只有公示、宿主和配置均就绪才接新意向；容量限制承接数量，max_model_runs 单独限制模型。正常生产、环节授权、WASM验收、原AP2付款及结清已开放；进一步故障矩阵与官方业务切换见进展票据。
 
 每个交互使用原 Provider、独立协议命名空间和实际九问 Session。报价工具根据本单模板生成字段 Schema，复用原校验并核验验收器包种类后才保存决定；错误由同一模型轮次修正。签3响应丢失从原操作恢复，不再次执行模型或收拟卡费。

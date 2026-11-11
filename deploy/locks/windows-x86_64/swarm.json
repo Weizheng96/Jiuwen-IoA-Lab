@@ -1,9 +1,0 @@
-{
-  "format": "ioalab.deployment-lock/1",
-  "inputSha256": "5e996e462d2c1c2c691976f7a169972b3e3e22e068007d3e9869c6b681c098b9",
-  "lockSha256": "d11addd8124401e60bb085cbb801124488fbad924eb79104385617d52bfaf95e",
-  "python": "3.11",
-  "resolver": "uv 0.9.21 (0dc9556ad 2025-12-30)",
-  "target": "windows-x86_64",
-  "unit": "swarm"
-}

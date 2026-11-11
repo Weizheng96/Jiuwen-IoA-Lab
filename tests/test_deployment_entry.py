@@ -7,7 +7,7 @@ from deploy import __main__ as entry
 from deploy.installation import Installation
 from deploy.layout import Layout,environment_text
 from deploy import units
-from test_production_release import source,release
+from test_production_release import source,release,linux_target
 
 
 def test_status_does_not_initialize_or_repair_any_role_state(tmp_path,monkeypatch,capsys):
@@ -122,7 +122,7 @@ def test_installed_preparation_does_not_require_access_to_private_source_directo
     assert calls[-1]['cwd']==home and calls[-1]['user']==1201 and calls[-1]['extra_groups']==[]
     subject.command(['/installed/python','-I','-m','public-module'])
     assert calls[-1]['cwd']==layout.private and 'user' not in calls[-1]
-    subject.command(['/builder/python','-m','tools.build_deployment'],cwd=subject.request['source']['root'])
+    subject.command(['/builder/python','-m','deploy.build'],cwd=subject.request['source']['root'])
     assert calls[-1]['cwd']==Path(subject.request['source']['root'])
 
 

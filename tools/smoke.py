@@ -80,11 +80,11 @@ def _stop_participant(rpc,state,child,home):
 
 def _launch(command,**kwargs):
     if os.name!='nt':return subprocess.Popen(command,**kwargs)
-    from deploy.windows_local import WindowsProcesses
+    from tools.windows_jobs import WindowsJobs
     # Assign the still-suspended launcher before it can create any descendants.
     kwargs['creationflags']=kwargs.get('creationflags',0)|0x4
     process=subprocess.Popen(command,**kwargs)
-    api=WindowsProcesses();name='ioa-smoke-'+uuid.uuid4().hex
+    api=WindowsJobs();name='ioa-smoke-'+uuid.uuid4().hex
     try:
         api.assign(name,process.pid)
         process._smoke_job=(api,name)
@@ -165,7 +165,7 @@ def run_smoke():
                 private_json(path,{'platform_url':base,'username':name,'password':password,'data_dir':f'./participant-{index}',
                     'identities':[{'key':'personal','role':'assistant','name':'Explicit smoke participant'}]})
                 config=RuntimeConfig.load(path);rpc=LocalClient(config.home,timeout=1)
-                child=launch([sys.executable,'-m','ioalab_sdk.runtime','serve','--config',str(path)])
+                child=launch([sys.executable,'-m','ioalab_sdk.access','serve','--config',str(path)])
                 def ready():
                     result=rpc.call('runtime.status')
                     return result['data'] if result['status']=='completed' and result['data']['platformConnected'] else None

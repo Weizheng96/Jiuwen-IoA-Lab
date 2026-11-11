@@ -10,7 +10,7 @@
 python "<skill_directory>/scripts/ioalab.py" <operation> --config "<原外置配置文件>" --args-file "<本次参数文件>"
 ```
 
-平台已部署绑定时，省略上述`--config`及其值，由同一薄入口选择经过核验的原配置和已安装SDK；不猜路径、不读取配置，也不创建第二套身份或依赖。先调用`runtime.status`核对实际身份、连接与宿主，再进入业务。其他参数及真实确认流程完全相同。显式指定了不同配置或绑定校验失败时停止，不用普通安装绕过；部署绑定不是预算、合同或签名批准。
+上例的`python`是Windows已核解释器；Linux使用`python3.11`或已经核实的绝对CPython3.11路径，例如`python3.11 "<skill_directory>/scripts/ioalab.py" runtime.status --config "<原外置配置文件>"`。不猜测默认`python3`版本，不修改九问环境或系统别名。
 
 `<operation>` 使用流程页中的完整名称，例如 `assistant.delegation.prepare`。其中的点和前缀也是命令的一部分；`prepare`、`authorize` 等末段名称不能单独调用。操作名输入被拒绝时，先按流程页修正命令，再使用原业务参数；账号身份以 `identity.status` 为准。
 

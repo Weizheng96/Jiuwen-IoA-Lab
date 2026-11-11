@@ -17,7 +17,7 @@ class ModelInputError(RuntimeError):
 def profile(name: str, source: Path = SOURCE) -> dict:
     """Read only the requested profile; do not expose secrets in exceptions."""
     try:
-        from deploy.workspace import path_without_links
+        from deploy.files import path_without_links
         resolved = path_without_links(source)
         if not resolved.is_file():
             raise ValueError()
@@ -68,7 +68,7 @@ class Aliyun:
         import base64
         import threading
         try:
-            from deploy.workspace import path_without_links
+            from deploy.files import path_without_links
             document=json.loads(path_without_links(self.source).read_text(encoding='utf-8'))
             settings=document['tts'];credentials=profile(settings['profile'],self.source)
             address=urlsplit(settings['url'])

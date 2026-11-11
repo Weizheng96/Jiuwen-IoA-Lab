@@ -57,13 +57,17 @@ def mailbox(value, field):
     return value
 
 
+MICROSOFT_SMTP = frozenset({'smtp-mail.outlook.com', 'smtp.office365.com'})
+
+
 def notification(value, *, mode):
     if value is None:
         return None
     if not isinstance(value, dict):
         raise ValueError('Use an explicit notification object or null')
     transport = value.get('transport')
-    allowed = {'transport', 'sender', 'api_key'} if transport == 'agentmail' else {'transport', 'sender', 'host', 'port', 'username', 'password'}
+    allowed = ({'transport', 'sender', 'api_key'} if transport == 'agentmail' else
+               {'transport', 'sender', 'host', 'port', 'username', 'password'} | ({'client_id'} if transport == 'smtp' else set()))
     if set(value) - allowed or transport not in ('agentmail', 'smtp', 'smtp-capture'):
         raise ValueError('Choose an explicit AgentMail or SMTP notification transport')
     if transport == 'smtp-capture' and mode != 'dev':
@@ -75,6 +79,18 @@ def notification(value, *, mode):
         host = text(value.get('host'), 'notification.host')
         if any(c.isspace() for c in host) or any(c in host for c in '/\\@?#'):
             raise ValueError('Use a notification host name, without a URL or credentials')
+        microsoft = host.casefold() in MICROSOFT_SMTP
+        if 'client_id' in value:
+            # Microsoft SMTP sends with XOAUTH2; the owner creates the token after installation.
+            if 'username' in value or 'password' in value:
+                raise ValueError('Outlook OAuth sending and SMTP password authentication are mutually exclusive')
+            if not microsoft:
+                raise ValueError('OAuth sending is only for the Microsoft SMTP endpoints')
+            result.update(host=host, port=integer(value.get('port', 587), 'notification.port', 1, 65535),
+                          client_id=text(value['client_id'], 'notification.client_id'))
+            return result
+        if microsoft and transport == 'smtp':
+            raise ValueError('Microsoft SMTP requires notification.client_id for OAuth sending')
         result.update(host=host, port=integer(value.get('port', 587), 'notification.port', 1, 65535),
                       username=value.get('username', ''), password=value.get('password', ''))
         if not isinstance(result['username'], str) or not isinstance(result['password'], str) or bool(result['username']) != bool(result['password']):
@@ -171,7 +187,7 @@ def validate(value):
     trial=trial_binding(value.get('trial'))
     trial_pair(path,trial)
     return {'platform_config':str(Path(path).absolute()),'pypi_index':mirror(url(index,'pypi_index')),
-        'max_model_runs':integer(value.get('max_model_runs',2),'max_model_runs',1,64),
+        'max_model_runs':integer(value.get('max_model_runs',4),'max_model_runs',1,64),
         'admin_assistant':admin_assistant(value.get('admin_assistant'),mode=source['mode']),
         'swarm_ports':swarm_ports(value.get('swarm_ports'),source['port']),
         'trial':trial}

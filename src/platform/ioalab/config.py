@@ -12,7 +12,7 @@ DEFAULT_LLM_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 @dataclass
 class Settings:
-    """Explicit settings objects support isolated component construction; CLI requires a private file."""
+    """Explicit settings objects support isolated component construction; files are read only by PlatformConfiguration."""
     mode: str = "dev"
     bind: str = "127.0.0.1"
     port: int = 8750
@@ -62,18 +62,11 @@ class Settings:
     local_unlimited: bool = True
     local_addresses: tuple = ("127.0.0.1","::1")
     trusted_proxy_addresses: tuple = ()
-    _configuration: object = field(default=None,repr=False,compare=False)
-
-    @classmethod
-    def load(cls,path=None):
-        from .configuration import PlatformConfiguration
-        path=path or os.environ.get("IOALAB_CONFIG")
-        if not path:
-            raise ValueError("Select the private platform configuration file with --config or IOALAB_CONFIG")
-        return PlatformConfiguration(path).settings()
+    policy_source: object = field(default=None,repr=False,compare=False)
 
     def policy(self):
-        if self._configuration is not None:return self._configuration.policy()
+        """Current hot-editable policy: from the injected source, else these field values."""
+        if self.policy_source is not None:return self.policy_source()
         return {"authentication":{"max_failures":self.auth_max_failures,"window_seconds":self.auth_window_seconds,"registration_limit":self.registration_limit,"registration_window_seconds":self.registration_window_seconds,"local_unlimited":self.local_unlimited},"credits":{"initial":self.initial_credit,"login":self.login_credit,"repeat_daily":self.repeat_daily_credit,"day_timezone":"Asia/Shanghai"}}
 
     # ── 地址 ─────────────────────────────────────────────────────────
@@ -94,10 +87,6 @@ class Settings:
         return f"http://{authority}:{self.port}"
 
     @property
-    def welcome_credit(self) -> str:
-        return self.login_credit
-
-    @property
     def a2x_home(self) -> Path:
         return self.data / "a2x_home"
 
@@ -107,12 +96,8 @@ class Settings:
         """trial：对外提供（限速、关 /api/docs、密码规则）；dev：本机开发。"""
         return self.mode != "dev"
 
-    @property
-    def needs_per_day(self) -> int:
-        return self.quota_needs_per_day or 20
-
     def dirs(self) -> None:
-        for d in ("keys", "packages", "a2x", "a2x_home", "deliveries", "runs", "needs", "logs"):
+        for d in ("keys", "packages", "a2x", "a2x_home", "deliveries", "runs", "logs"):
             (self.data / d).mkdir(parents=True, exist_ok=True)
 
     def secret(self) -> bytes:
@@ -143,8 +128,8 @@ class Settings:
     def a2x_configured(self) -> bool:
         return bool(self.llm.get("api_key")) and not self.stub
 
-    def check(self) -> list[str]:
-        """部署前自检：返回问题清单（空 = 可起）。"""
+    def check(self, *, seed_manifest) -> list[str]:
+        """部署前自检：返回问题清单（空 = 可起）。seed_manifest 由装配层传入的种子清单校验函数，无效时抛 ValueError。"""
         problems = []
         if self.mode not in ("dev", "trial"):
             problems.append("runtime.mode 只能是 dev 或 trial")
@@ -153,9 +138,8 @@ class Settings:
         if self.traffic != "off":
             problems.append("平台核心不运行参与方，runtime.traffic 只能是 off")
         if self.autoseed:
-            from .seed.domains import load_domains
             try:
-                load_domains(self.seed_file)
+                seed_manifest(self.seed_file)
             except ValueError as exc:
                 problems.append(str(exc))
         if self.open and not self.stub:

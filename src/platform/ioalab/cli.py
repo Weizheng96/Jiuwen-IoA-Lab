@@ -44,8 +44,13 @@ def _print_config(s) -> None:
     print(f"[ioalab] 注册 {s.registration} · 登录赠 {s.login_credit} · ISC {s.isc_count} · 流量 {s.traffic} · 自动注入 {s.autoseed}")
 
 
+def _problems(s) -> list[str]:
+    from .seed import load_domains
+    return s.check(seed_manifest=load_domains)
+
+
 def _require_ok(s) -> None:
-    problems = s.check()
+    problems = _problems(s)
     if problems:
         for x in problems:
             print("[ioalab] ✗ " + x)
@@ -66,14 +71,15 @@ def main(argv: list[str] | None = None) -> None:
     bk.add_argument("--out")
     args = ap.parse_args(argv)
     _logging()
-    from .config import Settings
-    s = Settings.load(args.config)
+    from .configuration import PlatformConfiguration
+    configuration = PlatformConfiguration.load(args.config)
+    s = configuration.settings()
     if args.cmd == 'init' and args.no_seed:
         s.autoseed = False
 
     if args.cmd == "check-config":
         _print_config(s)
-        problems = s.check()
+        problems = _problems(s)
         for x in problems:
             print("[ioalab] ✗ " + x)
         print("[ioalab] " + ("✓ 配置可用" if not problems else f"✗ {len(problems)} 项需要修正"))
@@ -82,7 +88,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "init":
         _require_ok(s)
         from .app import Platform
-        pf = Platform(s)                       # 建表 · 校验并记下 PUBLIC_URL · 管理员口令
+        pf = Platform(s, configuration=configuration)  # 建表 · 校验并记下 PUBLIC_URL · 管理员口令
         _print_config(s)
         if args.no_seed:
             try:
@@ -91,7 +97,7 @@ def main(argv: list[str] | None = None) -> None:
                 pf.close()
             return
         from .bootstrap import run_with_server
-        summary = run_with_server(pf, lambda: pf.ensure_seeded(force=True))
+        summary = run_with_server(pf, lambda: pf.ensure_seeded())
         print(f"[ioalab] init 完成：{summary}")
         return
 
@@ -100,7 +106,7 @@ def main(argv: list[str] | None = None) -> None:
         import uvicorn
         from .app import Platform
         from .web.app import create_app
-        pf = Platform(s)
+        pf = Platform(s, configuration=configuration)
         try:
             _file_log(s)
             app = create_app(pf)

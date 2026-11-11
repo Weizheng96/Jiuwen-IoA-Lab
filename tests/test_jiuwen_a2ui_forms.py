@@ -1,19 +1,17 @@
 """Ordinary A2UI values cannot manufacture a protected SDK approval."""
 import pytest
-from ioalab_jiuwen.a2ui import requirement_form, requirement_values, candidate_form
+from ioalab_jiuwen.a2ui import requirement_form, candidate_form
 
 
-def test_requirement_form_binds_editable_values_and_rejects_approval_fields():
+def test_requirement_form_submits_only_the_seven_editable_value_paths():
     form=requirement_form()
     assert list(form[0])==['beginRendering']
     components=form[1]['surfaceUpdate']['components']
     button=next(x['component']['Button'] for x in components if x['id']=='submit')
     assert button['action']['name']=='ioa_requirements_submit'
-    assert all('path' in x['value'] for x in button['action']['context'])
-    event={'event':{'userAction':{'name':'ioa_requirements_submit','context':{'budget':'20'}}}}
-    assert requirement_values(event)=={'budget':'20'}
-    event['event']['userAction']['context']['confirmed']=True
-    with pytest.raises(ValueError):requirement_values(event)
+    context=button['action']['context']
+    assert {x['key'] for x in context}=={'purpose','budget','proposalFeeLimit','carrier','requiredFeatures','materials','evidenceLevel'}
+    assert all(x['value']=={'path':'/'+x['key']} for x in context)
 
 
 def test_candidate_form_preserves_original_choice_and_separates_proof_levels():

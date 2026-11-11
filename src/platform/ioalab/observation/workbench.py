@@ -2,6 +2,7 @@
 from ..storage import jload
 from ..errors import LabError
 from .events import event_view
+from .services import identity_rows
 
 
 class WorkbenchQueries:
@@ -35,7 +36,7 @@ class WorkbenchQueries:
                 'period':event['period'],'outcome':event['outcome'],'source':event['detail'].get('source','platform'),
                 'trust':event['detail'].get('trust','platform'),'stale':bool(event['detail'].get('stale',False))})
         return {'account':account,'roles':self.auth.roles(uid),'wallet':str(self.wallets.balance(uid)),
-            'identities':self.db.rows('SELECT id,name,role,status FROM agents WHERE owner_id=?',uid),
+            'identities':identity_rows(self.db,uid,('id','name','role','status')),
             'orders':[row for row in contracts if row['owner_id']==uid],
             'intents':[row for row in intents if row['owner_id']==uid],'services':services,'events':safe,
             'categories':self.discovery.categories(),'messages':self.message_views.list(uid),

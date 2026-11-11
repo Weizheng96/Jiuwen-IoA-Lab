@@ -9,7 +9,7 @@ from ..errors import LabError
 
 def build_router(platform,current_user):
     router=APIRouter()
-    directory,broker=platform.identities,platform.delivery
+    directory,broker,controls=platform.identities,platform.delivery,platform.controls
 
     def sdk_user(request:Request):
         return directory.bearer(request.headers.get('authorization',''))
@@ -34,7 +34,7 @@ def build_router(platform,current_user):
 
     @router.get('/api/v1/operations/{operationId}')
     def operation(operationId:str,agentId:str,operation:str,uid=Depends(current_user)):
-        return broker.operation(uid,agentId,operation,operationId)
+        return controls.operation(uid,agentId,operation,operationId)
 
     @router.post('/api/v1/scopes')
     def register_scope(body:dict,uid=Depends(sdk_user)):
@@ -98,7 +98,7 @@ def build_router(platform,current_user):
                         await send({'type':'connection.pong','connectionId':connection})
                         continue
                     try:
-                        result=await platform._worker(broker.control,uid,connection,generations,request)
+                        result=await platform._worker(controls.control,uid,connection,generations,request)
                         await send({'type':'operation.result','agentId':request.get('agentId'),'operationId':request.get('operationId'),
                                     'operation':request.get('type'),'ok':True,'result':result})
                     except LabError as exc:

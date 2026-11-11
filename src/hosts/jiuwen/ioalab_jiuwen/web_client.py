@@ -7,7 +7,7 @@ import uuid
 from urllib.parse import parse_qs,urlsplit
 
 from websockets.sync.client import connect
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime import RuntimeFault
 
 PROTOCOL='ioa.web-notifications/1'
 

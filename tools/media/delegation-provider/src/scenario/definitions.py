@@ -1,5 +1,5 @@
 """Scene parameters consume owned programming capabilities; no parallel business rules."""
-from ioalab_services.programming import variant
+from ioalab_services import variant
 
 
 def nail_services():

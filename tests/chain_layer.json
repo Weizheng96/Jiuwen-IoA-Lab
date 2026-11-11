@@ -1,0 +1,538 @@
+{
+ "$comment": "整链路、真实进程及 opt-in 真实宿主用例。按函数名登记，参数化随函数归层；依据真实 pytest.xml 逐项耗时维护：python tools/test_layers.py --audit <pytest.xml>。",
+ "thresholdSeconds": 1.0,
+ "chain": {
+  "tests/test_access_products.py": [
+   "test_both_real_product_bundles_have_one_manifest_and_generated_entry",
+   "test_existing_instance_cannot_hide_new_role_configuration",
+   "test_old_installation_status_preserves_observation_and_allows_safe_stop"
+  ],
+  "tests/test_admin_api.py": [
+   "test_admin_api"
+  ],
+  "tests/test_admin_assistant_preparation.py": [
+   "test_active_sdk_lease_refuses_preparation_without_new_identity",
+   "test_changed_local_draft_cannot_receive_fixed_preset_permission",
+   "test_completed_setup_preserves_manual_disable_config_and_never_logs_in_again",
+   "test_expired_initial_confirmation_is_not_replaced_or_approved",
+   "test_final_config_crash_resumes_without_reopening_sdk",
+   "test_fixed_presets_use_same_sdk_without_running_host_or_business",
+   "test_full_notification_explicitly_initializes_schedule_and_preserves_edits",
+   "test_interrupted_fixed_confirmation_is_resumed_without_new_reference",
+   "test_lost_publish_reply_recovers_original_operation_and_identity",
+   "test_missing_original_files_and_resource_change_are_not_reinitialized",
+   "test_recipe_cannot_select_another_owner_target_or_arbitrary_permission",
+   "test_status_is_read_only_and_unregistered_instance_is_refused"
+  ],
+  "tests/test_admin_websocket_shutdown.py": [
+   "test_admin_idle_socket_releases_route_and_server",
+   "test_admin_route_cleans_both_tasks_on_failure_or_cancellation"
+  ],
+  "tests/test_agent_delivery.py": [
+   "test_cleanup_cannot_leave_an_interior_sequence_gap",
+   "test_close_before_open_and_before_start",
+   "test_expired_operation_receipt_is_history_gap_in_http_and_ws",
+   "test_fencing_reconnect_and_no_extra_login_credit",
+   "test_frozen_revision_and_current_permissions",
+   "test_malformed_controls_return_errors_without_breaking_valid_connection",
+   "test_message_id_is_global_and_operation_parameters_are_immutable",
+   "test_offline_open_uuid_recovery_conflict_then_retry_same_interaction",
+   "test_preopen_rejection_and_expiry_do_not_allow_execution",
+   "test_reconnect_replays_saved_messages_and_history_gap_is_not_hidden",
+   "test_retention_protects_unknown_work_and_old_ids_cannot_be_reused",
+   "test_schema_publication_idempotence_and_directory_target",
+   "test_ticket_expiry_and_invalid_json_are_explicit",
+   "test_ticket_is_owned_single_use_and_bearer_only",
+   "test_unknown_does_not_downgrade_final_result"
+  ],
+  "tests/test_arbitration_cases.py": [
+   "test_current_lease_is_rechecked_after_evidence_preparation",
+   "test_material_ownership_manifest_bytes_and_scoped_admin_reads",
+   "test_original_proposal_request_can_be_a_case_without_fabricating_a_card",
+   "test_real_ws_admission_and_both_parties_restore_one_case_without_adjudicating"
+  ],
+  "tests/test_arbitration_evidence.py": [
+   "test_actual_paid_installment_is_not_inferred_from_missing_client_receipt",
+   "test_every_original_step_and_answer_contributes_to_deadline",
+   "test_missing_original_request_or_changed_binding_is_not_a_usable_snapshot",
+   "test_paid_fee_without_submitted_request_does_not_prove_provider_timeout",
+   "test_preview_authentication_fields_and_party_are_checked",
+   "test_signed_failed_report_precludes_accept_timeout_and_bad_signature_is_rejected",
+   "test_unanswered_proposal_uses_actual_request_fee_and_terminal_answer"
+  ],
+  "tests/test_arbitration_processing.py": [
+   "test_actual_previous_core_ends_before_unknown_or_known_result_recovery",
+   "test_actual_recompute_result_is_saved_before_finality_and_never_replayed",
+   "test_automatic_deadline_ruling_is_one_atomic_document_and_two_notices_without_payment_or_release",
+   "test_original_signed_accepted_price_can_be_paid_after_ruling_without_new_fulfillment",
+   "test_request_only_ruling_has_one_reputation_result_and_no_fabricated_contract_ledger"
+  ],
+  "tests/test_arbitration_review.py": [
+   "test_explicit_same_input_reevaluation_preserves_unknown_attempt_and_recovers_original_action",
+   "test_independent_neutral_review_is_historically_verifiable_and_tampered_snapshots_fail",
+   "test_review_sees_later_original_payment_and_preserves_a_prior_legal_conclusion"
+  ],
+  "tests/test_assistant_role.py": [
+   "test_committed_reply_lost_callback_reconciles_original_job_without_reexecuting_tool",
+   "test_message_status_keeps_each_round_result_and_rejects_interaction_references",
+   "test_native_question_waits_for_browser_answer_without_approving_another_action",
+   "test_real_jiuwen_native_question_uses_same_child_and_browser_answer",
+   "test_real_jiuwen_process_handles_two_incoming_requests_in_one_session",
+   "test_two_requests_share_receiver_uuid_and_real_host_session_and_do_not_repeat",
+   "test_unhandled_request_expiry_is_recovered_from_platform_without_model_polling",
+   "test_unknown_business_effect_holds_session_and_is_not_replayed"
+  ],
+  "tests/test_auth_failures.py": [
+   "test_registration_login_and_admin_budgets_are_independent",
+   "test_trial_multi_account_login_and_original_credit_recovery"
+  ],
+  "tests/test_authentication_recovery.py": [
+   "test_cli_login_uses_same_controller_and_returns_no_credentials",
+   "test_invalid_success_response_remains_unknown_and_reuses_original_operation",
+   "test_resident_refresh_is_authenticated_bounded_and_never_credits"
+  ],
+  "tests/test_background_installation.py": [
+   "test_known_failure_requires_explicit_install_retry_and_retains_attempt_log"
+  ],
+  "tests/test_booking_demo.py": [
+   "test_booking_verifiers_good_and_bad"
+  ],
+  "tests/test_boundary.py": [
+   "test_provider_execution_stays_outside_core_while_agent_card_is_public"
+  ],
+  "tests/test_business_cli.py": [
+   "test_explicit_offline_file_shows_unknown_reservation_without_credentials_or_reset"
+  ],
+  "tests/test_business_skills.py": [
+   "test_real_original_host_reads_exact_current_skill_documents_through_the_bound_reader"
+  ],
+  "tests/test_business_tools.py": [
+   "test_resident_meeting_conflict_retry_same_uuid_session_and_real_smtp_capture"
+  ],
+  "tests/test_candidate_evidence.py": [
+   "test_comparison_and_first_confirmation_share_original_evidence_checks",
+   "test_expired_offer_keeps_declared_omissions_but_cannot_create_confirmation",
+   "test_invalid_batch_creates_no_comparison_job",
+   "test_large_source_is_explicitly_incomplete_and_never_executed",
+   "test_mixed_quotes_use_original_terms_source_and_signed_reputation_without_new_effects",
+   "test_offer_expiring_during_package_read_is_not_left_current",
+   "test_unverifiable_reputation_is_not_reported_as_zero_history"
+  ],
+  "tests/test_category_preview.py": [
+   "test_directory_changes_after_user_preview_never_sign_unreviewed_content",
+   "test_real_configured_platform_model_classifies_public_capability_via_http",
+   "test_resident_automatic_preview_is_async_frozen_and_publish_uses_real_user_confirmation",
+   "test_unmatched_preview_has_no_publishable_digest_and_manual_selection_remains_available"
+  ],
+  "tests/test_check_scope.py": [
+   "test_approved_voice_owner_does_not_spread_to_unrelated_demo_or_test_edits",
+   "test_ci_already_present_commit_never_fetches",
+   "test_ci_missing_base_never_falls_back_to_head",
+   "test_ci_pr_compares_exact_target_with_original_merge_checkout",
+   "test_ci_shallow_fetch_only_exact_base_keeps_all_pushed_changes",
+   "test_committed_helper_change_reaches_importers_through_local_wrapper",
+   "test_committed_test_body_only_change_does_not_expand_to_helper_consumers",
+   "test_known_harness_entry_uses_explicit_consumers_but_new_helper_falls_back",
+   "test_manual_quick_base_uses_original_committed_selector_and_rejects_bad_revision",
+   "test_quick_matrix_collects_whole_new_class_and_new_parametrized_async_methods",
+   "test_quick_matrix_still_includes_new_test_functions",
+   "test_selector_itself_and_runner_change_only_select_maintenance_checks",
+   "test_shared_inputs_cannot_be_filtered_as_prose_or_test_helpers"
+  ],
+  "tests/test_check_workflow.py": [
+   "test_existing_report_is_preserved_instead_of_overwritten",
+   "test_explicit_full_check_runs_all_four_gates",
+   "test_failed_pytest_stops_full_selfcheck_and_preserves_failure_details",
+   "test_focused_check_runs_only_the_selected_test",
+   "test_invalid_committed_scope_fails_without_reporting_success"
+  ],
+  "tests/test_cli_encoding.py": [
+   "test_chinese_validation_is_utf8_without_terminal_or_environment_assumptions"
+  ],
+  "tests/test_configuration_boundary.py": [
+   "test_bom_configuration_and_arguments_cross_actual_product_cli_and_ipc",
+   "test_business_configuration_mismatch_has_no_effect_or_argument_rewrite",
+   "test_original_instance_can_be_diagnosed_and_stopped_with_only_its_locator"
+  ],
+  "tests/test_configuration_edit.py": [
+   "test_actual_product_entry_can_configure_without_reading_settings",
+   "test_real_instance_stops_before_update_and_restarts_with_same_identity"
+  ],
+  "tests/test_configuration_web.py": [
+   "test_admin_can_save_trial_ports_but_cannot_apply_or_change_core_identity",
+   "test_browser_admin_configuration_roundtrip_and_denied_writes",
+   "test_configuration_concurrent_writers_publish_one_revision",
+   "test_default_failure_budget_and_local_exemption_still_verify_password",
+   "test_sdk_http_source_keeps_public_proxy_clients_out_of_loopback_exemption"
+  ],
+  "tests/test_confirmation_view.py": [
+   "test_actual_candidate_confirmation_binds_template_delivery_and_acceptance"
+  ],
+  "tests/test_contract_binding.py": [
+   "test_formation_is_bound_before_any_work_or_payment_and_cannot_change_participants",
+   "test_lost_formation_reply_recovers_original_slot_one_and_same_registration"
+  ],
+  "tests/test_core_ownership.py": [
+   "test_other_process_rejects_the_same_core_data_before_any_mutation"
+  ],
+  "tests/test_delegation_admission.py": [
+   "test_budget_write_failure_rolls_back_fee_and_capacity_and_public_ap2_cannot_bypass_it",
+   "test_committed_admission_and_relation_survive_ordinary_message_retention",
+   "test_connection_takeover_during_payment_prepare_fences_the_old_generation",
+   "test_countersign_intent_needs_selected_card_and_commit_needs_fresh_original_slot_one",
+   "test_expiry_and_close_prevent_fee_after_admission",
+   "test_last_capacity_slot_is_atomic_and_fresh_operations_do_not_extend_original_hold",
+   "test_offline_intent_queues_without_charging_then_delivers_after_connection",
+   "test_parallel_fees_cannot_both_spend_the_last_authorized_fee_budget",
+   "test_pending_reclassification_cannot_use_the_old_category_to_accept_new_work",
+   "test_real_ap2_scope_and_admission_commit_together_and_restore_original_after_revocation",
+   "test_sdk_intent_and_both_local_uuid_mappings_recover_without_reopening",
+   "test_started_intent_and_original_binding_are_required_and_two_uuids_cannot_replace_it",
+   "test_ws_intent_opens_receivers_uuid_and_returns_actual_reservation_before_fee",
+   "test_zero_fee_requires_committed_capacity_before_any_valid_proposal"
+  ],
+  "tests/test_delegation_scopes.py": [
+   "test_real_ap2_commit_and_scope_write_roll_back_in_the_same_transaction",
+   "test_resident_authorization_needs_browser_and_recovers_lost_response_without_new_grant",
+   "test_scope_authentication_signature_time_and_original_parameters_are_enforced",
+   "test_scope_budget_atomic_fee_competition_and_separate_installments",
+   "test_select_and_new_fee_cannot_both_consume_the_last_budget",
+   "test_selection_rechecks_bound_key_category_and_deadline_before_commit"
+  ],
+  "tests/test_delivery_files.py": [
+   "test_exported_directory_allows_real_resident_restart"
+  ],
+  "tests/test_external_product_config.py": [
+   "test_both_roles_share_external_default_after_skill_replacement_and_explicit_override"
+  ],
+  "tests/test_external_provider.py": [
+   "test_third_party_resident_provider_uses_public_publication_and_completes_contract"
+  ],
+  "tests/test_frontend.py": [
+   "test_pair_contract_history_excludes_third_party_even_with_public_profiles",
+   "test_public_people_and_pair_history_enforce_viewer_ownership"
+  ],
+  "tests/test_inbound_context.py": [
+   "test_workflow_and_tool_schema_are_in_host_context_and_frozen_for_old_interaction"
+  ],
+  "tests/test_installation_identity.py": [
+   "test_cli_preflight_cannot_switch_to_another_boot_before_a_business_request",
+   "test_same_config_cannot_reuse_an_old_installation_or_dispatch_business"
+  ],
+  "tests/test_installed_upgrade.py": [
+   "test_installed_release_restarts_with_original_identity_contract_authorization_and_fee"
+  ],
+  "tests/test_lease.py": [
+   "test_fresh_lease_serializes_actual_independent_processes"
+  ],
+  "tests/test_message_boundaries.py": [
+   "test_queue_limit_and_public_events_do_not_reveal_message_body",
+   "test_retired_polling_queue_routes_cannot_start_a_second_execution_chain"
+  ],
+  "tests/test_model_messaging.py": [
+   "test_original_sender_discovers_interface_and_reschedules_without_scripted_second_input"
+  ],
+  "tests/test_nail_scene.py": [
+   "test_basic_and_reliable_keep_real_difference_in_coverage_in_wasm",
+   "test_limited_scope_verifier_runs_true_behaviors_and_rejects_false_flags_in_wasm"
+  ],
+  "tests/test_native_web_delivery.py": [
+   "test_platform_forward_reaches_original_native_session_once"
+  ],
+  "tests/test_observation_transactions.py": [
+   "test_event_write_failure_rolls_back_original_acknowledgement",
+   "test_postcommit_publication_failure_retains_one_history_and_database_replay"
+  ],
+  "tests/test_observation_views.py": [
+   "test_quote_fee_and_pending_intent_are_visible_before_a_contract_card_exists",
+   "test_resident_messages_are_visible_only_to_parties_and_explicit_auditors_without_consuming_inbox"
+  ],
+  "tests/test_official_deployment.py": [
+   "test_authorization_recovers_original_request_and_never_reenables_revoked_scope",
+   "test_coordinator_lost_ipc_reply_reuses_same_operation",
+   "test_coordinator_publishes_renews_and_preserves_old_template_and_pause",
+   "test_crash_after_final_config_write_finishes_without_reopening_sdk",
+   "test_current_observation_retains_expired_originals",
+   "test_deployment_rejects_configuration_change_and_unrelated_data",
+   "test_existing_user_confirmation_cannot_be_bypassed_in_strict_mode",
+   "test_incomplete_completed_recipe_is_not_reported_as_success",
+   "test_lost_upload_reply_resumes_same_operation_identity_and_login",
+   "test_manual_terms_change_blocks_old_controller_without_overwrite",
+   "test_preparation_uploads_original_verifier_and_preserves_complete_configuration",
+   "test_start_receives_only_sanitized_environment",
+   "test_status_is_read_only_and_environment_is_minimal",
+   "test_strict_sdk_missing_scope_never_creates_confirmation"
+  ],
+  "tests/test_official_lifecycle.py": [
+   "test_active_draining_job_still_rejects_connection_loss_and_foreign_context",
+   "test_active_job_drains_then_original_queued_job_identity_and_session_resume",
+   "test_active_job_keeps_execution_permit_through_async_callback_while_draining",
+   "test_already_released_target_cannot_start_a_new_stop_on_replacement",
+   "test_completed_job_context_cannot_reuse_draining_execution_permit",
+   "test_coordinator_keeps_deployment_lock_until_actual_sdk_release",
+   "test_edited_configuration_does_not_redirect_diagnostic_stop",
+   "test_identity_mismatch_does_not_send_stop",
+   "test_idle_completed_stop_ack_is_not_directory_release",
+   "test_independent_stop_rejects_active_deployment_owner",
+   "test_lost_stop_reply_keeps_original_boot_and_operation_until_release",
+   "test_missing_ownership_evidence_is_waiting_without_recreating_it",
+   "test_replacement_instance_is_not_stopped_by_original_shutdown",
+   "test_stop_after_connection_prevents_new_publication",
+   "test_stop_cli_reports_waiting_then_actual_release_without_credentials",
+   "test_stop_received_during_preview_prevents_new_publish",
+   "test_stopping_tick_does_not_launch_other_accounts_or_publish",
+   "test_unreachable_ipc_with_live_lease_never_means_stopped",
+   "test_user_wait_context_does_not_receive_draining_execution_permit"
+  ],
+  "tests/test_official_service_runtime.py": [
+   "test_official_service_uses_ordinary_sdk_publication_execution_and_payment"
+  ],
+  "tests/test_owned_workspace.py": [
+   "test_invalid_configuration_never_reflects_model_secrets"
+  ],
+  "tests/test_package_installation.py": [
+   "test_built_packages_have_own_versions_and_platform_resources",
+   "test_official_wheel_is_reproducible_when_source_mtimes_change"
+  ],
+  "tests/test_package_manifest_boundary.py": [
+   "test_public_package_endpoint_does_not_store_a_filename_as_a_declared_read"
+  ],
+  "tests/test_package_reads.py": [
+   "test_package_disconnect_does_not_abort_original_two_period_production"
+  ],
+  "tests/test_payment_atomicity.py": [
+   "test_concurrent_replay_restart_and_original_receipt",
+   "test_prepare_does_not_mutate_and_receipt_failure_rolls_back",
+   "test_valid_registered_payer_cannot_pay_another_accounts_contract"
+  ],
+  "tests/test_payment_rejection.py": [
+   "test_insufficient_balance_preserves_actual_public_reason_and_rolls_back_all_facts",
+   "test_other_explicit_psp_reasons_preserve_original_code_and_message",
+   "test_unknown_and_unexpected_failures_keep_original_semantics_and_roll_back"
+  ],
+  "tests/test_payment_rules.py": [
+   "test_insufficient_then_pay_installment"
+  ],
+  "tests/test_platform_configuration.py": [
+   "test_single_file_roundtrip_dynamic_snapshot_redaction_and_revision_conflict"
+  ],
+  "tests/test_private_files.py": [
+   "test_binary_upload_original_receipt_and_recipient_read_grant_share_transaction",
+   "test_file_owner_digest_name_and_exact_original_operation_are_checked",
+   "test_interrupted_disk_write_resumes_same_pending_reference_and_quota"
+  ],
+  "tests/test_programming_services.py": [
+   "test_owned_carriers_accept_real_core_and_reject_wrong_carrier_or_broken_source"
+  ],
+  "tests/test_proposal_expiry.py": [
+   "test_exact_response_deadline_selection_and_its_original_receipt_prevent_expiry",
+   "test_expired_unselected_proposal_releases_atomically_preserving_fee_and_originals",
+   "test_unknown_or_missing_original_evidence_never_releases_a_proposal"
+  ],
+  "tests/test_protocol_relay.py": [
+   "test_countersign_delivers_slot_one_before_review_and_commits_before_slot_two",
+   "test_failed_message_commit_does_not_leak_a_material_read_grant",
+   "test_original_protocol_progress_and_taskless_reply_keep_their_states",
+   "test_real_countersign_preserves_protocol_and_reads_only_explicitly_authorized_material",
+   "test_task_file_grants_rollback_together_with_reply_and_message"
+  ],
+  "tests/test_provider_admission.py": [
+   "test_concurrent_same_control_has_one_policy_effect_and_conflicting_revision_is_not_rebased",
+   "test_old_resume_receipt_restart_and_capacity_change_do_not_override_pause",
+   "test_pause_preserves_preexisting_held_fee_commit_but_rejects_a_new_reservation",
+   "test_pause_rejects_new_intent_before_fee_or_model_execution",
+   "test_unknown_policy_change_recovers_one_original_write_after_restart",
+   "test_unpublished_service_can_pause_but_cannot_resume_without_business_readiness"
+  ],
+  "tests/test_provider_authoring.py": [
+   "test_countersign_uses_real_package_reference_and_preapproval_is_not_an_ordinary_draft",
+   "test_draft_concurrent_replay_restart_and_changed_terms_have_one_original_validity",
+   "test_draft_preserves_multi_deliverable_business_clauses_and_never_signs_or_publishes",
+   "test_draft_rejects_invented_or_runtime_owned_fields_without_side_effects",
+   "test_http_framework_errors_use_one_public_object",
+   "test_invalid_upstream_envelope_is_not_parsed_as_a_success_or_native_exception",
+   "test_invalid_verifier_is_an_explicit_input_rejection_not_unknown"
+  ],
+  "tests/test_provider_business.py": [
+   "test_service_business_action_needs_original_user_step_runs_unlocked_and_never_replays_unknown"
+  ],
+  "tests/test_provider_market_rejection.py": [
+   "test_real_market_rejection_converges_original_quote_without_new_effects"
+  ],
+  "tests/test_provider_production_recovery.py": [
+   "test_approved_review_cannot_be_reused_for_changed_preview_or_operation",
+   "test_changed_original_binding_or_existing_signed_delivery_blocks_resume",
+   "test_legacy_missing_proof_requires_owner_review_without_inventing_terminal_evidence",
+   "test_lost_resume_response_and_parallel_retransmits_use_one_queue_receipt",
+   "test_native_effects_require_actual_owner_confirmation_not_a_boolean",
+   "test_old_resume_receipt_cannot_start_another_unknown_round",
+   "test_rejected_or_expired_owner_review_never_queues",
+   "test_unknown_host_round_is_never_runtime_verified",
+   "test_unresolved_tool_effect_cannot_be_overridden_by_owner_review",
+   "test_verified_production_resumes_same_contract_session_and_completes_payment"
+  ],
+  "tests/test_provider_profile_recovery.py": [
+   "test_unpublished_error_clears_after_publish_without_losing_original_request_error"
+  ],
+  "tests/test_provider_task_recovery.py": [
+   "test_exception_without_a_completed_host_round_never_gets_a_resume_permit",
+   "test_lost_resume_reply_and_parallel_retransmission_keep_one_queue_receipt",
+   "test_original_jiuwen_resumes_the_original_quote_after_an_unknown_upload",
+   "test_public_resume_checks_original_deadline_before_requeue",
+   "test_public_resume_preserves_a2c_task_fee_session_and_completes_payment",
+   "test_resume_queue_and_receipt_rollback_together"
+  ],
+  "tests/test_publication_authorizations.py": [
+   "test_human_terms_change_disables_policy_but_expiry_only_renewal_preserves_it",
+   "test_new_policy_cannot_bypass_existing_user_decision",
+   "test_preexisting_confirmation_has_priority_over_later_policy",
+   "test_sdk_cached_success_repairs_latest_projection_without_resigning_or_rolling_back",
+   "test_sdk_managed_scope_recovers_lost_reply_without_another_signature_or_confirmation"
+  ],
+  "tests/test_quote_admission_rejection.py": [
+   "test_withdrawn_template_rejects_original_quote_without_host_payment_or_replacement"
+  ],
+  "tests/test_resident_contracts.py": [
+   "test_actual_user_confirms_one_exact_card_after_budget_reservation_before_slot_one",
+   "test_contract_user_rejection_or_expiry_does_not_sign_or_reserve_counter",
+   "test_full_value_rejection_never_creates_slot_one",
+   "test_lost_signed_result_recovers_original_user_signature_without_repeating_review",
+   "test_original_native_tool_manifest_is_frozen_and_denied_tools_block_new_service",
+   "test_real_original_jiuwen_and_trusted_user_form_one_contract",
+   "test_two_concurrent_user_choices_cannot_sign_two_cards_in_one_scope",
+   "test_wrong_phase_tool_returns_precise_error_and_can_correct_in_original_review"
+  ],
+  "tests/test_resident_delegation.py": [
+   "test_concurrent_quotes_share_capacity_but_model_queue_does_not_block_checkout_or_progress",
+   "test_countersign_candidate_is_only_an_unsigned_local_quote_before_selection",
+   "test_lost_market_reply_recovers_original_signatures_without_repeating_model_or_payment",
+   "test_market_snapshot_offer_and_operation_rollback_together_before_original_call_finishes",
+   "test_original_client_and_provider_quote_over_resident_ws_with_actual_ap2_and_slot_three",
+   "test_original_reply_and_task_same_name_files_remain_distinct_over_private_channel",
+   "test_quote_can_correct_wrong_package_kind_in_the_same_host_turn_before_signing",
+   "test_real_original_jiuwen_returns_a_valid_proposal_through_resident_provider_and_client",
+   "test_real_socket_takeover_after_market_preparation_cannot_publish_old_generation_signature",
+   "test_saved_original_result_recovers_without_host_or_current_service_config",
+   "test_unknown_host_is_reported_without_faking_failure_or_reexecuting_it",
+   "test_zero_fee_proposal_still_commits_capacity_and_gets_original_market_endorsement"
+  ],
+  "tests/test_resident_fulfillment.py": [
+   "test_actual_bad_delivery_fails_wasm_and_never_signs_acceptance_or_pays",
+   "test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_reputation",
+   "test_real_original_jiuwen_produces_native_file_and_completes_original_contract"
+  ],
+  "tests/test_resident_input_boundaries.py": [
+   "test_candidate_input_must_match_declared_deliverables_without_implicit_conversion",
+   "test_comparison_rejects_out_of_range_quote_counts_before_creating_jobs",
+   "test_explicit_zero_fee_scope_requires_owner_approval_and_never_creates_a_fee",
+   "test_prepare_requires_an_explicit_valid_proposal_fee_limit_before_any_scope_or_fee"
+  ],
+  "tests/test_resident_multiperiod.py": [
+   "test_original_jiuwen_completes_two_periods_in_the_same_session",
+   "test_two_periods_keep_original_context_each_user_gate_files_and_actual_payments"
+  ],
+  "tests/test_resident_nail.py": [
+   "test_original_model_produces_nail_source_and_completes_signed_contract"
+  ],
+  "tests/test_resident_payment_recovery.py": [
+   "test_rejected_accepted_period_requires_new_confirmation_and_pays_once"
+  ],
+  "tests/test_resident_runtime.py": [
+   "test_adding_service_profile_reuses_account_and_original_assistant",
+   "test_control_remains_responsive_and_stop_drains_actual_running_work",
+   "test_explicit_auth_rejection_and_missing_keys_do_not_rebuild_identity",
+   "test_local_rpc_security_and_cli_operation_persistence",
+   "test_offline_restart_uses_only_bound_identity_and_valid_cache",
+   "test_old_endpoint_cleanup_cannot_remove_new_instance_descriptor",
+   "test_process_crash_retains_unknown_effect_and_does_not_repeat_it",
+   "test_resident_durably_acks_but_does_not_execute_without_rule_or_host",
+   "test_two_roles_share_process_identity_login_and_cli_never_opens_sqlite"
+  ],
+  "tests/test_resident_termination.py": [
+   "test_lost_termination_ack_resumes_original_signed_notice_and_single_payment",
+   "test_public_termination_requires_own_user_and_automatically_settles_original_contract",
+   "test_service_settlement_recovers_original_context_and_committed_close",
+   "test_termination_does_not_release_an_original_running_tool_or_hide_its_unknown_effect"
+  ],
+  "tests/test_runtime_delivery.py": [
+   "test_execution_stops_at_heartbeat_deadline_even_with_a_live_socket",
+   "test_reconnect_replays_original_operation_after_lost_response",
+   "test_sdk_round_trip_restart_and_receiver_uuid_is_one_transaction",
+   "test_sender_can_recover_uuid_when_opened_frame_was_not_saved"
+  ],
+  "tests/test_runtime_signals.py": [
+   "test_stop_signal_waits_for_active_job_preserves_queue_and_original_identity"
+  ],
+  "tests/test_seed_manifest.py": [
+   "test_explicit_seedless_initialization_is_available"
+  ],
+  "tests/test_service_publication.py": [
+   "test_resident_publish_needs_user_channel_and_recovers_lost_reply_after_restart"
+  ],
+  "tests/test_sync_a2c.py": [
+   "test_snapshot_uses_committed_lf_not_windows_checkout_and_keeps_commit",
+   "test_wheel_with_a_foreign_module_is_rejected"
+  ],
+  "tests/test_sync_gitcode.py": [
+   "test_detects_tag_object_movement_even_when_main_and_peeled_commit_stay_same",
+   "test_empty_dry_run_atomic_tags_idempotence_and_extra_refs_preserved",
+   "test_rejects_unsafe_publication_without_changing_target"
+  ],
+  "tests/test_task_recovery_receipts.py": [
+   "test_known_failed_host_round_can_recover_only_its_unknown_verifier_upload",
+   "test_old_resume_receipt_does_not_retry_a_second_unknown_preparation",
+   "test_original_resume_operation_cannot_be_retargeted_to_a_production_task"
+  ],
+  "tests/test_task_verifiers.py": [
+   "test_bad_platform_package_is_not_saved_as_a_usable_reference",
+   "test_failed_syntax_sandbox_is_not_an_invalid_source_or_a_cached_success",
+   "test_invalid_python_is_rejected_before_checkpoint_and_same_operation_can_be_corrected",
+   "test_invalid_task_source_has_no_upload_or_pending_side_effect",
+   "test_lost_upload_reply_survives_restart_and_recovers_the_same_body",
+   "test_no_preset_reference_forms_and_completes_a_real_contract",
+   "test_original_jiuwen_creates_a_task_verifier_without_preset_references",
+   "test_recovered_package_time_cannot_extend_the_quote_deadline",
+   "test_same_task_content_reuses_one_real_upload_and_is_bound_to_its_service",
+   "test_target_python_313_syntax_is_compiled_without_running_top_level_code",
+   "test_unknown_upload_blocks_further_decisions_and_never_restarts_the_host"
+  ],
+  "tests/test_termination_control.py": [
+   "test_original_termination_before_work_uses_actual_deposit_and_closes_without_fake_anchor"
+  ],
+  "tests/test_test_layers.py": [
+   "test_removed_scene_cases_and_asset_changes_select_their_real_coverage_owner"
+  ],
+  "tests/test_tool_output_contract.py": [
+   "test_assistant_preserves_invalid_receipt_poisoned_session_and_confirmed_contract",
+   "test_provider_preserves_invalid_receipt_and_blocks_delivery_without_reexecuting_business"
+  ],
+  "tests/test_user_browser.py": [
+   "test_changing_browser_requires_safe_restart_instead_of_a_competing_runtime",
+   "test_custom_browser_failure_is_explicit_sanitized_and_does_not_fall_back",
+   "test_real_ipc_opens_only_configured_browser_and_preserves_pending_confirmation"
+  ],
+  "tests/test_user_confirmations.py": [
+   "test_two_listeners_share_browser_cookie_jar_without_overwriting_or_cross_approving"
+  ],
+  "tests/test_vendor_deployment.py": [
+   "test_verify_only_needs_no_git_npm_or_package_index"
+  ],
+  "tests/test_verifier_observations.py": [
+   "test_real_original_jiuwen_observation_is_judged_by_actual_l2_wasm",
+   "test_resident_l2_selftest_async_preview_real_confirmation_and_original_payment",
+   "test_single_model_budget_allows_nested_observation_and_parallel_protocol_control"
+  ],
+  "tests/test_web_notifications.py": [
+   "test_factory_is_side_effect_free_and_only_starts_after_ownership",
+   "test_lost_write_reply_recovers_by_receipt_and_store_reset_never_resends",
+   "test_public_tools_and_rule_preview_include_notification_output_contract",
+   "test_unknown_is_retained_beyond_ttl_and_cannot_be_replayed"
+  ],
+  "tests/test_web_setup.py": [
+   "test_command_reports_prepared_without_secret_or_original_runtime_execution"
+  ],
+  "tests/test_workbench_network.py": [
+   "test_public_service_uses_its_declaration_connection_and_current_admission_policy"
+  ]
+ }
+}

@@ -1,4 +1,8 @@
-"""Select bounded quick feedback; full regression remains an explicit stage gate."""
+"""Select bounded quick feedback; full regression remains an explicit stage gate.
+
+A file owned by a module (tools/check_modules.py MODULES) selects the test column of that module's interface
+pages, the only test mapping for module code. FILE_RULES and RULES cover files outside every module.
+"""
 from __future__ import annotations
 
 import argparse
@@ -7,10 +11,13 @@ import fnmatch
 import io
 import json
 from pathlib import Path
+import re
 import subprocess
+import sys
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
+INTERFACE = re.compile(r'^设计/组件/(?:.+/)?([^/]+)/(?:接口\.md|接口/[^/]+\.md)$')
 
 
 def case(module, name):
@@ -61,109 +68,38 @@ HELPER_CASES = {
         {'approve_step'}, ('resident_multiperiod', 'package_reads'),
     ),
 }
-# Exact owners override directory fallbacks; directory rules do not accumulate.
+# Files outside every module: exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
     'tools/container_images.py': ('container_images',),
-    'deploy/lifecycle.py': ('deployment_lifecycle', 'linux_service_management', 'trial_leases', 'trial_gateway', 'trial_sandbox'),
-    'deploy/units.py': ('deployment_lifecycle', 'linux_service_management', 'deployment_configs'),
-    'deploy/repair.py': ('deployment_repair', 'deployment_jobs', 'deployment_entry', 'deployment_layout', 'deployment_activation'),
-    'deploy/jobs.py': ('deployment_repair', 'deployment_jobs', 'deployment_entry'),
-    'deploy/__main__.py': ('deployment_repair', 'deployment_entry', 'deployment_jobs'),
-    'deploy/installation.py': ('deployment_repair', 'deployment_entry', 'deployment_upgrade_flow'),
-    'src/platform/ioalab/config.py': ('platform_configuration','configuration_web','account_rewards','auth','auth_failures','domain_migrations'),
-    'src/platform/ioalab/readiness.py': ('core_readiness', 'deployment_lifecycle', 'linux_service_management', 'trial_processes'),
-    'src/platform/ioalab/configuration.py': ('platform_configuration','configuration_web','configuration_migration','deployment_configs'),
-    'src/platform/ioalab/configuration_permissions.py': ('platform_configuration','configuration_web'),
-    'src/platform/ioalab/web/source.py': ('configuration_web','auth_failures'),
-    'src/platform/ioalab/web/configuration.py': ('configuration_web','admin_api'),
-    'src/platform/ioalab/identity/auth.py': ('auth','auth_failures','configuration_web','authentication_recovery'),
-    'src/platform/ioalab/payments/ledger.py': ('account_rewards','payment_*','authentication_recovery','delegation_scopes'),
-    'src/platform/ioalab/payments/migrations.py': ('account_rewards','domain_migrations','protocol_operations','auth','core_ownership'),
-    'deploy/configure.py': ('deployment_configs','configuration_migration'),
-    'deploy/migrate_configuration.py': ('configuration_migration','deployment_configs'),
-    'deploy/linux.py': ('linux_service_management', 'deployment_layout'),
-    'deploy/windows_local.py': ('windows_local', 'windows_local_owner', 'deployment_configs', 'owned_workspace'),
-    'src/official/admin-assistant/ioalab_admin_assistant/deployment.py': ('admin_assistant_preparation', 'windows_local_owner'),
-    'src/official/admin-assistant/ioalab_admin_assistant/local_owner.py': ('admin_assistant_preparation', 'windows_local_owner'),
+    'tools/check_docs.py': ('check_docs',),
+    'tools/check_modules.py': ('check_modules', 'check_scope', 'reading_budget'),
+    'tests/chain_layer.json': ('test_layers',),
     'tools/verification/trial_resources.py': ('trial_resources',),
-    'src/access/sdk/ioalab_sdk/assistant/flow.py': ('assistant_flow_guidance', 'resident_delegation', 'user_confirmations'),
-    'src/access/sdk/ioalab_sdk/runtime/confirmation_view.py': ('confirmation_view', 'user_confirmation_view', 'user_confirmations'),
-    'src/access/sdk/ioalab_sdk/runtime/trusted_user.py': ('trusted_user_port', 'user_confirmations', 'trial_gateway'),
-    'src/hosts/jiuwen/ioalab_jiuwen/a2ui.py': ('jiuwen_a2ui_forms', 'access_products'),
-    'src/platform/ioalab/storage.py': ('domain_migrations', 'protocol_operations', 'core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission'),
-    'src/platform/ioalab/observation/accounts.py': ('account_views', 'frontend', 'observation_views'),
-    'src/platform/ioalab/observation/workbench.py': ('account_views', 'workbench_*', 'observation_views'),
-    'src/platform/ioalab/identity/trial.py': ('trial_admission', 'frontend'),
-    'src/platform/ioalab/web/trial.py': ('trial_admission', 'frontend'),
     'tests/test_nail_flow.py': ('programming_services',),
     'tools/media/delegation-provider/src/scenario/definitions.py': ('programming_services', 'nail_scene', 'booking_demo'),
-    'src/official/services/ioalab_services/programming.py': ('programming_services', 'nail_scene', 'booking_demo', 'official_resources'),
-    'src/official/services/ioalab_services/assets/verifiers/programming.py': ('programming_services', 'nail_scene', 'booking_demo', 'official_resources'),
-    'src/official/services/ioalab_services/assets/domains/08-dev.json': ('official_*', 'business_tools', 'appointment_source', 'agentmail_*', 'programming_services', 'nail_scene', 'booking_demo'),
     'tools/llm.py': ('llm', 'import_model_source', 'approved_voice'),
     'tools/import_model_source.py': ('import_model_source', 'llm'),
     'tools/test_layers.py': ('test_layers', 'check_workflow'),
     'tools/check_frontend.cjs': ('frontend',),
     'tools/stamp_static.py': ('frontend',),
-    'src/access/sdk/ioalab_sdk/assistant/fulfillment.py': ('fulfillment_status', 'resident_fulfillment', 'resident_multiperiod', 'user_confirmations', 'payment_atomicity', 'fulfillment_payment_guards', 'resident_payment_recovery'),
-    'src/access/sdk/ioalab_sdk/assistant/trading.py': ('assistant_role', 'resident_input_boundaries', 'resident_contracts', 'payment_transport_recovery'),
-    'src/access/sdk/ioalab_sdk/adapters/payments.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries', 'payment_transport_recovery'),
-    'src/access/sdk/ioalab_sdk/adapters/transport.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries', 'payment_transport_recovery'),
-    'src/access/sdk/ioalab_sdk/runtime/store.py': ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries', 'payment_transport_recovery'),
-    'src/platform/ioalab/operations.py': ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission', 'payment_rejection','account_rewards','auth','authentication_recovery'),
-    'src/access/sdk/ioalab_sdk/assistant/contracts.py': ('resident_contracts', 'contract_binding', 'delegation_scopes'),
-    'src/access/sdk/ioalab_sdk/assistant/candidates.py': ('candidate_evidence',),
-    'src/access/sdk/ioalab_sdk/assistant/delegation.py': ('resident_delegation', 'delegation_admission', 'delegation_scopes'),
-    'src/access/sdk/ioalab_sdk/assistant/rules.py': ('inbox_rules', 'user_confirmations'),
-    'src/access/sdk/ioalab_sdk/assistant/termination.py': ('resident_termination', 'termination_control'),
-    'src/access/sdk/ioalab_sdk/assistant/role.py': ('assistant_role', 'runtime_delivery', 'runtime_scheduling'),
-    'src/access/sdk/ioalab_sdk/runtime/web/user.html': ('user_confirmation_view', 'user_confirmations'),
-    'src/access/sdk/ioalab_sdk/runtime/user_ui.py': ('user_confirmation_view', 'user_confirmations'),
-    'src/access/sdk/ioalab_sdk/runtime/confirmations.py': ('user_confirmation_view', 'user_confirmations'),
-    'src/access/sdk/ioalab_sdk/runtime/authentication.py': ('authentication_recovery', 'auth'),
-    'src/access/sdk/ioalab_sdk/runtime/host.py': ('tool_output_contract', 'host_tool_names', 'jiuwen_host'),
-    'src/access/sdk/ioalab_sdk/runtime/connection.py': ('runtime_delivery', 'runtime_signals'),
-    'src/access/sdk/ioalab_sdk/runtime/scheduling.py': ('runtime_scheduling', 'runtime_delivery'),
-    'src/access/sdk/ioalab_sdk/runtime/config.py': ('configuration_boundary', 'configuration_edit', 'installation_identity'),
-    'src/access/sdk/ioalab_sdk/runtime/configuration.py': ('configuration_boundary', 'configuration_edit', 'installation_identity'),
-    'src/access/sdk/ioalab_sdk/runtime/installation.py': ('installation_identity', 'access_products'),
-    'src/access/sdk/ioalab_sdk/runtime/__main__.py': ('configuration_boundary', 'cli_encoding', 'fulfillment_status'),
-    'src/access/skills/assistant/references/delegation.md': ('business_skills', 'access_products', 'resident_delegation'),
-    'src/access/skills/_shared/references/calling.md': ('access_products', 'business_skills', 'cli_encoding'),
-    'src/access/sdk/ioalab_sdk/templates.py': ('template_renewal', 'service_publication', 'provider_authoring'),
-    'src/access/sdk/ioalab_sdk/runtime/lease.py': ('lease', 'resident_runtime', 'runtime_signals'),
-    'src/access/sdk/ioalab_sdk/runtime/account_store.py': ('account_enrollment', 'authentication_recovery'),
-    'src/official/tools/ioalab_tools/agentmail_setup.py': ('agentmail_setup', 'business_tools'),
-    'src/official/tools/ioalab_tools/schedule_cli.py': ('local_schedule', 'appointment_source'),
     'tools/build_requirements.py': ('access_products', 'package_installation', 'package_manifest_boundary'),
     'tools/media/script_documents.py': ('review_story', 'demo_artifacts'),
     'tools/media/review_story.py': ('review_story', 'demo_artifacts'),
     'tools/media/build_voice.py': ('approved_voice', 'demo_artifacts'),
     'tools/media/approved_voice.py': ('approved_voice', 'demo_artifacts'),
 }
+# Packaging files beside the module packages, examples and other non-module directories.
 RULES = (
-    (('src/trial/', 'deploy/trial/'), ('trial_*',)),
-    (('src/platform/ioalab/migrations/', 'src/platform/ioalab/identity/migrations.py',
-      'src/platform/ioalab/payments/migrations.py', 'src/platform/ioalab/registry/migrations.py',
-      'src/platform/ioalab/delegation/migrations.py', 'src/platform/ioalab/messaging/migrations.py',
-      'src/platform/ioalab/observation/migrations.py'), ('domain_migrations', 'protocol_operations', 'auth', 'core_ownership')),
     (('.agents/', '.github/', 'tools/check_scope.py'), ('check_workflow', 'check_scope')),
     (('tests/js/user_confirmation_view.cjs',), ('user_confirmation_view',)),
     (('src/access/examples/',), ('external_provider', 'resident_runtime', 'configuration_boundary')),
+    (('src/trial/',), ('trial_*',)),
     (('src/access/skills/',), ('access_products', 'business_skills', 'skill_*', 'cli_encoding', 'private_files')),
-    (('src/access/sdk/ioalab_sdk/assistant/',), ('assistant_role', 'resident_input_boundaries', 'resident_contracts')),
-    (('src/access/sdk/ioalab_sdk/provider/',), ('provider_*', 'service_publication', 'publication_authorizations', 'task_*', 'resident_fulfillment')),
     (('src/access/sdk/',), ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries')),
     (('src/hosts/',), ('jiuwen_host', 'host_tool_names', 'native_*', 'web_*', 'runtime_delivery')),
-    (('src/platform/ioalab/web/',), ('admin_api', 'observation_views', 'protocol_operations', 'workbench_*', 'user_browser', 'frontend')),
-    (('src/platform/ioalab/registry/',), ('category_preview', 'search_availability', 'service_publication', 'publication_authorizations')),
-    (('src/platform/ioalab/delegation/',), ('delegation_*', 'protocol_relay', 'provider_admission', 'arbitration*', 'payment_rejection')),
-    (('src/platform/ioalab/payments/',), ('payment_*', 'delegation_scopes')),
-    (('src/platform/ioalab/messaging/',), ('agent_delivery', 'message_boundaries', 'protocol_relay', 'runtime_delivery')),
-    (('src/platform/ioalab/identity/',), ('auth', 'authentication_recovery')),
-    (('src/platform/ioalab/',), ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission')),
+    (('src/platform/',), ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission')),
     (('src/official/',), ('official_*', 'business_tools', 'appointment_source', 'agentmail_*')),
-    (('deploy/', 'vendor/'), ('deployment*', 'vendor_deployment', 'owned_workspace', 'production_release', 'sync_a2c')),
+    (('vendor/',), ('deployment*', 'vendor_deployment', 'owned_workspace', 'production_release', 'sync_a2c')),
     (('tools/media/', 'tools/verification/'), ('demo_artifacts', 'booking_demo', 'appointment_source', 'seed_manifest')),
 )
 CODE = ('.py', '.sh', '.cjs', '.js', '.html', '.toml', '.lock', '.whl', '.json', '.yml', '.yaml', '.example')
@@ -184,6 +120,70 @@ def test_sources(root, ref=None):
     with tarfile.open(fileobj=io.BytesIO(data)) as archive:
         return {entry.name: archive.extractfile(entry).read().decode('utf-8') for entry in archive
                 if entry.isfile() and entry.name.startswith('tests/') and entry.name.count('/') == 1 and entry.name.endswith('.py')}
+
+
+def design_pages(root, ref=None):
+    """Interface pages under 设计/组件 as {path: text}, from the worktree or one committed revision."""
+    if ref is None:
+        base = root / '设计/组件'
+        return {p.relative_to(root).as_posix(): p.read_text(encoding='utf-8')
+                for p in base.rglob('*.md') if INTERFACE.match(p.relative_to(root).as_posix())} if base.is_dir() else {}
+    listing = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', ref, '--', '设计/组件'], cwd=root)
+    if not listing.strip():
+        return {}
+    data = subprocess.check_output(['git', 'archive', '--format=tar', ref, '--', '设计/组件'], cwd=root)
+    with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+        return {entry.name: archive.extractfile(entry).read().decode('utf-8') for entry in archive
+                if entry.isfile() and INTERFACE.match(entry.name)}
+
+
+def check_modules():
+    """The module map; loaded on first use so the selector itself stays importable on its own."""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from tools import check_modules as modules
+    return modules
+
+
+def interface_tests(root=ROOT, ref=None):
+    """Module name -> test column entries of its interface pages: a test stem, or a tests/ nodeid."""
+    modules, found = check_modules(), {}
+    for path, text in sorted(design_pages(root, ref).items()):
+        entries = found.setdefault(INTERFACE.match(path).group(1), [])
+        for cell in modules.table_rows(text, '测试'):
+            for item in re.split(r'[、,，]', modules.plain(cell)):
+                item = item.strip()
+                if not item or item in ('—', '-'):
+                    continue
+                if not item.startswith('tests/'):
+                    stem, _, node = item.partition('::')
+                    item = f'tests/test_{stem}.py::{node}' if node else stem
+                if item not in entries:
+                    entries.append(item)
+    return found
+
+
+def module_of(path):
+    """Module owning a repository path, or None for code outside every module."""
+    modules = check_modules()
+    owner = modules.module_of(modules.ROOT / path, modules.owners())
+    return owner if owner in modules.MODULES else None
+
+
+def module_targets(name, root=ROOT):
+    """Whole test files and nodeids of one module's interface test column, without quick sampling."""
+    modules = check_modules()
+    if name not in modules.MODULES:
+        raise ValueError(f'Unknown module {name!r}; choose one of: {", ".join(modules.MODULES)}')
+    targets = set()
+    for entry in interface_tests(root).get(name, ()):
+        if entry.startswith('tests/'):
+            targets.add(entry)
+        else:
+            targets.update(p.relative_to(root).as_posix() for p in (root / 'tests').glob(f'test_{entry}.py'))
+    if not targets:
+        raise ValueError(f'Module {name} lists no existing tests in its interface pages')
+    return sorted(target for target in targets if '::' not in target or target.split('::')[0] not in targets)
 
 
 def definitions(tree):
@@ -260,8 +260,10 @@ def dependents(paths, sources, old_sources):
 
 def select_tests(paths, root=ROOT, *, base=None):
     paths = sorted({raw.replace('\\', '/') for raw in paths})
-    sources = test_sources(root, revision('HEAD', root) if base else None)
+    head = revision('HEAD', root) if base else None
+    sources = test_sources(root, head)
     old_sources = test_sources(root, revision(base, root)) if base else {}
+    columns = None
     available = {path: Path(path).stem[5:] for path in sources if Path(path).name.startswith('test_')}
     selected, reasons, warnings = set(), [], []
 
@@ -305,8 +307,16 @@ def select_tests(paths, root=ROOT, *, base=None):
             continue
         if not code and not path.startswith('src/access/skills/'):
             continue
-        if path in FILE_RULES:
-            add(FILE_RULES[path]); reasons.append(path + ': exact owner and adjacent invariants')
+        module = module_of(path)
+        if module is not None:
+            if columns is None:
+                columns = interface_tests(root, head)
+            if columns.get(module):
+                add(columns[module]); reasons.append(path + ': interface test column of ' + module)
+            else:
+                add(CRITICAL); warnings.append(path + ': module ' + module + ' lists no interface tests; critical checks only')
+        elif path in FILE_RULES:
+            add(FILE_RULES[path]); reasons.append(path + ': exact owner outside the modules')
         else:
             match = next((tests for prefixes, tests in RULES if path.startswith(prefixes)), None)
             if match:

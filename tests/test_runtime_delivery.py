@@ -89,6 +89,26 @@ def test_local_uuid_and_outbox_roll_back_together_on_failure(tmp_path, monkeypat
     store.close()
 
 
+def test_outbound_and_role_checkpoints_commit_together(tmp_path):
+    store = RuntimeStore(tmp_path/'runtime.sqlite','http://localhost',['a'],owner_id='account')
+    operation = uid()
+    with store.lock:
+        store.db.execute("CREATE TRIGGER fail_second BEFORE INSERT ON runtime_checkpoints WHEN NEW.key='second' BEGIN SELECT RAISE(ABORT,'checkpoint failed'); END")
+    with pytest.raises(Exception,match='checkpoint failed'):
+        store.prepare_checkpointed('a','message.send',{'messageId':'m'},operation,'role',{'first':{'n':1},'second':{'n':2}})
+    assert store.pending()==[] and store.checkpoints('role')=={}
+    with store.lock:
+        store.db.execute('DROP TRIGGER fail_second')
+    assert store.prepare_checkpointed('a','message.send',{'messageId':'m'},operation,'role',{'first':{'n':1},'second':{'n':2}})==operation
+    with pytest.raises(RuntimeFault) as conflict:
+        store.prepare_checkpointed('a','message.send',{'messageId':'changed'},operation,'role',{'first':{'n':9}})
+    assert conflict.value.code=='id_conflict' and store.checkpoint('role','first')=={'n':1}
+    store.close()
+    reopened = RuntimeStore(tmp_path/'runtime.sqlite','http://localhost',['a'],owner_id='account')
+    assert [item['id'] for item in reopened.pending()]==[operation] and set(reopened.checkpoints('role'))=={'first','second'}
+    reopened.close()
+
+
 def test_sdk_round_trip_restart_and_receiver_uuid_is_one_transaction(platform, client, people, tmp_path):
     a,b,_ = people
     publish(client,a,[b['username']]).raise_for_status()
@@ -136,8 +156,8 @@ def test_reconnect_replays_original_operation_after_lost_response(platform, clie
     store = store_at(tmp_path,b,platform.s.base_url)
     connection = AgentConnection(platform.s.base_url,b['token'],[b['actor']],store)
     original = request(a['actor'])
-    broker = platform.delivery
-    apply = broker.control
+    controls = platform.controls
+    apply = controls.control
     committed = threading.Event()
     release = threading.Event()
     def drop(owner, socket_id, generations, frame):
@@ -146,7 +166,7 @@ def test_reconnect_replays_original_operation_after_lost_response(platform, clie
             committed.set()
             release.wait(10)
         return value
-    monkeypatch.setattr(broker,'control',drop)
+    monkeypatch.setattr(controls,'control',drop)
     try:
         connection.start()
         operation = connection.submit(b['actor'],'message.send',original)

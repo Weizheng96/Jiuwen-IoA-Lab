@@ -67,10 +67,8 @@ def test_argument_symlink_cannot_rewrite_sdk_or_secret(tmp_path):
 
 @pytest.fixture
 def sdk_boundary(monkeypatch):
-    import ioalab_sdk.runtime.ipc as ipc
-    import ioalab_sdk.runtime.config as config
-    import ioalab_sdk.runtime.__main__ as commands
-    import ioalab_sdk.runtime.installation as installation
+    # The bridge imports these from the shared runtime entry when it forwards.
+    import ioalab_sdk.runtime as runtime
     calls=[]
     state={'bootId':'original-boot','installation':{'assembly':'ioalab-jiuwen','releaseId':'original-release'}}
     class Client:
@@ -80,11 +78,11 @@ def sdk_boundary(monkeypatch):
             calls.append(('call',operation,arguments,operation_id,self.boot))
             if operation=='runtime.status':return {'status':'completed','data':state}
             return {'status':'completed','operationId':operation_id,'data':{'original':True}}
-    monkeypatch.setattr(ipc,'LocalClient',Client)
+    monkeypatch.setattr(runtime,'LocalClient',Client)
     selected=object()
-    monkeypatch.setattr(config.RuntimeConfig,'load',staticmethod(lambda path:selected))
-    monkeypatch.setattr(commands,'require_configuration',lambda data,current,**kwargs:calls.append(('configuration',data,current,kwargs)))
-    monkeypatch.setattr(installation,'require_matching',lambda value,**kwargs:calls.append(('installation',value,kwargs)))
+    monkeypatch.setattr(runtime.RuntimeConfig,'load',staticmethod(lambda path:selected))
+    monkeypatch.setattr(runtime,'require_configuration',lambda data,current,**kwargs:calls.append(('configuration',data,current,kwargs)))
+    monkeypatch.setattr(runtime,'require_matching',lambda value,**kwargs:calls.append(('installation',value,kwargs)))
     return calls,state,selected
 
 
@@ -117,8 +115,8 @@ def test_finite_bridge_rejects_privileged_or_new_operations(sdk_boundary,operati
 def test_mismatched_runtime_never_sends_effect(sdk_boundary,monkeypatch,boundary):
     calls,_,_=sdk_boundary
     def reject(*args,**kwargs):raise RuntimeFault('instance_changed','Keep original identity')
-    target=('ioalab_sdk.runtime.__main__.require_configuration' if boundary=='configuration'
-            else 'ioalab_sdk.runtime.installation.require_matching')
+    target=('ioalab_sdk.runtime.require_configuration' if boundary=='configuration'
+            else 'ioalab_sdk.runtime.require_matching')
     monkeypatch.setattr(target,reject)
     with pytest.raises(RuntimeFault,match='original identity'):bridge.forward(request())
     assert not any(item[:2]==('call','assistant.delegation.pay') for item in calls)

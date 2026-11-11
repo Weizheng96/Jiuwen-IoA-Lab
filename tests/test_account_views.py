@@ -4,8 +4,6 @@ from _support import new_user, username
 
 def test_account_queries_keep_own_scope_and_do_not_mutate_business_facts(platform, client):
     owner, other = new_user(platform), new_user(platform)
-    platform.db.run("INSERT INTO confirmations(id,owner_id,text) VALUES(?,?,?)", 'mine-' + owner['id'], owner['id'], 'own pending')
-    platform.db.run("INSERT INTO confirmations(id,owner_id,text) VALUES(?,?,?)", 'foreign-' + other['id'], other['id'], 'foreign secret')
     own_event = platform.bus.emit('platform', 'query.own', sender=owner['id'], detail={'private': 'hidden'})
     other_event = platform.bus.emit('platform', 'query.foreign', sender=other['id'], detail={'private': 'foreign secret'})
     client.cookies.clear()
@@ -17,7 +15,7 @@ def test_account_queries_keep_own_scope_and_do_not_mutate_business_facts(platfor
         me = client.get('/api/me').json()
         summary = client.get('/api/workbench').json()
         assert me['id'] == owner['id'] and 'pw_hash' not in me
-        assert [row['text'] for row in me['pending']] == ['own pending']
+        assert 'pending' not in me
         assert summary['account']['id'] == owner['id']
         assert own_event['seq'] in {event['seq'] for event in summary['events']}
         assert other_event['seq'] not in {event['seq'] for event in summary['events']}
@@ -57,8 +55,7 @@ def test_v1_owner_queries_preserve_shape_scope_and_search_actor(platform, client
     client.cookies.clear()
     client.headers.pop('authorization', None)
     try:
-        for path in ('/api/v1/me', '/api/v1/provider/mine'):
-            assert client.get(path).status_code == 401
+        assert client.get('/api/v1/me').status_code == 401
         assert client.post('/api/v1/search', json={'query': 'test'}).status_code == 401
         client.headers['authorization'] = 'Bearer ' + platform.auth.token('assistant:' + owner['id'])
         changes = platform.db.conn.total_changes
@@ -71,15 +68,14 @@ def test_v1_owner_queries_preserve_shape_scope_and_search_actor(platform, client
                 {'id': assistant, 'role': 'assistant', 'name': '助手', 'status': 'disabled', 'protocolId': 'original'},
                 {'id': service, 'role': 'service', 'name': '服务', 'status': 'online', 'protocolId': service},
             ]}
-        assert client.get('/api/v1/provider/mine').json() == [
-            {'id': service, 'name': '服务', 'status': 'online', 'meta': '{"public":"original"}'}]
         assert client.post('/api/v1/search', json={'query': 'test', 'top_k': 100}).json() == {
             'hits': [], 'mode': platform.discovery.last_mode}
         assert calls == [('test', 20, assistant)]
         assert platform.db.conn.total_changes == changes
         client.headers['authorization'] = 'Bearer ' + platform.auth.token('assistant:' + other['id'])
-        assert client.get('/api/v1/provider/mine').json() == [
-            {'id': foreign, 'name': '他人服务', 'status': 'online', 'meta': '{"private":"foreign"}'}]
+        assert client.get('/api/v1/me').json()['identities'] == [
+            {'id': foreign, 'role': 'service', 'name': '他人服务', 'status': 'online', 'protocolId': foreign}]
+        assert client.get('/api/v1/provider/mine').status_code == 404
         assert client.post('/api/v1/search', json={'query': 'fallback', 'top_k': 0}).status_code == 200
         assert calls[-1] == ('fallback', 1, other['id'])
         client.headers['authorization'] = 'Bearer ' + platform.auth.token(owner['id'])
@@ -104,3 +100,17 @@ def test_missing_history_and_replay_keep_original_not_found_responses(platform, 
         assert missing.json() == {'error': {'code': 'not_found', 'message': 'Not Found', 'recovery': 'correct_input'}}
     finally:
         client.headers.pop('authorization', None)
+
+
+def test_identity_lookups_for_other_modules_locate_accounts_and_all_owned_agents(platform):
+    owner, other = new_user(platform), new_user(platform)
+    first, second, foreign = username(), username(), username()
+    for actor, account, status in ((first, owner, 'registered'), (second, owner, 'disabled'), (foreign, other, 'registered')):
+        platform.db.run('INSERT INTO agents(id,owner_id,role,name,status,meta) VALUES(?,?,?,?,?,?)',
+                        actor, account['id'], 'service', actor, status, '{}')
+    changes = platform.db.conn.total_changes
+    assert platform.identities.account(owner['username']) == {'id': owner['id'], 'username': owner['username']}
+    assert platform.identities.account(username()) is None and platform.identities.account(None) is None
+    assert platform.identities.agent_ids(owner['id']) == sorted([first, second])
+    assert platform.identities.agent_ids(username()) == []
+    assert platform.db.conn.total_changes == changes

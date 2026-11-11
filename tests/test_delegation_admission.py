@@ -90,7 +90,7 @@ def frame(peer,kind,payload,operation=None):
 
 def invoke(platform,peer,kind,payload,operation=None):
     owner=platform.identities.agent(peer.actor)['owner_id']
-    return platform.delivery.control(owner,peer.ready['connectionId'],{peer.actor:peer.generation},frame(peer,kind,payload,operation))
+    return platform.controls.control(owner,peer.ready['connectionId'],{peer.actor:peer.generation},frame(peer,kind,payload,operation))
 
 
 def test_ws_intent_opens_receivers_uuid_and_returns_actual_reservation_before_fee(platform,client,protocol_participant,service):

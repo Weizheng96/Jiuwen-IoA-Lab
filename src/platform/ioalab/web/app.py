@@ -21,7 +21,6 @@ from ..errors import LabError
 
 from ..app import Platform
 from ..payments import money
-from ..storage import jdump, jload
 from ..observation import event_view
 
 log = logging.getLogger("ioalab.web")
@@ -173,20 +172,7 @@ def create_app(platform: Platform) -> FastAPI:
         return {"balance": str(platform.wallets.balance(uid)), "log": platform.wallets.log(uid)}
 
 
-    @app.get("/api/services/definitions")
-    async def definitions():
-        from ..seed import load_definitions
-        if platform.s.seed_file is None:
-            return []
-        return [{"id": d["id"], "name": d["name"], "description": d["description"], "formation": d.get("formation", "preapproval"),
-                 "runnable": bool(d.get("runnable")), "price": d.get("pricing", {}).get("price"), "category": d.get("category")}
-                for d in load_definitions(platform.s.seed_file) if d.get("runnable")]
 
-
-
-    @app.get("/api/needs")
-    async def my_needs(uid: str = Depends(current_user)):
-        return platform.account_views.needs(uid)
 
 
     @app.get("/api/orders")
@@ -208,7 +194,7 @@ def create_app(platform: Platform) -> FastAPI:
     from .arbitrations import build_router as arbitration_router
     app.include_router(arbitration_router(platform,require_admin))
     from .workbench import build_router as workbench_router
-    from ..messaging.directory import build_router as messaging_router
+    from ..messaging import build_router as messaging_router
     app.include_router(messaging_router(platform.interface_directory,current_user))
     from .agents import build_router as agents_router
     app.include_router(agents_router(platform,current_user))
@@ -306,29 +292,18 @@ def create_app(platform: Platform) -> FastAPI:
             row['observation']='connected' if row['connected'] else 'not_connected'
         return {"taxonomy": platform.discovery.taxonomy_state(), "categories": platform.discovery.categories(), "services": rows}
 
-    @app.post("/api/admin/search")
-    async def admin_search(request: Request, _: str = Depends(require_admin)):
-        b = await body(request)
-        hits = await platform._worker(platform.discovery_operations.search, b.get("query", ""), int(b.get("top_k", 8)))
-        return {"mode": platform.discovery.last_mode, "hits": [{"id": h["id"], "name": h["name"], "status": h["card"].get("status")} for h in hits]}
-
 
     @app.get("/api/admin/components")
     async def components(_: str = Depends(require_admin)):
         return await platform._worker(platform.overview.components)
 
-    @app.get("/api/admin/traffic")
-    async def traffic_get(_: str = Depends(require_admin)):
-        return {"level":"external","enabled":False}
 
 
 
 
     @app.post("/api/admin/seed")
-    async def seed(request: Request, _: str = Depends(require_admin)):
-        from ..seed import seed_all
-        b = await body(request)
-        return await platform._worker(seed_all, platform, only=b.get("only"))
+    async def seed(_: str = Depends(require_admin)):
+        return await platform._worker(platform.ensure_seeded)
 
     @app.post("/api/admin/run")
     async def new_run(_: str = Depends(require_admin)):

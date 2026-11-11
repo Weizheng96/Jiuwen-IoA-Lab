@@ -1,16 +1,11 @@
-"""Registered service facts; category authorization never trusts message-supplied labels."""
-import json
+"""Registry: signed service publications, the A2X directory, discovery and deployment publication authorization."""
+from .authorizations import PublicationAuthorizations, publication_terms
+from .categories import CategoryPreview
+from .discovery import Discovery
+from .migrations import migrate
+from .models import DiscoveryModels
+from .publication import ServicePublications
+from .view import RegistryView
 
-from ..errors import LabError
-
-
-class RegistryView:
-    def __init__(self,db):self.db=db
-
-    def category_in(self,conn,provider):
-        row=conn.execute("SELECT definition FROM agents WHERE role='service' AND status!='disabled' AND json_extract(meta,'$.url')=?",(provider,)).fetchone()
-        if not row:raise LabError('not_ready','The service is not registered',status=409)
-        definition=json.loads(row['definition'] or '{}')
-        category=definition.get('category')
-        if not isinstance(category,str) or not category:raise LabError('not_ready','The actual registered category is unavailable',status=409)
-        return category
+__all__ = ['CategoryPreview', 'Discovery', 'DiscoveryModels', 'PublicationAuthorizations', 'RegistryView',
+           'ServicePublications', 'migrate', 'publication_terms']

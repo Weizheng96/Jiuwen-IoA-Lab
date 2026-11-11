@@ -72,7 +72,8 @@ def check_history_paths(git, head):
         parts = path.lower().split('/')
         if (parts[0] in ('data', 'temp', 'apikey') or
                 parts[-1] in ('.env', 'settings.local.json', 'llm_apikey.json', 'llm_apikey') or
-                path.lower().startswith('.agents/data/') or
+                # Only development skills are public under .agents; keys, server access and data stay local.
+                (parts[0] == '.agents' and len(parts) > 1 and parts[1] != 'skills') or
                 path.lower().endswith(('.pem', '.key'))):
             candidates.append(path)
     if candidates:

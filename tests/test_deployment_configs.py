@@ -1,5 +1,6 @@
 """First-write recovery and reinstall preservation for sensitive deployment configuration."""
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,11 @@ from deploy.layout import Layout, environment_text, read_environment
 def fixture(tmp_path,**changes):
     layout=Layout(tmp_path/'runtime',tmp_path/'state',tmp_path/'config')
     path=initialize(layout)
+    if os.name=='nt':
+        # Deployment is Linux-only; on a Windows development machine the test
+        # applies the platform's own private-file protection that chmod cannot express.
+        from ioalab.configuration_permissions import protect_new
+        protect_new(path.parent,directory=True);protect_new(path)
     document=json.loads(path.read_text());document['runtime']['public_url']='https://ioa.example'
     document['llm'].update(model='test-model',base_url='https://models.example/v1',api_key='model-private-sentinel')
     path.write_text(json.dumps(document),encoding='utf-8')
@@ -89,22 +95,6 @@ def test_changed_initial_input_rejected_without_printing_secrets(tmp_path):
     assert 'sentinel' not in str(caught.value) and first.path.read_bytes()==before
 
 
-def test_native_assets_keep_content_identity_without_a_symlink(tmp_path):
-    from deploy.windows_local import Local
-    local=Local(tmp_path/'native');identity=local.layout.claim()
-    assets=local.assets({'releaseId':'a'*64})
-    path=initialize(local.layout,assets=assets)
-    document=json.loads(path.read_text());document['llm'].update(model='test-model',api_key='model-private-sentinel')
-    path.write_text(json.dumps(document),encoding='utf-8')
-    result=Configuration(local.layout,identity,{'platform_config':str(path)},assets=assets).base()
-    assert assets.name=='a'*64
-    assert result['runtime']['seed_file']==str(assets/'seed.json')
-    assert result['runtime']['bundles_dir']==str(assets/'skills')
-    assert not assets.is_symlink()
-    with pytest.raises(ValueError,match='content-addressed'):
-        local.assets({'releaseId':'../other'})
-
-
 def test_completed_missing_configuration_is_not_regenerated(tmp_path):
     layout,identity,value=fixture(tmp_path);configuration=Configuration(layout,identity,value);configuration.base()
     (layout.config/'agents/official.env').unlink()
@@ -142,6 +132,49 @@ def test_mail_credentials_reach_only_assistant_environment(tmp_path):
     assert data['web_url'].endswith('/ws?user_id=ioa-admin')
     assert read_environment(layout.config/'agents/swarm-admin.env')['JIUWENSWARM_CLI_PORTS']=='1'
     assert read_environment(layout.config/'agents/swarm-admin.env')['JIUWENSWARM_A2UI_ENABLED']=='true'
+
+
+def test_outlook_oauth_notification_reaches_recipe_without_any_token(tmp_path):
+    notice={'transport':'smtp','sender':'owner@outlook.com','host':'smtp-mail.outlook.com','port':587,'client_id':'public-app-id'}
+    layout,identity,value=fixture(tmp_path,admin_assistant={'notification':notice})
+    configuration=Configuration(layout,identity,value);configuration.base()
+    recipe=configuration.administrator(workspace(layout));data=json.loads(recipe.read_text())
+    token=layout.state/'agents/admin-assistant/outlook-smtp-token.json'
+    assert data['notification']=={**notice,'token_file':str(token)}
+    assert not token.exists() and configuration.public()['meetingConfigured'] is True
+    assert 'IOALAB_NOTIFICATION' not in (layout.config/'agents/assistant.env').read_text()
+    # The calendar factory assembles from the recipe unchanged; the missing token only
+    # makes meeting invitations not_ready until the owner's login, without reinstalling.
+    from ioalab_sdk.runtime.protocol import RuntimeFault
+    from ioalab_tools.appointments import configure
+    from ioalab_tools.schedule import LocalSchedule
+    schedule=tmp_path/'schedule/schedule.json';schedule.parent.mkdir();LocalSchedule(schedule).init()
+    token.parent.mkdir(parents=True)
+    options={'calendar':{'backend':'local','schedule_file':str(schedule)},'notification':data['notification'],'recipient':data['recipient']}
+    bundle=configure(options,home=tmp_path,profile='admin',base_dir=tmp_path)
+    try:
+        assert bundle.status()=={'state':'not_ready','ready':False,'code':'not_ready','recovery':'smtp_login',
+                                 'message':'Run ioalab-outlook smtp-login for the configured notification sender'}
+        book=next(binding for binding in bundle.bindings if binding.name=='calendar.book')
+        context={'operationId':'op-1','agentId':'agent','messageId':'m','interactionId':'i'}
+        args={'title':'评审','start':'2030-01-02T03:00:00Z','end':'2030-01-02T03:30:00Z','timeZone':'Asia/Shanghai'}
+        with pytest.raises(RuntimeFault,match='smtp-login') as caught:book.invoke(args,context)
+        assert caught.value.code=='not_ready' and not (schedule.parent/'mailbox.sqlite').exists()
+        token.write_text('{"fixture":"owner login result"}',encoding='utf-8')
+        assert bundle.status()=={'state':'ready','ready':True}
+    finally:
+        bundle.close()
+
+
+@pytest.mark.parametrize('notice,message',[
+    ({'transport':'smtp','sender':'a@outlook.com','host':'smtp-mail.outlook.com','client_id':'app','password':'x','username':'a'},'mutually exclusive'),
+    ({'transport':'smtp','sender':'a@example.test','host':'smtp.example.test','client_id':'app'},'Microsoft SMTP endpoints'),
+    ({'transport':'smtp','sender':'a@outlook.com','host':'smtp.office365.com','username':'a','password':'x'},'requires notification.client_id'),
+    ({'transport':'agentmail','sender':'a@agentmail.to','api_key':'k','client_id':'app'},'explicit AgentMail or SMTP'),
+    ({'transport':'smtp-capture','sender':'a@example.test','host':'127.0.0.1','client_id':'app'},'explicit AgentMail or SMTP')])
+def test_outlook_oauth_notification_rejections(notice,message):
+    from deploy.configuration import notification
+    with pytest.raises(ValueError,match=message):notification(notice,mode='dev')
 
 
 def test_disabled_administrator_creates_no_swarm_or_assistant_config(tmp_path):

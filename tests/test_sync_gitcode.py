@@ -120,7 +120,8 @@ def test_gitcode_transport_keeps_tls_and_disables_trace_and_inherited_proxy(monk
     assert 'http.'+sync_gitcode.GITCODE+'.sslVerify=true' in observed['argv']
 
 
-@pytest.mark.parametrize('path', ['.agents/llm_apikey','.agents/data/demo/record.json','.agents/data/private-model.json'])
+@pytest.mark.parametrize('path', ['.agents/llm_apikey','.agents/data/demo/record.json','.agents/data/private-model.json',
+                                  '.agents/newllmkey.txt','.agents/server_new.txt','.agents/server-connection.json'])
 def test_history_guard_refuses_private_development_source_and_data(path):
     class History:
         def text(self, *args): return '0'*40+' '+path

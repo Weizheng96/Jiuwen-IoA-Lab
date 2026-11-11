@@ -13,11 +13,11 @@ from zoneinfo import ZoneInfo
 from a2c.codec import digest
 from dotenv import dotenv_values
 from jsonschema import Draft202012Validator,FormatChecker
-from ioalab_sdk.runtime.lease import Lease
-from ioalab_sdk.runtime.files import private_json,restrict
-from ioalab_sdk.runtime.host import BusinessTools,ToolBinding
-from ioalab_sdk.runtime.protocol import RuntimeFault
-from .calendar import GraphCalendar,SMTPNotification,address
+from ioalab_sdk.runtime import Lease
+from ioalab_sdk.runtime import private_json,restrict
+from ioalab_sdk.runtime import BusinessTools,ToolBinding
+from ioalab_sdk.runtime import RuntimeFault
+from .calendar import GraphCalendar,OutlookSMTPAuth,SMTPNotification,address
 from .agentmail import AgentMailNotification
 from .schedule import LocalSchedule,DEFAULT_RULES,RULES_SCHEMA,instant
 
@@ -58,6 +58,44 @@ def appointment_records(source):
     connection=sqlite3.connect(database.as_uri()+'?mode=ro',uri=True,timeout=10)
     try:return {key:json.loads(value) for key,value in connection.execute('SELECT operation,body FROM appointments')}
     finally:connection.close()
+
+
+# Owner-only follow-up, never reachable from a message or a model: each command
+# names the only states it may leave, and none of them sends an invitation.
+SETTLEMENTS={'reconcile':({'unknown'},{'outcome':{'submitted','failed'}}),
+             'accept':({'submitted'},{}),
+             'release':({'submitted','accepted'},{'reason':{'declined','cancelled','rule_invalid'}})}
+
+
+def settle(source,command,arguments,*,clock=None):
+    """Record the owner's verified outcome for one reservation; the original message result is kept."""
+    expected,fields=SETTLEMENTS[command]
+    if not isinstance(arguments,dict) or set(arguments)!={'reservationId',*fields} or not isinstance(arguments['reservationId'],str):
+        raise RuntimeFault('invalid_input','Use the original reservationId'+''.join(' and '+name for name in fields))
+    for name,allowed in fields.items():
+        if arguments[name] not in allowed:raise RuntimeFault('invalid_input','Choose '+name+' from '+', '.join(sorted(allowed)))
+    source=Path(source).resolve();root=source.with_name(source.name+'.ioa')
+    with Lease(source.with_name(source.name+'.appointments.lock'),timeout=30):
+        records=appointment_records(source)
+        operation,record=next(((key,item) for key,item in records.items() if item['reservationId']==arguments['reservationId']),(None,None))
+        if record is None:raise RuntimeFault('not_ready','No original reservation has this reservationId')
+        if record['state'] not in expected:
+            raise RuntimeFault('invalid_input','Reservation is '+record['state']+'; '+command+' applies only to '+', '.join(sorted(expected)))
+        target={'reconcile':arguments.get('outcome'),'accept':'accepted','release':'released'}[command]
+        step={'command':command,'from':record['state'],'to':target,'at':(clock or (lambda:datetime.now(timezone.utc)))().isoformat(),
+              **{name:arguments[name] for name in fields}}
+        updated={**record,'state':target,'settlements':[*record.get('settlements',[]),step]}
+        if target=='submitted':
+            # The owner-verified submission becomes the receipt a redelivered message recovers; nothing is resent.
+            updated['result']={'status':'invite_submitted','reservationId':record['reservationId'],'inviteSubmitted':True,'calendar':'awaiting_acceptance'}
+        # Open the existing database read-write only; a missing original never becomes empty storage.
+        connection=sqlite3.connect((root/'appointments.sqlite').as_uri()+'?mode=rw',uri=True,timeout=10)
+        try:
+            connection.execute('UPDATE appointments SET body=? WHERE operation=? AND fingerprint=?',
+                               (json.dumps(updated,ensure_ascii=False,allow_nan=False),operation,record['fingerprint']))
+            connection.commit()
+        finally:connection.close()
+    return {key:updated[key] for key in ('reservationId','start','end','state','requestId','settlements') if key in updated}
 
 
 class Appointments:
@@ -138,6 +176,9 @@ class Appointments:
         if any(character in args['title'] for character in '\r\n\x00'):raise RuntimeFault('invalid_input','Use a single-line meeting title')
         ZoneInfo(args['timeZone']);start,end=instant(args['start']),instant(args['end'])
         if end<=start:raise RuntimeFault('invalid_input','Meeting end must be after start')
+        if getattr(self.notification,'authorization_missing',lambda:False)():
+            # Checked before any reservation: the owner has not run the sender login yet.
+            raise RuntimeFault('not_ready','Run ioalab-outlook smtp-login for the configured notification sender','smtp_login')
         operation=context['operationId']
         fingerprint=digest({'input':args,**{key:context[key] for key in ('agentId','messageId','interactionId')}})
         with Lease(self.lock,timeout=30):
@@ -149,6 +190,7 @@ class Appointments:
             if old:
                 if old['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original reservation input changed')
                 if old.get('result'):return old['result']
+                if old['state']=='failed':raise RuntimeFault('closed','The owner confirmed this invitation was not sent; send a new message to book again','send_new_message')
                 if old['state'] in ('sending','unknown'):raise RuntimeFault('unknown_result','Inspect the original invitation receipt; automatic resend is disabled','reconcile_invitation')
                 context=old['context']
             if any(key!=operation and item['context']['agentId']==context['agentId'] and item['context']['interactionId']==context['interactionId'] and item['state'] in ('sending','unknown') for key,item in records.items()):
@@ -183,10 +225,12 @@ class Appointments:
         record=next((item for item in self.records().values() if item['reservationId']==args['reservationId']),None)
         if not record or any(record['context'][key]!=context[key] for key in ('agentId','interactionId')):
             raise RuntimeFault('forbidden','Reservation is outside this interaction')
+        if not record.get('result') and record['state']=='failed':
+            raise RuntimeFault('closed','The owner confirmed this invitation was not sent; send a new message to book again','send_new_message')
         return record.get('result') or {'status':record['state'],'reservationId':record['reservationId'],'inviteSubmitted':None,'calendar':'unknown'}
 
     def close(self):
-        for component in (self.calendar,self.notification):
+        for component in (self.calendar,self.notification,getattr(self.notification,'oauth',None)):
             client=getattr(component,'http',None)
             if client:client.close()
 
@@ -203,10 +247,10 @@ def configure(options,*,home,profile,base_dir):
         calendar=LocalSchedule(path(source['schedule_file']));calendar.read()
     elif source.get('backend')=='graph' and set(source)=={'backend','client_id','token_file'}:
         calendar=GraphCalendar(source['client_id'],path(source['token_file']),recipient)
-        if not calendar.path.is_file():raise RuntimeFault('not_ready','Authorize the configured calendar before starting its tool')
+        if not calendar.path.is_file():raise RuntimeFault('not_ready','Run ioalab-outlook graph-login for the configured calendar before starting its tool')
     else:raise RuntimeFault('invalid_input','Choose an explicit local schedule or Graph calendar')
     if (calendar.path.parent/'mailbox.sqlite').exists():raise RuntimeFault('identity_conflict','Existing mailbox reservations require review; select a separate schedule or restore the original storage')
-    allowed={'transport','sender','host','port','username_env','password_env','api_key_env','credentials_file'}
+    allowed={'transport','sender','host','port','username_env','password_env','api_key_env','credentials_file','client_id','token_file'}
     if set(notice)-allowed:raise RuntimeFault('invalid_input','Notification credentials must use local variable references')
     local=dotenv_values(path(notice['credentials_file']),interpolate=False) if notice.get('credentials_file') else {}
     def credential(name):
@@ -214,14 +258,31 @@ def configure(options,*,home,profile,base_dir):
         if key is None:return ''
         if not isinstance(key,str) or not re.fullmatch('[A-Za-z_][A-Za-z0-9_]*',key):raise RuntimeFault('invalid_input','Invalid credential variable name')
         return os.environ.get(key,local.get(key) or '')
+    if {'client_id','token_file'}&set(notice) and notice.get('transport')!='smtp':
+        raise RuntimeFault('invalid_input','Only SMTP sending uses an OAuth2 client_id and token_file')
     if notice.get('transport')=='agentmail':
         notification=AgentMailNotification(notice['sender'],credential('api_key_env'))
+    elif notice.get('transport')=='smtp' and {'client_id','token_file'}&set(notice):
+        # Microsoft SMTP: XOAUTH2 with its own token cache, never a password and never the calendar token.
+        if not {'client_id','token_file'}<=set(notice) or {'username_env','password_env','credentials_file'}&set(notice):
+            raise RuntimeFault('invalid_input','Outlook OAuth2 sending needs client_id and token_file without password credentials')
+        token=path(notice['token_file'])
+        if token==calendar.path:raise RuntimeFault('invalid_input','Calendar and SMTP authorizations need separate token files')
+        oauth=OutlookSMTPAuth(notice['client_id'],token,notice['sender'],host=notice['host'],port=notice.get('port',587))
+        # The token is checked at status and before each booking, not at assembly, so a managed
+        # installation completes and the owner can log in afterwards without reinstalling.
+        notification=SMTPNotification(notice['host'],notice.get('port',587),notice['sender'],oauth=oauth)
     elif notice.get('transport') in ('smtp','smtp-capture'):
         notification=SMTPNotification(notice['host'],notice.get('port',587),notice['sender'],username=credential('username_env'),password=credential('password_env'),test=notice['transport']=='smtp-capture')
     else:raise RuntimeFault('invalid_input','Choose an explicit invitation transport')
     required=options.get('requires_steps',[])
     if not isinstance(required,list) or any(not isinstance(step,str) or not step for step in required):raise RuntimeFault('invalid_input','Use declared step names')
     service=Appointments(calendar,notification,recipient,rules=options.get('rules'))
+    def status():
+        if getattr(notification,'authorization_missing',lambda:False)():
+            return {'state':'not_ready','ready':False,'code':'not_ready','recovery':'smtp_login',
+                    'message':'Run ioalab-outlook smtp-login for the configured notification sender'}
+        return {'state':'ready','ready':True}
     revision='calendar-2:'+digest(options)
     return BusinessTools((ToolBinding('calendar.book','每条来信只按原输入决定一次预约；冲突返回建议，须发送方用新消息改约。不冲突则预留并提交邀请；invite_submitted只表示等待本人接受。',INPUT,service.book,'notification',revision,tuple(required),output_schema=BOOK_OUTPUT),
-                          ToolBinding('calendar.status','查询本交互既有预约，不重发邀请。',STATUS,service.status,'none',revision,output_schema=STATUS_OUTPUT)),service.close)
+                          ToolBinding('calendar.status','查询本交互既有预约，不重发邀请。',STATUS,service.status,'none',revision,output_schema=STATUS_OUTPUT)),service.close,status=status)

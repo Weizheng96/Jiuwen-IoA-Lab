@@ -344,7 +344,7 @@ def test_market_snapshot_offer_and_operation_rollback_together_before_original_c
             try:
                 lease=platform.db.one('SELECT * FROM delivery_leases WHERE actor=?',actor)
                 frame={'type':'a2c.market','agentId':actor,'generation':lease['generation'],'operationId':uid(),'payload':payload}
-                with pytest.raises(sqlite3.IntegrityError):platform.delivery.control(owner,lease['connection'],{actor:lease['generation']},frame)
+                with pytest.raises(sqlite3.IntegrityError):platform.controls.control(owner,lease['connection'],{actor:lease['generation']},frame)
                 assert platform.market.market.store.get('snapshots',cd) is None
                 assert not platform.db.rows('SELECT * FROM delegation_offers WHERE admission=?',payload['admissionId'])
                 assert not platform.db.rows('SELECT * FROM delegation_market_operations WHERE actor=?',actor)

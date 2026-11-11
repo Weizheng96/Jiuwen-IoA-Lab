@@ -12,13 +12,11 @@ from deploy import linux, units
 DEPLOYMENT = 'a' * 32
 
 
-def test_linux_source_scope_includes_ownership_regressions_only_for_its_owner():
+def test_linux_source_scope_includes_service_and_layout_regressions():
     from tools.check_scope import select_tests
     selected=select_tests(['deploy/linux.py'])['tests']
     assert 'tests/test_linux_service_management.py' in selected
     assert 'tests/test_deployment_layout.py' in selected
-    assert 'tests/test_windows_local.py' not in selected
-    assert 'tests/test_linux_service_management.py' not in select_tests(['deploy/windows_local.py'])['tests']
 
 
 @pytest.fixture
@@ -85,7 +83,8 @@ def test_installed_commands_are_role_scoped_and_drain_without_kill():
     plans=units.plans(root,administrator=True,core={'bind':'127.0.0.1','port':8750,'public_url':'https://ioa.example'})
     rendered=units.render(root,DEPLOYMENT,plans)
     assert len(rendered)==6
-    assert len(plans['official']['pre'])==9
+    assert len(plans['official']['pre'])==2
+    assert plans['official']['pre'][1][-1]=='/var/lib/ioalab/agents/official/accounts/ISP_001/config.json'
     for key,row in plans.items():
         value=rendered[row['unit']]
         assert 'SendSIGKILL=no' in value

@@ -3,11 +3,10 @@ import copy
 import uuid
 
 from a2c.codec import digest
-from ..runtime.protocol import RuntimeFault, encode
+from ..runtime import RuntimeFault, encode
 
 
 def begin(role, operation, args):
-    role.fields(args, ('purpose', 'budget', 'proposalFeeLimit'), ('categoryIds', 'validDays'))
     namespace = 'assistant-flow:' + role.identity.agent_id
     with role.lock:
         record = role.store.checkpoint(namespace, operation)

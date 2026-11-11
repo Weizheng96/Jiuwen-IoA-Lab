@@ -4,10 +4,20 @@
 
 ## 操作者初始化与运行边界
 
-1. 使用已授权的统一私有源 `.agents/llm_apikey`，选明确 profile；本仓当前已准备的 profile 名为 `default`。只在操作者初始化进程内读取 `tools.llm.profile()`，不打印对象、key 或提供方错误正文，不把值放参数、全局环境或 Git。保留原空间 API 入口，不能换成猜测的公共默认地址。
+1. 使用已授权的统一私有源 `.agents/llm_apikey`，按用户最新选择取明确 profile；当前新Linux平台与官方服务选择见技能正文，不能仅因 profile 名含 tts 就忽略已授权的 LLM 用途。只在操作者初始化进程内读取 `tools.llm.profile()`，不打印对象、key 或提供方错误正文，不把值放参数、全局环境或 Git。保留原空间 API 入口，不能换成猜测的公共默认地址。主模型、`llm.discovery_model` 与 `llm.embedding_model` 按实际供应商权限与调用结果填写；模板名称和模型目录均不能单独证明可调用。
 2. 新实例使用选定发布源码实际提供的 `deploy.configure.initialize(..., llm=...)` 或 `python -m tools.llm`，只创建唯一平台 JSON。Windows 指定实际已构建资源路径时使用 initialize 的 assets 参数；现有 tools.llm CLI 不提供 assets 参数，不虚构该选项。旧发布没有 llm 参数时，先用其 deploy.configure 创建新私有文件，再由操作者显式映射同一 profile 的 api_key/base_url/name 到该文件 llm.api_key/base_url/model。已经存在的文件不重复初始化，变更沿原部署 owner 的停机/配置或显式迁移流程。
 3. Linux 原远程操作使用已核主机指纹的 pin SSH/SFTP 会话，私有载体先受 root 所有及0600权限保护，只传所选模型输入，不复制完整开发凭据库或把秘密放命令文本。没有已核会话或安全载体时，部署 owner 先向主控给最小方案，不请求用户贴 key。初始化后运行服务只读取自己的实例配置，不跨读开发源或临时传输载体。
 4. 配置中的主模型、检索、嵌入和仲裁等实际用途分别核供应商权限与类型；单一主模型字段非空不能证明所有用途可调用。已配置实例及人工修改保留，换 profile 不自动覆盖运行文件或重建参与方工作区。
+
+## 目标主机诊断
+
+先核访问策略和实际路由：某服务器仅接受指定局域网来源时，关闭请求级代理仍不等于绕过系统VPN/TUN；浏览器还要核系统代理及该IP的精确绕过项。只按用户授权调整目标，不关闭全局代理、不放通外部来源来迎合探针。
+
+按 DNS → TCP → TLS → HTTP 状态/结构 → 组件实际调用记录故障层次。 单条嵌入成功后还须核真实目录的批量规模、供应商批量上限及响应索引；树检索成功也不能掩盖嵌入退到字符向量，按组件日志和实际结果分别验。用目标主机选定 profile 做低量无业务聊天及嵌入请求；错误只记类型、状态码、耗时，原正文与凭据留受限资料。同一输入本机成功、服务器失败，只能先认定路径/来源差异，不能猜定密钥失效或云防火墙故障。对照实际客户端栈；urllib、requests、httpx 的代理和CA行为不同。供应商切换须用户明确选择，保留原件，分别更新平台配置和所属九问工作区，不只改平台 key 后声称所有组件已切换。
+
+内部 CA 情况分别验证系统 curl、SDK账号/投递、官方管理员登录/授权、服务方与助手的 A2C 异步 HTTP，以及 WSS。`httpx.Client` 和 `httpx.AsyncClient` 在 `trust_env=False` 时默认 CA 集合可能不含系统新增 CA，且不能靠设置 `SSL_CERT_FILE` 就假定生效。需要系统信任时在所属源码显式传 `verify=ssl.create_default_context()`，保持直连和证书链/IP验证；同步客户端修复不会自动覆盖 A2C 的异步客户端工厂。用实际客户端执行真实TLS成功、未知CA拒绝、错IP拒绝三类对照，不能只检查构造参数或改已装venv的certifi文件。源码测试通过与服务器已安装候选分别核对。
+
+本轮目标服务器曾对原供应商 HTTP 超时；用户改选原阿里云后，原空间端点的 `qwen3.7-flash` 聊天及 `text-embedding-v4` 嵌入直连均200。该结果仅是供应商连通证明，组件调用仍按下表独立验收，不把具体名称推广到其他 profile。
 
 ## 三类调用路径与证明
 
@@ -16,6 +26,8 @@
 | 平台 | 唯一 platform.json 的 llm 段经核心设置进入所属模型调用；例如注册中心 Discovery 的真实 A2X 树导航使用检索模型，向量退路另涉及嵌入模型 | 由部署 owner 选择已存在且无业务写效果的组件入口，记录实际走的模型模式、请求结果和候选/配置修订；树、字符或缓存退路不能算 LLM 成功。没有安全入口先报最小探针方案，不加临时 debug API |
 | 官方预置服务 | 部署配置投影模型，经公开 Workspace.prepare/upsert_model_resource 准备独立官方 Swarm；官方配置 host 保存其 command/data_dir/model selection，SDK经九问适配调用所属原版 Process 执行 | 经该已装配 Host 的公开 Process 做低量无业务问答，并核同工作区/选择键/宿主来源。只证明共享模型宿主通路；不签合同、授权预算、付款或宣称所有领域生产质量通过 |
 | 试用个人助手 | 普通本机个人助手使用其所属九问模型资源与产品Skill/SDK Host；Linux在线试用由 epoch bootstrap 配置本轮个人 Swarm 与SDK，调用只经本轮模型sidecar | 核本人的公开原生/Process调用、选中模型及所属SDK/Host关联。管理员助手的模型就绪不代替个人助手；原生UI/A2UI/可信确认与Skill完整业务另验，不能伪造真人批准 |
+
+官方账号已连接、服务已发布或已入索引，但 executionReady/accepting 仍为 false 时，先定位执行握手的具体客户端和异常链；服务状态中的 ConnectError 不足以认定模型供应商失败。区分平台HTTPS、A2C与模型供应商各段请求，避免因异步TLS问题反复换模型或重装。
 
 model.list、hostAvailable、executionReady、HTTP200 和 `/api/config` 的 llm 标记只证明相应配置或探针。`tools.llm.complete()` 直调只证明供应商连接，不能充当以上组件通路。每类保留脱敏调用回执、实际运行候选、结果/失败与未验证范围；无安全入口、实例正在停止或归属未知时保持待验，不发新模型任务制造成功。
 

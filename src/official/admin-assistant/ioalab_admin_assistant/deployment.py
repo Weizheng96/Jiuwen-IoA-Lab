@@ -7,17 +7,14 @@ from urllib.parse import parse_qs, urlsplit
 import uuid
 
 from a2c.codec import digest
-from ioalab_sdk.runtime.lease import Lease
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_json, read_json, windows_sid
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime import Lease
+from ioalab_sdk.runtime import RuntimeConfig
+from ioalab_sdk.runtime import private_json, read_json
+from ioalab_sdk.runtime import RuntimeFault
 from .presets import load
 
 
 def operator():
-    if os.name == 'nt':
-        windows_sid()  # The recipe and all owned state are checked separately.
-        return
     if os.name != 'posix' or os.geteuid() != 0:
         raise RuntimeFault('forbidden', 'Managed administrator preparation requires the Linux deployment root process')
 
@@ -31,10 +28,6 @@ def safe_path(value):
 
 def owned(path, *, private=False):
     path = safe_path(path)
-    if os.name == 'nt':
-        from .local_owner import owned as local_owned
-        local_owned(path)
-        return
     value = path.stat()
     if value.st_uid != 0 or stat.S_IMODE(value.st_mode) & (0o077 if private else 0o022):
         raise RuntimeFault('forbidden', 'Deployment preparation inputs must remain owned and protected by root')
@@ -81,7 +74,7 @@ class Deployment:
                 not {'command','data_dir','model'} <= set(host) or safe_path(host['data_dir']) != self.workspace or
                 not isinstance(host['model'],str) or not host['model']):
             raise RuntimeFault('invalid_input', 'Select the owned administrator Swarm workspace and a real model key')
-        from ioalab_jiuwen.process import ProcessHost
+        from ioalab_jiuwen import ProcessHost
         ProcessHost.from_config(host, base_dir=self.private)
         url = urlsplit(self.value['web_url'])
         try: loopback = ipaddress.ip_address(url.hostname).is_loopback

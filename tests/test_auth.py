@@ -92,7 +92,7 @@ def test_trial_invite_registration():
 
     tmp = Path(tempfile.mkdtemp(prefix="ioalab-trial-"))
     s = Settings(mode="trial", registration="invite", data=tmp)
-    assert s.open and s.needs_per_day == 20
+    assert s.open
     from ioalab.migrations import migrate
     database = DB(tmp / "trial.sqlite")
     migrate(database)
@@ -145,3 +145,37 @@ def test_internal_accounts_seeded_idempotent(platform):
     assert row["username"] == "ISP_001" and row["kind"] == "isp" and row["display_name"].startswith("内部服务方")
     assert pf.auth.login("ISC_001", "001")["kind"] == "isc"
     assert not pf.db.one("SELECT id FROM agents WHERE owner_id=?", acc["isc"][0])
+    assert pf.auth.roles(acc["isc"][0]) == ["admin"] and all(not pf.auth.roles(uid) for uid in acc["isc"][1:])
+
+
+def test_default_password_reset_runs_inside_the_callers_transaction(platform):
+    """预置账号仍为默认密码才在调用方事务内替换；已改密码或未知账号不变。"""
+    name = username()
+    platform.auth.register(name, "001", kind="isc")
+    with pytest.raises(RuntimeError):
+        with platform.db.tx() as conn:
+            assert platform.auth.reset_default_password_in(conn, name, "001", "replacement-secret")
+            raise RuntimeError("rollback")
+    assert platform.auth.login(name, "001")["username"] == name
+    with platform.db.tx() as conn:
+        assert platform.auth.reset_default_password_in(conn, name, "001", "replacement-secret")
+    with platform.db.tx() as conn:
+        assert not platform.auth.reset_default_password_in(conn, name, "001", "other-secret")
+        assert not platform.auth.reset_default_password_in(conn, username(), "001", "other-secret")
+    assert platform.auth.login(name, "replacement-secret")["username"] == name
+    with pytest.raises(LabError):
+        platform.auth.login(name, "001")
+
+
+def test_preset_admin_grant_only_adds_inside_the_callers_transaction(platform):
+    user = platform.auth.register(username(), "001", kind="isc")
+    with pytest.raises(RuntimeError):
+        with platform.db.tx() as conn:
+            assert platform.auth.grant_admin_in(conn, user["id"])
+            raise RuntimeError("rollback")
+    assert platform.auth.roles(user["id"]) == []
+    with platform.db.tx() as conn:
+        assert platform.auth.grant_admin_in(conn, user["id"])
+    with platform.db.tx() as conn:
+        assert not platform.auth.grant_admin_in(conn, user["id"])
+    assert platform.auth.roles(user["id"]) == ["admin"] and platform.auth.is_admin(user["id"])

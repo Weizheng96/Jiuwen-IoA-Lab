@@ -11,10 +11,11 @@ from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
 from .protocol import RuntimeFault, encode
+from .network import Network
 
 
 class AgentConnection:
-    def __init__(self, base_url, token, actors, store, *, clock=time.monotonic):
+    def __init__(self, base_url, token, actors, store, *, clock=time.monotonic, network=None):
         parsed = urlsplit(base_url)
         if parsed.scheme not in ('http','https') or parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError('An HTTP(S) platform address without credentials or query is required')
@@ -23,7 +24,9 @@ class AgentConnection:
         if set(self.actors)!=set(store.cursors()):
             raise ValueError('Connection identities must match the local instance')
         self._token=token if callable(token) else lambda:token
-        self.http = httpx.Client(base_url=self.base, timeout=10, trust_env=False)
+        self.network=network if network is not None else Network(self.base)
+        self._owns_network=network is None
+        self.http=self.network.http
         self._stop = threading.Event()
         self._changed = threading.Condition()
         self._thread = None
@@ -83,7 +86,7 @@ class AgentConnection:
                 self._changed.wait(min(remaining,.25))
 
     def recover_interaction(self, actor, origin):
-        response = self.http.get('/api/v1/interactions',params={'agentId':actor,'originMessageId':origin},headers={'Authorization':'Bearer '+self._token()})
+        response = self.http.get(self.base+'/api/v1/interactions',timeout=10,params={'agentId':actor,'originMessageId':origin},headers={'Authorization':'Bearer '+self._token()})
         response.raise_for_status()
         return self.store.recover_link(actor,response.json())
 
@@ -133,14 +136,14 @@ class AgentConnection:
             self._stop.wait(min(15,.2*2**min(attempt,6))*random.uniform(.7,1.3))
 
     def _session(self):
-        response = self.http.post('/api/v1/connections/ticket',json={'agentIds':self.actors},headers={'Authorization':'Bearer '+self._token()})
+        response = self.http.post(self.base+'/api/v1/connections/ticket',timeout=10,json={'agentIds':self.actors},headers={'Authorization':'Bearer '+self._token()})
         if response.status_code in (429,500,502,503,504):
             raise OSError('Ticket endpoint is temporarily unavailable')
         if response.status_code!=200:
             raise RuntimeFault('authenticate','The current SDK login cannot obtain a connection ticket','authenticate')
         ticket = response.json()['ticket']
         url = self.base.replace('http','ws',1)+'/ws/agents'
-        with connect(url,proxy=None,open_timeout=10,close_timeout=2,max_size=131072) as ws:
+        with connect(url,**({'ssl':self.network.ssl} if url.startswith('wss:') else {}),proxy=None,open_timeout=10,close_timeout=2,max_size=131072) as ws:
             self._socket = ws
             authenticated_at=self._clock()
             ws.send(encode({'type':'connection.auth','ticket':ticket,'runtimeId':self.store.runtime_id,'cursors':self.store.cursors()}))
@@ -210,7 +213,7 @@ class AgentConnection:
             self._thread.join(15)
             if self._thread.is_alive():
                 raise RuntimeError('The connection thread did not stop; keep its local database open')
-        self.http.close()
+        if self._owns_network:self.network.close()
         with self._changed:
             self._changed.notify_all()
 

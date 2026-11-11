@@ -8,9 +8,9 @@
 - [verify_admin_assistant.py](verify_admin_assistant.py)：用已安装的参与方 Python 和 Linux root，在新目录验证固定管理员预设的准备、公示、配置权限及只读重放；不启动模型或发送邮件。
 - [verify_default_deployment.py](verify_default_deployment.py)：在可丢弃的 Linux/systemd 主机验证默认安装和升级、排空与权限边界。
 
-旧全景自动业务驱动 `traffic.py`、`messages.py`、`network.py` 已归入[历史备份](../../历史备份/旧执行链/experiments)，不再提供当前运行命令。原片和历史证据保留原记录；归档依据及有效断言迁移见[测试迁移索引](../../历史备份/旧执行链/测试迁移索引.json)。
+旧全景自动业务驱动 `traffic.py`、`messages.py`、`network.py` 已删除，不再提供当前运行命令，原文从 Git 历史中的 `历史备份/旧执行链/experiments` 追溯。原片和历史证据保留原记录；归档依据及有效断言迁移见 Git 历史中的 `历史备份/旧执行链/测试迁移索引.json`。
 
-仅供旧驱动使用的[账号占位样例](../../历史备份/旧执行链/experiments/accounts.example.json)、[需求输入](../../历史备份/旧执行链/experiments/needs)和[素材](../../历史备份/旧执行链/experiments/materials)随驱动保留，不作为当前 SDK 的配置入口。
+仅供旧驱动使用的账号占位样例、需求输入和素材随驱动一并删除，不作为当前 SDK 的配置入口。
 
 ## 原版网页通知验证
 

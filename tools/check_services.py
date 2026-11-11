@@ -21,7 +21,7 @@ from a2c.template import validate  # noqa: E402
 from a2c.verifier.acceptance import run_target  # noqa: E402
 from ioalab.delegation.packages import PackageStore  # noqa: E402
 from ioalab_sdk.templates import template_from_definition  # noqa: E402
-from ioalab_services.catalog import definitions as load_definitions  # noqa: E402
+from ioalab_services import definitions as load_definitions  # noqa: E402
 
 PAY = {"id": "http://127.0.0.1:8750/a2a/pay", "jwksUri": "http://127.0.0.1:8750/a2a/pay/.well-known/jwks.json"}
 

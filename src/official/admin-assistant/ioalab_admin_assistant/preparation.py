@@ -2,27 +2,58 @@
 import secrets
 
 from a2c.codec import digest, digest_bytes
-from ioalab_sdk.assistant.rules import render
-from ioalab_sdk.runtime.lease import Lease
-from ioalab_sdk.assistant.role import AssistantRole
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.files import private_json, private_text, read_json
-from ioalab_sdk.runtime.protocol import RuntimeFault
-from ioalab_sdk.runtime.resident import ResidentRuntime
+from ioalab_sdk.assistant import render
+from ioalab_sdk.runtime import Lease
+from ioalab_sdk.assistant import AssistantRole
+from ioalab_sdk.runtime import require_configuration
+from ioalab_sdk.runtime import RuntimeConfig
+from ioalab_sdk.runtime import private_json, private_text, read_json
+from ioalab_sdk.runtime import LocalClient, public_error
+from ioalab_sdk.runtime import RuntimeFault
+from ioalab_sdk.runtime import ResidentRuntime
 from .deployment import operator, owned, operation
 
 
-def result(deployment, state):
+def result(deployment, state, runtime=None):
     return {'status':'completed' if state['phase']=='prepared' else 'waiting', 'phase':state['phase'],
-            'account':'ISC_001','runtimeChecked':False,'modelStarted':False,
+            'account':'ISC_001','runtime':runtime or {'state':'not_queried'},'modelStarted':False,
             'originalPublications':{name:item.get('result') for name,item in state['presets'].items()},
             'currentInterfacesChecked':False,'meetingInitiallyEnabled':deployment.value.get('notification') is not None}
+
+
+def released(home):
+    # A free OS lock is the only evidence of no owner; a descriptor file is not.
+    lock=home/'client.lock'
+    if lock.is_symlink(): return False
+    if not lock.is_file(): return True
+    try: Lease(lock,timeout=0).close()
+    except (RuntimeError,OSError): return False
+    return True
+
+
+def runtime_state(deployment, state):
+    """Only the authenticated local answer proves a running instance; nothing here starts or writes."""
+    home=deployment.home/'resident'
+    try:
+        reply=LocalClient(home,timeout=2).call('runtime.status')
+        if reply['status']!='completed': raise RuntimeFault('not_ready','The runtime status query is incomplete','runtime.status')
+        if state['phase']!='prepared': raise RuntimeFault('not_ready','A runtime answered before preparation finished','prepare')
+        live=reply['data']
+        require_configuration(live,RuntimeConfig.load(deployment.runtime_path),assembly='ioalab-jiuwen')
+        if [item['agentId'] for item in live['identities']]!=[state['identity']['agentId']]:
+            raise RuntimeFault('identity_conflict','Running instance differs from the original managed identity')
+    except RuntimeFault as exc:
+        if exc.code in ('not_ready','unknown_result') and released(home): return {'state':'not_running'}
+        return {'state':'not_queried','error':public_error(exc)}
+    ready=live['identities'][0]['executionReady']
+    return {'state':'ready' if ready else 'not_ready','bootId':live['bootId'],'executionReady':ready,'stopping':live['stopping'],
+            'platformConnected':live['platformConnected'],'hostAvailable':bool(live['host'].get('available'))}
 
 
 def status(deployment):
     state = deployment.state()
     if state['phase']=='prepared': deployment.prepared(state)
-    return result(deployment,state)
+    return result(deployment,state,runtime_state(deployment,state))
 
 
 def assets(deployment, state):
@@ -57,7 +88,7 @@ def assets(deployment, state):
     if arguments.exists() and read_json(arguments)!={'profile':'admin'}:
         raise RuntimeFault('configuration_changed','Original web preparation profile differs')
     if not arguments.exists(): private_json(arguments,{'profile':'admin'})
-    from ioalab_jiuwen.web_setup import prepare_extension
+    from ioalab_jiuwen import prepare_extension
     prepare_extension(control,arguments,'assistant')
     return complete
 
@@ -126,7 +157,7 @@ def prepare(deployment):
                 raise RuntimeFault('configuration_changed','Incomplete administrator configuration was edited')
         else: private_json(deployment.runtime_path,base)
         complete=assets(deployment,state)
-        from ioalab_jiuwen.tools import ConfiguredTools
+        from ioalab_jiuwen import ConfiguredTools
         tools=ConfiguredTools(complete['host']['business_tools'],base['identities'],home=deployment.home/'resident',base_dir=deployment.home)
         runtime=None
         try:

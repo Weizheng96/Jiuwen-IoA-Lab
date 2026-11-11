@@ -37,3 +37,24 @@ def test_explicit_offline_file_shows_unknown_reservation_without_credentials_or_
     result,error=run('show');assert result.returncode==1 and 'Restore the original' in error['error']
     with pytest.raises(RuntimeFault,match='Restore the original'):tool.book(appointment(),context())
     assert notification.calls==1 and not (tool.root/'appointments.sqlite').exists()
+
+
+def test_offline_settlement_commands_never_send_and_report_states(tmp_path):
+    calendar=LocalSchedule(tmp_path/'availability.json');calendar.init()
+    env={key:value for key,value in os.environ.items() if not key.startswith('IOALAB_')};env['PYTHONUTF8']='1'
+    def run(command,arguments):
+        result=subprocess.run([sys.executable,'-m','ioalab_tools.schedule_cli',command,'--file',str(calendar.path),'--args',json.dumps(arguments)],
+                              cwd=tmp_path,env=env,capture_output=True,text=True,encoding='utf-8',timeout=15)
+        return result.returncode,json.loads(result.stdout)
+    class Lost:
+        calls=0
+        def send(self,*args):self.calls+=1;raise TimeoutError('explicit unknown external effect')
+    notification=Lost();tool=Appointments(calendar,notification,'owner@example.test')
+    with pytest.raises(RuntimeFault):tool.book(appointment(),context())
+    reservation=next(iter(tool.records().values()))['reservationId']
+    code,error=run('accept',{'reservationId':reservation});assert code==1 and 'applies only to' in error['error']
+    code,view=run('reconcile',{'reservationId':reservation,'outcome':'submitted'});assert code==0,view
+    assert view['appointment']['state']=='submitted' and view['appointments'][0]['state']=='submitted'
+    code,view=run('release',{'reservationId':reservation,'reason':'declined'});assert code==0,view
+    assert view['appointments'][0]['state']=='released' and len(view['appointments'][0]['settlements'])==2
+    assert 'operationId' not in json.dumps(view) and notification.calls==1

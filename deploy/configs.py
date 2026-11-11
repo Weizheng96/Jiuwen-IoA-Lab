@@ -6,7 +6,7 @@ import secrets
 from .configuration import validate, platform
 from .layout import environment_text, read_environment, write_initial
 from .release import digest, read_json
-from .workspace import path_without_links, save
+from .files import path_without_links, save
 
 
 FORMAT='ioalab.initial-configuration/1'
@@ -18,9 +18,9 @@ def local_url(bind,port):
 
 
 class Configuration:
-    def __init__(self,layout,identity,value,*,assets=None):
+    def __init__(self,layout,identity,value):
         self.layout,self.identity=layout,identity
-        self.assets = path_without_links(assets) if assets is not None else layout.environments/'current/release'
+        self.assets = layout.environments/'current/release'
         self.options=validate(value)
         if Path(self.options['platform_config'])!=layout.config/'core/platform.json':
             raise ValueError('The unique platform configuration must be in this deployment core leaf')
@@ -113,6 +113,10 @@ class Configuration:
         variables={}
         if notice is not None:
             notification={key:value for key,value in notice.items() if key not in ('api_key','username','password')}
+            if 'client_id' in notice:
+                # The token stays in the administrator assistant's own directory; the
+                # owner creates it later with ioalab-outlook smtp-login. Never read here.
+                notification['token_file']=str(self.layout.state/'agents/admin-assistant/outlook-smtp-token.json')
             for key in ('api_key','username','password'):
                 if key in notice:
                     name='IOALAB_NOTIFICATION_'+key.upper();variables[name]=notice[key]

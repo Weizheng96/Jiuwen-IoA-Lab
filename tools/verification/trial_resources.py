@@ -11,21 +11,19 @@ import re
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--deployment',required=True)
-    parser.add_argument('--deployment-profile',required=True,choices=['linux-server','windows-wsl'])
-    parser.add_argument('--phase',required=True,choices=['baseline','one-idle','three-idle','one-active','three-active','after-reset'])
+    parser.add_argument('--deployment-profile',required=True,choices=['linux-server'])
+    parser.add_argument('--phase',required=True,choices=['baseline','three-idle','one-active','three-active','after-reset'])
     parser.add_argument('--seconds',type=int,default=60)
     parser.add_argument('--out',required=True,type=Path)
     args=parser.parse_args()
     if not re.fullmatch(r'[a-z][a-z0-9-]{2,30}',args.deployment):parser.error('deployment must be an exact reviewed trial prefix')
     if not 1 <= args.seconds <= 3600:parser.error('seconds must be 1..3600')
     try:
-        from ioalab_trial.profile import capacity,DOCKER_COMMAND
+        from ioalab_trial import capacity,DOCKER_COMMAND
     except ModuleNotFoundError as exc:
-        if exc.name not in ('ioalab_trial','ioalab_trial.profile'):raise
+        if exc.name!='ioalab_trial':raise
         parser.error('Install the reviewed optional ioalab-trial wheel and run this script with /opt/ioalab-trial-controller/bin/python inside the Linux controller environment; see deploy/trial/README.md')
     seats=capacity(args.deployment_profile)
-    if args.phase in ('three-idle','three-active') and seats!=3:parser.error('Three-seat phases require linux-server')
-    if args.phase=='one-idle' and seats!=1:parser.error('one-idle requires a single-seat deployment')
     until=time.monotonic()+args.seconds
     with args.out.open('x',encoding='utf-8') as stream:
         while time.monotonic()<until:

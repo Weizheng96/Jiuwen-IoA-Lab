@@ -117,7 +117,7 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         wait_for(lambda:operation(assistant,ref,key));assert operation(assistant,ref,key)['status']=='completed',operation(assistant,ref,key)
         # Exercise the real CLI argument rewrite, IPC and role together: the
         # query's idempotency key must not swallow the original action identity.
-        from ioalab_sdk.runtime.__main__ import main as sdk_main
+        from ioalab_sdk.access import main as sdk_main
         query=tmp_path/'start-status.json';outer=uid()
         private_json(query,{'contractRef':ref,'fulfillmentOperationId':key,'operationId':outer})
         capsys.readouterr()

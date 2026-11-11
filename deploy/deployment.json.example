@@ -1,5 +1,5 @@
 {
   "platform_config": "/etc/ioalab/core/platform.json",
   "pypi_index": "https://pypi.tuna.tsinghua.edu.cn/simple",
-  "max_model_runs": 2
+  "max_model_runs": 4
 }

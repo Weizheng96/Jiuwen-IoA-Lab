@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 from ioalab_sdk.runtime import installation
-from ioalab_sdk.runtime.__main__ import main,start
+from ioalab_sdk.access import main
+from ioalab_sdk.runtime import start
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json
 from ioalab_sdk.runtime.ipc import IpcServer,LocalClient
@@ -75,7 +76,7 @@ def test_same_config_cannot_reuse_an_old_installation_or_dispatch_business(platf
 
 
 def test_cli_preflight_cannot_switch_to_another_boot_before_a_business_request(tmp_path,monkeypatch,capsys):
-    import ioalab_sdk.runtime.__main__ as entry
+    import ioalab_sdk.runtime.lifecycle as entry
     effects=[];servers=[];home=tmp_path/'state';config=tmp_path/'settings.json'
     private_json(config,{'platform_url':'http://127.0.0.1:8750','username':'owner','password':'test-only',
         'data_dir':str(home),'identities':[{'key':'personal','role':'assistant','name':'Owner'}]})
@@ -105,7 +106,7 @@ def test_completed_cache_is_never_repaired_under_an_existing_runtime(tmp_path,mo
     import os
     module=bootstrap();assets=tmp_path/'assets';wheels=assets/'wheels';wheels.mkdir(parents=True)
     (assets/'requirements.lock').write_bytes(b'');(wheels/'sdk.whl').write_bytes(b'input')
-    manifest={'versions':{},'constraintsSha256':hashlib.sha256(b'').hexdigest(),
+    manifest={'format':1,'skillVersion':'0.0.1','versions':{},'constraintsSha256':hashlib.sha256(b'').hexdigest(),
               'wheels':[{'file':'sdk.whl','sha256':hashlib.sha256(b'input').hexdigest()}]}
     raw=json.dumps(manifest).encode();(assets/'runtime.json').write_bytes(raw);fingerprint=hashlib.sha256(raw).hexdigest()
     cache=tmp_path/'cache';environment=cache/fingerprint[:24];environment.mkdir(parents=True)
@@ -115,5 +116,7 @@ def test_completed_cache_is_never_repaired_under_an_existing_runtime(tmp_path,mo
         python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python');python.parent.mkdir();python.write_bytes(b'not used')
     installer=module.installation()
     if corruption=='missing_ready':(environment/'.ready').unlink()
-    monkeypatch.setattr(installer.venv.EnvBuilder,'create',lambda *_:pytest.fail('overwrote a completed environment'))
+    original={p.relative_to(environment):p.read_bytes() for p in environment.rglob('*') if p.is_file()}
+    monkeypatch.setattr(installer.subprocess,'Popen',lambda *a,**kw:pytest.fail('launched an installer over a completed environment'))
     with pytest.raises(RuntimeError,match='do not repair it in place'):installer.prepare(assets,cache,launch=True,retry=True)
+    assert {p.relative_to(environment):p.read_bytes() for p in environment.rglob('*') if p.is_file()}==original

@@ -1,14 +1,35 @@
 # 提交与交付
 
-本仓直接在 main 开发、验证、提交并推送；跨仓修改先读该仓 AGENTS，各仓独立管理版本。大改先保存已提交回退检查点。每个文件只有一个当前写入者，共享装配、数据库迁移、配置清单和公共夹具先协调。
+本仓日常在 develop 开发、验证、提交并推送 GitHub；AI 自行完成的提交与推送只到 develop，main 只接收用户要求的合入，见[合入 main](#合入-main)。跨仓修改先读该仓 AGENTS，各仓独立管理版本。大改先保存已提交回退检查点。每个文件只有一个当前写入者，共享装配、数据库迁移、配置清单和公共夹具先协调。
 
-提交前核 diff 与精确暂存清单，只纳本任务文件，保留他人的 WIP、未跟踪草稿与运行数据。不自动切开发分支或工作区，不替并行任务 stash/提交。
+提交前核 diff 与精确暂存清单，只纳本任务文件，保留他人的 WIP、未跟踪草稿与运行数据。两个 AI 默认串行开发，不自动另建分支或工作区，不替并行任务 stash/提交；需要并行时由用户明确下令。
 
-提交标题用 `v<设计三段>.<该设计下开发序号>：主题`，先查 main 中相同设计的四段标题顺延；第四段仅提交序号，不写入设计 VERSION。设计只有规则改变才递增第三位，前两位由用户决定。首次规范发布同时维护变更索引、逐次历史及 design-vX.Y.Z 标签，设计标签与提交一并推送；产物依据不得随设计虚升。
+## 提交标题与版本
+
+develop 的提交标题为 `v0.0.x.y：主题`。前两位由用户决定；x 取当前设计 VERSION 的第三位；y 为该设计版本下的开发推送序号，查已有提交中相同三段的四段标题顺延，每次提交递增，不写入任何 VERSION 文件。
+
+| 本次改动 | 设计 VERSION 第三位 | 同一提交还要做 |
+|---|---|---|
+| 模块接口页不变量变化，判据见 [design](../../design/SKILL.md#先判断改动类型) | 加一，y 从 1 重新计起 | 变更表登记一行；取舍需要篇幅时另写 `YYYY-MM-DD-vX.Y.Z-主题.md`；创建 `design-vX.Y.Z` 标签随提交推送 |
+| 事实性修正、实施资料、部署教程、技能、AGENTS、源码、测试 | 不变 | 无。事实性修正可攒到收口：收口提交加一、变更表登记一行“同步事实”，不建详情文件 |
+| 用户要求合入 main | 加一 | 见下节 |
+
+产物 VERSION（架构交付表所列）只在发布给部署者时更新为实际符合的设计依据，不高于设计 VERSION；日常改模块不递增，也不随设计升版。
+
+## 合入 main
+
+只有用户明确要求时才把 develop 合入 main，不因阶段完成、定期或自行判断合入。
+
+1. 核 develop 已推送且没有未提交的跟踪改动，按 [testing](../../testing/SKILL.md) 完成发布所需检查；涉及产物版本或发行输入时先完成下节核对。
+2. 切到 main，执行 `git merge --no-ff --no-commit develop`。在这次合入里把设计 VERSION 第三位加一，并在变更表登记该版本及所含范围；合入只额外包含这项版本登记，重跑轻量检查后以 `v<新三段>：主题` 提交，标题不带开发序号。
+3. 推送 main 和 design-v<新三段> 标签并核远端引用，再依 [gitcode-sync](../../gitcode-sync/SKILL.md) 同步 GitCode。
+4. 切回 develop 并快进到 main，推送 develop；后续提交从 `v<新三段>.1` 顺延。
+
+合入版本只表示 main 接收了这一批 develop 提交，不代表产物依据或阶段验收随之升级。
 
 ## 发行输入与锁一致性
 
-产物VERSION、pyproject安装要求或构建输入变化时，沿实际消费者检查到最终发行：本仓wheel版本、接入技能固定版本、各目标运行锁及配套JSON必须对应同一份受审输入。重点核`src/access/skills/_shared/requirements.lock`和`deploy/locks/<target>/{core,participant,swarm}.{lock,json}`；不能只改VERSION，或凭单元/轻量检查通过就认定发行可构建。
+发布前更新产物VERSION、pyproject安装要求或构建输入时，沿实际消费者检查到最终发行：本仓wheel版本、接入技能固定版本、各目标运行锁及配套JSON必须对应同一份受审输入。重点核`src/access/skills/_shared/requirements.lock`和`deploy/locks/<target>/{core,participant,swarm}.{lock,json}`；不能只改VERSION，或凭单元/轻量检查通过就认定发行可构建。
 
 先从最终源码构建实际wheel，再用现有`tools/build_requirements.py`消费者和`tools/lock_deployment.py`唯一目标锁入口更新相应输入。目标锁JSON中的inputSha256包含本仓版本等构建依据；即使第三方包未变，本仓版本变化也可能要求更新元数据。所有受影响目标均须核对，输入未变的结果复用，不机械重生成无关文件。
 
@@ -18,6 +39,21 @@
 
 ## 发布与核对
 
-推送前 fetch 核远端历史，保留历史；推送后核实际远端引用。GitHub 可按需使用命令级代理，不改系统全局代理，不因直连失败自动换代理。GitCode 定期依 gitcode-sync 同步并保存实际退出及引用；连接边界归该技能。共享历史回退优先 git revert，不改写历史。
+推送前 fetch 核远端历史，保留历史；推送后核实际远端引用。GitCode 只在用户要求合入 main 后依 gitcode-sync 同步并保存实际退出及引用；连接边界归该技能。共享历史回退优先 git revert，不改写历史。
+
+### GitHub 命令级代理
+
+每次向 GitHub 推送前检查现有 Git/环境代理；本机已有确认可用的代理时，先核当前监听与 `git ls-remote` 连通性，再对本次 fetch、push 和远端引用核验统一使用 `git -c http.proxy=<地址>`。可主动复用本项目已验证的本机代理，不必等待用户再次提醒；不自动尝试未经确认的新代理，不改系统或 Git 全局代理，保持 TLS 验证。
+
+2026-11-10 在此 Windows 开发机实测：直连 github.com:443 失败，`verge-mihomo` 在 `127.0.0.1:7897` 提供的 HTTP 代理可完成 GitHub 推送。此地址是后续候选，使用前仍核实当前监听；不可假定其他机器或以后端口不变。命令示例：
+
+```powershell
+git -c http.proxy=http://127.0.0.1:7897 ls-remote origin refs/heads/develop
+git -c http.proxy=http://127.0.0.1:7897 fetch origin develop
+git -c http.proxy=http://127.0.0.1:7897 push origin develop
+git -c http.proxy=http://127.0.0.1:7897 ls-remote origin refs/heads/develop
+```
+
+有设计标签时按本次交付范围显式补推并核对标签，不因分支已同步就漏推。连接失败、鉴权失败和远端历史冲突分别处理；失败时报告真实结果，不把本地提交称为已推送。
 
 报告真实提交哈希、GitHub/GitCode同步结果、失败检查和未验证范围。已发设计规范不等于实现或阶段验收完成。

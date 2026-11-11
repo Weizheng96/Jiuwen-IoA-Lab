@@ -17,13 +17,13 @@ def load_domains(path):
     domains = data.get('domains') if isinstance(data, dict) else None
     if not isinstance(domains, list) or not 1 <= len(domains) <= 64:
         raise ValueError('Seed manifest requires 1 to 64 domains')
-    accounts, categories = set(), set()
+    categories = set()
     for domain in domains:
         if not isinstance(domain, dict):
             raise ValueError('Invalid seed domain')
         account, label, category = domain.get('account'), domain.get('label'), domain.get('category')
-        if not isinstance(account, str) or not re.fullmatch(r'ISP_(?!000)\d{3}', account) or account in accounts:
-            raise ValueError('Each domain requires a unique ISP account')
+        if not isinstance(account, str) or not re.fullmatch(r'ISP_(?!000)\d{3}', account):
+            raise ValueError('Each domain requires a valid ISP account')
         if not isinstance(label, str) or not 1 <= len(label) <= 256:
             raise ValueError('Invalid domain label')
         if not isinstance(category, dict) or not all(isinstance(category.get(k), str) and category[k] for k in ('id','name')):
@@ -35,10 +35,6 @@ def load_domains(path):
             raise ValueError('Invalid seed service summaries')
         if any(not isinstance(s, dict) or not all(isinstance(s.get(k), str) for k in ('id','name','description')) for s in services):
             raise ValueError('Service summaries need id, name and description')
-        accounts.add(account)
         categories.add(category['id'])
     return domains
 
-
-def definitions(path):
-    return [service for domain in load_domains(path) for service in domain.get('services', [])]

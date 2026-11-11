@@ -26,6 +26,8 @@ python "<实际技能目录>/scripts/ioalab.py" assistant.delegation.begin --con
 | 解除决定 | assistant.delegation.terminate：contractRef、mode（agreed/unilateral），agreed另含terminationQuoteRef；可选reason | 展示实际合同进展、定金及补款/退款，取得本次独立确认后重发同一操作；status分别核通知、资金和closed，不能把合同解除当作全部结束 |
 | 已验收期付款恢复 | assistant.delegation.pay：contractRef、period | 已签验收但未付款时，先看原尝试、实际金额和付款预览，waiting后取得本次独立确认再沿原operationId续接。已核成功只恢复凭证/通知，不再请求付款确认。未知不换ID或授权，旧只读操作提示new_payment_operation时才创建新的确认操作 |
 | 结束核对 | assistant.delegation.status：contractRef | 分别核实际付款、付款通知和closed；unknown先查询原操作/原凭证，不重新accept，不把“已验收”当“已付款” |
+| 申请仲裁 | assistant.delegation.dispute：contractRef或quoteRef（二选一）、ground；理由需要时含period；可选materials（仅fetchEvidence、inputMaterials分组，值为本助手已上传的完整FileRef） | 用户认为服务方违约且要求仲裁时才调用。SDK取平台原依据；不成立直接返回rejected及reason，不建确认。成立时返回waiting与confirmationRef，按calling.md打开确认页，由用户核对理由、原依据摘要及报送文件后决定，再沿原operationId重发；验收失败的交付件由SDK从已取件原字节准备，不自行上传或改名。completed只表示受理，保存data.caseRef |
+| 案件与裁定 | assistant.delegation.dispute_status：caseRef | 读取已验签的原案件、裁定、执行收敛与实际付款；只读，不触发复算或按裁定付款。已裁定的合同不能再开工、答环节、取件、验收或解除，受保护操作返回closed时改为查询案件 |
 | 任务许可 | assistant.delegation.status：taskRef；assistant.delegation.close：taskRef | 用户要求停止该任务后续授权时，先核原任务及已付费用，再关闭原许可并核回执；保留已有合同、请求及证据，关闭许可不表示解除或结清合同。不猜revoke/cancel等未列出的操作 |
 
 search命中的availability是现有公开状态投影的读取快照，按observedAt、status、activeDelegations和maxActiveDelegations识别当时的离线、暂停或满额情况，再结合实际业务资格与期限筛选；旧高信誉不替代当前状态。availability为null表示状态未知，不当作在线或接单承诺。快照不保证宿主可执行，不预留容量、不代替真实admission；用户明确接受等待时，仍可按原消息规则保留离线意向。

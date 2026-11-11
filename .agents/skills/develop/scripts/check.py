@@ -3,11 +3,19 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import uuid
 
 ROOT = Path(__file__).resolve().parents[4]
+
+
+def selector():
+    spec = importlib.util.spec_from_file_location('ioalab_check_scope', ROOT / 'tools/check_scope.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def main():
@@ -16,8 +24,11 @@ def main():
     scope.add_argument('--tests', nargs='+', help='focused pytest paths or nodeids')
     scope.add_argument('--full', action='store_true', help='explicitly run all four repository gates')
     scope.add_argument('--changed-from', help='quick CI scope from a committed base revision to HEAD')
-    scope.add_argument('--layer', choices=['first'], help='coverage-preserving daily regression; retains unproven matrices')
-    scope.add_argument('--diagnose', metavar='MODULE', help='whole test module from the first-layer diagnostic map')
+    scope.add_argument('--layer', choices=['fast', 'chain'],
+                       help='fast: every test outside tests/chain_layer.json; chain: the listed whole-chain and opt-in host tests')
+    scope.add_argument('--module', metavar='NAME',
+                       help="union of one module's interface-page test column, e.g. --module 支付中心")
+    scope.add_argument('--diagnose', metavar='MODULE', help='whole test module from the diagnostic map')
     parser.add_argument('--report-dir', type=Path, help='new directory for stage logs and report.json')
     args = parser.parse_args()
     helper = ROOT / '.agents/skills/design/scripts/check.py'
@@ -34,19 +45,25 @@ def main():
         layer_module = importlib.util.module_from_spec(layer_spec)
         layer_spec.loader.exec_module(layer_module)
         try:
-            layer_plan = layer_module.plan(module=args.diagnose, root=ROOT)
+            layer_plan = layer_module.plan(layer=args.layer, module=args.diagnose, root=ROOT)
         except (ValueError, SyntaxError, OSError) as exc:
             parser.error(str(exc))
-        print('Test layer: ' + str(layer_plan), flush=True)
-        steps.append(runner.test_step(layer_plan['tests']))
+        summary = {key: layer_plan[key] for key in ('layer', 'tests', 'pytestArgs')} | layer_plan.get('manifest', {})
+        print('Test layer: ' + json.dumps(summary, ensure_ascii=False), flush=True)
+        steps.append(runner.test_step([*layer_plan['pytestArgs'], *layer_plan['tests']]))
     elif args.full:
         steps.extend(runner.full_steps())
     elif args.tests:
         steps.append(runner.test_step(args.tests))
+    elif args.module:
+        try:
+            targets = selector().module_targets(args.module)
+        except ValueError as exc:
+            parser.error(str(exc))
+        print('Module tests: ' + json.dumps({'module': args.module, 'tests': targets}, ensure_ascii=False), flush=True)
+        steps.append(runner.test_step(targets))
     elif args.changed_from:
-        scope_spec = importlib.util.spec_from_file_location('ioalab_check_scope', ROOT / 'tools/check_scope.py')
-        scope_module = importlib.util.module_from_spec(scope_spec)
-        scope_spec.loader.exec_module(scope_module)
+        scope_module = selector()
         try:
             plan = scope_module.select_tests(scope_module.changed_paths(args.changed_from), base=args.changed_from)
         except scope_module.subprocess.CalledProcessError:
@@ -72,4 +89,5 @@ def main():
 if __name__ == '__main__':
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace', newline='')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace', newline='')
     raise SystemExit(main())

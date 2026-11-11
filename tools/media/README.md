@@ -1,6 +1,6 @@
 # 媒体制作工具
 
-制作流程依 [demo-video 技能](../../.agents/skills/demo-video/SKILL.md)，产品范围依[演示制作规范](../../设计/示例/演示制作.md)。最终影片只放 demo；历史公开结论见[实施资料摘要](../../设计/工程/实施资料/部署发行.md#历史验证资料归档)，原始素材、录制与验证报告只放忽略的 .agents/data。
+制作流程依 [demo-video 技能](../../.agents/skills/demo-video/SKILL.md)，产品范围依[演示制作规范](../../设计/工程/演示.md)。最终影片只放 demo；历史公开结论见[实施资料摘要](../../设计/工程/实施资料/部署发行.md#历史验证资料归档)，原始素材、录制与验证报告只放忽略的 .agents/data。
 
 | 工作 | 源码入口 |
 |---|---|
@@ -23,4 +23,4 @@ python tools/media/script_documents.py --drafts --check
 
 sources-only 只验证入库批准源和镜头规则，适用于 fresh clone；生成稿、配音计划与素材默认写 .agents/data/demo。需要私有素材的 --check、录制、TTS、剪辑、原生业务或历史成片核验属于显式专项，不因源码检查通过而报告成功。命令参数以相应工具 --help 为准。
 
-工具复用原交易、会话与授权，未知结果沿原 ID 核回执；不为媒体整理触发模型、邮件或付款。原始记录保留当年路径与字节，迁移清单在本机 .agents/data/maintenance/migration-manifest.json；历史源码追溯见[历史备份](../../历史备份/README.md)，不导入旧执行链恢复兼容入口。
+工具复用原交易、会话与授权，未知结果沿原 ID 核回执；不为媒体整理触发模型、邮件或付款。原始记录保留当年路径与字节，迁移清单在本机 .agents/data/maintenance/migration-manifest.json；历史源码从 Git 历史中的 `历史备份/` 追溯，不导入旧执行链恢复兼容入口。

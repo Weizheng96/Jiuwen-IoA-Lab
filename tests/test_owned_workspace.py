@@ -9,9 +9,9 @@ import uuid
 import pytest
 
 from deploy.configuration import load, validate, platform as platform_projection, model as validate_model
-from deploy.environment import writer
+from deploy.files import save, writer
 from deploy.release import digest
-from deploy.workspace import Workspace, read_json, save
+from deploy.workspace import Workspace, read_json
 
 MODEL = {'name': 'configured-model', 'base_url': 'https://example.invalid/v1', 'api_key': 'fake-secret-never-sent'}
 
@@ -86,7 +86,7 @@ def test_deployment_inputs_are_data_and_do_not_accept_incomplete_models(tmp_path
     value = validate({'platform_config':str(path)})
     source=platform_projection(path)
     assert source['public_url'] == 'https://ioa.example'
-    assert source['port'] == 8750 and value['max_model_runs'] == 2 and source['isc_count'] == 10
+    assert source['port'] == 8750 and value['max_model_runs'] == 4 and source['isc_count'] == 10
     assert source['admin_password'] == 'literal$(anything)`text'
     assert source['model']['provider'] == 'OpenAI'
     assert MODEL['api_key'] not in json.dumps(value) and source['admin_password'] not in json.dumps(value)

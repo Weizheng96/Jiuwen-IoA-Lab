@@ -5,15 +5,14 @@ from pathlib import Path
 import sys
 import uuid
 
-from .environment import writer
+from .files import path_without_links, regular_file, save, sha, writer
 from .layout import write_initial
-from .linux import Systemd,execute,regular
-from .release import digest,read_json,sha
+from .linux import Systemd, execute
+from .release import digest, read_json
 from .units import command,quoted
-from .workspace import path_without_links,save
 
 
-SOURCE_DIRECTORIES=('deploy','tools','src','vendor')
+SOURCE_DIRECTORIES=('deploy','src','vendor')
 SOURCE_FILES=('vendor/jiuwen/requirements-swarm.lock','vendor/jiuwen/swarm.lock.json')
 
 
@@ -62,7 +61,7 @@ class Job:
         return value
 
     def request(self):
-        value=read_json(regular(self.folder/'request.json'))
+        value=read_json(regular_file(self.folder/'request.json'))
         if (value.get('format')!='ioalab.installation-job/1' or value.get('deploymentId')!=self.owner
                 or value.get('operationId')!=self.operation):
             raise RuntimeError('Restore the original installation job ownership')
@@ -73,7 +72,7 @@ class Job:
         return {'attempt':number,'unit':unit,'description':'Jiuwen IoA installer '+self.owner+'/'+self.operation+'/'+str(number)}
 
     def attempt(self):
-        path=regular(self.folder/'attempt.json')
+        path=regular_file(self.folder/'attempt.json')
         if not path.exists():return None
         value=read_json(path)
         if type(value.get('attempt')) is not int or value['attempt']<=0 or value!=self.planned(value['attempt']):
@@ -94,7 +93,7 @@ class Job:
         request=self.request();attempt=self.attempt()
         result={'operationId':self.operation,'action':request['action'],'status':'not_started'}
         if attempt is None:return result
-        live=self.inspect(attempt);path=regular(self.runtime_path(attempt))
+        live=self.inspect(attempt);path=regular_file(self.runtime_path(attempt))
         birth=read_json(path) if path.exists() else None
         if birth:
             if (birth.get('attempt')!=attempt or birth.get('deploymentId')!=self.owner
@@ -108,7 +107,7 @@ class Job:
         if result['status']=='not_started':result['status']='stopped' if birth else 'unknown'
         progress=self.folder/'progress.json'
         if progress.exists():
-            value=read_json(regular(progress))
+            value=read_json(regular_file(progress))
             result['stage']=value.get('stage');result['outcome']=value.get('outcome')
             if result['status']=='stopped' and value.get('outcome')=='completed':result['status']='completed'
         result.update(unit=attempt['unit'],attempt=attempt['attempt'])

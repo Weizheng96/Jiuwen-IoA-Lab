@@ -190,3 +190,38 @@ def test_original_proposal_request_can_be_a_case_without_fabricating_a_card(plat
                 assert not platform.db.one('SELECT 1 FROM arbitration_cases WHERE admission=?',admission)
         finally:host.wait.set()
         wait_for(lambda:terminal(a,quote))
+
+
+def test_assistant_dispute_needs_the_users_own_approval_and_recovers_one_case(platform,tmp_path,monkeypatch):
+    from ioalab_sdk.runtime.ipc import LocalClient
+    from test_assistant_role import user_decision
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (p,a,host,t,task):
+        ref,admission=formed(a,candidate(a,p,t,task));local=LocalClient(a.config.home)
+        early=local.call('assistant.delegation.dispute',{'contractRef':ref,'ground':'start-overdue'})
+        assert early['status']=='rejected' and early['data']['eligible'] is False and early['data']['reason']=='not_due'
+        due(platform,a,admission,monkeypatch);operation=uid();args={'contractRef':ref,'ground':'start-overdue'}
+        pending=local.call('assistant.delegation.dispute',args,operation_id=operation)
+        assert pending['status']=='waiting' and pending['data']['confirmationRef']
+        assert not platform.db.one('SELECT 1 FROM arbitration_cases WHERE admission=?',admission)
+        preview=a.confirmations.get(pending['data']['confirmationRef'],detail=True)['binding']['preview']
+        assert preview['subject']=={'kind':'contract','digest':ref} and preview['ground']=='start-overdue'
+        user_decision(a,pending['data']['confirmationRef'])
+        accepted=local.call('assistant.delegation.dispute',args,operation_id=operation)
+        assert accepted['status']=='completed' and accepted['data']['admissionId']==admission,accepted
+        case=accepted['data']['caseRef']
+        assert local.call('assistant.delegation.dispute',args,operation_id=operation)['data']['caseRef']==case
+        changed=local.call('assistant.delegation.dispute',{**args,'ground':'deliver-overdue','period':1},operation_id=operation)
+        assert changed['error']['code']=='id_conflict'
+        assert local.call('assistant.delegation.dispute',{'contractRef':ref,'quoteRef':'x','ground':'start-overdue'})['error']['code']=='invalid_input'
+        status=local.call('assistant.delegation.dispute_status',{'caseRef':case})
+        assert status['status']=='completed' and status['data']['state']=='queued' and status['data']['ruling'] is None
+        assert len(platform.db.rows('SELECT * FROM arbitration_cases WHERE admission=?',admission))==1
+        # The service reads the same verified case through its own local task, never another account's.
+        provider=LocalClient(p.config.home)
+        seen=provider.call('provider.dispute_status',{'profile':'service','caseRef':case})
+        assert seen['status']=='completed' and seen['data']['caseRef']==case and seen['data']['admissionId']==admission
+        tasks=provider.call('provider.tasks.get',{'profile':'service'})['data']['items']
+        task_ref=next(item['taskRef'] for item in tasks if item['interactionId']==platform.db.one('SELECT interaction FROM delegation_admissions WHERE id=?',admission)['interaction'])
+        refused=provider.call('provider.dispute',{'profile':'service','taskRef':task_ref,'ground':'accept-overdue','period':1})
+        assert refused['status']=='rejected' and refused['data']['eligible'] is False
+        assert provider.call('provider.dispute',{'profile':'service','taskRef':task_ref,'ground':'start-overdue'})['status']!='completed'

@@ -10,13 +10,13 @@ from a2c.common import Directory
 from .config import Settings
 from .events import EventBus, TracingTransport, trace_endpoint
 from .keys import KeyStore
-from .registry.discovery import Discovery
-from .delegation.service import MarketService
+from .registry import Discovery
+from .delegation import MarketService
 from .payments import SimPaymentProvider, Wallets
-from .identity.auth import Auth
-from .registry.models import DiscoveryModels
-from .delegation.models import ArbitrationModels
-from .delegation.packages import PackageStore
+from .identity import Auth
+from .registry import DiscoveryModels
+from .delegation import ArbitrationModels
+from .delegation import PackageStore
 from .storage import DB, DataOwner, SqliteStore
 log = logging.getLogger(__name__)
 
@@ -65,8 +65,9 @@ class A2ARouter:
 
 
 class Platform:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, configuration=None):
         self.s = settings
+        self.configuration = configuration
         self._owner = DataOwner(settings.data)
         self._closed = False
         self._closing = False
@@ -90,8 +91,8 @@ class Platform:
         from .migrations import migrate
         migrate(self.db)
         self.bus = EventBus(self.db, settings.data / "runs")
-        if settings._configuration:
-            settings._configuration.audit=lambda actor,previous,revision,changed:self.bus.emit('configuration','configuration.update',sender=actor,
+        if self.configuration is not None:
+            self.configuration.audit=lambda actor,previous,revision,changed:self.bus.emit('configuration','configuration.update',sender=actor,
                 outcome='saved',detail={'previousRevision':previous,'revision':revision,'fields':changed})
         self.wallets, self.auth = Wallets(self.db), Auth(self.db, settings)
         from .operations import AccountOperations,LedgerOperations
@@ -100,7 +101,7 @@ class Platform:
         from .identity import IdentityDirectory
         self.identities=IdentityDirectory(self.db,self.auth,settings)
         from .registry import RegistryView
-        self.registry=RegistryView(self.db)
+        self.registry=RegistryView(self.db,self.identities)
         self.packages = PackageStore(settings.data / "packages")
         self.discovery_models = DiscoveryModels(settings)
         self.arbitration_models = ArbitrationModels(settings)
@@ -119,18 +120,18 @@ class Platform:
                                    llm_configured=settings.a2x_configured(), embed_fn=self.discovery_models.embed if self.discovery_models.enabled else None)
         self.market = MarketService(self.market_signer, keys=self.keys, fetch=self.packages.fetch,
                                     store=SqliteStore(self.db, "market"), db=self.db, models=self.arbitration_models.ports())
-        from .payments.scopes import ScopeLedger
+        from .payments import ScopeLedger
         self.scopes=ScopeLedger(self.db,self.identities,settings.base_url,keys=self.keys,
                                 template=self.market.template,category=self.registry.category_in)
-        from .identity.enrollment import EnrollmentRegistry
+        from .identity import EnrollmentRegistry
         saved_keys,_=self.identities.saved_keys()
         self.identities.enrollment=EnrollmentRegistry(self.db,settings,existing_keys=saved_keys)
         from .web.identity import public_identity_app
-        from .registry.publication import ServicePublications
-        from .registry.categories import CategoryPreview
+        from .registry import ServicePublications
+        from .registry import CategoryPreview
         from .operations import ServiceOperations
         self.category_preview=CategoryPreview(self.discovery.categories,lambda service,categories:self.discovery_models.classify_category(service,categories))
-        from .registry.authorizations import PublicationAuthorizations
+        from .registry import PublicationAuthorizations
         self.publication_authorizations=PublicationAuthorizations(self.db,self.identities,self.auth)
         self.publications=ServicePublications(self.db,self.identities,self.discovery.categories,authorizations=self.publication_authorizations)
         from .files import PrivateFiles
@@ -148,19 +149,17 @@ class Platform:
                                             jwks={"keys": [self.pay_signer.jwk,self.pay_ec.jwk]}, extensions=(A2C_EXTENSION, AP2_EXTENSION))
         self.started = False
         self.background = []
-        from .messaging.directory import InterfaceDirectory
+        from .messaging import InterfaceDirectory
         self.interface_directory=InterfaceDirectory(self.db,self.identities)
-        from .messaging.delivery import DeliveryBroker
+        from .messaging import DeliveryBroker
         self.delivery=DeliveryBroker(self.db,self.identities,settings,
             record_in=lambda conn,**event:self.bus.record_in(conn,**event),
             publish=lambda event:self.bus.publish(event))
-        self.delivery.scopes=self.scopes
-        self.delivery.publications=self.publications
         from .delegation import Admissions
         from .operations import PaymentOperations,MarketOperations
         self.admissions=Admissions(self.db,self.identities,self.publications,self.scopes,self.payment_provider)
         self.admissions.active=self.delivery.active_in
-        from .delegation.contracts import ContractAuthority
+        from .delegation import ContractAuthority
         self.contracts=ContractAuthority(self.db,self.identities,self.admissions,self.scopes,self.market,self.psp)
         self.admissions.contracts=self.contracts
         from .observation import ContractProjection
@@ -169,41 +168,43 @@ class Platform:
         self.market_operations=MarketOperations(self.db,self.identities,self.admissions,self.market,contracts=self.contracts,psp=self.psp,
             close=self.delivery.contract_closed_in,record=self.contract_views.record_in)
         self.delivery.admissions=self.admissions
-        self.delivery.payment_operations=self.payment_operations
-        self.delivery.market_operations=self.market_operations
         self.psp.requires_admission=self.identities.bound_service
         self.market.market.requires_admission=self.identities.bound_service
-        from .delegation.relay import ProtocolRelay
+        from .delegation import ProtocolRelay
         self.delivery.protocol=ProtocolRelay(self.db,self.identities,self.admissions,self.scopes,self.files,clock=self.delivery.clock,contracts=self.contracts,record=self.contract_views.record_in)
-        from .delegation.arbitration_evidence import ArbitrationEvidence
+        from .delegation import ArbitrationEvidence
         self.arbitration_evidence=ArbitrationEvidence(self.db,self.identities,self.admissions,self.contracts,self.psp,
             self.delivery.protocol,self.delivery,clock=self.admissions.clock)
-        from .delegation.arbitration_cases import ArbitrationCases
+        from .delegation import ArbitrationCases
         self.arbitration_cases=ArbitrationCases(self.db,self.identities,self.auth,self.admissions,
             self.arbitration_evidence,self.files,model_binding=self.arbitration_models.binding,
             clock=lambda:self.arbitration_evidence.clock(),market=self.market,
-            notify_in=self.delivery.ruling_in,notify=self.delivery.notify)
-        self.delivery.arbitrations=self.arbitration_cases
+            notify_in=self.delivery.ruling_in,notify=self.delivery.notify,
+            contracts=self.contracts,close_in=self.delivery.contract_closed_in)
         self.delivery.protocol.arbitrations=self.arbitration_cases
         self.payment_operations.arbitrations=self.arbitration_cases
         self.market_operations.arbitrations=self.arbitration_cases
         self.market.request_outcomes=self.arbitration_cases.request_outcomes
         self.contract_views.rebuild()
-        from .observation.activity import ActivityViews
+        from .observation import ActivityViews
         self.activity_views=ActivityViews(self.contract_views)
         self.delivery.observe_in=self.activity_views.capture_in
+        from .operations import ControlOperations
+        self.controls=ControlOperations(self.db,self.identities,self.delivery)
+        self.controls.register_platform(scopes=self.scopes,admissions=self.admissions,arbitrations=self.arbitration_cases,
+            payments=self.payment_operations,market=self.market_operations,publications=self.publications)
         from .observation import MessageViews,ServiceViews
         self.message_views=MessageViews(self.db)
         self.service_views=ServiceViews(self.db)
-        from .observation.accounts import AccountQueries
-        from .observation.workbench import WorkbenchQueries
+        from .observation import AccountQueries
+        from .observation import WorkbenchQueries
         self.account_views=AccountQueries(self.db,auth=self.auth,wallets=self.wallets,contracts=self.contract_views,
             services=self.service_views,messages=self.message_views,bus=self.bus,identities=self.identities)
         self.workbench_views=WorkbenchQueries(self.db,auth=self.auth,wallets=self.wallets,contracts=self.contract_views,
             services=self.service_views,discovery=self.discovery,messages=self.message_views,interfaces=self.interface_directory)
         from .operations import DiscoveryOperations
         self.discovery_operations=DiscoveryOperations(self.discovery,self.service_views,self.bus.emit,self.market_id)
-        from .observation.overview import OverviewQueries
+        from .observation import OverviewQueries
         self.overview=OverviewQueries(self.db,services=self.service_views,discovery=self.discovery,market=self.market,
             settings=settings,bus=self.bus,discovery_enabled=self.discovery_models.enabled)
 
@@ -297,7 +298,7 @@ class Platform:
         self.started = False
         self._closed = True
 
-    def ensure_seeded(self, *, force=False):
+    def ensure_seeded(self):
         from .seed import seed_all
         return seed_all(self)
 

@@ -16,9 +16,9 @@ from a2c.template import acceptance_of,accept_within,verifier_refs
 from a2c.verifier.package import load,MANIFEST
 
 from ..adapters import ProtocolStore
-from ..adapters.market import reputation_evidence
-from ..runtime.protocol import RuntimeFault
-from ..runtime.scheduling import JobOutcome
+from ..adapters import reputation_evidence
+from ..runtime import RuntimeFault
+from ..runtime import JobOutcome
 
 
 def source_record(trading,record):
@@ -108,7 +108,6 @@ class Comparisons:
         self.actor=trading.identity.agent_id;self.lock=threading.RLock()
 
     def start(self,operation,args):
-        self.role.fields(args,('taskRef','quoteRefs'))
         references=args['quoteRefs']
         if (not isinstance(references,list) or not 1<=len(references)<=32
                 or any(not isinstance(item,str) or not 1<=len(item)<=128 for item in references)

@@ -12,13 +12,14 @@ from urllib.parse import urlsplit
 from . import activation,backup,units
 from .builder import Builder
 from .configs import local_url
-from .environment import Environment,writer,validation_code
+from .environment import Environment, validation_code
+from .files import path_without_links, save, writer
 from .jobs import source_identity
 from .layout import read_environment
-from .linux import Accounts,Systemd,expose_runtime
+from .linux import Accounts, Systemd, expose_runtime
 from .processes import child_environment
-from .release import UNITS,load,official_catalog,read_json
-from .workspace import Workspace,path_without_links,save
+from .release import UNITS, load, official_catalog, read_json
+from .workspace import Workspace
 
 
 class DirectEndpoint(HTTPRedirectHandler):
@@ -178,7 +179,7 @@ class Installation:
             raise RuntimeError('Restore the original source before resuming the build')
         builder=Builder(self.layout.root/'build',Path(self.request['source']['root'])/'deploy/locks/build.lock')
         python=builder.ensure(self.config.input['pypi_index'],retry_failed=True)
-        code="import sys; from tools.build_deployment import build; print('IOALAB_RELEASE:'+str(build(sys.argv[1],sys.argv[2])))"
+        code="import sys; from deploy.build import build; print('IOALAB_RELEASE:'+str(build(sys.argv[1],sys.argv[2])))"
         path=Path(self.command([python,'-X','utf8','-B','-c',code,self.layout.root/'releases','linux-x86_64'],
                               marker='IOALAB_RELEASE:',timeout=None,cwd=self.request['source']['root']))
         if source_identity(self.request['source']['root'])!=self.request['source']:
@@ -274,9 +275,7 @@ class Installation:
 
     def sdk(self,operation,arguments):
         code='''import json,sys
-from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.__main__ import require_configuration
-from ioalab_sdk.runtime.ipc import LocalClient
+from ioalab_sdk.runtime import LocalClient, RuntimeConfig, require_configuration
 c=RuntimeConfig.load(sys.argv[1]);client=LocalClient(c.home,timeout=2)
 r=client.call('runtime.status')
 require_configuration(r['data'],c,assembly='ioalab-jiuwen')

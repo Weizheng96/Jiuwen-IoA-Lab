@@ -7,7 +7,7 @@ from pathlib import Path
 import uuid
 
 import pytest
-from ioalab_services import prepare
+from ioalab_services import prepare_service
 from ioalab_services.catalog import definitions, seed_manifest
 from ioalab_sdk.assistant.role import AssistantRole
 from ioalab_sdk.provider import ProviderRole
@@ -64,7 +64,7 @@ def owned_participants(platform, path, host):
         uploaded = rpc.call('provider.verifier.publish', {'profile': 'service', 'verifierId': verifier['id'],
             'source': verifier['source'], 'reads': verifier['reads'], 'kind': 'script'})
         assert uploaded['status'] == 'completed', uploaded
-        prepared = prepare('wechat-posts', profile='service', verifier_ref=uploaded['data'],
+        prepared = prepare_service('wechat-posts', profile='service', verifier_ref=uploaded['data'],
                            payment_provider=platform.payment_provider)
         checked = rpc.call('provider.preview', {'service': prepared['service']})
         assert checked['status'] == 'completed', checked

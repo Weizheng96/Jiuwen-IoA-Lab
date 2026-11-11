@@ -8,7 +8,7 @@ import uuid
 import pytest
 
 from deploy import installation
-from deploy.environment import writer
+from deploy.files import writer
 from deploy.layout import Layout
 
 

@@ -11,7 +11,7 @@ class InterfaceDirectory:
         self.db,self.identities=db,identities
 
     def user(self,username):
-        row=self.db.one('SELECT id,username FROM users WHERE username=?',username)
+        row=self.identities.account(username)
         if not row:raise LabError('not_found','Account not found',status=404)
         return row
 

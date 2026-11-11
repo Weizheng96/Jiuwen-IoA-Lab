@@ -9,12 +9,12 @@ from a2c.common import Reply
 from a2c.template import acceptance_of,deliverable_of
 from a2c.verifier.acceptance import run_target
 from jsonschema import Draft202012Validator
-from ..runtime.host import HostTurn,ToolBinding,validate_output
-from ..runtime.questions import native_answer
-from ..runtime.scheduling import JobOutcome
-from ..runtime.protocol import RuntimeFault,encode
-from ..adapters.transport import stable
-from ..adapters.reports import report
+from ..runtime import HostTurn,ToolBinding,validate_output
+from ..runtime import native_answer
+from ..runtime import JobOutcome
+from ..runtime import RuntimeFault,encode
+from ..adapters import stable
+from ..adapters import report
 from .policy import definition_digest
 
 
@@ -93,6 +93,7 @@ class Production:
         identity=self.execution.role.identities[job['payload']['profile']];relation=self.runtime.store.interaction(interaction_id=job['interaction'])
         endpoint=self.execution.context(identity,relation,job,for_execution=True);provider=endpoint.provider;cd=job['payload']['cardDigest'];card=provider.card(cd)
         if provider.store.get('cards',cd).get('state')!='started':return JobOutcome('rejected',{'cardDigest':cd,'reason':'contract_not_started'},relation['session'])
+        if self.execution.rulings.ruled(endpoint):return JobOutcome('rejected',{'cardDigest':cd,'reason':'contract_ruled'},relation['session'])
         template=provider.template(card['templateDigest']);definition=provider.policy.definition(template);workspace=self.workspace(identity,relation)
         definition_hash=definition_digest(definition)
         if relation['details'].get('definitionDigest')!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original production agent definition')
@@ -114,7 +115,7 @@ class Production:
                     if 'result' in old:return old['result']
                     raise RuntimeFault('unknown_result','Reconcile the original production effect without repeating it')
                 current=provider.store.get('cards',cd)
-                if current.get('state')!='started':return {'status':'rejected','error':{'code':'closed','message':'本合同已停止履约，不再发起新的生产动作'}}
+                if current.get('state')!='started' or self.execution.rulings.ruled(endpoint):return {'status':'rejected','error':{'code':'closed','message':'本合同已停止履约，不再发起新的生产动作'}}
                 if any(item['answer'] is None or not item['answer'].get('granted') for item in current.get('steps',[])):
                     return {'status':'rejected','error':{'code':'forbidden','message':'用户尚未同意当前受保护环节'}}
                 tool=business.get(name)
