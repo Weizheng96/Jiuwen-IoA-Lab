@@ -2,7 +2,7 @@
 
 用户说“参考 GitCode 仓库的 readme_agent.md，帮我接入 IoA Lab”时，执行以下顺序。复用用户已有九问 Swarm，不修改其安装、全局指令或历史。
 
-唯一引导文件是GitCode仓库根目录的readme_agent.md：[机器可读原文](https://raw.gitcode.com/WeiZheng96/jiuwen-IoA-lab/raw/main/readme_agent.md)、[浏览器文件页面](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/readme_agent.md)。给九问的指令优先使用原文地址。文件页面依赖JavaScript，普通网页抓取可能只取得站点外壳；遇到外壳时读取上述原文，不猜`gitcode.com/.../raw/...`地址，不克隆整个项目。在GitHub或其他镜像看到本文件时，仍使用GitCode这同一个文件。
+唯一引导文件是GitCode仓库根目录的readme_agent.md：[机器可读原文](https://api.gitcode.com/api/v5/repos/WeiZheng96/jiuwen-IoA-lab/raw/readme_agent.md?ref=main)、[浏览器文件页面](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/readme_agent.md)。给九问的指令优先使用上述GitCode正式raw API，读取同一仓库main的同一文件，不在指令、参数或日志加入GitCode令牌。文件页面依赖JavaScript，普通网页抓取可能只取得站点外壳；原文不可读时停止并报告，稍后仅重试原地址，不猜其他下载、API或镜像地址，不克隆整个项目。在GitHub或其他镜像看到本文件时，仍使用GitCode这同一个文件。
 
 1. 从 [GitCode 项目首页](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab)取得公开平台地址。当前官网尚未开放；若未公布地址，询问用户实际平台地址，不猜地址、不使用仓库中的私有服务器资料。读取该平台 `/api/config`，核对 `publicUrl`。接入说明以本页为准，平台不再持有另一份接入引导。
 2. GET 同一平台的 `/api/access/packages`，只接受 `format=1`。这些是普通HTTP只读请求，直接用本机Python 3.11标准库`urllib.request`读取JSON和下载，不需要浏览器、Playwright或Node.js。未指定角色选择 `assistant`；明确提供服务选择 `service`；双角色分别下载两个包。使用清单中同源的 `/downloads/` URL，将完整 ZIP 保存到本机下载目录，核对实际字节数、SHA-256、runtimeFormat=1、Python 3.11 要求。缺包或摘要不符时停止并报告平台未准备就绪；不下载单个 SKILL.md。TLS始终使用系统信任链，证书错误时停止并要求正确配置受信CA，不使用`-k`、`verify=False`、忽略浏览器警告或其他绕过。
