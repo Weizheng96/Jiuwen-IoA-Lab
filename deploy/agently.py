@@ -12,6 +12,13 @@ URL = 'https://registry.npmjs.org/@tencent-qqmail/agently-cli-linux-x64/-/agentl
 INTEGRITY = '6+5aBFFoPtscK3jafN1jZ/OK3f4HK0dAKdmHnja71O7BiTGRAGIUe6Ygd/ysiqouPXkvedZpVbLlHxoykNgpgA=='
 
 
+def authorization_paths(layout):
+    # In pinned 1.0.18, AGENTLY_CLI_CONFIG_DIR only moves app configuration.
+    # FileStorageDir keeps encrypted credentials/master keys in the OS HOME.
+    home=layout.state/'agents'
+    return (home/'agently-auth',home/'.local/share/agently-cli')
+
+
 def unpack(content):
     if base64.b64encode(hashlib.sha512(content).digest()).decode() != INTEGRITY:
         raise ValueError('Official Agently CLI package integrity mismatch')

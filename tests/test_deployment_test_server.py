@@ -18,6 +18,10 @@ def test_clear_requires_released_writers_and_keeps_configuration(tmp_path):
     (layout.state/'core/records.sqlite').write_bytes(b'old accounts and contracts')
     (layout.state/'agents/session.json').write_bytes(b'old conversation')
     auth=layout.state/'agents/agently-auth';auth.mkdir();(auth/'token').write_bytes(b'external authorization')
+    keychain=layout.state/'agents/.local/share/agently-cli/agents/ioalab-admin'
+    keychain.mkdir(parents=True);(keychain/'master.key').write_bytes(b'private master key')
+    (keychain/'bootstrap_token').write_bytes(b'encrypted external token')
+    old=layout.state/'agents/.local/share/old-project';old.mkdir();(old/'session').write_text('discard')
     core=layout.config/'core';core.mkdir();(core/'platform.json').write_bytes(b'private deployment configuration')
     metadata={'paths':{str(layout.state/'agents/old-sdk'):{'phase':'owned'}},'officialPrepared':True,'initialized':True}
     with pytest.raises(RuntimeError):clear_state(layout,metadata,{},released=lambda:False)
@@ -26,6 +30,9 @@ def test_clear_requires_released_writers_and_keeps_configuration(tmp_path):
     assert list((layout.state/'core').iterdir())==[]
     assert not (layout.state/'agents/session.json').exists()
     assert (auth/'token').read_bytes()==b'external authorization'
+    assert (keychain/'master.key').read_bytes()==b'private master key'
+    assert (keychain/'bootstrap_token').read_bytes()==b'encrypted external token'
+    assert not old.exists()
     assert (core/'platform.json').read_bytes()==b'private deployment configuration'
     assert metadata['initialized'] is False and metadata['officialPrepared'] is False
     clear_state(layout,metadata,{},released=lambda:True)
@@ -47,11 +54,13 @@ def test_prune_keeps_exact_current_set_units_and_release(owned,source):
     for unit in second['units'].values():assert Path(unit['environment']).exists()
 
 
-def test_external_authorization_link_is_rejected_before_data_clear(owned,tmp_path):
+@pytest.mark.parametrize('relative',['agently-auth','.local/share/agently-cli'])
+def test_external_authorization_link_is_rejected_before_data_clear(owned,tmp_path,relative):
     (owned.state/'core').mkdir();(owned.state/'agents').mkdir()
     data=owned.state/'core/accounts';data.write_text('original accounts')
     external=tmp_path/'external-auth';external.mkdir()
-    (owned.state/'agents/agently-auth').symlink_to(external,target_is_directory=True)
+    link=owned.state/'agents'/relative;link.parent.mkdir(parents=True,exist_ok=True)
+    link.symlink_to(external,target_is_directory=True)
     with pytest.raises(ValueError,match='links'):clear_state(owned,{}, {},released=lambda:True)
     assert data.read_text()=='original accounts' and external.is_dir()
 

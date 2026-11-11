@@ -67,7 +67,7 @@ class Lifecycle:
         phase=value.get('phase','unknown');ready=None
         if all_active and value.get('phase')!='stopped':
             try:ready=self.readiness();phase='running'
-            except (RuntimeError,OSError,ValueError):phase='starting'
+            except (RuntimeError,OSError,ValueError,KeyError):phase='starting'
         elif value.get('phase')=='stopped':
             try:
                 if not all(self.manager.released(name,state) for name,state in value['before'].items()):
