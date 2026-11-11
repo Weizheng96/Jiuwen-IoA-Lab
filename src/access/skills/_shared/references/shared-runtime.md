@@ -47,6 +47,16 @@ python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置�
 
 用runtime.configure --config "<外置配置文件>" --args-file "<修改参数文件>"提交。身份按key新增/更新，服务按字段合并，原角色、其他服务和凭据保留；不提供账号、密码、SDK数据目录、resources或host.business_tools修改。host的command/data_dir/model/skill_directories可由本机用户明确提供后配置，指向其既有九问，不改九问文件、模型设置或权限。返回changed只表示配置已保存；继续runtime.start并核实际能力，不能宣称已发布或接单。若实例持锁，先沿原配置runtime.stop并等实际释放再修改；不自动停服务、换身份或删状态。异摘要重新查询，同值重试只返回当前事实，不当作旧业务回执。runtime.validate仅做结构校验，不运行九问或业务工具。
 
+首次账号认证后，hostFields已含command和data_dir时先复用并启动；缺项才补齐既有九问的公开Process入口和原数据目录。可靠来源是用户明确给出的值、当前九问公开启动信息及其JIUWENSWARM_DATA_DIR；不能确定就只询问缺少的命令或目录。不要猜jiuwenswarm-cli，不把HOME、SDK的dataDir或本次聊天工作目录当作九问数据目录，也不把SDK桥接模块当作九问入口。配置被拒绝后按已声明格式修正；入口或目录不明时结束本轮等待用户，不通过读取SDK源码、另调内部模块或反复试命令寻找执行链。
+
+host.command是非空argv数组，host.data_dir是原九问数据目录；例如以下独立修改文件（所有占位值须由上述可靠来源取得）：
+
+```json
+{"expectedDigest":"<实际configurationDigest>","changes":{"host":{"command":["/既有九问环境/bin/jiuwenswarm-process"],"data_dir":"/原九问数据目录"}}}
+```
+
+host.model可选，只用该既有九问公开model.list返回的selection_key，不把API模型名当选择键。host.skill_directories是可选的业务技能“名称→绝对目录”对象，例如{"用户明确选择的业务技能":"/该业务技能目录"}；它不是数组、冒号字符串或全部技能目录。首次接入不需要该字段，不把ioalab-delegate或ioalab-provider接入技能加入业务生产技能源。沿原runtime.configure提交后再runtime.start，分别以runtime.status、identity.status核真实结果；host尚不可用时如实报告，不继续猜测或宣称完成。
+
 业务参数、真实确认及原操作恢复统一见[公共调用与确认](calling.md)，开始角色业务前先读取该页。
 
 配置由用户或本机脚本读取；模型不得读取配置正文来检查密码，也不在聊天和日志输出凭据。只汇报实际stdout回执及缺项，不读源码推演成功，不写报告或长期记忆充当安装。业务包安装不等于启用工具，权限只来自用户明确配置。
