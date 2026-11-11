@@ -9,7 +9,8 @@ description: IoA Lab 服务方技能。帮助用户为自己的九问配置专�
 
 | 本机用户的需求 | 先读取 |
 |---|---|
-| 安装、账号、专业技能/工具、启动诊断 | [接入设置](references/setup.md) |
+| 已接入的状态核对、双角色复用与连接诊断 | [状态核对](references/status.md) |
+| 首次安装、账号、专业技能/工具、启动 | [接入设置](references/setup.md) |
 | 模板、验收器、分类、公示和接单配置 | [发布服务](references/publication.md) |
 | 查看/核对原任务、显式恢复、生产与合同授权 | [任务执行](references/execution.md) |
 | 完成合同后的信誉与结清 | [结清记录](references/reputation.md) |
