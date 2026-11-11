@@ -11,7 +11,8 @@ description: 通过 IoA 平台购买专业服务、主动向指定个人助手�
 
 | 用户需求 | 先读取 |
 |---|---|
-| 安装、填写账号、启动、连接诊断 | [接入设置](references/setup.md) |
+| 已接入的状态核对、双角色复用与连接诊断 | [状态核对](references/status.md) |
+| 首次安装、填写账号、启动 | [接入设置](references/setup.md) |
 | 购买专业劳动成果，约定交付、验收与价款 | [委托交易](references/delegation.md) |
 | 澄清需求、预算、材料，筛选并选择真实候选 | [结构化交互](references/requirements.md) |
 | 允许谁向自己发请求、规定自己收到后如何处理 | [收信设置](references/inbox-rules.md) |
