@@ -64,6 +64,18 @@ def test_status_rechecks_stopped_groups_and_locks(subject):
     assert obj.status()['phase']=='unknown'
 
 
+def test_status_with_incomplete_candidate_progress_does_not_hide_the_original_task(subject):
+    import json
+    obj,_,_=subject
+    progress=obj.layout.private/'candidate-progress.json'
+    progress.write_text(json.dumps({'stage':'candidate'}))
+    def readiness():return json.loads(progress.read_text())['candidate']['release']
+    obj.readiness=readiness
+    result=obj.status()
+    assert result['phase']=='starting' and result['runtimeReadinessVerified'] is False
+    assert all(row['ActiveState']=='active' for row in result['components'].values())
+
+
 def test_start_waits_for_original_core_and_resumes_without_relogin(subject,monkeypatch):
     obj,calls,live=subject
     for name in live:live[name]='inactive'

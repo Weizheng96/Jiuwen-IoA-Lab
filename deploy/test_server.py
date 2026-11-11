@@ -4,6 +4,7 @@ import shutil
 import time
 
 from . import activation, units
+from .agently import authorization_paths
 from .files import path_without_links
 
 
@@ -18,12 +19,21 @@ def remove(path):
 def clear_state(layout,metadata,files,*,released):
     layout.inspect()
     if not released():raise RuntimeError('Test reset requires released original writers')
-    external=path_without_links(layout.state/'agents/agently-auth')
+    retained=tuple(path_without_links(path) for path in authorization_paths(layout))
+    for path in retained:
+        for ancestor in (path,*path.parents):
+            if ancestor==layout.state/'agents':break
+            if ancestor.exists() and not ancestor.is_dir():raise RuntimeError('Restore the original external authorization directories')
+    def clear(path):
+        if path in retained:return
+        if any(keep.is_relative_to(path) for keep in retained):
+            for child in path.iterdir():clear(child)
+        else:remove(path)
     for role in ('core','agents'):
         home=path_without_links(layout.state/role)
         if not home.is_dir():raise RuntimeError('Restore the original role state directory')
         for child in home.iterdir():
-            if child!=external:remove(child)
+            clear(child)
         cache=path_without_links(layout.state/'cache'/role)
         if cache.exists():
             for child in cache.iterdir():remove(child)
@@ -38,7 +48,7 @@ def clear_state(layout,metadata,files,*,released):
     for key in list(metadata.get('paths',{})):
         path=Path(key)
         if any(path!=layout.state/role and path.is_relative_to(layout.state/role) for role in ('core','agents')):
-            if path!=external and not path.is_relative_to(external):del metadata['paths'][key]
+            if not any(path==keep or path.is_relative_to(keep) or keep.is_relative_to(path) for keep in retained):del metadata['paths'][key]
     for field in ('initialized','officialPrepared','officialAuthorized','administratorPrepared'):
         metadata[field]=False
     for name in ('lifecycle.json','replace-admin-assistant.json','retired-isc-assistant'):
