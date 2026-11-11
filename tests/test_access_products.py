@@ -66,7 +66,7 @@ def test_tampered_installer_inputs_never_create_an_environment(tmp_path,what):
     module=bootstrap();assets=tmp_path/'assets';(assets/'wheels').mkdir(parents=True)
     lock=b'package==1\n';(assets/'requirements.lock').write_bytes(lock)
     data=b'original';(assets/'wheels/local.whl').write_bytes(b'tampered' if what=='wheel' else data)
-    manifest={'versions':{},'constraintsSha256':hashlib.sha256(b'wrong' if what=='constraint' else lock).hexdigest(),
+    manifest={'format':1,'skillVersion':'0.0.1','versions':{},'constraintsSha256':hashlib.sha256(b'wrong' if what=='constraint' else lock).hexdigest(),
               'wheels':[{'file':'../outside.whl' if what=='path' else 'local.whl','sha256':hashlib.sha256(data).hexdigest()}]}
     (assets/'runtime.json').write_text(json.dumps(manifest));cache=tmp_path/'cache'
     with pytest.raises(RuntimeError,match='checksum|path'):module.installation().Release(assets,cache)
@@ -138,6 +138,8 @@ def test_both_real_product_bundles_have_one_manifest_and_generated_entry(tmp_pat
             if role=='service':assert root+'/references/contracts.md' in archive.namelist()
             assert any('/assets/wheels/ioalab_official-' in name for name in archive.namelist())
             manifest=json.loads(manifests[-1])
+            assert manifest['format']==1
+            assert manifest['skillVersion']==(ROOT/'src/access/skills/VERSION').read_text().strip().removeprefix('v')
             assert set(manifest['versions'])=={'a2c','ioalab-sdk','ioalab-jiuwen','ioalab-official','jiuwenswarm-process-sdk'}
             for wheel in manifest['wheels']:
                 assert hashlib.sha256(archive.read(root+'/assets/wheels/'+wheel['file'])).hexdigest()==wheel['sha256']

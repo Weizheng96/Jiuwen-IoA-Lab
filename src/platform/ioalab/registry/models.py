@@ -20,8 +20,18 @@ class DiscoveryModels:
     def embed(self, texts):
         if not self.enabled:
             raise RuntimeError("Discovery embedding is not configured")
-        response = httpx.post(self.s.llm["api_base"] + "/embeddings", trust_env=False, timeout=60,
-                              headers={"Authorization":"Bearer " + self.s.llm["api_key"]},
-                              json={"model":self.s.embedding_model,"input":texts})
-        response.raise_for_status()
-        return [item["embedding"] for item in response.json()["data"]]
+        vectors=[]
+        # The configured text-embedding-v3/v4 API accepts at most ten texts.
+        # Keep this conservative bound for the compatible embedding interface.
+        for offset in range(0,len(texts),10):
+            batch=texts[offset:offset+10]
+            response=httpx.post(self.s.llm["api_base"]+"/embeddings",trust_env=False,timeout=60,
+                headers={"Authorization":"Bearer "+self.s.llm["api_key"]},
+                json={"model":self.s.embedding_model,"input":batch})
+            response.raise_for_status()
+            data=response.json()["data"]
+            if (len(data)!=len(batch) or any(type(item.get("index")) is not int for item in data)
+                    or {item["index"] for item in data}!=set(range(len(batch)))):
+                raise ValueError("Discovery embedding response does not match its input batch")
+            vectors.extend(item["embedding"] for item in sorted(data,key=lambda item:item["index"]))
+        return vectors

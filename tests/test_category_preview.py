@@ -229,3 +229,41 @@ def test_real_configured_platform_model_classifies_public_capability_via_http(pl
             'model':model_name,'categoryId':result['categoryId'],'categoryPath':result['categoryPath'],
             'reason':result['reason'],'taxonomyDigest':result['taxonomyDigest'],'sources':sources,
             'publicationUnchanged':True},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+
+@pytest.mark.parametrize('count',[0,1,10,11,52])
+def test_embedding_batches_provider_limit_and_restores_input_order(monkeypatch,count):
+    calls=[]
+    def post(url,**kwargs):
+        batch=kwargs['json']['input'];calls.append(batch)
+        assert 1<=len(batch)<=10
+        assert kwargs['json']['model']=='text-embedding-v4' and kwargs['trust_env'] is False
+        data=[{'index':i,'embedding':[float(text)]} for i,text in enumerate(batch)]
+        return httpx.Response(200,json={'data':list(reversed(data))},request=httpx.Request('POST',url))
+    monkeypatch.setattr(httpx,'post',post)
+    model=DiscoveryModels(SimpleNamespace(llm={'api_key':'explicit-test-key','api_base':'https://example.test/v1'},stub=False,embedding_model='text-embedding-v4'))
+    assert model.embed([str(i) for i in range(count)])==[[float(i)] for i in range(count)]
+    assert [len(batch) for batch in calls]==[min(10,count-start) for start in range(0,count,10)]
+
+
+@pytest.mark.parametrize('malformed',[
+    [{'index':0,'embedding':[0]}],
+    [{'index':0,'embedding':[0]},{'index':0,'embedding':[1]}],
+    [{'index':0,'embedding':[0]},{'index':2,'embedding':[1]}],
+    [{'index':False,'embedding':[0]},{'index':1,'embedding':[1]}]])
+def test_embedding_refuses_missing_duplicate_or_invalid_batch_indices(monkeypatch,malformed):
+    monkeypatch.setattr(httpx,'post',lambda url,**kw:httpx.Response(200,json={'data':malformed},request=httpx.Request('POST',url)))
+    model=DiscoveryModels(SimpleNamespace(llm={'api_key':'explicit-test-key','api_base':'https://example.test/v1'},stub=False,embedding_model='text-embedding-v4'))
+    with pytest.raises(ValueError):model.embed(['first','second'])
+
+
+def test_embedding_later_batch_failure_is_not_returned_as_partial_success(monkeypatch):
+    calls=[]
+    def post(url,**kwargs):
+        calls.append(kwargs['json']['input'])
+        status=200 if len(calls)==1 else 400
+        return httpx.Response(status,json={'data':[{'index':i,'embedding':[i]} for i in range(len(calls[-1]))]},request=httpx.Request('POST',url))
+    monkeypatch.setattr(httpx,'post',post)
+    model=DiscoveryModels(SimpleNamespace(llm={'api_key':'explicit-test-key','api_base':'https://example.test/v1'},stub=False,embedding_model='text-embedding-v4'))
+    with pytest.raises(httpx.HTTPStatusError):model.embed(['test']*11)
+    assert [len(batch) for batch in calls]==[10,1]

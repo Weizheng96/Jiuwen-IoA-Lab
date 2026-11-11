@@ -1,6 +1,7 @@
 """Build both resident product skills with one compatible, GitHub-free runtime manifest."""
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import tempfile
@@ -18,6 +19,9 @@ ROOT=Path(__file__).resolve().parents[1]
 def build(output,*,root=ROOT):
     output=Path(output).resolve();output.mkdir(parents=True,exist_ok=True)
     root=Path(root).resolve()
+    skill_version=(root/'src/access/skills/VERSION').read_text().strip().removeprefix('v')
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',skill_version):
+        raise ValueError('Use a three-part product skill VERSION')
     projects=[root/'src/access/sdk',root/'src/hosts/jiuwen',root/'src/official']
     with tempfile.TemporaryDirectory(prefix='ioa-access-skills-') as temporary:
         temporary=Path(temporary);shared=temporary/'shared';wheels=shared/'wheels';wheels.mkdir(parents=True)
@@ -40,7 +44,7 @@ def build(output,*,root=ROOT):
                 version=pinned.get(required.name.lower().replace('_','-'))
                 if version is None or version not in required.specifier:raise ValueError('Shared access lock does not cover dependency: '+required.name)
         (shared/'requirements.lock').write_bytes(lock.encode('utf-8'))
-        manifest={'format':1,'versions':versions,'constraintsSha256':hashlib.sha256(lock.encode()).hexdigest(),
+        manifest={'format':1,'skillVersion':skill_version,'versions':versions,'constraintsSha256':hashlib.sha256(lock.encode()).hexdigest(),
                   'wheels':[{'file':path.name,'sha256':sha(path)} for path in sorted(wheels.glob('*.whl'))],
                   'sourceManifestSha256':sha(root/'vendor/SOURCES.json')}
         (shared/'runtime.json').write_text(json.dumps(manifest,ensure_ascii=False,sort_keys=True,indent=2)+'\n',encoding='utf-8')

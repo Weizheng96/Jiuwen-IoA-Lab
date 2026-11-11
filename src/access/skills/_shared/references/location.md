@@ -2,6 +2,8 @@
 
 首次调用本技能脚本前执行本页命令，只读取九问公开的路径环境变量并检查一个文件。原生skill_tool的模型正文可能不含skill_directory，不能猜路径或从账号配置所在目录推断。
 
+Windows使用下例的已核`python`；Linux先用`python3.11 --version`核实，将下例首项替换为`python3.11`或其已核绝对路径。后续沿用同一解释器，详见[公共调用](calling.md#调用格式)。
+
 ```text
 python -X utf8 -c "import os; from pathlib import Path; base=Path(os.environ.get('JIUWENSWARM_DATA_DIR') or (Path(os.environ.get('JIUWENSWARM_HOME') or Path.home())/'.jiuwenswarm')); p=(base/'agent/workspace/skills/__IOALAB_SKILL_NAME__/scripts/ioalab.py').expanduser().resolve(); print(str(p) if p.is_file() else 'NOT_FOUND')"
 ```

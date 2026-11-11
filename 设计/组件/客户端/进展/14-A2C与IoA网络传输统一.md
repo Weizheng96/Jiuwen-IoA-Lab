@@ -14,7 +14,7 @@
 
 ## 现状与初始方案
 
-本票为需求登记，尚未变更现行接口或实现。当前 SessionTransport 已将主要合同、履约及付款调用映射至 IoA 长连接与文件通道，但个人助手 Trading 和服务方 ProviderExecution 仍分别创建 A2ATransport/httpx.AsyncClient，读取模板及公钥；SessionTransport 还存在默认创建独立 A2ATransport 的路径。账号和连接恢复也各有 HTTP 客户端。此前 CA 问题暴露出多处独立构造带来的配置遗漏风险，当前其他会话的 TLS 修复仍须独立交付和验证，本票不替代该修复。
+改造前基线：SessionTransport 已将主要合同、履约及付款调用映射至 IoA 长连接与文件通道，但个人助手 Trading 和服务方 ProviderExecution 仍分别创建 A2ATransport/httpx.AsyncClient，读取模板及公钥；SessionTransport 还存在默认创建独立 A2ATransport 的路径。账号和连接恢复也各有 HTTP 客户端。此前 CA 问题暴露出多处独立构造带来的配置遗漏风险，当前其他会话的 TLS 修复仍须独立交付和验证，本票不替代该修复。
 
 1. 盘点所有客户端网络构造、调用方、鉴权、超时、代理、CA 和关闭归属；按同一实例内可共享资源与独立短期控制场景明确生命周期。实施前按 design 定义统一网络 owner、注入接口及拒绝/恢复契约，更新所属接口页、依赖及实现页并升版。
 2. 由 IoA 共用运行时唯一管理网络策略及常驻实例的共享 HTTPS 连接池、WSS 生命周期；账号会话继续拥有凭据，角色模块和协议适配只使用注入能力。显式登录及安装前控制等独立进程复用同一构造与策略定义，各自正确关闭资源，不要求跨进程共用一个连接池。
@@ -41,7 +41,7 @@ v0.0.148先定义[网络资源归属](../共用运行时/接口/A2C适配.md#网
 
 `PublicTransport`继续经Agent Card声明的JSONRPC接口执行原template.get及原binding编解码，A2C Client/Provider与签名验证不变；业务仍沿原SessionTransport/WSS，无HTTP业务回退。所有公共目标、JWKS及RPC声明限制为本平台同源；不发送账号Bearer，不接受Cookie和自动重定向。同步池支持并发，不引入异步客户端或事件循环，WSS独立心跳线程使用同一SSL上下文。
 
-新增sdk_network覆盖真实HTTP的原A2A模板/公钥读取、账号响应Cookie不传播、重定向不跟随、外源拒绝、双角色及恢复共享池、借用者关闭后owner仍可用、慢请求与其他公共读取并发。sdk_tls两角色用例改为经实例Network读取，保留可信CA、未知CA、错误IP的真实TLS分支。当前检查由主智能体统一runner执行，结果及服务器/原生九问证据尚待补齐；池数由4降到1、角色专用循环由2降到0为源码资源构造核对，尚无握手次数及耗时实测，不宣称模型轮次数下降。
+新增sdk_network覆盖真实HTTP的原A2A模板/公钥读取、账号响应Cookie不传播、重定向不跟随、外源拒绝、双角色及恢复共享池、借用者关闭后owner仍可用、慢请求与其他公共读取并发。sdk_tls两角色用例改为经实例Network读取，保留可信CA、未知CA、错误IP的真实TLS分支。检查由主智能体统一runner执行；资源构造盘点为池数4降到1、角色专用循环2降到0，下方独立样本记录实际握手与耗时，不宣称模型轮次数下降。服务器已完成HTTPS/WSS信任及官方/管理员连接，原生同实例两角色和最终完整检查继续待验。
 
 
 首轮定向检查由主runner取得95 passed、14 failed、1 skipped；失败是同步公共适配遗漏原A2A客户端自动添加的A2A-Version，服务器默认按0.3解释而现接口为1.0。现按Agent Card声明的protocolVersion发送A2A-Version，保留原扩展激活header及JSONRPC关联ID，不放宽响应解析。新增真实WSS TLS三分支与账号初始化失败释放池用例、默认端口等价与显式AgentCard公钥解析修复。官方安装前授权也经公开Network短期入口，Bearer逐请求添加；待本轮复测。

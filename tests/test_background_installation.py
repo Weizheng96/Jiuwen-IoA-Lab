@@ -17,7 +17,7 @@ def bundle(tmp_path):
     module=bootstrap();installer=module.installation();root=tmp_path/'skill';assets=root/'assets'
     wheels=assets/'wheels';wheels.mkdir(parents=True)
     (wheels/'placeholder.whl').write_bytes(b'input');(assets/'requirements.lock').write_bytes(b'')
-    manifest={'versions':{},'constraintsSha256':hashlib.sha256(b'').hexdigest(),
+    manifest={'format':1,'skillVersion':'0.0.1','versions':{},'constraintsSha256':hashlib.sha256(b'').hexdigest(),
         'wheels':[{'file':'placeholder.whl','sha256':hashlib.sha256(b'input').hexdigest()}]}
     (assets/'runtime.json').write_text(json.dumps(manifest),encoding='utf-8')
     (assets/'skill.json').write_text('{"role":"service"}',encoding='utf-8')
@@ -30,6 +30,29 @@ def bundle(tmp_path):
 def state(release,phase='installing'):
     attempt=str(uuid.uuid4())
     return {'releaseId':release.id,'attemptId':attempt,'phase':phase,'pid':2147483647,'logPath':str(release.log(attempt))}
+
+
+@pytest.mark.parametrize('version',[None,'','v0.0.1',False])
+def test_product_manifest_requires_its_explicit_skill_version_before_creating_cache(tmp_path,version):
+    _,installer,assets,cache=bundle(tmp_path)
+    path=assets/'runtime.json';manifest=json.loads(path.read_text())
+    if version is None:manifest.pop('skillVersion')
+    else:manifest['skillVersion']=version
+    path.write_text(json.dumps(manifest),encoding='utf-8');original=path.read_bytes()
+    with pytest.raises(RuntimeError,match='skillVersion'):installer.Release(assets,cache)
+    assert not cache.exists() and path.read_bytes()==original
+
+
+def test_new_skill_version_uses_a_distinct_release_and_preserves_previous_cache(tmp_path):
+    _,installer,assets,cache=bundle(tmp_path)
+    before=installer.Release(assets,cache);before.envdir.mkdir()
+    original=before.envdir/'original';original.write_bytes(b'previous-cache')
+    path=assets/'runtime.json';manifest=json.loads(path.read_text());manifest['skillVersion']='0.0.2'
+    path.write_text(json.dumps(manifest),encoding='utf-8')
+    after=installer.Release(assets,cache)
+    assert after.id!=before.id and after.envdir!=before.envdir
+    assert after.inspect()['status']=='rejected' and not after.envdir.exists()
+    assert original.read_bytes()==b'previous-cache'
 
 
 @pytest.mark.parametrize('operation',['runtime.install.status','runtime.status','runtime.validate','runtime.web-extension','provider.pause'])
@@ -125,6 +148,76 @@ def test_known_failure_requires_explicit_install_retry_and_retains_attempt_log(t
         assert time.monotonic()<until;time.sleep(.02)
     assert call('runtime.install.status')['status']=='failed' and before.log(attempt).is_file()
     assert not before.envdir.exists()
+
+
+def test_failed_record_cannot_adopt_or_overwrite_an_unowned_environment(tmp_path,monkeypatch):
+    _,installer,assets,cache=bundle(tmp_path);release=installer.Release(assets,cache)
+    job=state(release,'failed');release.save(job)
+    release.envdir.mkdir();foreign=release.envdir/'owner-business-evidence';foreign.write_bytes(b'preserve-original')
+    original=release.task.read_bytes()
+    monkeypatch.setattr(installer.subprocess,'Popen',lambda *a,**kw:pytest.fail('Unowned environment launched a new installer'))
+    result=installer.prepare(assets,cache,launch=True,retry=True)
+    assert result['status']=='unknown' and result['data']['attemptId']==job['attemptId']
+    assert result['error']['code']=='unknown_result'
+    assert foreign.read_bytes()==b'preserve-original' and release.task.read_bytes()==original
+
+
+def test_dangling_task_link_is_unknown_and_never_replaced_by_install(tmp_path):
+    _,installer,assets,cache=bundle(tmp_path);release=installer.Release(assets,cache)
+    target=tmp_path/'absent-original-task.json'
+    try:release.task.symlink_to(target)
+    except OSError as error:
+        if os.name=='nt':pytest.skip('Windows account cannot create the real symlink: '+type(error).__name__)
+        raise
+    original=os.readlink(release.task)
+    for launch in (False,True):
+        reply=installer.prepare(assets,cache,launch=launch,retry=True)
+        assert reply['status']=='unknown' and reply['error']['code']=='unknown_result'
+        assert release.task.is_symlink() and os.readlink(release.task)==original
+        assert not target.exists() and not release.envdir.exists()
+
+
+def test_explicit_retry_archives_its_failed_environment_and_original_attempt(tmp_path):
+    module,installer,assets,cache=bundle(tmp_path)
+    env={**os.environ,'IOALAB_ACCESS_CACHE':str(cache),'IOALAB_PYPI_INDEX':'https://pypi.tuna.tsinghua.edu.cn/simple'}
+    command=[sys.executable,'-I',module.__file__]
+    def call(operation):
+        child=subprocess.run([*command,operation],env=env,capture_output=True,text=True,encoding='utf-8',timeout=15)
+        return json.loads(child.stdout)
+    def failed():
+        until=time.monotonic()+30
+        while True:
+            result=call('runtime.install.status')
+            if result['status']=='failed':return result
+            assert result['status']=='waiting' and time.monotonic()<until,result
+            time.sleep(.05)
+    # Invalid local wheel name fails after real venv creation, before any network request.
+    call('runtime.install');first=failed();release=installer.Release(assets,cache)
+    assert release.envdir.is_dir() and not release.ready.exists()
+    evidence=release.envdir/'original-failure.txt';evidence.write_bytes(b'preserved-failure')
+    original=release.state();assert original['phase']=='failed'
+    env['IOALAB_PYPI_INDEX']='http://not-allowed.invalid'
+    retry=call('runtime.install');last=failed()
+    retained=last['data']['retainedAttempt']
+    assert retained['attemptId']==first['data']['attemptId']!=last['data']['attemptId']
+    archived=Path(retained['environment'])
+    assert (archived/'original-failure.txt').read_bytes()==b'preserved-failure'
+    receipt=json.loads(Path(retained['receiptPath']).read_text(encoding='utf-8'))
+    assert receipt['originalTask']==original and receipt['phase']=='archived'
+    assert Path(first['data']['logPath']).is_file() and not release.envdir.exists()
+
+
+def test_wrong_base_interpreter_fails_before_claiming_or_creating_environment(tmp_path,monkeypatch):
+    _,installer,assets,cache=bundle(tmp_path);release=installer.Release(assets,cache)
+    job=state(release,'launching');release.save(job)
+    def different_python(command,**kwargs):
+        return subprocess.CompletedProcess(command,0,json.dumps({'implementation':'cpython','version':[3,99],'prefix':'unrelated'}),'')
+    # The only replacement is the OS process boundary for the base interpreter probe.
+    monkeypatch.setattr(installer.subprocess,'run',different_python)
+    assert installer.work(assets,cache,job['attemptId'])==1
+    observed=installer.prepare(assets,cache)
+    assert observed['status']=='failed' and 'Bootstrap base Python differs' in observed['error']['message']
+    assert not release.envdir.exists() and not release.environment_owner.exists()
 
 
 def test_partial_marker_with_live_writer_is_waiting_not_corruption(tmp_path):

@@ -17,6 +17,7 @@
 |---|---|
 | 系统账号 | `useradd`的GECOS不能含冒号、换行；曾因此返回exit 3。现有合法标记实现仍须严格核同名账号归属，不能去掉归属验证来让创建通过。保留原部署id与角色，不接管未知账号 |
 | systemd单位 | `WorkingDirectory`、`EnvironmentFile`等字段与`ExecStart`命令行使用不同编码；路径含空格、引号、反斜杠、中文或`%`时尤其要按字段渲染。在独立临时目录生成候选并用`systemd-analyze verify <单位文件>`检查，不能先安装到真实单位试错 |
+| 嵌套Python与失败安装 | 解释器自身显示3.11不证明其base解释器相同；创建前核实际base的major/minor，新venv再核prefix、版本与pip。Linux产品入口明确用python3.11。失败env按产品公开归属/归档准入处理，缺归属保持unknown，不补pip、不删缓存或借探针切新目录绕过 |
 | 环境与JSON | 必需`EnvironmentFile`不能加`-`静默忽略。物理LF分行与Python`splitlines()`对Unicode分隔符的处理不同，不能静默截断值；单行协议中的CR/LF/TAB按所属校验拒绝，不临时替换secret。JSON回执与环境文件分开处理 |
 | 运行权限 | 三个环境的root导入成功不能代替服务账号可遍历父目录、读取安装资源。分别用所属core/agents身份检查；只调整本部署所属必要目录，不递归放宽状态树、模型、私钥或其他用户目录 |
 | 配置投影 | 唯一平台参数归实例`platform.json`；已有模型、管理员人工配置及组件工作区保留。SDK/Swarm读取所属运行配置，不跨读开发者`.agents/llm_apikey`，不把模型密钥放argv、全局env、镜像或普通日志 |

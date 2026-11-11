@@ -5,16 +5,46 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
 from urllib.parse import urlsplit
 import uuid
-import venv
 
 
 class Busy(RuntimeError):pass
 class Uncertain(RuntimeError):pass
+
+
+def present(path):return path.exists() or path.is_symlink()
+
+
+def write_record(path,value):
+    staged=path.with_name('.'+path.name+'-'+uuid.uuid4().hex)
+    with staged.open('x',encoding='utf-8') as stream:
+        if os.name!='nt':os.chmod(staged,0o600)
+        json.dump(value,stream,sort_keys=True);stream.write('\n')
+        stream.flush();os.fsync(stream.fileno())
+    staged.replace(path)
+
+
+def read_record(path):
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size>32768:raise ValueError()
+        return json.loads(path.read_text(encoding='utf-8'))
+    except (OSError,ValueError):raise Uncertain('Installation ownership is unavailable; preserve the original environment') from None
+
+
+def interpreter_info(python,*,pip=False):
+    code=('import json,sys'+(',pip' if pip else '')+';print(json.dumps({"implementation":sys.implementation.name,'
+          '"version":list(sys.version_info[:2]),"prefix":sys.prefix}))')
+    try:
+        result=subprocess.run([str(python),'-I','-c',code],env=worker_environment(),capture_output=True,text=True,timeout=15)
+        if result.returncode:raise ValueError()
+        return json.loads(result.stdout)
+    except (OSError,ValueError,subprocess.TimeoutExpired):
+        raise RuntimeError('Python/venv is unavailable; use the absolute path to an installed CPython3.11 with venv') from None
 
 
 @contextmanager
@@ -65,6 +95,10 @@ class Release:
         self.assets=Path(assets).resolve();manifest=self.assets/'runtime.json'
         if not manifest.is_file():raise RuntimeError('Download the complete platform skill ZIP')
         raw=manifest.read_bytes();self.manifest=json.loads(raw);self.id=hashlib.sha256(raw).hexdigest()
+        if (not isinstance(self.manifest,dict) or self.manifest.get('format')!=1
+                or not isinstance(self.manifest.get('skillVersion'),str)
+                or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',self.manifest['skillVersion'])):
+            raise RuntimeError('Download a product manifest with format 1 and a valid skillVersion')
         self.constraints=self.assets/'requirements.lock'
         if not self.constraints.is_file() or hashlib.sha256(self.constraints.read_bytes()).hexdigest()!=self.manifest['constraintsSha256']:
             raise RuntimeError('Dependency lock checksum mismatch')
@@ -84,19 +118,64 @@ class Release:
         self.launch_lock=self.cache/(prefix+'.launch.lock');self.install_lock=self.cache/(prefix+'.install.lock')
         self.metadata_lock=self.cache/(prefix+'.metadata.lock')
         self.task=self.cache/(prefix+'.install.json')
+        self.environment_owner=self.cache/(prefix+'.environment.json')
         self.identity={'format':'ioalab.access-installation/1','releaseId':self.id,'versions':self.manifest['versions']}
 
     def log(self,attempt):return self.cache/(self.id[:24]+'.'+attempt+'.install.log')
 
     def save(self,state):
         with lock(self.metadata_lock,timeout=3):
-            staged=self.task.with_suffix('.tmp')
-            staged.write_text(json.dumps(state,sort_keys=True)+'\n',encoding='utf-8')
-            if os.name!='nt':os.chmod(staged,0o600)
-            staged.replace(self.task)
+            write_record(self.task,state)
+
+    def ownership(self,attempt):
+        return {'format':'ioalab.access-environment/1','releaseId':self.id,
+                'attemptId':attempt,'environment':str(self.envdir)}
+
+    def failed_environment(self,state):
+        """Under both installer locks, retain a known failed attempt before retry."""
+        if self.state()!=state or state['phase']!='failed':raise Uncertain('Original failed attempt changed')
+        attempt=state['attemptId'];base=self.id[:24]+'.'+attempt
+        target=self.cache/(base+'.failed');receipt=self.cache/(base+'.attempt.json')
+        owner_archive=self.cache/(base+'.environment.json');expected=self.ownership(attempt)
+        if present(self.ready) or present(self.marker):raise Uncertain('A completed environment cannot be archived')
+        if present(receipt):
+            record=read_record(receipt)
+            if (not isinstance(record,dict) or record.get('format')!='ioalab.failed-installation/1'
+                    or record.get('originalTask')!=state or record.get('phase') not in ('moving','archived')
+                    or record.get('environment') not in (None,str(target))
+                    or record.get('ownership') not in (None,expected)):
+                raise Uncertain('Original failed-attempt receipt changed')
+        else:
+            if present(target) or present(owner_archive):raise Uncertain('Unrecorded failed-attempt archive exists')
+            owner=read_record(self.environment_owner) if present(self.environment_owner) else None
+            if owner is not None and owner!=expected:raise Uncertain('Failed environment belongs to another attempt')
+            if self.envdir.exists() and (not self.envdir.is_dir() or owner!=expected):
+                raise Uncertain('Existing environment has no matching installer ownership')
+            record={'format':'ioalab.failed-installation/1','phase':'moving','originalTask':state,
+                    'ownership':owner,'environment':str(target) if self.envdir.exists() else None}
+            write_record(receipt,record)
+        if record['environment'] is not None:
+            if self.envdir.exists() and not present(target):
+                if record['phase']!='moving' or read_record(self.environment_owner)!=expected:
+                    raise Uncertain('Original environment cannot be moved')
+                self.envdir.rename(target)
+            elif self.envdir.exists() or not target.is_dir() or target.is_symlink():
+                raise Uncertain('Failed environment/archive location is ambiguous')
+        elif self.envdir.exists() or present(target):raise Uncertain('Unexpected environment appeared during retention')
+        if record['ownership'] is not None:
+            if present(self.environment_owner) and not present(owner_archive):
+                if read_record(self.environment_owner)!=expected:raise Uncertain('Original environment ownership changed')
+                self.environment_owner.rename(owner_archive)
+            elif present(self.environment_owner) or not present(owner_archive):
+                raise Uncertain('Failed ownership archive is ambiguous')
+            if read_record(owner_archive)!=expected:raise Uncertain('Archived ownership changed')
+        elif present(self.environment_owner) or present(owner_archive):raise Uncertain('Unexpected ownership record appeared')
+        write_record(receipt,{**record,'phase':'archived'})
+        return {'attemptId':attempt,'logPath':state['logPath'],
+                'environment':record['environment'],'receiptPath':str(receipt)}
 
     def state(self):
-        if not self.task.exists():return None
+        if not present(self.task):return None
         try:
             with lock(self.metadata_lock,timeout=3):
                 if self.task.is_symlink() or self.task.stat().st_size>32768:raise ValueError()
@@ -110,8 +189,8 @@ class Release:
             raise Uncertain('Installation metadata changed ('+type(exc).__name__+'); preserve this cache and inspect its logs') from None
 
     def installed(self):
-        if not self.ready.exists():
-            if not self.marker.exists() or busy(self.install_lock):return False
+        if not present(self.ready):
+            if not present(self.marker) or busy(self.install_lock):return False
         try:
             valid=(not self.ready.is_symlink() and not self.marker.is_symlink() and self.python.is_file()
                    and self.ready.stat().st_size<=128 and self.marker.stat().st_size<=32768
@@ -127,6 +206,7 @@ class Release:
     def result(self,status,state=None,message=None):
         data={'stage':'installation','releaseId':self.id,'requestSubmitted':False}
         if state:data.update({key:state[key] for key in ('attemptId','logPath')})
+        if state and state.get('retainedAttempt'):data['retainedAttempt']=state['retainedAttempt']
         error=None
         if status=='completed':data.update(python=str(self.python),sharedEnvironment=True)
         elif status=='waiting':data['nextAction']={'operation':'runtime.install.status','purpose':'inspect_installation'}
@@ -141,15 +221,34 @@ class Release:
         try:state=self.state()
         except Uncertain as exc:return self.result('unknown',message=str(exc))
         if busy(self.install_lock) or include_launch and busy(self.launch_lock):return self.result('waiting',state)
+        if self.envdir.exists():
+            try:
+                if (not state or not self.envdir.is_dir()
+                        or read_record(self.environment_owner)!=self.ownership(state['attemptId'])):
+                    raise Uncertain('Existing environment has no matching installer ownership')
+            except Uncertain as exc:return self.result('unknown',state,str(exc))
         if not state:return self.result('rejected')
         if state['phase']=='failed':return self.result('failed',state,state.get('message','Inspect the installation log'))
         return self.result('unknown',state,'No live installation owner or verified completion; preserve this attempt and inspect its log')
 
-    def install(self):
+    def install(self,attempt):
         index=os.environ.get('IOALAB_PYPI_INDEX','https://pypi.tuna.tsinghua.edu.cn/simple');url=urlsplit(index)
         if url.scheme!='https' or not url.hostname or url.username or url.password or url.query or url.fragment:
             raise RuntimeError('Use an HTTPS package mirror without embedded credentials')
-        venv.EnvBuilder(with_pip=True,system_site_packages=False).create(self.envdir)
+        expected=list(sys.version_info[:2]);base=getattr(sys,'_base_executable',None)
+        if sys.implementation.name!='cpython' or expected<[3,11] or not base:
+            raise RuntimeError('Use an installed CPython3.11 or later, with venv')
+        information=interpreter_info(base)
+        if information.get('implementation')!='cpython' or information.get('version')!=expected:
+            raise RuntimeError('Bootstrap base Python differs from the current interpreter; use the absolute CPython3.11 path')
+        if present(self.envdir) or present(self.environment_owner):
+            raise Uncertain('A new attempt requires an unoccupied, installer-owned destination')
+        write_record(self.environment_owner,self.ownership(attempt))
+        subprocess.run([base,'-I','-m','venv','--copies',str(self.envdir)],env=worker_environment(),check=True)
+        created=interpreter_info(self.python,pip=True)
+        if (created.get('implementation')!='cpython' or created.get('version')!=expected
+                or Path(created.get('prefix','')).resolve()!=self.envdir):
+            raise RuntimeError('Created environment Python/pip identity differs; preserve this failed attempt')
         env=worker_environment();env.update(PIP_CONFIG_FILE=os.devnull,PIP_INDEX_URL=index)
         checks='import importlib.metadata as m; from ioalab_sdk.runtime.resident import ResidentRuntime; from ioalab_jiuwen.process import ProcessHost; expected='+repr(self.manifest['versions'])+'; assert all(m.version(k)==v for k,v in expected.items())'
         commands=[['-m','pip','install','--disable-pip-version-check','--no-input','--constraint',str(self.constraints),*self.wheels],
@@ -169,7 +268,14 @@ def prepare(assets,cache=None,*,launch=False,retry=False):
         with lock(release.launch_lock,timeout=3):
             current=release.inspect(include_launch=False)
             if current['status'] in ('completed','waiting','unknown') or current['status']=='failed' and not retry:return current
+            retained=None
+            if current['status']=='failed':
+                try:
+                    with lock(release.install_lock):retained=release.failed_environment(release.state())
+                except Busy:return release.inspect()
+                except Uncertain as exc:return release.result('unknown',release.state(),str(exc))
             attempt=str(uuid.uuid4());state={'releaseId':release.id,'attemptId':attempt,'phase':'launching','logPath':str(release.log(attempt))}
+            if retained:state['retainedAttempt']=retained
             release.save(state)
             try:
                 with release.log(attempt).open('ab') as log:
@@ -198,7 +304,7 @@ def work(assets,cache,attempt):
         if not state or state['attemptId']!=attempt or state['phase']!='launching':raise RuntimeError('Original installation launch changed')
         state={**state,'phase':'installing','pid':os.getpid()};release.save(state)
         try:
-            release.install()
+            release.install(attempt)
             if not release.installed():raise RuntimeError('Installation has no verified completion marker')
         except Exception as exc:
             message=str(exc) if isinstance(exc,RuntimeError) else 'Inspect the local installation log: '+type(exc).__name__
