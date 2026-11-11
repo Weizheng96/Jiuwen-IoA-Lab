@@ -348,7 +348,7 @@ print(json.dumps(r,ensure_ascii=False))
                     or not live.get('host',{}).get('available')):raise RuntimeError('The original administrator SDK/host is not ready')
             self.sdk('assistant.messaging.interfaces',{'account':'admin'})
             report['administrator']={'connected':True,'hostAvailable':True,'currentInterfaceQuerySucceeded':True,
-                'meetingConfigured':self.config.input['admin_assistant']['notification'] is not None}
+                'meetingConfigured':self.config.notification()[0] is not None}
         if 'trial' in required:
             from .configuration import trial_pair
             trial_pair(self.config.input['platform_config'],self.config.input['trial'])

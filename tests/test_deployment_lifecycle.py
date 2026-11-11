@@ -86,6 +86,25 @@ def test_start_waits_for_original_core_and_resumes_without_relogin(subject,monke
     with pytest.raises(RuntimeError,match='changed'):obj.start(0)
 
 
+def test_start_waits_for_new_invocation_instead_of_stopped_unit_id(subject,monkeypatch):
+    obj,calls,live=subject
+    obj.plans={'core':obj.plans['core']};obj.metadata['units']={'core':{}}
+    for name in live:live[name]='inactive'
+    ids={'core':'old-core'};pending=[]
+    obj.manager.ready=lambda name:{'ActiveState':live[name],'InvocationID':ids[name]}
+    obj.manager.freeze=lambda names:{name:obj.manager.ready(name) for name in names}
+    obj.manager.start=lambda name:pending.append(name)
+    def activated(delay):
+        calls.append('await-new-invocation');live['core']='active';ids['core']='new-core'
+    monkeypatch.setattr(lifecycle.time,'sleep',activated)
+    monkeypatch.setattr(lifecycle.activation,'current',lambda layout:{'setId':'fixed'})
+    obj.installer=lambda:SimpleNamespace(core_ready=lambda:None)
+    obj.start(1)
+    from deploy.release import read_json
+    assert pending==['core'] and 'await-new-invocation' in calls
+    assert read_json(obj.path)['started']=={'core':'new-core'}
+
+
 def test_units_stop_on_core_loss_without_automatic_restart():
     from pathlib import PurePosixPath
     layout=SimpleNamespace(root=PurePosixPath('/opt/r'),environments=PurePosixPath('/opt/r/envs'),

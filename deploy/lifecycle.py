@@ -145,7 +145,8 @@ class Lifecycle:
                     record['requested']=name;save(self.path,record)
                     self.manager.start(name)
                     current=self.manager.ready(name)
-                    while not current.get('InvocationID'):
+                    while (not current.get('InvocationID') or
+                           current.get('InvocationID')==record['before'][name].get('InvocationID')):
                         if time.monotonic()>=deadline:
                             raise RuntimeError('Original startup invocation is not verified; preserve the pending request')
                         time.sleep(.1);current=self.manager.ready(name)
