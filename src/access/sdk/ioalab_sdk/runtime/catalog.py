@@ -41,11 +41,11 @@ NONE = (shape(),)
 REFERENCE = (shape(('reference',)),)
 
 
-def _assistant(name, inputs, effect, confirmation, results, exposure=AGENT):
+def _assistant(name, inputs, effect, confirmation, results, exposure=INTERNAL):
     return Operation('assistant.' + name, ASSISTANT, inputs, effect, confirmation, results, exposure)
 
 
-def _provider(name, inputs, effect, confirmation, results, exposure=AGENT):
+def _provider(name, inputs, effect, confirmation, results, exposure=INTERNAL):
     return Operation('provider.' + name, PROVIDER, inputs, effect, confirmation, results, exposure)
 
 
@@ -74,6 +74,8 @@ OPERATIONS = (
     Operation('account.setup', SCRIPT, (shape((), ('platform_url','role')),), LOCAL, False, SETUP, AGENT),
     Operation('account.setup.status', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),
     # Personal assistant role.
+    _assistant('delegation.flow', (shape(('action',), ('input', 'flowRef')),), EXTERNAL, True, JOB, AGENT),
+    _assistant('messaging.flow', (shape(('action',), ('input', 'flowRef')),), EXTERNAL, True, JOB, AGENT),
     _assistant('tools.list', NONE, READ, False, LOCAL_READ),
     _assistant('rules.draft', (shape(('declaration', 'instructions')),), LOCAL, False, LOCAL_READ),
     _assistant('rules.validate', (shape(('draftRef',)),), READ, False, LOCAL_READ),
@@ -110,6 +112,7 @@ OPERATIONS = (
                                       shape(('quoteRef', 'ground'), ('period', 'materials', 'confirmationRef'))), EXTERNAL, True, CONFIRMED),
     _assistant('delegation.dispute_status', (shape(('caseRef',)),), READ, False, QUERY),
     # Service provider role.
+    _provider('flow', (shape(('profile', 'action'), ('input', 'flowRef')),), EXTERNAL, True, JOB, AGENT),
     _provider('preview', (shape(('service',)),), LOCAL, False, JOB),
     _provider('publish', (shape(('service', 'contentDigest', 'expectedRevision'), ('confirmationRef',)),), EXTERNAL, True, CONFIRMED),
     _provider('status', (shape(('profile',)),), READ, False, QUERY),

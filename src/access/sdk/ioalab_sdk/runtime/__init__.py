@@ -2,6 +2,7 @@
 
 Other modules import the shared runtime only from here; submodules stay importable for installed callers."""
 from .catalog import AGENT, ASSISTANT, CATALOG, INTERNAL, OPERATIONS, PROVIDER, RUNTIME, SCRIPT, Operation, fields, handled_by
+from .flows import FlowJournal, flow_key
 from .config import RuntimeConfig, data_directory, read_configuration
 from .connection import AgentConnection
 from .network import Network
@@ -22,6 +23,7 @@ from .trusted_user import TrustedUserPort, TrustedUserServer
 from ..templates import TEMPLATE_LIFETIME, TEMPLATE_RENEW_BEFORE, draft_from_terms, template_from_definition
 
 __all__ = [
+    'FlowJournal', 'flow_key',
     'AGENT', 'ASSISTANT', 'CATALOG', 'INTERNAL', 'OPERATIONS', 'PROVIDER', 'RUNTIME', 'SCRIPT', 'Operation', 'fields',
     'handled_by', 'RuntimeConfig', 'data_directory', 'read_configuration', 'AgentConnection', 'Network', 'prepare_home',
     'private_json', 'private_text', 'read_arguments', 'read_json', 'restrict', 'windows_sid', 'PrivateFiles', 'AgentDefinition',

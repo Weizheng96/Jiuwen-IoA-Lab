@@ -4,7 +4,7 @@
 
 ## 用SDK起草完整模板
 
-调用provider.template.draft，参数为profile和terms。terms直接使用原A2C业务字段，不填写a2cVersion、kind、validUntil、provider、templateDigest、signatures或pricing.paymentProviders；SDK使用当前协议和实际平台上下文补齐，再校验。不要使用type、amount、virtual_coin等自造合同字段。
+调用provider.flow（action=template，terms放input），参数为profile和terms。terms直接使用原A2C业务字段，不填写a2cVersion、kind、validUntil、provider、templateDigest、signatures或pricing.paymentProviders；SDK使用当前协议和实际平台上下文补齐，再校验。不要使用type、amount、virtual_coin等自造合同字段。
 
 提案模式的最小结构示例（业务名称、规格、期限、权重及拟卡费均须按用户业务调整）：
 
@@ -39,7 +39,7 @@ specSchema是“规格键→取值域”的映射，不是完整JSON Schema。�
 
 ## 准备真实验收器
 
-预置复用时，前台用provider.verifier.publish；提案按单确定判据时，后台quote阶段用provider.task.verifier.publish。两者共用打包及校验；前者参数为profile、verifierId、source，可选reads和kind，后者不接受profile、交互UUID或Session，由SDK绑定当前服务和作业。verifierId形如`content_check@1.0`，名称用小写字母/数字/下划线；kind只能使用平台已支持的script或skill，不能写text。source是实际Python源码，不是自然语言验收要求。
+预置复用时，前台用provider.flow（action=verifier，业务参数放input）；提案按单确定判据时，后台quote阶段用provider.task.verifier.publish。两者共用打包及校验；前者参数为profile、verifierId、source，可选reads和kind，后者不接受profile、交互UUID或Session，由SDK绑定当前服务和作业。verifierId形如`content_check@1.0`，名称用小写字母/数字/下划线；kind只能使用平台已支持的script或skill，不能写text。source是实际Python源码，不是自然语言验收要求。
 
 L1入口为`def verify(ctx)`，返回`{"status":"pass或fail","checks":[实际检查结果]}`。通过ctx.read("约定文件名")取得交付字节；reads声明要读取的合同spec/inputs字段。程序只在WASM中执行，不能在宿主import/exec交付源码。以下只示意文本非空检查，不能据此宣称源码功能完整：
 
@@ -55,7 +55,7 @@ def verify(ctx):
 
 业务验收必须覆盖实际合同要求；代码类应在沙箱中调用真实函数检查功能/状态/幂等，不用文件存在或恒真函数冒充。用户确认验收是SDK流程中的另一道门，不是技术验收器的判据。不能自动检查的范围明确列入notCovered。
 
-本单回调的source不超过64KiB UTF-8，每个quote最多准备32个包。相同内容返回原引用，调用ID变化不产生另一业务；unknown时结束本轮，保留原作业及上传记录并报告待核对；在本机管理入口用provider.tasks.get核对；仅SDK明确canResume且用户要求继续时调用provider.task.resume，入队后查询原taskRef，不重建委托。不得换源码绕过未知结果，决定已保存或进入其他阶段后不再准备判据。
+本单回调的source不超过64KiB UTF-8，每个quote最多准备32个包。相同内容返回原引用，调用ID变化不产生另一业务；unknown时结束本轮，保留原作业及上传记录并报告待核对；在本机管理入口用provider.flow（action=tasks，原taskRef放input）核对；仅SDK明确canResume且用户要求继续时调用provider.flow（action=recover_task，原taskRef放input），入队后查询原taskRef，不重建委托。不得换源码绕过未知结果，决定已保存或进入其他阶段后不再准备判据。
 
 只使用上传回执中真实的{id,uri,digest}。acceptance以交付件名为键，每项为`{"verifiers":{"script":真实引用},"notCovered":[]}`；L2使用skill键并按实际包配置disputeModels。不得要求每个交付同时具备三类验收器或编造包地址。
 

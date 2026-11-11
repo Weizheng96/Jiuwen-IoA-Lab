@@ -7,7 +7,7 @@
 3. 用受限配置入口填写instructions、skills、max_active_delegations及accepting，可按用户明确授权填写精确native_tools；resources和外部工具选项留在用户私下配置中，通用配置操作不读取或修改。业务技能名通过host.skill_directories映射到实际绝对目录，使用原生加载结果；SDK冻结读取SKILL.md和references中的Markdown，不凭名称宣称能力就绪。
 4. **执行前先读取[公共SDK启动与恢复](shared-runtime.md)**，按其完整命令安装/启动并核身份、连接及宿主。未发布模板时executionReady=false是实际未就绪，不能宣称上线接单。
 
-用户要暂不接单时用provider.pause（profile）并核currentPolicy.accepting=false；开放接单用provider.resume并核真实状态。可先暂停再公示，原参数文件重传不重开开关；重启或公示不等于恢复。provider.status中的admissionPolicy是平台实际策略，executionReady只是执行能力。原有效预留及合同继续处理，不能杀进程冒充暂停。
+用户要暂不接单时用provider.flow（profile、action=pause）并核currentPolicy.accepting=false；开放接单用provider.flow（action=resume_admission，原profile及flowRef）并核真实状态。可先暂停再公示，原参数文件重传不重开开关；重启或公示不等于恢复。provider.flow（action=status）中的admissionPolicy是平台实际策略，executionReady只是执行能力。原有效预留及合同继续处理，不能杀进程冒充暂停。
 
 接单上限限制未结束委托，等待授权/验收仍占名额；max_model_runs限制正在执行的模型轮次，二者独立。业务技能不自动授予工具权限。核unavailableSkills、unavailableNativeTools及uncheckedNativeTools，实际工具错误如实处理。
 

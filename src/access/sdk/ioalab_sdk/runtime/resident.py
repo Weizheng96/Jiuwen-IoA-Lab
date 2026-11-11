@@ -161,7 +161,8 @@ class ResidentRuntime:
                 result=handler(self,operation_id,args)
                 if not isinstance(result,dict) or result.get('status') not in ('accepted','running','waiting','completed','rejected','failed','unknown'):
                     raise RuntimeFault('protocol_error','Role operation did not return an explicit result')
-                return {'operationId':operation_id,'status':result['status'],'data':result.get('data'),'error':result.get('error')}
+                return {'operationId':operation_id,'status':result['status'],'data':result.get('data'),'error':result.get('error'),
+                        **({'nextActions':result['nextActions']} if 'nextActions' in result else {})}
             return {'operationId':operation_id,'status':state,'data':data,'error':None}
         except RuntimeFault as exc:
             return {'operationId':operation_id,'status':'unknown' if exc.code=='unknown_result' else 'rejected','data':None,'error':public_error(exc)}

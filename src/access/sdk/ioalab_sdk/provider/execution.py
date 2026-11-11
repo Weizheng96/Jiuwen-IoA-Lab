@@ -101,6 +101,7 @@ class ProviderExecution:
             try:
                 if self.runtime.connection.connected:
                     self.scan()
+                    self.role.flows.scan()
             except (RuntimeFault,httpx.HTTPError):pass
             except Exception as exc:
                 self.role.error={'code':'not_ready','type':type(exc).__name__,'recovery':'inspect_local_provider_state'}
