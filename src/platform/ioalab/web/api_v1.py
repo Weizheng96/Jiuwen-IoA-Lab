@@ -26,6 +26,12 @@ def build_router(platform, current_user):
         return {'id':uid,'token':platform.auth.token('assistant:'+uid,expires_at=until),
                 'expiresAt':datetime.fromtimestamp(until,timezone.utc).isoformat().replace('+00:00','Z'),'credited':False}
 
+    @router.post('/accounts')
+    def register_account(body:dict,request:Request):
+        from .source import client_ip
+        return platform.accounts.register(body.get('username',''),body.get('password',''),invite=body.get('invite',''),
+            operation_id=body.get('operationId'),ip=client_ip(request,platform.s),audience='sdk')
+
     @router.get("/me")
     def me(uid=Depends(sdk_user)):
         return platform.account_views.sdk_me(uid)

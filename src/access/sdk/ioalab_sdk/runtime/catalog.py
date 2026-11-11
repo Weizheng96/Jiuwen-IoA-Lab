@@ -71,6 +71,8 @@ OPERATIONS = (
     Operation('runtime.configure', SCRIPT, (shape(('expectedDigest', 'changes')),), LOCAL, False, LOCAL_READ, AGENT),
     Operation('runtime.web-extension', SCRIPT, (shape(('profile',)),), LOCAL, False, LOCAL_READ, AGENT),
     Operation('account.login', SCRIPT, NONE, CONTROL, False, QUERY, AGENT),
+    Operation('account.setup', SCRIPT, (shape((), ('platform_url','role')),), LOCAL, False, SETUP, AGENT),
+    Operation('account.setup.status', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),
     # Personal assistant role.
     _assistant('tools.list', NONE, READ, False, LOCAL_READ),
     _assistant('rules.draft', (shape(('declaration', 'instructions')),), LOCAL, False, LOCAL_READ),

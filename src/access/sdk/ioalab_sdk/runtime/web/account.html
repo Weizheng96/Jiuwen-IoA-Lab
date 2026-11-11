@@ -1,0 +1,14 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>IoA Lab 本机账号设置</title>
+<style>body{font:17px system-ui;max-width:640px;margin:60px auto;padding:20px;background:#f4f7fb;color:#17253d}input,button{font:inherit;padding:10px;margin:8px 0}label,input{display:block}input{box-sizing:border-box;width:100%}button{cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere}section{background:white;padding:24px;border-radius:12px}</style>
+<section><h1>接入 IoA Lab</h1><p>密码仅在此本机页面输入和保存。请勿将凭据粘贴到九问聊天。</p>
+<form id="existing"><h2>提供已有账号</h2><label>账号<input name="username" autocomplete="username" required></label><label>密码<input name="password" type="password" autocomplete="current-password" required></label><button>保存并登录</button></form>
+<form id="register"><h2>帮我注册</h2><p>本机将生成随机账号和密码。网络异常后重新点击将恢复原注册。</p><label>邀请码（邀请制时必填）<input name="invite" autocomplete="off"></label><button>生成账号并注册</button></form>
+<button id="close">关闭账号页</button><p id="result" role="status"></p><details><summary>查看并保管本机生成的凭据</summary><pre id="credentials"></pre></details></section>
+<script>
+let csrf;const result=document.getElementById('result');
+async function request(path,body){const r=await fetch(path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-Ioa-Csrf':csrf||''},body:body?JSON.stringify(body):undefined});const v=await r.json();if(!r.ok)throw Error(v.error?.message||'请求失败');return v;}
+async function refresh(){const v=await request('/user/api');csrf=v.csrf;document.getElementById('credentials').textContent=v.credentials?JSON.stringify(v.credentials,null,2):'尚无生成凭据';}
+for(const mode of ['existing','register'])document.getElementById(mode).onsubmit=async e=>{e.preventDefault();for(const b of document.querySelectorAll('button'))b.disabled=true;try{const v=await request('/user/decision',{mode,...Object.fromEntries(new FormData(e.target))});result.textContent=v.authenticated?'账号认证完成。返回九问继续配置宿主并核对连接。':JSON.stringify(v);await refresh();}catch(e){result.textContent=e.message;}finally{for(const b of document.querySelectorAll('button'))b.disabled=false;}};
+document.getElementById('close').onclick=async()=>{await request('/user/decision',{mode:'cancel'});result.textContent='已关闭。未核实的原操作保留，可回到九问恢复。';};
+(async()=>{try{const token=location.hash.slice(1);history.replaceState(null,'','/user');if(token)csrf=(await request('/user/session',{token})).csrf;await refresh();}catch(e){result.textContent=e.message;}})();
+</script></html>

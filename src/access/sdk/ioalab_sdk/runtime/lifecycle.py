@@ -88,6 +88,12 @@ def run(argv,*,modules,validate,service_fields):
         item=commands.add_parser(name)
         item.add_argument('--config',type=Path,required=True)
         if name=='configure':item.add_argument('--args-file',type=Path,required=True)
+    for name in ('account-setup','account-setup-status'):
+        item=commands.add_parser(name)
+        item.add_argument('--config',type=Path,required=True)
+        if name=='account-setup':
+            item.add_argument('--platform');item.add_argument('--role',choices=('assistant','service'),default='assistant')
+            item.add_argument('--worker');item.add_argument('--args-file',type=Path)
     call=commands.add_parser('call')
     call.add_argument('operation')
     call.add_argument('--config',type=Path,required=True)
@@ -100,7 +106,20 @@ def run(argv,*,modules,validate,service_fields):
             runtime=ResidentRuntime(RuntimeConfig.load(args.config),modules=modules())
             runtime.run()
             return 0
-        if args.command=='login':
+        if args.command in ('account-setup','account-setup-status'):
+            from .account_setup import launch,serve,status
+            if args.command=='account-setup-status':result=status(args.config)
+            else:
+                options={'role':args.role}
+                if args.platform:options['platform_url']=args.platform
+                if args.args_file:
+                    from .files import read_json
+                    options=read_json(args.args_file)
+                if args.worker:
+                    serve(args.config,options,args.worker)
+                    return 0
+                result=launch(args.config,options)
+        elif args.command=='login':
             from .authentication import login
             result=login(args.config)
         elif args.command in ('validate','configuration','configure'):result=setup_command(args.command,args.config,getattr(args,'args_file',None),validate=validate,service_fields=service_fields())

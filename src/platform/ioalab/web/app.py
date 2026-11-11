@@ -367,6 +367,11 @@ def create_app(platform: Platform) -> FastAPI:
         if not platform.auth.is_admin(actor):raise HTTPException(403,'需要管理员权限')
         return FileResponse(STATIC / "admin.html")
 
+    @app.get('/api/access/packages')
+    def access_packages():
+        from .access_packages import packages
+        return packages(platform.s.bundles_dir)
+
     @app.get('/downloads/{bundle}')
     def access_skill_download(bundle:str):
         if bundle not in ('ioalab-assistant-skill.zip','ioalab-provider-skill.zip'):raise HTTPException(404,'Unknown public bundle')

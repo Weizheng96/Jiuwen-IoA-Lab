@@ -1,8 +1,8 @@
 # 接入与业务能力
 
-触发：本机用户配置或诊断服务。先确认平台账号、支持公开Process接口的原版九问及实际业务能力。
+触发：本机用户配置或诊断服务。首次接入先读[账号引导](account-setup.md)，使用service角色；已有账号和配置直接复用。确认支持公开Process接口的原版九问及实际业务能力。
 
-1. 用户将settings.example.json复制到~/.ioalab/settings.local.json或指定外置文件，填写平台、账号、password/password_env（二选一）和既有九问命令/数据目录。账号、身份和宿主检查只使用SDK脱敏结果；不得读取该文件正文，即使只是检查文件存在或角色配置。
+1. 账号页创建或复用外置配置，之后经受控配置入口补齐既有九问命令/数据目录。账号、身份和宿主检查只使用SDK脱敏结果；不得读取该文件正文，即使只是检查文件存在或角色配置。
 2. 同账号已有个人助手时复用同一个--config与data_dir。读取公共流程，用runtime.configuration/configure按稳定key增加service身份及provider.services；不读取或整份改写账号配置，不改变既有角色或另建竞争运行时。
 3. 用受限配置入口填写instructions、skills、max_active_delegations及accepting，可按用户明确授权填写精确native_tools；resources和外部工具选项留在用户私下配置中，通用配置操作不读取或修改。业务技能名通过host.skill_directories映射到实际绝对目录，使用原生加载结果；SDK冻结读取SKILL.md和references中的Markdown，不凭名称宣称能力就绪。
 4. **执行前先读取[公共SDK启动与恢复](shared-runtime.md)**，按其完整命令安装/启动并核身份、连接及宿主。未发布模板时executionReady=false是实际未就绪，不能宣称上线接单。

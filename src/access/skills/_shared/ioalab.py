@@ -60,7 +60,13 @@ def main(argv=None):
             emit(prepared);return 0 if prepared['status'] in ('completed','waiting') else 1
         python=Path(prepared['data']['python'])
         config=(args.config or Path.home()/'.ioalab/settings.local.json').expanduser().resolve()
-        if args.operation=='account.login':
+        if args.operation in ('account.setup','account.setup.status'):
+            arguments=['-m','ioalab_sdk.access','account-setup' if args.operation=='account.setup' else 'account-setup-status','--config',str(config)]
+            if args.args_file:
+                if args.operation.endswith('.status'):raise RuntimeError('Account status uses only --config')
+                arguments+=['--args-file',str(args.args_file.expanduser().resolve())]
+            result=invoke(python,arguments)
+        elif args.operation=='account.login':
             if args.args_file:raise RuntimeError('account.login uses only the local configuration; omit args-file')
             result=invoke(python,['-m','ioalab_sdk.access','login','--config',str(config)])
         elif args.operation=='runtime.web-extension':

@@ -1,0 +1,139 @@
+"""Public short controller and authenticated browser channel, against the real platform."""
+import json
+import threading
+
+import httpx
+import pytest
+
+from ioalab_sdk.runtime.account_setup import AccountSetupUi
+from ioalab_sdk.runtime.ipc import IpcServer
+from ioalab_sdk.runtime.files import read_json
+from ioalab_sdk.runtime.protocol import RuntimeFault
+from _support import PASSWORD,new_user
+
+
+def test_register_browser_and_replay_keep_one_account(platform,tmp_path):
+    config=tmp_path/'settings.json'
+    ui=AccountSetupUi(config,{'platform_url':platform.s.base_url,'role':'assistant'})
+    server=IpcServer(ui.home,'account-setup',lambda *args:pytest.fail('No RPC'),user_ui=ui)
+    thread=threading.Thread(target=server.server.serve_forever,daemon=True);thread.start()
+    try:
+        origin=ui.origin
+        with httpx.Client(base_url=origin,trust_env=False) as browser:
+            assert browser.post('/user/decision',json={'mode':'register'},headers={'Origin':origin}).status_code==403
+            entry=ui.entry_url().split('#')[1]
+            csrf=browser.post('/user/session',json={'token':entry},headers={'Origin':origin}).json()['csrf']
+            headers={'Origin':origin,'X-Ioa-Csrf':csrf}
+            assert browser.post('/user/decision',json={'mode':'register'},headers={**headers,'Origin':'https://other.test'}).status_code==403
+            first=browser.post('/user/decision',json={'mode':'register'},headers=headers)
+            assert first.status_code==200,first.text
+            result=first.json()
+            assert result['authenticated'] and 'password' not in result and 'token' not in result
+            account=result['id']
+            balance=platform.wallets.balance(account)
+            assert browser.post('/user/decision',json={'mode':'register'},headers=headers).json()==result
+            assert platform.wallets.balance(account)==balance
+            assert read_json(config)['username']==result['username']
+            private=browser.get('/user/api').json()
+            assert private['credentials']['password']==read_json(config)['password']
+    finally:
+        server.server.shutdown();thread.join();server.close()
+
+
+@pytest.mark.parametrize('role',['assistant','service'])
+def test_lost_registration_receipt_resumes_original(platform,tmp_path,monkeypatch,role):
+    ui=AccountSetupUi(tmp_path/'settings.json',{'platform_url':platform.s.base_url,'role':role})
+    post=httpx.Client.post
+    lost=[]
+    def drop(client,url,*args,**kwargs):
+        response=post(client,url,*args,**kwargs)
+        if str(url).endswith('/api/v1/accounts') and not lost:
+            lost.append(response.json())
+            raise httpx.ReadError('lost response')
+        return response
+    monkeypatch.setattr(httpx.Client,'post',drop)
+    with pytest.raises(RuntimeFault,match='unverified'):ui.decision({'mode':'register'},None)
+    original=read_json(ui.journal)
+    assert original['phase']=='pending'
+    ui=AccountSetupUi(ui.path,{})
+    result=ui.decision({'mode':'register'},None)
+    assert result['id']==lost[0]['id']
+    assert read_json(ui.journal)['body']==original['body']
+    assert read_json(ui.path)['identities'][0]['role']==role
+    assert platform.wallets.balance(result['id'])==100
+
+
+def test_cancel_does_not_require_stopping_a_resident(platform,tmp_path):
+    from ioalab_sdk.runtime.lease import Lease
+    ui=AccountSetupUi(tmp_path/'settings.json',{'platform_url':platform.s.base_url})
+    with Lease(ui.home/'client.lock',timeout=0):
+        assert ui.decision({'mode':'cancel'},None)['cancelled']
+
+
+def test_reusing_valid_session_preserves_original_credentials(platform,tmp_path):
+    from test_resident_runtime import configuration
+    from ioalab_sdk.runtime.authentication import login
+    config,user=configuration(platform,tmp_path,service=False)
+    login(config)
+    original=read_json(config)
+    ui=AccountSetupUi(config,{})
+    result=ui.decision({'mode':'existing','username':user['username'],'password':'not-the-stored-password'},None)
+    assert result['authenticated'] and not result['newLogin']
+    assert read_json(config)==original
+
+
+def test_existing_wrong_password_cancel_correct_and_no_secrets(platform,tmp_path):
+    user=new_user(platform)
+    ui=AccountSetupUi(tmp_path/'settings.json',{'platform_url':platform.s.base_url})
+    with pytest.raises(RuntimeFault):ui.decision({'mode':'existing','username':user['username'],'password':'wrong-password'},None)
+    assert ui.decision({'mode':'cancel'},None)['cancelled']
+    ui=AccountSetupUi(ui.path,{})
+    result=ui.decision({'mode':'existing','username':user['username'],'password':PASSWORD},None)
+    assert result['authenticated']
+    assert PASSWORD not in json.dumps(read_json(ui.receipt))
+    assert 'token' not in json.dumps(read_json(ui.receipt))
+    assert ui.snapshot()['credentials'] is None
+
+
+@pytest.mark.parametrize('policy',['closed','invite'])
+def test_registration_policy_reports_real_next_step(platform,tmp_path,policy):
+    previous=platform.s.registration
+    platform.s.registration=policy
+    try:
+        ui=AccountSetupUi(tmp_path/'settings.json',{'platform_url':platform.s.base_url})
+        with pytest.raises(RuntimeFault,match='不开放注册' if policy=='closed' else '邀请码无效'):
+            ui.decision({'mode':'register'},None)
+        if policy=='invite':
+            result=ui.decision({'mode':'register','invite':platform.auth.new_invite()},None)
+            assert result['authenticated']
+            assert platform.wallets.balance(result['id'])==100
+    finally:platform.s.registration=previous
+
+
+def test_changed_platform_cannot_reuse_completed_registration(platform,tmp_path):
+    ui=AccountSetupUi(tmp_path/'settings.json',{'platform_url':platform.s.base_url})
+    result=ui.decision({'mode':'register'},None)
+    settings=read_json(ui.path);settings['platform_url']='https://another.invalid'
+    from ioalab_sdk.runtime.files import private_json
+    private_json(ui.path,settings)
+    other=AccountSetupUi(ui.path,{})
+    with pytest.raises(RuntimeFault,match='original platform'):
+        other.decision({'mode':'register'},None)
+
+
+@pytest.mark.parametrize('code',[429,500,401])
+def test_uncertain_registration_never_changes_account_or_operation(platform,tmp_path,monkeypatch,code):
+    ui=AccountSetupUi(tmp_path/'settings.json',{'platform_url':platform.s.base_url})
+    post=httpx.Client.post
+    def unavailable(client,url,*args,**kwargs):
+        if str(url).endswith('/api/v1/accounts'):
+            return httpx.Response(code,json={'error':{'code':'rate_limited' if code==429 else 'forbidden','message':'retry'}},request=httpx.Request('POST',url))
+        return post(client,url,*args,**kwargs)
+    monkeypatch.setattr(httpx.Client,'post',unavailable)
+    with pytest.raises(RuntimeFault):ui.decision({'mode':'register'},None)
+    original=read_json(ui.journal)['body']
+    assert read_json(ui.journal)['phase']=='pending'
+    monkeypatch.setattr(httpx.Client,'post',post)
+    result=ui.decision({'mode':'register'},None)
+    assert result['authenticated'] and read_json(ui.journal)['body']==original
+    assert platform.wallets.balance(result['id'])==100
