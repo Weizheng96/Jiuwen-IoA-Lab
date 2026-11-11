@@ -334,7 +334,7 @@ print(json.dumps(r,ensure_ascii=False))
                            and item['current'].get('localExecution',{}).get('executionReady')
                            and item['current'].get('admissionPolicy',{}).get('accepting')) for item in services)
             report['official']={'connectedAccounts':len(rows),'services':len(services),'availableServices':ready}
-            if self.request['action'] in ('install','repair-bootstrap') and not self.progress.get('recheck') and ready!=sum(map(len,expected.values())):
+            if self.request['action'] in ('install','repair-bootstrap','test-reset') and not self.progress.get('recheck') and ready!=sum(map(len,expected.values())):
                 raise RuntimeError('Initial official service publication/index is not ready')
         if 'swarm-web' in required:
             env=read_environment(self.layout.config/'agents/swarm-admin.env')
@@ -363,13 +363,18 @@ print(json.dumps(r,ensure_ascii=False))
         return report
 
     def run(self):
-        if self.progress.get('stage') not in ('candidate','bootstrap','upgrade','verifying','completed'):
+        if self.progress.get('stage') not in ('candidate','bootstrap','upgrade','test-reset','verifying','completed'):
             raise RuntimeError('Restore the original fixed installation stage')
         self.saved(outcome='running')
-        self.directories();self.config.base();self.permissions()
+        # A persisted test-reset may have already removed generated role files.
+        # Its own clearing/initializing stages own their recreation.
+        if self.progress['stage']!='test-reset':
+            self.directories();self.config.base();self.permissions()
         if self.progress['stage']=='candidate':
             candidate=self.candidate();current=activation.current(self.layout)
-            if self.request['action']=='upgrade':
+            if self.request['action']=='test-reset':
+                self.saved(stage='test-reset',candidate=candidate,testReset={},requiredRunning=list(self.plans))
+            elif self.request['action']=='upgrade':
                 if not self.metadata.get('initialized') or not current:
                     raise RuntimeError('Finish the original installation before requesting an upgrade')
                 self.saved(stage='upgrade',candidate=candidate,upgrade={})
@@ -393,6 +398,10 @@ print(json.dumps(r,ensure_ascii=False))
             required=[key for key,row in self.plans.items() if self.progress['upgrade']['before'][row['unit']].get('ActiveState')
                       in ('active','activating','reloading')]
             self.saved(stage='verifying',requiredRunning=required)
+        if self.progress['stage']=='test-reset':
+            from .test_server import Reset
+            Reset(self).run()
+            self.saved(stage='verifying',requiredRunning=list(self.plans))
         if self.progress['stage']=='verifying':
             if activation.current(self.layout)!=self.progress['candidate']:
                 raise RuntimeError('The current installed set differs from this original operation')

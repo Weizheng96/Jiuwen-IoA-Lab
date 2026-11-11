@@ -29,6 +29,8 @@ def begin(role, operation, args):
 
 def guidance(name, operation, args, result):
     """Hints contain real references only and never grant permission."""
+    if name in ('delegation.flow', 'messaging.flow'):
+        return result
     result = copy.deepcopy(result)
     actions = []
     data = result.get('data', {})

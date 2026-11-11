@@ -46,6 +46,8 @@ class AssistantRole:
         self.cases=Cases(self)
         self.messaging=Messaging(self)
         self.inbound=Inbound(self)
+        from .agent_flows import AssistantFlows
+        self.flows=AssistantFlows(self)
         return {'operations':{name:self._operation(name.split('.',1)[1]) for name in handled_by(ASSISTANT)},
                 'jobs':{'assistant.message':JobHandler(self.inbound.process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available'))),
                         'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False),
@@ -80,6 +82,10 @@ class AssistantRole:
     def _call(self,name,operation,args):
         inputs=CATALOG['assistant.'+name].inputs
         if len(inputs)==1:self.fields(args,*inputs[0])
+        if name in ('delegation.flow','messaging.flow'):
+            journal=getattr(self.flows,name.split('.')[0])
+            actions=self.flows.DELEGATION if name.startswith('delegation.') else self.flows.MESSAGING
+            return journal.call(operation,args,actions)
         if name=='delegation.begin':return begin(self,operation,args)
         if name=='delegation.dispute':return self.cases.dispute(operation,args)
         if name=='delegation.dispute_status':return self.cases.dispute_status(args)
@@ -166,6 +172,7 @@ class AssistantRole:
             try:
                 if self.runtime.connection.connected and self.trading:
                     self.trading.recover();self.contracts.recover();self.fulfillment.recover();self.termination.recover();self.termination.scan();self.cases.scan()
+                    self.flows.scan()
                 if self.runtime.connection.connected and self.host and self.host.capabilities().get('available'):
                     self.inbound.schedule_received()
             except (RuntimeFault,httpx.HTTPError):pass

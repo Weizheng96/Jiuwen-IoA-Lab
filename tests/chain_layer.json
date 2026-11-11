@@ -533,6 +533,14 @@
   ],
   "tests/test_workbench_network.py": [
    "test_public_service_uses_its_declaration_connection_and_current_admission_policy"
+  ],
+  "tests/test_agent_flows.py": [
+   "test_service_flow_preview_confirmation_publish_and_pause_resume",
+   "test_delegation_flow_push_fetch_preview_and_notification_without_acceptance",
+   "test_messaging_flow_inbox_publication_and_two_rounds",
+   "test_flow_wait_survives_runtime_restart_and_preserves_confirmation",
+   "test_two_period_flow_waits_for_independent_acceptance_before_next_delivery",
+   "test_messaging_flow_unknown_lookup_recovers_original_message_without_resending"
   ]
  }
 }

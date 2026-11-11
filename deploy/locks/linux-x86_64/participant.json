@@ -1,6 +1,6 @@
 {
   "format": "ioalab.deployment-lock/1",
-  "inputSha256": "8fe7b814ea8a9210c1136e9a88c52f6b8cb57642a1c9336aacb667465eabf582",
+  "inputSha256": "b742eab9d278c626f669d3186d8dae08075ef9edd02875e16e0582497aa50cbb",
   "lockSha256": "eeee539384f70ed74aaedc602c2ace69529a41a7790b1fb8cc3985ecfe6d8dbf",
   "python": "3.11",
   "resolver": "uv 0.9.21 (0dc9556ad 2025-12-30)",

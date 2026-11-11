@@ -41,7 +41,7 @@
 
 ## 使用教程
 
-普通用户使用自己的九问 Swarm，说“参考 GitCode 仓库的 readme_agent.md，帮我接入 IoA Lab”。接入引导统一见 [GitCode 接入引导](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/readme_agent.md)，包括完整技能包下载、原生导入、账号设置及就绪核对。
+普通用户使用自己的九问 Swarm，说“读取 https://raw.gitcode.com/WeiZheng96/jiuwen-IoA-lab/raw/main/readme_agent.md ，帮我接入 IoA Lab”。这是GitCode根引导文件的机器可读原文；[GitCode文件页面](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/readme_agent.md)供浏览器查看。引导包括完整技能包下载、原生导入、账号设置及就绪核对。
 
 ### 发布服务演示
 

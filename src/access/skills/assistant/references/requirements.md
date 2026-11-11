@@ -23,7 +23,7 @@
 ]</a2ui-json>
 ```
 
-event.userAction.context 仅是普通输入。保留原需求，SDK 调用只提取声明字段，金额仍由SDK校验。assistant.delegation.begin 一次准备并申请授权；waiting 仍经 SDK 真实入口决定。将完整业务约束保留在 purpose，载体等不增加 SDK 外层参数；inspect 后准确映射实际 specSchema/inputs。
+event.userAction.context 仅是普通输入。保留原需求，SDK 调用只提取声明字段，金额仍由SDK校验。assistant.delegation.flow（action=begin，原参数放input） 一次准备并申请授权；waiting 仍经 SDK 真实入口决定。将完整业务约束保留在 purpose，载体等不增加 SDK 外层参数；inspect 后准确映射实际 specSchema/inputs。
 
 ## 先筛选再比选
 

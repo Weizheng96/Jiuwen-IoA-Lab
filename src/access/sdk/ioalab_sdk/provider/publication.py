@@ -35,6 +35,8 @@ class ProviderRole:
             return {}
         from .execution import ProviderExecution
         self.execution=ProviderExecution(self,runtime,self.host)
+        from .flow import ProviderFlows
+        self.flows=ProviderFlows(self)
         registration=self.execution.bind()
         registration['jobs']['provider.preview']=JobHandler(self.run_preview,'provider-preview-v1',False)
         return {'operations': {name: self._handler(name.split('.', 1)[1]) for name in handled_by(PROVIDER)},**registration}
@@ -64,6 +66,7 @@ class ProviderRole:
         def execute(runtime, operation, args):
             try:
                 self.fields(args,*fields('provider.'+name))
+                if name=='flow':return self.flows.call(operation,args)
                 if name=='verifier.publish':
                     identity=self._identity(args['profile'])
                     return {'status':'completed','data':self.verifiers.publish(identity,operation,{k:v for k,v in args.items() if k!='profile'})}
