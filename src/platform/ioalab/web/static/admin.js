@@ -93,6 +93,8 @@ async function loadConfiguration(){
     $('cfgFailures').value=a.max_failures;$('cfgWindow').value=a.window_seconds;$('cfgLocal').checked=a.local_unlimited;
     $('cfgRegistrations').value=a.registration_limit;$('cfgRegistrationWindow').value=a.registration_window_seconds;
     $('cfgInitial').value=c.initial;$('cfgLogin').value=c.login;$('cfgRepeat').checked=c.repeat_daily;
+    $('cfgAdminEmail').value=value.administratorAssistant.savedEmail;
+    $('cfgAdminEmailStatus').textContent=`已保存：${value.administratorAssistant.savedEmail}；核心启动时：${value.administratorAssistant.startupEmail||'未读取'}。保存后需正常停止并启动管理员助手，由部署入口应用，不重发历史邀请。`;
     const n=value.network, saved=n.saved, active=n.active;
     $('cfgNativePort').value=trialPort(saved.trial_url);$('cfgConfirmPort').value=trialPort(saved.trial_confirm_url);
     $('cfgNetworkCurrent').textContent=`正式地址（只读）：${saved.public_url||'未配置'} · 核心监听（只读）：${saved.bind}:${saved.port}`;
@@ -108,7 +110,7 @@ $('configurationForm').onsubmit=async event=>{
     const changes={authentication:{max_failures:Number($('cfgFailures').value),window_seconds:Number($('cfgWindow').value),local_unlimited:$('cfgLocal').checked,
       registration_limit:Number($('cfgRegistrations').value),registration_window_seconds:Number($('cfgRegistrationWindow').value)},
       credits:{initial:$('cfgInitial').value,login:$('cfgLogin').value,repeat_daily:$('cfgRepeat').checked}};
-    const saved=configurationView.network.saved, runtime={};
+    const saved=configurationView.network.saved, runtime={admin_email:$('cfgAdminEmail').value.trim()};
     for(const [key,id] of [['trial_url','cfgNativePort'],['trial_confirm_url','cfgConfirmPort']]){
       const input=$(id).value;
       if(!input){if(saved[key])throw new Error('不能清空既有试用端口');continue;}

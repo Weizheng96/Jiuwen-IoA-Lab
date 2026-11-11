@@ -193,6 +193,19 @@ class AccountSession:
         self.verified=True
         return self.status()
 
+    def accept_registration(self,account,operation):
+        """Reuse the SDK registration session, without an additional rewarded login."""
+        if (not isinstance(account,dict) or account.get('username')!=self.username or not account.get('id')
+                or not account.get('token') or account.get('operationId')!=operation):
+            raise RuntimeFault('result_unknown','Registration response does not match the original operation','account.setup')
+        self.account=account
+        self._check_account()
+        with self.cache.transaction():
+            if self.cache.get('session','pending'):
+                raise RuntimeFault('result_unknown','Preserve the original pending login','account.login')
+            self.cache.put('session','current',account)
+        return {'status':'completed','data':self.status(),'error':None}
+
     def bearer(self):
         expires=self.account.get('expiresAt')
         if expires and time.time()<instant(expires)<time.time()+86400:

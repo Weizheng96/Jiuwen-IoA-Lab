@@ -225,6 +225,17 @@ class Auth:
             user=self.login_in(conn,verified)
         return {**user,'token':self.token(user['id'])}
 
+    def is_preset_account(self, username, kind):
+        row = self.db.one('SELECT kind,note FROM users WHERE username=?', username)
+        return bool(row and row['kind'] == kind and row['note'] == '部署自带')
+
+    def normalize_preset_display_name_in(self, conn, username, kind):
+        """Migrate only a manifest-selected account with deployment provenance."""
+        return conn.execute(
+            "UPDATE users SET display_name=username WHERE username=? AND kind=? "
+            "AND note='部署自带' AND display_name<>username", (username, kind)
+        ).rowcount == 1
+
     def reset_default_password_in(self,conn,username,current,replacement):
         """Replace a preset account's still-default password inside the caller's transaction."""
         row=conn.execute('SELECT id,pw_hash FROM users WHERE username=?',(username,)).fetchone()

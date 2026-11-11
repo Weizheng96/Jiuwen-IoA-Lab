@@ -84,6 +84,8 @@
         <label for="cfgInitial">新账号初始虚拟币</label><input id="cfgInitial" type="number" min="0" step="0.01" required>
         <label for="cfgLogin">登录赠送虚拟币</label><input id="cfgLogin" type="number" min="0" step="0.01" required>
         <label for="cfgRepeat">同日重复登录可再次领取</label><input id="cfgRepeat" type="checkbox">
+        <label for="cfgAdminEmail">管理员会议收件邮箱</label><input id="cfgAdminEmail" type="email" maxlength="254" required>
+        <p id="cfgAdminEmailStatus" class="full hint" role="status"></p>
         <p id="cfgNetworkCurrent" class="full hint"></p>
         <label for="cfgNativePort">原生试用公网HTTPS端口</label><input id="cfgNativePort" type="number" min="1" max="65535" step="1">
         <label for="cfgConfirmPort">可信确认公网HTTPS端口</label><input id="cfgConfirmPort" type="number" min="1" max="65535" step="1">
@@ -173,6 +175,6 @@
 <script src="/static/network-map.js?sha256=fc66c03f6ab5c567"></script>
 <script>NetworkMap.mount(document.querySelector("#pn .pn-mid"));</script>
 <script src="/static/panorama.js?sha256=ed6dfe751320e1ad"></script>
-<script src="/static/admin.js?sha256=1064bebc6368c8f3"></script><script src="/static/admin_messages.js?sha256=27cdeef36e039577"></script>
+<script src="/static/admin.js?sha256=57e5266babe5b654"></script><script src="/static/admin_messages.js?sha256=27cdeef36e039577"></script>
 </body>
 </html>

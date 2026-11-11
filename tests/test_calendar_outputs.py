@@ -68,3 +68,89 @@ def test_contract_rejects_invented_success_states_and_undeclared_fields(schema,v
     tool=ToolBinding('calendar.output','正式日程回执格式',{'type':'object'},lambda *_:None,output_schema=schema)
     with pytest.raises(RuntimeFault) as error:validate_output(tool,value)
     assert error.value.code=='invalid_tool_output'
+
+
+def test_admin_booking_validates_requester_and_sends_one_invitation_to_both_recipients(tmp_path):
+    from tools.media.smtp_capture import Capture
+    from ioalab_tools.calendar import SMTPNotification
+    capture = Capture(tmp_path/'mail').start()
+    service = Appointments(schedule(tmp_path/'calendar'),
+        SMTPNotification('127.0.0.1', capture.port, 'notice@example.test', test=True),
+        'owner@example.test', requester_email_required=True)
+    try:
+        original = context()
+        payload = appointment()
+        for invalid in (payload, {**payload, 'requesterEmail':'bad\r\nrecipient@example.test'}):
+            with pytest.raises(RuntimeFault) as exc: service.book(invalid, original)
+            assert exc.value.code == 'invalid_input'
+        assert not service.root.exists() and not capture.messages
+        payload['requesterEmail'] = 'requester@example.test'
+        result = service.book(payload, original)
+        assert result['inviteSubmitted'] is True and len(capture.messages) == 1
+        message = capture.messages[0]['message']
+        assert {a.strip() for a in str(message['To']).split(',')} == {'owner@example.test','requester@example.test'}
+        calendar = next(part for part in message.walk() if part.get_content_type() == 'text/calendar')
+        body = calendar.get_content()
+        assert 'METHOD:REQUEST' in body and 'mailto:owner@example.test' in body and 'mailto:requester@example.test' in body
+        service.recipient = 'new-owner@example.test'
+        assert service.book(payload, {**original, 'operationId':'retry-after-restart'}) == result
+        assert len(capture.messages) == 1
+        stored = next(iter(service.records().values()))
+        assert stored['recipients'] == ['owner@example.test','requester@example.test']
+    finally:
+        service.close(); capture.close()
+
+
+def test_agently_uncertain_send_is_never_repeated_under_a_new_operation(tmp_path):
+    from ioalab_tools.agently import AgentlyNotification
+    import sys
+    cli = tmp_path/'mail_boundary.py'
+    cli.write_text('''import json,sys
+from pathlib import Path
+p=Path(__file__).with_suffix('.log')
+with p.open('a') as f:f.write(json.dumps(sys.argv[1:])+'\\n')
+if sys.argv[1:]==['auth','status']:
+ print(json.dumps({'ok':True,'data':{'logged_in':True,'expires_at':'2099-01-01T00:00:00Z'}}))
+elif sys.argv[1:]==['+me']:
+ print(json.dumps({'ok':True,'data':{'aliases':[{'email':'notice@example.test'}]}}))
+else:
+ print(json.dumps({'ok':True,'data':{'queued':False}}))
+''', encoding='utf-8')
+    notice = AgentlyNotification('notice@example.test', [sys.executable,str(cli)], tmp_path/'invites')
+    service = Appointments(schedule(tmp_path/'calendar'), notice, 'owner@example.test', requester_email_required=True)
+    payload = {**appointment(), 'requesterEmail':'requester@example.test'}
+    original = context()
+    with pytest.raises(RuntimeFault) as error: service.book(payload, original)
+    assert error.value.code == 'unknown_result'
+    before = cli.with_suffix('.log').read_text()
+    with pytest.raises(RuntimeFault): service.book(payload, {**original, 'operationId':'different-operation'})
+    assert cli.with_suffix('.log').read_text() == before
+    assert next(iter(service.records().values()))['state'] == 'unknown'
+
+
+def test_agently_attachment_does_not_prevent_sdk_restart(tmp_path):
+    import sys
+    from ioalab_sdk.runtime.files import prepare_home
+    cli=tmp_path/'mail_cli.py'
+    cli.write_text("""import json,sys
+if sys.argv[1:]==['auth','status']:
+ data={'logged_in':True,'expires_at':'2099-01-01T00:00:00Z'}
+elif sys.argv[1:]==['+me']:
+ data={'aliases':[{'email':'notice@example.test'}]}
+else:data={'queued':True}
+print(json.dumps({'ok':True,'data':data}))
+""",encoding='utf-8')
+    calendar=schedule(tmp_path/'calendar');config=options(calendar)
+    config['notification']={'transport':'agently','sender':'notice@example.test','command':[sys.executable,str(cli)]}
+    home=tmp_path/'sdk';prepare_home(home)
+    identities=({'key':'owner','role':'assistant','name':'owner'},)
+    tools=ConfiguredTools([{'factory':'calendar','profile':'owner','options':config}],identities,home=home,base_dir=tmp_path)
+    original=context();payload=appointment()
+    try:result=tools.for_profile('owner')['calendar.book'].invoke(payload,original)
+    finally:tools.close()
+    assert result['inviteSubmitted'] is True
+    prepare_home(home)  # The actual SDK startup boundary must accept persisted business files.
+    restored=ConfiguredTools([{'factory':'calendar','profile':'owner','options':config}],identities,home=home,base_dir=tmp_path)
+    try:
+        assert restored.for_profile('owner')['calendar.book'].invoke(payload,{**original,'operationId':'restart'})==result
+    finally:restored.close()

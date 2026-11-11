@@ -66,13 +66,15 @@ def notification(value, *, mode):
     if not isinstance(value, dict):
         raise ValueError('Use an explicit notification object or null')
     transport = value.get('transport')
-    allowed = ({'transport', 'sender', 'api_key'} if transport == 'agentmail' else
+    allowed = ({'transport', 'sender'} if transport == 'agently' else {'transport', 'sender', 'api_key'} if transport == 'agentmail' else
                {'transport', 'sender', 'host', 'port', 'username', 'password'} | ({'client_id'} if transport == 'smtp' else set()))
-    if set(value) - allowed or transport not in ('agentmail', 'smtp', 'smtp-capture'):
+    if set(value) - allowed or transport not in ('agently', 'agentmail', 'smtp', 'smtp-capture'):
         raise ValueError('Choose an explicit AgentMail or SMTP notification transport')
     if transport == 'smtp-capture' and mode != 'dev':
         raise ValueError('SMTP capture is only available in explicit development mode')
     result = {'transport': transport, 'sender': mailbox(value.get('sender'), 'notification.sender')}
+    if transport == 'agently':
+        return result
     if transport == 'agentmail':
         result['api_key'] = text(value.get('api_key'), 'notification.api_key')
     else:

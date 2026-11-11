@@ -41,7 +41,7 @@
 
 ## 使用教程
 
-普通用户使用自己的九问 Swarm，注册平台账号，下载并导入相应的 IoA Lab 接入技能，再按说明配置接入。个人助手和服务方分别使用对应技能，操作入口见[接入技能说明](src/access/skills/README.md)。
+普通用户使用自己的九问 Swarm，说“参考 GitCode 仓库的 readme_agent.md，帮我接入 IoA Lab”。接入引导统一见 [GitCode 接入引导](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/readme_agent.md)，包括完整技能包下载、原生导入、账号设置及就绪核对。
 
 ### 发布服务演示
 

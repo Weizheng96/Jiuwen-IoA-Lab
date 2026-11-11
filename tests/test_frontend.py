@@ -17,7 +17,10 @@ def test_frontend_changes_select_authentication_and_pair_privacy_regression(path
 
 
 def test_public_pages_and_server_side_workbench_gates(client):
-    for page in ('/','/services','/assistants','/connect','/login','/register'):
+    guide=client.get('/connect',follow_redirects=False)
+    assert guide.status_code==307
+    assert guide.headers['location']=='https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/readme_agent.md'
+    for page in ('/','/services','/assistants','/login','/register'):
         response=client.get(page)
         assert response.status_code==200
         assert '九问IoA实验室' in response.text
@@ -158,7 +161,7 @@ def test_all_html_assets_are_stamped_and_stale_changes_fail(tmp_path,monkeypatch
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     monkeypatch.setattr(module,'ROOT',tmp_path)
     (tmp_path/'site.js').write_text('const ready=true;\n',encoding='utf-8')
-    for name in ('index.html','workbench.html','auth.html','connect.html'):
+    for name in ('index.html','workbench.html','auth.html'):
         (tmp_path/name).write_text('<script src="/static/site.js"></script>',encoding='utf-8')
     monkeypatch.setattr('sys.argv',['stamp_static'])
     module.main()

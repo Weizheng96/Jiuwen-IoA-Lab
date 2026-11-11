@@ -145,7 +145,8 @@ class Lifecycle:
                     record['requested']=name;save(self.path,record)
                     self.manager.start(name)
                     current=self.manager.ready(name)
-                    while not current.get('InvocationID'):
+                    while (not current.get('InvocationID') or
+                           current.get('InvocationID')==record['before'][name].get('InvocationID')):
                         if time.monotonic()>=deadline:
                             raise RuntimeError('Original startup invocation is not verified; preserve the pending request')
                         time.sleep(.1);current=self.manager.ready(name)
@@ -161,6 +162,10 @@ class Lifecycle:
                             if time.monotonic()>=deadline:
                                 return {'status':'waiting','phase':'starting','runtimeReadinessVerified':False}
                             time.sleep(.2)
+                    if self.metadata.get('administratorPrepared') is False or self.metadata.get('administratorAccount')=='admin':
+                        from .administrator import prepare_for_start
+                        prepare_for_start(self.installer())
+                        self.metadata['administratorPrepared'] = True
             return {'status':'waiting','phase':'starting','runtimeReadinessVerified':False}
 
 

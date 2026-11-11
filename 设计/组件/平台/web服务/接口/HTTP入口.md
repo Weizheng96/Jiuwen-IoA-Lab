@@ -16,6 +16,8 @@
 
 | 方法与路径 | 输入与结果 |
 |---|---|
+| `GET /api/access/packages` | 公开format=1下载清单；仅枚举实际可读的完整两角色ZIP，含同源相对url、字节数、SHA-256、skillVersion、runtimeFormat=1及Python3.11要求；不含可执行指令，缺包不伪造可用项；测试access_discovery |
+| `POST /api/v1/accounts` | 与网页注册相同的注册策略、operationId和赠币事务，返回受限SDK凭据；浏览器和SDK受众绑定参数摘要，不允许相同操作跨受众重放；客户端采用该会话，不再额外密码登录；测试account_setup、account_enrollment |
 | `POST /api/auth/register` | 用户名、密码及注册操作标识；创建账号并返回注册/登录结果，不创建助手进程 |
 | `POST /api/v1/token`；`POST /api/v1/token/refresh`；`GET /api/v1/me` | 登录操作标识与凭据 → 受限SDK登录态；有效Bearer续用不发币；/api/v1/me仅接受受限SDK Bearer，查询本账号、权限与可操作身份；网页登录查询使用/api/me，不以网页cookie或网页Bearer冒充SDK凭据 |
 | `POST /api/v1/identity/challenge`；`POST /api/v1/identity` | 一次性挑战 → 本地签名绑定对象 → 稳定 agentId 与绑定结果 |

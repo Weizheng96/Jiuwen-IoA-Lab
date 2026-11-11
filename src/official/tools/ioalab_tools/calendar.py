@@ -96,10 +96,11 @@ def address(value):
     return value
 
 def invitation(uid,title,start,end,organizer,recipient):
-    organizer,recipient=address(organizer),address(recipient)
+    organizer=address(organizer)
+    recipients=[address(item) for item in recipient] if isinstance(recipient,list) else [address(recipient)]
     def escape(v): return str(v).replace('\\','\\\\').replace('\r','').replace('\n','\\n').replace(';','\\;').replace(',','\\,')
     def stamp(t): return t.astimezone(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    lines=['BEGIN:VCALENDAR','PRODID:-//Jiuwen IoA Lab//Assistant//ZH','VERSION:2.0','CALSCALE:GREGORIAN','METHOD:REQUEST','BEGIN:VEVENT','UID:'+escape(uid),'SEQUENCE:0','DTSTAMP:'+stamp(datetime.now(timezone.utc)),'DTSTART:'+stamp(start),'DTEND:'+stamp(end),'SUMMARY:'+escape(title),'ORGANIZER:mailto:'+organizer,'ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:mailto:'+recipient,'STATUS:CONFIRMED','END:VEVENT','END:VCALENDAR']
+    lines=['BEGIN:VCALENDAR','PRODID:-//Jiuwen IoA Lab//Assistant//ZH','VERSION:2.0','CALSCALE:GREGORIAN','METHOD:REQUEST','BEGIN:VEVENT','UID:'+escape(uid),'SEQUENCE:0','DTSTAMP:'+stamp(datetime.now(timezone.utc)),'DTSTART:'+stamp(start),'DTEND:'+stamp(end),'SUMMARY:'+escape(title),'ORGANIZER:mailto:'+organizer,*['ATTENDEE;RSVP=TRUE;PARTSTAT=NEEDS-ACTION:mailto:'+item for item in recipients],'STATUS:CONFIRMED','END:VEVENT','END:VCALENDAR']
     # RFC 5545 folds by UTF-8 octets without splitting a code point.
     folded=[]
     for line in lines:
@@ -158,7 +159,7 @@ class SMTPNotification:
         return {'status':'authenticated' if self.oauth or self.username else 'connected','sender':self.sender,'auth':'oauth2' if self.oauth else 'password' if self.username else 'relay','messageSent':False}
 
     def send(self,uid,title,start,end,recipient):
-        message=EmailMessage();message['From']=self.sender;message['To']=address(recipient);message['Subject']='会议邀请：'+title
+        message=EmailMessage();message['From']=self.sender;message['To']=', '.join(address(item) for item in recipient) if isinstance(recipient,list) else address(recipient);message['Subject']='会议邀请：'+title
         message['Date']=formatdate(localtime=False);message['Message-ID']='<'+uid+'>'
         message.set_content('您收到一项会议邀请。接受后才会更新您的日历。\n'+title+'\n'+start.isoformat()+' — '+end.isoformat())
         message.add_alternative(invitation(uid,title,start,end,self.sender,recipient),subtype='calendar',params={'method':'REQUEST','charset':'UTF-8'})

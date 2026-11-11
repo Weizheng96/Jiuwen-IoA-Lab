@@ -12,7 +12,7 @@
     const visible=users.filter(user=>user.username!==session?.username&&[user.username,user.displayName,...user.assistantNames].join(' ').toLowerCase().includes(query));
     $('people-list').replaceChildren();$('people-status').textContent=visible.length?`${visible.length} 位用户`:'没有符合条件的用户。';
     for(const user of visible){const card=node('button','','directory-card person-card');card.type='button';
-      card.append(node('i','','directory-dot blue'),node('h2',user.displayName||user.username),node('small','@'+user.username),node('p',user.assistantNames.length?user.assistantNames.join(' · '):'尚未登记个人助手'),node('span','查看你们的交互 →','person-action'));
+      card.append(node('i','','directory-dot blue'),node('h2',user.assistantNames[0]||user.displayName||user.username),node('small','@'+user.username),node('p',user.assistantNames.length?user.assistantNames.join(' · '):'尚未登记个人助手'),node('span','查看你们的交互 →','person-action'));
       card.addEventListener('click',()=>select(user));$('people-list').append(card);}
   }
   function section(title,items,build){const box=node('section','','history-section');box.append(node('h3',title));if(!items.length)box.append(node('p','暂无记录','history-empty'));for(const item of items)box.append(build(item));return box;}
@@ -20,7 +20,7 @@
   async function select(user){
     if(!session||!session.id){location.assign(WebSession.loginUrl('/assistants#'+encodeURIComponent(user.username)));return;}
     location.hash=encodeURIComponent(user.username);const ticket=++generation;
-    $('history-title').textContent=user.displayName||user.username;$('history-account').textContent='@'+user.username;
+    $('history-title').textContent=user.assistantNames[0]||user.displayName||user.username;$('history-account').textContent='@'+user.username;
     $('history-records').replaceChildren();$('history-status').textContent='正在读取你们的交互…';if(!dialog.open)dialog.showModal();
     try{const data=await WebSession.api('/api/people/'+encodeURIComponent(user.username)+'/history');if(ticket!==generation)return;
       $('history-status').textContent='';

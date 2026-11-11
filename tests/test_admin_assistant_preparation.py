@@ -51,7 +51,7 @@ def managed(platform,tmp_path,monkeypatch):
     (workspace/'config').mkdir(parents=True)
     (workspace/'config/config.yaml').write_text('original: preserved\n',encoding='utf-8')
     recipe=layout.private/'admin-assistant/config.json'
-    private_json(recipe,{'deployment_id':identity['deploymentId'],'platform_url':platform.s.base_url,'password':'001',
+    private_json(recipe,{'deployment_id':identity['deploymentId'],'platform_url':platform.s.base_url,'password':platform.s.admin_password,
         'host':{'command':['existing-original-jiuwenswarm-process'],'data_dir':str(workspace),'model':'existing-model'},
         'web_url':'ws://127.0.0.1:18901/ws?user_id=ioa-admin','recipient':'zhengw.cc@outlook.com'})
     return Deployment(recipe)
@@ -344,3 +344,58 @@ def test_changed_local_draft_cannot_receive_fixed_preset_permission(managed,monk
     monkeypatch.setattr(Rules,'draft',changed)
     with pytest.raises(RuntimeFault,match='packaged fixed preset'):preparation.prepare(managed)
     assert 'confirmation' not in managed.state()['presets']['message.forward']
+
+
+def test_new_administrator_has_independent_account_identity_and_required_requester_email(platform, managed):
+    result = preparation.prepare(managed)
+    assert result['account'] == 'admin'
+    config = RuntimeConfig.load(managed.runtime_path)
+    assert config.username == 'admin'
+    user = platform.auth.authenticate('admin', platform.s.admin_password)
+    assert user['display_name'] == 'admin'
+    assert platform.identities.assistant(user['id']) == managed.state()['identity']['agentId']
+    assert platform.db.one("SELECT id FROM agents WHERE owner_id=(SELECT id FROM users WHERE username='ISC_001') AND role='assistant'") is None
+    from ioalab_admin_assistant import load_presets
+    _, presets = load_presets(meetings=True)
+    meeting = next(p for p in presets if p['declaration']['name'] == 'meeting.request')
+    assert 'requesterEmail' in meeting['declaration']['inputSchema']['required']
+
+
+def test_retiring_original_isc_assistant_withdraws_interfaces_and_keeps_wallet(platform):
+    from ioalab.errors import LabError
+    old = platform.identities.account('ISC_001')
+    agent = 'urn:ioa:retired-admin-test'
+    platform.db.run("INSERT INTO agents(id,owner_id,role,name,status,meta) VALUES(?,?,?,?,?,?)",
+                    agent, old['id'], 'assistant', '管理员的个人助手', 'registered', '{}')
+    balance = platform.wallets.balance(old['id'])
+    with platform.db.tx() as conn:
+        owner = platform.identities.retire_preset_assistant_in(conn, agent)
+        platform.delivery.withdraw_preset_interfaces_in(conn, owner)
+    with pytest.raises(LabError): platform.identities.agent(agent)
+    assert next(r for r in platform.account_views.people() if r['username']=='ISC_001')['assistantNames'] == []
+    assert platform.wallets.balance(old['id']) == balance
+    with platform.db.tx() as conn:
+        assert platform.identities.retire_preset_assistant_in(conn, agent) == old['id']
+    with pytest.raises(LabError):
+        with platform.db.tx() as conn: platform.identities.retire_preset_assistant_in(conn, 'unowned')
+
+
+def test_email_projection_resumes_without_republishing_or_replacing_identity(platform,managed,monkeypatch):
+    from ioalab_admin_assistant import configuration as projection
+    preparation.prepare(managed)
+    original = managed.state()
+    interfaces = rows(platform)
+    write = projection.private_json
+    def interrupted(path,value):
+        if path == managed.record_path: raise RuntimeError('interrupted after runtime projection')
+        return write(path,value)
+    monkeypatch.setattr(projection,'private_json',interrupted)
+    with pytest.raises(RuntimeError): projection.configure_email(managed,'new-owner@example.test')
+    monkeypatch.setattr(projection,'private_json',write)
+    restored = Deployment(managed.path)
+    assert projection.configure_email(restored,'new-owner@example.test')['status']=='completed'
+    final = Deployment(managed.path)
+    assert final.value['recipient']=='new-owner@example.test'
+    assert final.state()['identity']==original['identity']
+    assert final.state()['presets']==original['presets'] and rows(platform)==interfaces
+    assert not projection.configure_email(final,'new-owner@example.test')['changed']

@@ -22,13 +22,13 @@ class AgentMailNotification:
         return {'status':'authenticated','sender':self.sender,'auth':'api-key','transport':'agentmail-calendar','messageSent':False}
 
     def send(self,uid,title,start,end,recipient):
-        recipient=address(recipient)
+        recipients = [address(item) for item in recipient] if isinstance(recipient,list) else [address(recipient)]
         if start.tzinfo is None or end.tzinfo is None or end<=start:raise ValueError('Invitation times require explicit time zones and a positive duration')
         def wall(value):return value.astimezone(timezone.utc).replace(tzinfo=None).isoformat()
         # Provider IDs reject '@'; preserve the logical UID in metadata and hash
         # it into a bounded, stable client_id instead of changing request identity.
         client_id=hashlib.sha256(uid.encode()).hexdigest()
-        request={'title':title,'start':wall(start),'end':wall(end),'timezone':'UTC','attendees':[{'email':recipient,'role':'required'}],'send_invites':True,'client_id':client_id,'metadata':{'ioa_request_id':uid}}
+        request={'title':title,'start':wall(start),'end':wall(end),'timezone':'UTC','attendees':[{'email':item,'role':'required'} for item in recipients],'send_invites':True,'client_id':client_id,'metadata':{'ioa_request_id':uid}}
         response=self.http.post(self.path+'/events',json=request)
         if not response.is_success:raise RuntimeError('AgentMail invitation request failed (HTTP '+str(response.status_code)+'); inspect before retrying')
         result=response.json();event=result.get('event',{})

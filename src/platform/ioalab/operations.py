@@ -381,13 +381,14 @@ class AccountOperations:
         except Exception:
             log.warning('Account operation committed; projection requires recovery: %s',operation)
 
-    def register(self,username,password,*,display_name='',invite='',ip='',operation_id=None):
+    def register(self,username,password,*,display_name='',invite='',ip='',operation_id=None,audience='browser'):
+        if audience not in ('sdk','browser'):raise ValueError('Unknown registration audience')
         if not isinstance(username,str) or not isinstance(password,str):
             raise LabError('invalid_input','Account fields must be strings')
         username=(username or '').strip()
         operation=self.sessions.operation(operation_id)
         policy=self.settings.policy()
-        params=self.sessions.fingerprint({'username':username,'password':password,'display_name':display_name,'invite':invite,'audience':'browser'})
+        params=self.sessions.fingerprint({'username':username,'password':password,'display_name':display_name,'invite':invite,'audience':audience})
         cached=self.sessions.restore(username,'register',operation,params)
         if cached:return cached
         try:
@@ -404,7 +405,7 @@ class AccountOperations:
             user=self.auth.login_in(conn,prepared)
             credits=self.wallets.login_credit_in(conn,user['id'],operation,policy['credits'])
             credits['initial']=initial
-            result=self.sessions.save(conn,username,'register',operation,params,user,prepared['pw_hash'],'browser',credits=credits)
+            result=self.sessions.save(conn,username,'register',operation,params,user,prepared['pw_hash'],audience,credits=credits)
         self._project(user,operation,credits,registered=True)
         return result
 

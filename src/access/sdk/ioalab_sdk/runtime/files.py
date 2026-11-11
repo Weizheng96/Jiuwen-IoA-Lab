@@ -61,7 +61,8 @@ def prepare_home(path):
         raise RuntimeFault('identity_conflict','Direct-client identity directory needs explicit migration','migrate')
     allowed={'client.lock','account.sqlite','account.sqlite-wal','account.sqlite-shm','account.sqlite.init.lock',
              'runtime.sqlite','runtime.sqlite-wal','runtime.sqlite-shm','runtime.json','runtime.log',
-             'identities','identity-index.json','roles','confirmations','materials','deliveries'}
+             'identities','identity-index.json','roles','confirmations','materials','deliveries',
+             'account-setup.json','account-setup-result.json','account-setup.lock','account-setup-launch.lock'}
     if path.exists() and any(child.name not in allowed and not child.name.startswith(('.runtime.json-','.identity-index.json-'))
                              for child in path.iterdir()):
         raise RuntimeFault('invalid_input','Use a dedicated SDK data directory; unrelated files are present','configure_data_dir')

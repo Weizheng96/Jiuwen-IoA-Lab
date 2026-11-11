@@ -17,6 +17,10 @@ from .sending import Sending
 class DeliveryBroker(Connections, Controls, Sending, Interactions, Retention):
     CONTROLS=frozenset(('message.send','message.ack','request.start','interaction.close','contract.bind'))
 
+    def withdraw_preset_interfaces_in(self, conn, owner):
+        """Offline decommission: keep version/audit history, withdraw current entry points."""
+        conn.execute("DELETE FROM message_interfaces WHERE owner=? AND name IN ('message.forward','meeting.request')", (owner,))
+
     def __init__(self,db,identities,settings,*,record_in=None,publish=None,clock=time.time):
         self.db,self.identities,self.s,self.clock=db,identities,settings,clock
         self.record_in,self.publish_event=record_in,publish

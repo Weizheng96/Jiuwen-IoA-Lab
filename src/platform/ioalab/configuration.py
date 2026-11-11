@@ -16,9 +16,42 @@ from .configuration_permissions import private, protect_new
 from .errors import LabError
 
 FORMAT='ioalab.platform-config/1'
+
+
+def upgrade_admin_email(path, email):
+    """Explicit one-time schema extension; normal loading remains strict."""
+    path = Path(path).absolute()
+    private(path.parent); private(path)
+    value = json.loads(path.read_text(encoding='utf-8-sig'))
+    if 'admin_email' in value['runtime']:
+        validate(value)
+        return
+    candidate = deepcopy(value)
+    candidate['runtime']['admin_email'] = email
+    candidate['revision'] += 1
+    validate(candidate)
+    from .storage import DataOwner
+    data = Path(value['runtime']['data']).expanduser()
+    if not data.is_absolute(): data = path.parent/data
+    with DataOwner(data.resolve()):
+        if json.loads(path.read_text(encoding='utf-8-sig')) != value:
+            raise LabError('id_conflict','Configuration changed during explicit upgrade',status=409)
+        backup = path.with_name(path.name + '.before-admin-email')
+        if not backup.exists():
+            with backup.open('x', encoding='utf-8') as stream:
+                protect_new(backup)
+                json.dump(value, stream)
+        fd, name = tempfile.mkstemp(prefix='.admin-email-', dir=path.parent)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                protect_new(Path(name)); json.dump(candidate, stream, ensure_ascii=False)
+                stream.flush(); os.fsync(stream.fileno())
+            os.replace(name, path)
+        finally:
+            if os.path.exists(name): os.unlink(name)
 EDITABLE={'authentication':{'max_failures','window_seconds','registration_limit','registration_window_seconds','local_unlimited'},
           'credits':{'initial','login','repeat_daily'},
-          'runtime':{'trial_url','trial_confirm_url'}}
+          'runtime':{'trial_url','trial_confirm_url','admin_email'}}
 TRIAL_ENDPOINTS=('trial_url','trial_confirm_url')
 _LOCKS={}
 _LOCK=threading.Lock()
@@ -76,6 +109,8 @@ def validate(value):
             if url.scheme not in ('http','https') or not url.hostname or url.username or url.password or url.query or url.fragment:invalid()
             runtime[key]=runtime[key].rstrip('/')
         except ValueError:invalid()
+    import re
+    if not re.fullmatch(r'[A-Za-z0-9.!#$%&\'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}', runtime['admin_email']) or len(runtime['admin_email'])>254:invalid()
     admin=result['admin']
     if any(not isinstance(v,str) or not v for v in admin.values()):invalid()
     if len(admin['username'])>128 or len(admin['password'])>4096:invalid()
@@ -152,6 +187,7 @@ class PlatformConfiguration:
         self._fingerprint=_digest(self._document)
         self.audit=None
         self._active_network=None
+        self._active_admin_email=None
 
     @classmethod
     def load(cls,path=None):
@@ -187,6 +223,9 @@ class PlatformConfiguration:
         saved=network_projection(document['runtime']);active=deepcopy(self._active_network)
         return {'revision':document['revision'],'editable':{
             group:{key:deepcopy(document[group][key]) for key in keys} for group,keys in EDITABLE.items()},
+            'administratorAssistant':{'savedEmail':document['runtime']['admin_email'],'startupEmail':self._active_admin_email,
+                                      'pending':self._active_admin_email is not None and self._active_admin_email!=document['runtime']['admin_email'],
+                                      'application':'assistant_restart_required'},
             'restart':{'adminUsername':document['admin']['username'],'adminPasswordConfigured':bool(document['admin']['password']),
                        'llmKeyConfigured':bool(document['llm']['api_key']),
                        'publicUrl':document['runtime']['public_url']},
@@ -205,7 +244,7 @@ class PlatformConfiguration:
             candidate=deepcopy(disk)
             for group,values in changes.items():candidate[group].update(values)
             candidate['revision']+=1;candidate=validate(candidate)
-            if 'runtime' in changes:validate_port_change(disk['runtime'],candidate['runtime'])
+            if set(changes.get('runtime',{})) & set(TRIAL_ENDPOINTS):validate_port_change(disk['runtime'],candidate['runtime'])
             fd,name=tempfile.mkstemp(prefix='.platform-',suffix='.json',dir=self.path.parent)
             try:
                 with os.fdopen(fd,'w',encoding='utf-8') as stream:
@@ -224,6 +263,7 @@ class PlatformConfiguration:
     def settings(self):
         document=self._document
         if self._active_network is None:self._active_network=network_projection(document['runtime'])
+        if self._active_admin_email is None:self._active_admin_email=document['runtime']['admin_email']
         runtime=deepcopy(document['runtime'])
         runtime['public_url_env']=runtime.pop('public_url')
         for name in ('data','bundles_dir','seed_file'):

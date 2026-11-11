@@ -17,9 +17,19 @@ from .confirmation_view import present
 
 
 class UserUi:
+    page_name='user.html'
+
+    def snapshot(self):
+        return {'confirmations':[present(item) for item in self.confirmations.list()]}
+
+    def decision(self,body,session):
+        if set(body)-{'reference','bindingDigest','decision','answers'}:raise RuntimeFault('invalid_input','Unknown user decision fields')
+        return self.confirmations.decide(body.get('reference'),body.get('bindingDigest'),body.get('decision'),
+            authority=self._authority,source='local_user_ui:'+session['id']+':'+str(uuid.uuid4()),answers=body.get('answers'))
+
     def __init__(self,confirmations,*,browser=None,clock=time.time):
         self.confirmations,self.clock,self.browser=confirmations,clock,browser
-        self._authority=confirmations.user_channel()
+        self._authority=confirmations.user_channel() if confirmations is not None else None
         self._entries={};self._sessions={};self._lock=threading.RLock()
         self.origin=None
 
@@ -85,7 +95,7 @@ class UserUi:
             supplied=request.headers.get('Origin')
             if supplied is not None and supplied!=origin:raise RuntimeFault('forbidden','User actions must come from the local page')
             if request.command=='GET' and path.path=='/user':
-                page=files('ioalab_sdk').joinpath('runtime/web/user.html').read_bytes()
+                page=files('ioalab_sdk').joinpath('runtime/web/'+self.page_name).read_bytes()
                 request.send_response(200)
                 request.send_header('Content-Type','text/html; charset=utf-8')
                 request.send_header('Content-Length',str(len(page)))
@@ -109,15 +119,13 @@ class UserUi:
                 return True
             session=self._session(request)
             if request.command=='GET' and path.path=='/user/api':
-                request.reply(200,{'csrf':session['csrf'],'confirmations':[present(item) for item in self.confirmations.list()]})
+                request.reply(200,{'csrf':session['csrf'],**self.snapshot()})
                 return True
             if request.command=='POST' and path.path=='/user/decision':
                 if supplied!=origin or not hmac.compare_digest(request.headers.get('X-Ioa-Csrf','').encode(),session['csrf'].encode()):
                     raise RuntimeFault('forbidden','A real same-origin user decision is required')
                 body=self._body(request)
-                if set(body)-{'reference','bindingDigest','decision','answers'}:raise RuntimeFault('invalid_input','Unknown user decision fields')
-                result=self.confirmations.decide(body.get('reference'),body.get('bindingDigest'),body.get('decision'),
-                    authority=self._authority,source='local_user_ui:'+session['id']+':'+str(uuid.uuid4()),answers=body.get('answers'))
+                result=self.decision(body,session)
                 request.reply(200,result)
                 return True
             raise RuntimeFault('forbidden','Unknown local user operation')

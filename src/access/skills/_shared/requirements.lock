@@ -20,8 +20,8 @@ httpx==0.28.1
 httpx-sse==0.4.3
 idna==3.20
 ioalab-jiuwen==0.0.46
-ioalab-official==0.0.148
-ioalab-sdk==0.0.148
+ioalab-official==0.0.153
+ioalab-sdk==0.0.153
 jiuwenswarm-process-sdk==0.1.0
 json-rpc==1.15.0
 jsonschema==4.26.0
@@ -40,8 +40,8 @@ requests==2.34.2
 rfc3339-validator==0.1.4
 rfc8785==0.1.4
 rpds-py==2026.9.1
-sniffio==1.3.1
 six==1.17.0
+sniffio==1.3.1
 sse-starlette==3.6.0
 starlette==1.10.0
 typing-inspection==0.4.4
