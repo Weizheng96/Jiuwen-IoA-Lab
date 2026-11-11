@@ -89,7 +89,7 @@ class Deployment:
         RuntimeConfig.from_mapping(self.runtime_path, self.base())
 
     def base(self):
-        return {'platform_url': self.value['platform_url'], 'username':'ISC_001', 'password':self.value['password'],
+        return {'platform_url': self.value['platform_url'], 'username':'admin', 'password':self.value['password'],
                 'data_dir':str(self.home/'resident'), 'identities':[{'key':'admin','role':'assistant','name':'管理员的个人助手'}],
                 'max_model_runs':self.value.get('max_model_runs',2)}
 
@@ -101,7 +101,7 @@ class Deployment:
         if self.value.get('notification') is not None:
             tools.append({'factory':'calendar','profile':'admin','options':{
                 'calendar':{'backend':'local','schedule_file':str(self.schedule)},
-                'notification':self.value['notification'],'recipient':self.value['recipient']}})
+                'notification':self.value['notification'],'recipient':self.value['recipient'],'requester_email_required':True}})
         return {**self.base(),'host':{**self.value['host'],'business_tools':tools}}
 
     def state(self):
@@ -126,7 +126,7 @@ class Deployment:
 
     def prepared(self, value):
         config = RuntimeConfig.load(self.runtime_path)
-        if (config.username != 'ISC_001' or config.home != self.home/'resident' or config.platform != self.value['platform_url'].rstrip('/') or
+        if (config.username != 'admin' or config.home != self.home/'resident' or config.platform != self.value['platform_url'].rstrip('/') or
                 [(p['key'],p['role']) for p in config.identities] != [('admin','assistant')] or not (config.home/'identity-index.json').is_file()):
             raise RuntimeFault('identity_conflict','Restore the original administrator configuration and identity')
         index = read_json(config.home/'identity-index.json')

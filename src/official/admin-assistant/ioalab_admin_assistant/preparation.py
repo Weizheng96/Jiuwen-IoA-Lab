@@ -16,7 +16,7 @@ from .deployment import operator, owned, operation
 
 def result(deployment, state, runtime=None):
     return {'status':'completed' if state['phase']=='prepared' else 'waiting', 'phase':state['phase'],
-            'account':'ISC_001','runtime':runtime or {'state':'not_queried'},'modelStarted':False,
+            'account':'admin','runtime':runtime or {'state':'not_queried'},'modelStarted':False,
             'originalPublications':{name:item.get('result') for name,item in state['presets'].items()},
             'currentInterfacesChecked':False,'meetingInitiallyEnabled':deployment.value.get('notification') is not None}
 

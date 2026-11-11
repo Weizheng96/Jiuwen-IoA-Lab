@@ -266,6 +266,7 @@ class Installation:
                 self.installed('ioalab_admin_assistant','prepare','--config',str(recipe),
                     environment=read_environment(self.layout.config/'agents/assistant.env'))
                 self.metadata['administratorPrepared']=True;self.save_metadata()
+            self.metadata['administratorAccount']='admin';self.save_metadata()
             self.accounts.handoff(self.layout.state/'agents/admin-assistant','agents')
             self.accounts.handoff(self.layout.state/'agents/swarm-admin','agents')
         for key in units.START_ORDER:
@@ -324,9 +325,9 @@ print(json.dumps(r,ensure_ascii=False))
             report['nativeWeb']=address
         if 'assistant' in required:
             live=self.sdk('runtime.status',{})['data']
-            if (live.get('account',{}).get('username')!='ISC_001' or not live.get('platformConnected')
+            if (live.get('account',{}).get('username')!='admin' or not live.get('platformConnected')
                     or not live.get('host',{}).get('available')):raise RuntimeError('The original administrator SDK/host is not ready')
-            self.sdk('assistant.messaging.interfaces',{'account':'ISC_001'})
+            self.sdk('assistant.messaging.interfaces',{'account':'admin'})
             report['administrator']={'connected':True,'hostAvailable':True,'currentInterfaceQuerySucceeded':True,
                 'meetingConfigured':self.config.input['admin_assistant']['notification'] is not None}
         if 'trial' in required:

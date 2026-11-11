@@ -18,6 +18,14 @@ class IdentityDirectory:
             raise LabError('forbidden','Agent is unavailable',status=403,recovery='check_identity')
         return row
 
+    def retire_preset_assistant_in(self, conn, actor):
+        """Explicit offline retirement, fenced to the original ISC deployment assistant."""
+        row = conn.execute("SELECT a.*,u.username,u.note FROM agents a JOIN users u ON u.id=a.owner_id WHERE a.id=?", (actor,)).fetchone()
+        if not row or row['username'] != 'ISC_001' or row['note'] != '部署自带' or row['role'] != 'assistant' or row['name'] != '管理员的个人助手':
+            raise LabError('forbidden', 'Only the original managed ISC_001 assistant can be retired', status=403)
+        conn.execute("UPDATE agents SET status='disabled' WHERE id=?", (actor,))
+        return row['owner_id']
+
     def owned(self,owner,agent_id):
         row=self.agent(agent_id)
         if row['owner_id']!=owner:

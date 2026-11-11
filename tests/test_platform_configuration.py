@@ -163,3 +163,27 @@ def test_restart_configuration_normalizes_public_identity_and_rejects_bad_urls_o
             ('runtime','message_rate',0),('runtime','message_ttl_days',1000)]:
         invalid=deepcopy(document);invalid[group][key]=value
         with pytest.raises(LabError):validate(invalid)
+
+
+def test_admin_email_saved_revision_restart_and_explicit_old_config_upgrade(tmp_path):
+    from ioalab.configuration import upgrade_admin_email
+    authority = network_configuration(tmp_path, empty=True)
+    authority.settings()
+    saved = authority.update(1, {'runtime':{'admin_email':'new-owner@example.test'}})
+    assert saved['administratorAssistant']['savedEmail'] == 'new-owner@example.test'
+    assert saved['administratorAssistant']['startupEmail'] == 'zhengw.cc@outlook.com'
+    assert saved['administratorAssistant']['pending'] is True
+    with pytest.raises(LabError): authority.update(2, {'runtime':{'admin_email':'bad\r\n@example.test'}})
+    with pytest.raises(LabError): authority.update(1, {'runtime':{'admin_email':'other@example.test'}})
+    restarted = PlatformConfiguration.load(authority.path)
+    assert restarted.settings().admin_email == 'new-owner@example.test'
+    assert not restarted.view()['administratorAssistant']['pending']
+    legacy = json.loads(authority.path.read_text(encoding='utf-8'))
+    del legacy['runtime']['admin_email']
+    authority.path.write_text(json.dumps(legacy), encoding='utf-8')
+    with pytest.raises(LabError): PlatformConfiguration.load(authority.path)
+    upgrade_admin_email(authority.path, 'migrated@example.test')
+    assert PlatformConfiguration.load(authority.path).settings().admin_email == 'migrated@example.test'
+    before = authority.path.read_bytes()
+    upgrade_admin_email(authority.path, 'do-not-overwrite@example.test')
+    assert authority.path.read_bytes() == before

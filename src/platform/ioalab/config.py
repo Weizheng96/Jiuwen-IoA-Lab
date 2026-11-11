@@ -51,6 +51,7 @@ class Settings:
     sandbox_fuel: int = 5_000_000_000
     currency: str = "CNY"                  # 协议内币种（SDK 白名单）；页面显示为「虚拟币」
 
+    admin_email: str = "zhengw.cc@outlook.com"
     admin_username: str = "admin"
     session_secret: str = field(default="",repr=False)
     initial_credit: str = "500"

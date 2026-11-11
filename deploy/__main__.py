@@ -111,6 +111,9 @@ def main(argv=None):
     item.add_argument('--state',type=Path,required=True)
     item.add_argument('--operation',required=True)
     item=commands.add_parser('status');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
+    item=commands.add_parser('replace-admin-assistant');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
+    item=commands.add_parser('mail-login');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
+    item.add_argument('--sender',required=True)
     for name in ('start','stop'):
         item=commands.add_parser(name);item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
         if name=='stop':item.add_argument('--wait-seconds',type=float,default=30)
@@ -119,7 +122,13 @@ def main(argv=None):
     args=parser.parse_args(argv)
     try:
         require_host()
-        if args.command in ('start','stop'):
+        if args.command == 'mail-login':
+            from .administrator import mail_login
+            answer=mail_login(existing(args.state),args.sender)
+        elif args.command == 'replace-admin-assistant':
+            from .administrator import replace
+            answer=replace(existing(args.state))
+        elif args.command in ('start','stop'):
             from . import lifecycle
             layout=existing(args.state)
             answer=lifecycle.start(layout) if args.command=='start' else lifecycle.stop(layout,wait_seconds=args.wait_seconds)

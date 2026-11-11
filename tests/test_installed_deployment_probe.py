@@ -5,11 +5,12 @@ from tools.verification.verify_deployment import seed_accounts
 
 
 def test_probe_seeds_through_bootstrap_cookie_without_creating_or_crediting_a_user(platform):
-    assert platform.db.one("SELECT id FROM users WHERE username='admin'") is None
+    original_admin=platform.db.one("SELECT * FROM users WHERE username='admin'")
+    assert original_admin is not None
     before=platform.db.one("SELECT COUNT(*) AS n FROM wallet_log WHERE kind='login'")['n']
     seeded=seed_accounts(platform.s.base_url,platform.s.admin_password)
     assert seeded['isp']==1 and seeded['isc']==platform.s.isc_count
-    assert platform.db.one("SELECT id FROM users WHERE username='admin'") is None
+    assert platform.db.one("SELECT * FROM users WHERE username='admin'")==original_admin
     assert platform.db.one("SELECT COUNT(*) AS n FROM wallet_log WHERE kind='login'")['n']==before
 
 

@@ -7,6 +7,15 @@ from __future__ import annotations
 
 def ensure_accounts(platform, *, domains=None) -> dict:
     """建齐内部账号，返回 {"isp": [uid…], "isc": [uid…]}（按序号排列）。"""
+    administrator = platform.identities.account('admin')
+    if administrator:
+        if not platform.auth.is_preset_account('admin', 'isc'):
+            raise ValueError('The reserved admin account is not a deployment preset')
+    else:
+        administrator = platform.accounts.create_account('admin', platform.s.admin_password,
+            kind='isc', display_name='admin', note='部署自带')
+    with platform.db.tx() as conn:
+        platform.auth.grant_admin_in(conn, administrator['id'])
     out: dict[str, list[str]] = {"isp": [], "isc": []}
     if domains is None:
         from .domains import load_domains

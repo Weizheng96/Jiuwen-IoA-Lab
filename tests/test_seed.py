@@ -81,6 +81,6 @@ def test_new_preset_accounts_use_login_names_from_explicit_manifest(tmp_path):
         result = ensure_accounts(pf, domains=[{'account': 'ISP_001'}, {'account': 'ISP_007'}, {'account': 'ISP_001'}])
         assert len(result['isp']) == 2 and len(result['isc']) == 3
         assert {row['username']: row['display_name'] for row in pf.account_views.admin_users()} == {
-            'ISP_001': 'ISP_001', 'ISP_007': 'ISP_007', 'ISC_001': 'ISC_001', 'ISC_002': 'ISC_002', 'ISC_003': 'ISC_003'}
+            'admin': 'admin', 'ISP_001': 'ISP_001', 'ISP_007': 'ISP_007', 'ISC_001': 'ISC_001', 'ISC_002': 'ISC_002', 'ISC_003': 'ISC_003'}
     finally:
         pf.close()
