@@ -2,7 +2,6 @@
 import secrets
 import subprocess
 import sys
-import threading
 import time
 import uuid
 from pathlib import Path
@@ -14,7 +13,7 @@ from .authentication import authenticate
 from .account_store import LocalStore
 from .config import RuntimeConfig,read_configuration,data_directory
 from .files import prepare_home,private_json,read_json
-from .ipc import IpcServer
+from .ipc import IpcServer,LocalClient
 from .lease import Lease
 from .network import Network
 from .protocol import RuntimeFault
@@ -164,8 +163,15 @@ def status(path):
 def serve(path,options,run_id,*,timeout=900):
     ui=AccountSetupUi(path,options)
     with Lease(ui.home/'account-setup.lock',timeout=0):
-        server=IpcServer(ui.home,'account-setup',lambda *args: (_ for _ in ()).throw(RuntimeFault('forbidden','Account page only')),user_ui=ui)
-        thread=threading.Thread(target=server.server.serve_forever,daemon=True);thread.start()
+        endpoint=ui.home/'account-ui';prepare_home(endpoint)
+        def reopen(operation,operation_id,arguments):
+            if operation!='account.setup.open' or arguments:
+                raise RuntimeFault('forbidden','Account page only accepts reopening')
+            with ui._lock:
+                if ui.done:raise RuntimeFault('not_ready','Account page is closing; retry the original setup','account.setup')
+                ui.open()
+            return {'operationId':operation_id,'status':'completed','data':{'opened':True},'error':None}
+        server=IpcServer(endpoint,'account-setup',reopen,user_ui=ui).start()
         try:
             with ui._lock:
                 try:ui.open()
@@ -178,7 +184,7 @@ def serve(path,options,run_id,*,timeout=900):
             while not ui.done and time.monotonic()<deadline:
                 time.sleep(.1)
         finally:
-            server.server.shutdown();thread.join();server.close()
+            server.close()
     record=read_json(ui.journal) if ui.journal.exists() else {}
     if record.get('phase')!='completed':private_json(ui.receipt,{'status':'waiting','data':{'stage':'account','nextAction':'account.setup','cancelled':ui.done},'error':None})
 
@@ -188,7 +194,10 @@ def launch(path,options):
     with Lease(ui.home/'account-setup-launch.lock',timeout=0):
         try:probe=Lease(ui.home/'account-setup.lock',timeout=0)
         except RuntimeError:
-            return status(path)
+            result=status(path)
+            if result.get('status')=='waiting' and (result.get('data') or {}).get('nextAction')=='complete_local_account_page':
+                LocalClient(ui.home/'account-ui').call('account.setup.open',{})
+            return result
         probe.close()
         run_id=str(uuid.uuid4())
         subprocess.Popen([sys.executable,'-m','ioalab_sdk.access','account-setup','--config',str(ui.path),
