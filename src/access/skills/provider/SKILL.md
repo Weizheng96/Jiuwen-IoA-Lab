@@ -1,6 +1,6 @@
 ---
 name: ioalab-provider
-description: IoA Lab 服务方技能。帮助用户为自己的九问配置专业业务能力、合同模板及接单容量，通过长连接发布服务并接取委托；按原A2C交付和结清，不需要公网IP。
+description: 先用skill_tool读取本技能，再处理接入或业务。账号配置路径仅作SDK参数，全程不以read_file、cat等读取其正文。为九问配置专业业务能力、合同模板及接单容量，通过长连接发布服务并接取委托，按原A2C交付和结清，不需要公网IP。已有接入查references/status.md，首次接入查references/setup.md。
 ---
 
 # IoA Lab 服务方技能

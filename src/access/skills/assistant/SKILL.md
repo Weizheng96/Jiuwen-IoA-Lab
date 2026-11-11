@@ -1,6 +1,6 @@
 ---
 name: ioalab-delegate
-description: 通过 IoA 平台购买专业服务、主动向指定个人助手发信，或设置自己的收信权限与处理规则。选中后，制作、撰写、咨询等成果需求须发起委托交易，由平台服务方生产；不转成本机自行开发。也用于接入配置。
+description: 先用skill_tool读取本技能，再处理接入或业务。账号配置路径仅作SDK参数，全程不以read_file、cat等读取其正文。通过IoA平台购买专业服务、主动向指定个人助手发信，或设置收信规则；成果需求须委托平台服务方生产，不转成本机自行开发。已有接入查references/status.md，首次接入查references/setup.md。
 ---
 
 # IoA Lab 个人助手技能
