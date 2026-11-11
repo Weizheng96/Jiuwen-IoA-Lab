@@ -12,6 +12,53 @@ from ioalab_sdk.runtime.protocol import RuntimeFault
 from _support import PASSWORD,new_user
 
 
+def test_cli_reopens_original_account_page_without_exposing_browser_authority(platform,tmp_path,monkeypatch,capsys):
+    from urllib.parse import urlsplit
+    from conftest import wait_for
+    from ioalab_sdk.access import main
+    from ioalab_sdk.runtime.account_setup import serve,status
+
+    config=tmp_path/'settings.json';opened=[]
+    monkeypatch.setattr('ioalab_sdk.runtime.user_ui.webbrowser.open',lambda url:opened.append(url) or True)
+    worker=threading.Thread(target=serve,args=(config,{'platform_url':platform.s.base_url},'original-worker'),kwargs={'timeout':20})
+    worker.start()
+    wait_for(lambda:bool(opened) and status(config).get('data',{}).get('runId')=='original-worker')
+    first=urlsplit(opened[0]);origin=first.scheme+'://'+first.netloc
+    browser=httpx.Client(base_url=origin,trust_env=False)
+    csrf=browser.post('/user/session',json={'token':first.fragment},headers={'Origin':origin}).json()['csrf']
+    try:
+        assert main(['account-setup','--config',str(config),'--platform',platform.s.base_url])==0
+        output=capsys.readouterr().out;result=json.loads(output)
+        count=len(opened)
+        assert count==2
+        assert result['status']=='waiting' and result['data']['runId']=='original-worker'
+        second=urlsplit(opened[1])
+        same_listener=(first.scheme,first.netloc)==(second.scheme,second.netloc)
+        fresh_entry=first.fragment!=second.fragment
+        leaked=any(urlsplit(url).fragment in output for url in opened)
+        assert same_listener and fresh_entry and not leaked
+        assert browser.post('/user/session',json={'token':first.fragment},headers={'Origin':origin}).status_code==403
+        with httpx.Client(base_url=origin,trust_env=False) as reopened:
+            session=reopened.post('/user/session',json={'token':second.fragment},headers={'Origin':origin})
+            assert session.status_code==200
+            headers={'Origin':origin,'X-Ioa-Csrf':session.json()['csrf']}
+            registered=reopened.post('/user/decision',json={'mode':'register'},headers=headers).json()
+            assert registered['authenticated']
+            assert reopened.post('/user/decision',json={'mode':'register'},headers=headers).json()==registered
+            assert platform.wallets.balance(registered['id'])==100
+        assert main(['account-setup','--config',str(config)])==0
+        completed=json.loads(capsys.readouterr().out)
+        assert completed['status']=='completed' and completed['data']['id']==registered['id']
+        count=len(opened)
+        assert count==2
+        assert not (config.with_suffix('.data')/'runtime.json').exists()
+    finally:
+        browser.post('/user/decision',json={'mode':'cancel'},headers={'Origin':origin,'X-Ioa-Csrf':csrf})
+        browser.close();worker.join(5)
+    assert not worker.is_alive()
+    assert not (config.with_suffix('.data')/'account-ui/runtime.json').exists()
+
+
 def test_register_browser_and_replay_keep_one_account(platform,tmp_path):
     config=tmp_path/'settings.json'
     ui=AccountSetupUi(config,{'platform_url':platform.s.base_url,'role':'assistant'})
