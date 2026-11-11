@@ -22,8 +22,8 @@ SDK打开本机账号页，用户在页内填写账号密码，或点击帮我�
 | 依赖尚未完成 | 查询原runtime.install.status；完成后用原非秘密参数文件调用account.setup，不先runtime.start |
 | 本机账号页未弹出、误关或一次性入口失效 | 再次account.setup，重新打开原账号工作进程中的页面；保留原请求与注册进度 |
 | account.setup.status仍为waiting | 等待用户在本机页完成；按其nextAction继续，不创建或读取账号配置 |
-| account.setup.status为completed | 才进入下方宿主配置与启动 |
+| account.setup.status为completed | 读取host-setup.md，按原SDK脱敏配置回执补齐宿主并启动 |
 
 账号认证完成前，不调用account.login、runtime.configuration、runtime.configure或runtime.start来初始化账号，不用write_file、终端或占位密码手写“基础配置”。配置不存在是首次账号页的正常输入，由SDK在认证通过后原子创建；安装恢复后仍回到原账号阶段。
 
-账号成功后自动继续shared-runtime.md的runtime.configuration/configure：复用账号、data_dir、身份及已有宿主；双角色按原配置增加缺少的角色，不重复注册。无法可靠取得既有九问command/data_dir时只询问这些必要信息，按受控配置入口写入。再runtime.start、runtime.status、identity.status，分别核账号、身份、连接、宿主与角色能力。服务声明、模板、公示和开放接单仍按服务方流程确认。
+账号成功后立即用skill_tool读取host-setup.md，沿原runtime.configuration脱敏回执补齐宿主并启动；最终报告统一按status.md核实际字段。双角色复用原配置、账号和实例，不重复注册；服务声明、模板、公示和开放接单仍按服务方流程确认。

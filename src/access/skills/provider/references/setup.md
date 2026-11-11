@@ -5,7 +5,7 @@
 1. 账号页创建或复用外置配置，之后经受控配置入口补齐既有九问命令/数据目录。账号、身份和宿主检查只使用SDK脱敏结果；不得读取该文件正文，即使只是检查文件存在或角色配置。
 2. 同账号已有个人助手时复用同一个--config与data_dir。读取公共流程，用runtime.configuration/configure按稳定key增加service身份及provider.services；不读取或整份改写账号配置，不改变既有角色或另建竞争运行时。
 3. 用受限配置入口填写instructions、skills、max_active_delegations及accepting，可按用户明确授权填写精确native_tools；resources和外部工具选项留在用户私下配置中，通用配置操作不读取或修改。业务技能名通过host.skill_directories映射到实际绝对目录，使用原生加载结果；SDK冻结读取SKILL.md和references中的Markdown，不凭名称宣称能力就绪。
-4. **执行前先读取[公共SDK启动与恢复](shared-runtime.md)**，按其完整命令安装/启动并核身份、连接及宿主。未发布模板时executionReady=false是实际未就绪，不能宣称上线接单。
+4. 首次账号按account-setup.md，账号认证完成后按[宿主接入](host-setup.md)，最终状态按[状态核对](status.md)逐项报告。已有配置只查状态时直接读status.md；安装、启停和错误恢复按[公共SDK恢复](shared-runtime.md)。未发布模板时executionReady=false是实际未就绪，不能宣称上线接单。
 
 用户要暂不接单时用provider.flow（profile、action=pause）并核currentPolicy.accepting=false；开放接单用provider.flow（action=resume_admission，原profile及flowRef）并核真实状态。可先暂停再公示，原参数文件重传不重开开关；重启或公示不等于恢复。provider.flow（action=status）中的admissionPolicy是平台实际策略，executionReady只是执行能力。原有效预留及合同继续处理，不能杀进程冒充暂停。
 
