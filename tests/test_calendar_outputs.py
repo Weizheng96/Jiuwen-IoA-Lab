@@ -126,3 +126,31 @@ else:
     with pytest.raises(RuntimeFault): service.book(payload, {**original, 'operationId':'different-operation'})
     assert cli.with_suffix('.log').read_text() == before
     assert next(iter(service.records().values()))['state'] == 'unknown'
+
+
+def test_agently_attachment_does_not_prevent_sdk_restart(tmp_path):
+    import sys
+    from ioalab_sdk.runtime.files import prepare_home
+    cli=tmp_path/'mail_cli.py'
+    cli.write_text("""import json,sys
+if sys.argv[1:]==['auth','status']:
+ data={'logged_in':True,'expires_at':'2099-01-01T00:00:00Z'}
+elif sys.argv[1:]==['+me']:
+ data={'aliases':[{'email':'notice@example.test'}]}
+else:data={'queued':True}
+print(json.dumps({'ok':True,'data':data}))
+""",encoding='utf-8')
+    calendar=schedule(tmp_path/'calendar');config=options(calendar)
+    config['notification']={'transport':'agently','sender':'notice@example.test','command':[sys.executable,str(cli)]}
+    home=tmp_path/'sdk';prepare_home(home)
+    identities=({'key':'owner','role':'assistant','name':'owner'},)
+    tools=ConfiguredTools([{'factory':'calendar','profile':'owner','options':config}],identities,home=home,base_dir=tmp_path)
+    original=context();payload=appointment()
+    try:result=tools.for_profile('owner')['calendar.book'].invoke(payload,original)
+    finally:tools.close()
+    assert result['inviteSubmitted'] is True
+    prepare_home(home)  # The actual SDK startup boundary must accept persisted business files.
+    restored=ConfiguredTools([{'factory':'calendar','profile':'owner','options':config}],identities,home=home,base_dir=tmp_path)
+    try:
+        assert restored.for_profile('owner')['calendar.book'].invoke(payload,{**original,'operationId':'restart'})==result
+    finally:restored.close()

@@ -274,7 +274,7 @@ def configure(options,*,home,profile,base_dir):
         raise RuntimeFault('invalid_input','Only SMTP sending uses an OAuth2 client_id and token_file')
     if notice.get('transport')=='agently':
         from .agently import AgentlyNotification
-        notification=AgentlyNotification(notice['sender'],notice['command'],Path(home)/'invitations',
+        notification=AgentlyNotification(notice['sender'],notice['command'],Path(home)/'roles'/profile/'business/calendar/invitations',
                                          config_dir=path(notice['config_dir']) if notice.get('config_dir') else None)
     elif notice.get('transport')=='agentmail':
         notification=AgentMailNotification(notice['sender'],credential('api_key_env'))
