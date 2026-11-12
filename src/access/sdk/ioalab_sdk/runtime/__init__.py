@@ -1,6 +1,7 @@
 """Shared resident runtime entry; role handlers, hosts and business tools are injected separately.
 
 Other modules import the shared runtime only from here; submodules stay importable for installed callers."""
+from .business_skills import FrozenSkills,documents
 from .catalog import AGENT, ASSISTANT, CATALOG, INTERNAL, OPERATIONS, PROVIDER, RUNTIME, SCRIPT, Operation, fields, handled_by
 from .flows import FlowJournal, flow_key
 from .config import RuntimeConfig, data_directory, read_configuration
@@ -23,6 +24,7 @@ from .trusted_user import TrustedUserPort, TrustedUserServer
 from ..templates import TEMPLATE_LIFETIME, TEMPLATE_RENEW_BEFORE, draft_from_terms, template_from_definition
 
 __all__ = [
+    'FrozenSkills', 'documents',
     'FlowJournal', 'flow_key',
     'AGENT', 'ASSISTANT', 'CATALOG', 'INTERNAL', 'OPERATIONS', 'PROVIDER', 'RUNTIME', 'SCRIPT', 'Operation', 'fields',
     'handled_by', 'RuntimeConfig', 'data_directory', 'read_configuration', 'AgentConnection', 'Network', 'prepare_home',

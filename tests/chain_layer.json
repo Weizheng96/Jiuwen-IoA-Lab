@@ -149,6 +149,16 @@
   "tests/test_cli_encoding.py": [
    "test_chinese_validation_is_utf8_without_terminal_or_environment_assumptions"
   ],
+  "tests/test_codex_host.py": [
+   "test_bound_tool_round_and_new_host_resume_keep_the_original_session",
+   "test_lost_result_keeps_session_and_never_retries",
+   "test_changed_definition_and_missing_original_binding_are_rejected",
+   "test_cancel_returns_actual_terminal_and_cannot_claim_no_effect",
+   "test_native_tools_and_unprobed_rounds_fail_before_start",
+   "test_selected_skills_are_frozen_and_cannot_be_replaced_on_resume",
+   "test_unbound_namespace_cannot_reach_the_role_callback",
+   "test_unresponsive_child_cannot_block_the_turn_deadline_while_writing"
+  ],
   "tests/test_configuration_boundary.py": [
    "test_bom_configuration_and_arguments_cross_actual_product_cli_and_ipc",
    "test_business_configuration_mismatch_has_no_effect_or_argument_rewrite",

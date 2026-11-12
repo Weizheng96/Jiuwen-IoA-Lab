@@ -70,6 +70,7 @@ HELPER_CASES = {
 }
 # Files outside every module: exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
+    'tools/verification/codex_host.py': ('codex_host',),
     'tools/container_images.py': ('container_images',),
     'tools/check_docs.py': ('check_docs',),
     'tools/check_modules.py': ('check_modules', 'check_scope', 'reading_budget'),
@@ -96,6 +97,7 @@ RULES = (
     (('src/trial/',), ('trial_*',)),
     (('src/access/skills/',), ('access_products', 'business_skills', 'skill_*', 'cli_encoding', 'private_files')),
     (('src/access/sdk/',), ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries')),
+    (('src/hosts/codex/',), ('codex_host',)),
     (('src/hosts/',), ('jiuwen_host', 'host_tool_names', 'native_*', 'web_*', 'runtime_delivery')),
     (('src/platform/',), ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission')),
     (('src/official/',), ('official_*', 'business_tools', 'appointment_source', 'agentmail_*')),

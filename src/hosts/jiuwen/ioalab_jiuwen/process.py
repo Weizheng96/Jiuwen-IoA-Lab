@@ -13,7 +13,7 @@ from jiuwenswarm_sdk import Client
 from ioalab_sdk.runtime import private_json
 from ioalab_sdk.runtime import HostResult
 from ioalab_sdk.runtime import RuntimeFault,encode
-from .skills import FrozenSkills,documents
+from ioalab_sdk.runtime import FrozenSkills,documents
 
 
 class ProcessHost:

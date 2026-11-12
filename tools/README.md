@@ -8,6 +8,7 @@
 | 依赖与发布同步 | `sync_a2c.py`、`sync_gitcode.py` | [develop](../.agents/skills/develop/SKILL.md)、[gitcode-sync](../.agents/skills/gitcode-sync/SKILL.md) |
 | 随仓基础镜像 | `container_images.py verify/load`；第三方原件归 `vendor/container-images/` | [deployment](../.agents/skills/deployment/SKILL.md) |
 | 新服务器连接 | `server_connection.py`（开发环境需 paramiko 4）：读取唯一私有 `.agents/server-connection.json` 及其中已核主机公钥/指纹，严格拒绝未知或变更密钥；`--script` 通过 stdin 执行 Bash，`--upload` 用 SFTP；不另读凭据源或主机密钥缓存 | [deployment](../.agents/skills/deployment/SKILL.md) |
+| 本机Codex宿主验收 | `verification/codex_host.py --codex <绝对路径> --model <模型> --report-dir <新目录>`；可显式给进程级`--proxy`，验证真实工具、原Session续接和取消，不触发平台业务 | [testing](../.agents/skills/testing/SKILL.md) |
 | 安装与原生专项 | `verification/` 的安装、管理员、资源及网页回执探针 | [deployment](../.agents/skills/deployment/SKILL.md)、[jiuwen-swarm](../.agents/skills/jiuwen-swarm/SKILL.md) |
 | 媒体与场景构造 | `media/` 的剧本、配音、剪辑、证据及发布工具 | [demo-video](../.agents/skills/demo-video/SKILL.md) |
 | 模型输入与初始化 | `llm.py`、`import_model_source.py` | [llm](../.agents/skills/llm/SKILL.md) |

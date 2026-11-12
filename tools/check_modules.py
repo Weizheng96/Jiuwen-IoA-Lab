@@ -33,6 +33,8 @@ MODULES = {
               "src/access/sdk/ioalab_sdk/templates.py", "src/access/sdk/ioalab_sdk/__init__.py", "src/access/skills/_shared"],
     "个人助手端": ["src/access/sdk/ioalab_sdk/assistant", "src/access/skills/assistant"],
     "服务方端": ["src/access/sdk/ioalab_sdk/provider", "src/access/skills/provider"],
+    "Codex适配": ["src/hosts/codex/ioalab_codex"],
+    "ClaudeCode适配": ["src/hosts/claude_code/ioalab_claude_code"],
     "宿主适配": ["src/hosts/jiuwen/ioalab_jiuwen"],
     "SDK装配": ["src/access/sdk/ioalab_sdk/access.py"],
     "官方服务": ["src/official/services/ioalab_services"],
@@ -45,6 +47,7 @@ OUTSIDE = {"示例": ["src/access/examples"], "开发工具": ["tools"], "测试
 # Import roots for absolute imports.
 PACKAGES = {
     "ioalab": "src/platform/ioalab", "ioalab_sdk": "src/access/sdk/ioalab_sdk",
+    "ioalab_codex": "src/hosts/codex/ioalab_codex",
     "ioalab_jiuwen": "src/hosts/jiuwen/ioalab_jiuwen", "ioalab_services": "src/official/services/ioalab_services",
     "ioalab_admin_assistant": "src/official/admin-assistant/ioalab_admin_assistant",
     "ioalab_tools": "src/official/tools/ioalab_tools", "ioalab_trial": "src/trial/ioalab_trial",
@@ -67,6 +70,7 @@ CONVERGED = {
     "共用运行时": PACKAGE,
     "个人助手端": PACKAGE,
     "服务方端": PACKAGE,
+    "Codex适配": PACKAGE,
     "宿主适配": PACKAGE,
     "SDK装配": FILES,
     "官方服务": PACKAGE,

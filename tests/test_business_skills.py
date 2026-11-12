@@ -9,7 +9,8 @@ import subprocess
 import pytest
 from a2c.codec import digest_bytes
 from ioalab_jiuwen.process import ProcessHost
-from ioalab_jiuwen.skills import FrozenSkills,documents,MAX_FILE
+from ioalab_sdk.runtime import FrozenSkills,documents
+from ioalab_sdk.runtime.business_skills import MAX_FILE
 from ioalab_sdk.runtime.files import private_text
 from ioalab_sdk.runtime.host import AgentDefinition,HostTurn,ToolBinding
 from ioalab_sdk.runtime.protocol import RuntimeFault

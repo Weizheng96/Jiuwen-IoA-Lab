@@ -6,8 +6,8 @@ import uuid
 
 from a2c.codec import digest,digest_bytes
 from a2c.errors import A2CError
-from ioalab_sdk.runtime import private_json,private_text,read_json
-from ioalab_sdk.runtime import RuntimeFault
+from .files import private_json,private_text,read_json
+from .protocol import RuntimeFault
 
 MAX_FILES=128
 MAX_FILE=256*1024
