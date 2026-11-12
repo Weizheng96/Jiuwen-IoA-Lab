@@ -153,13 +153,13 @@ def test_removed_scene_cases_and_asset_changes_select_their_real_coverage_owner(
         'src/platform/ioalab/storage.py':'domain_migrations',
         'src/platform/ioalab/migrations/__init__.py':'domain_migrations',
         'src/platform/ioalab/identity/migrations.py':'domain_migrations',
-        'src/access/sdk/ioalab_sdk/assistant/flow.py':'assistant_flow_guidance',
-        'src/access/sdk/ioalab_sdk/runtime/confirmation_view.py':'confirmation_view',
-        'src/hosts/jiuwen/ioalab_jiuwen/a2ui.py':'jiuwen_a2ui_forms',
+        'src/client/sdk/ioalab_sdk/assistant/flow.py':'assistant_flow_guidance',
+        'src/client/sdk/ioalab_sdk/runtime/confirmation_view.py':'confirmation_view',
+        'src/client/hosts/jiuwen/ioalab_jiuwen/a2ui.py':'jiuwen_a2ui_forms',
         'src/platform/ioalab/web/trial.py':'trial_admission',
         'tests/chain_layer.json':'test_layers',
         'src/platform/ioalab/payments/scopes.py':'rule_boundaries',
-        'src/access/sdk/ioalab_sdk/adapters/arbitration.py':'rule_boundaries',
+        'src/client/sdk/ioalab_sdk/adapters/arbitration.py':'rule_boundaries',
     }.items():
         assert 'tests/test_'+owner+'.py' in select_tests([path])['tests'], path
 

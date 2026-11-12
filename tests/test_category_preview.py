@@ -223,7 +223,7 @@ def test_real_configured_platform_model_classifies_public_capability_via_http(pl
             ('src/platform/ioalab/registry/categories.py',categories),
             ('src/platform/ioalab/registry/taxonomy.py',taxonomy),
             ('src/platform/ioalab/registry/models.py',models),
-            ('src/access/sdk/ioalab_sdk/provider/publication.py',publication))}
+            ('src/client/sdk/ioalab_sdk/provider/publication.py',publication))}
         Path(os.environ['IOALAB_REAL_CATEGORY_REPORT']).write_text(json.dumps({
             'scope':'Actual platform HTTP category preview with configured model and actual A2X tree; not native Jiuwen onboarding or film',
             'model':model_name,'categoryId':result['categoryId'],'categoryPath':result['categoryPath'],

@@ -231,7 +231,7 @@ def test_both_skill_roles_route_login_to_installed_sdk_without_starting_host(tmp
         calls.append(arguments);return subprocess.CompletedProcess(arguments,0,'{"status":"completed","data":{"authenticated":true}}','')
     monkeypatch.setattr(product,'invoke',invoke)
     config=tmp_path/'outside.json'
-    assert product.main(['account.login','--config',str(config)])==0
+    assert product.main(['--role',role,'account.login','--config',str(config)])==0
     assert calls==[['-m','ioalab_sdk.access','login','--config',str(config.resolve())]]
 
 

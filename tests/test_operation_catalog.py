@@ -12,7 +12,7 @@ from ioalab_sdk.runtime.resident import ResidentRuntime
 from test_resident_runtime import configuration
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILLS = ROOT / 'src/access/skills'
+SKILLS = ROOT / 'src/client/skills'
 PREFIX = '(?:runtime|identity|account|confirmations|operations|assistant|provider)'
 # A full operation name in skill text; ASCII boundaries because CJK text sits directly next to names.
 # A trailing ".*" or a quoted trailing dot (`assistant.delegation.`) marks a family prefix.
@@ -23,7 +23,7 @@ STATUSES = {'accepted', 'running', 'waiting', 'completed', 'rejected', 'failed',
 def provider_task_tools():
     """Per-turn host tool names of the provider role; skills teach them, but they are not operations."""
     names = set()
-    for path in (ROOT / 'src/access/sdk/ioalab_sdk/provider').glob('*.py'):
+    for path in (ROOT / 'src/client/sdk/ioalab_sdk/provider').glob('*.py'):
         for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
             if (isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'ToolBinding' and node.args
                     and isinstance(node.args[0], ast.Constant) and str(node.args[0].value).startswith('provider.task.')):
@@ -71,7 +71,7 @@ def test_every_agent_operation_is_taught_by_its_product_skill(role, folders):
 
 
 def test_product_script_routes_exactly_the_cataloged_script_operations():
-    source = (SKILLS / '_shared/ioalab.py').read_text(encoding='utf-8')
+    source = (ROOT / 'src/client/ioalab_client/commands.py').read_text(encoding='utf-8')
     routed = set(re.findall(r"'((?:runtime|account)\.[a-z_.-]*[a-z_])'", source))
     assert routed == set(handled_by(SCRIPT))
 

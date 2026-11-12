@@ -1,3 +1,3 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src/platform", "src/access/sdk", "src/hosts/jiuwen", "src/hosts/codex", "src/official/tools", "src/official/services", "src/official/admin-assistant", "src/trial"]
+pythonpath = ["src/client", "src/platform", "src/client/sdk", "src/client/hosts/jiuwen", "src/client/hosts/codex", "src/official/tools", "src/official/services", "src/official/admin-assistant", "src/trial"]

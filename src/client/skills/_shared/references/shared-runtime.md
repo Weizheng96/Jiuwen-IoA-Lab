@@ -2,34 +2,18 @@
 
 触发：完成本机角色配置后安装、启动、诊断、停止或打开确认页。先用skill_tool读取location.md并确定唯一脚本路径；其余流程页也使用relative_file_path读取。
 
-Linux先核`python3.11 --version`及该解释器的venv可用，以下命令首项使用已核的`python3.11`或其绝对路径；Windows使用已核的`python`。不把Linux默认`python3`或九问venv中的同名程序当作CPython3.11；基础解释器版本冲突时按实际回执改用系统已安装的绝对Python3.11路径，不修改九问或全局Python。
-
-配置文件路径直接传给脚本，不用read_file或终端查看正文；SDK会报告文件缺失、格式及配置缺项。普通接入从runtime.start开始；用户只要求预装依赖时必须用runtime.install，不用runtime.start，以免已安装时意外启动SDK。缺依赖时发起独立后台安装并快速返回，不需要延长九问终端时限。安装仅访问随包wheels和配置的国内镜像，不改九问或全局Python。两种技能共用同一依赖任务。
+客户端已由GitCode tag的bootstrap安装在独立环境，两个角色Skill使用同一解释器；Skill不下载或安装客户端。先执行runtime.install.status核客户端安装完整性，失败回到原bootstrap安装记录诊断，保留目录和原账号数据，不自行补包或读取源码猜安装结果。
 
 ```text
+python "<skill_directory>/scripts/ioalab.py" runtime.install.status
 python "<skill_directory>/scripts/ioalab.py" runtime.start --config "<外置配置文件>"
 python "<skill_directory>/scripts/ioalab.py" runtime.status --config "<外置配置文件>"
 python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置配置文件>"
 ```
 
-仅预装：`python "<skill_directory>/scripts/ioalab.py" runtime.install`；查询：`python "<skill_directory>/scripts/ioalab.py" runtime.install.status`。安装操作不需要账号配置或参数文件，也不需要手写releaseId/attemptId。
+上述python只用于运行薄调用脚本，脚本会转交bootstrap导出时绑定的客户端Python3.11；不把九问环境当作客户端环境。安装完成不代表已上线；首次先完成account-setup.md，再按host-setup.md启动。SDK启动返回waiting时只查询同一配置，不重复启动，不轮询数分钟占用前台。
 
-依照真实回执的stage和nextAction继续：stage=installation时查询runtime.install.status；依赖completed后，普通接入再次runtime.start才会校验配置并启动SDK，随后查询runtime.status；仅预装到此结束。安装完成不代表已上线。runtime.install用于单独预装或明确失败后的显式重试，不能当查询反复调用；runtime.validate只做配置检查，普通接入不必另做。其他诊断/业务操作不触发安装。安装结果只以runtime.install.status回执为准，不反复读日志推断完成；明确失败时才按logPath诊断。上述名称是本脚本参数，不是原生工具或技能商店动作。
-
-安装、启动及停止的状态查询同样遵守[公共调用的短观察窗口](calling.md#读取异步作业)：单次查询后返回当前阶段，不用for/while加Sleep在一个终端调用内等待数分钟。后台任务继续运行；本轮未完成时保存原引用，结束本轮，稍后只查询同一任务，不重发安装或启动。
-
-| 真实结果 | 下一步 |
-|---|---|
-| waiting且stage=installation | 沿原releaseId/attemptId查询runtime.install.status；前台结束后后台继续，不再发起安装 |
-| 安装completed | 仅预装到此结束；普通接入再runtime.start并查询runtime.status，不直接重做原业务 |
-| SDK启动返回waiting | 沿同一配置查询runtime.status；不重复启动 |
-| 工具观察超时 | 查询原安装任务或同一SDK实例，核真实进程/锁和终态；不因观察超时另起任务 |
-| installation_failed | 查本次logPath并修正原因，显式runtime.install可重试；不改校验或手写完成标记 |
-| 安装unknown | 保留原环境、attemptId和日志，核对真实所有者；不自动删除、重装或运行SDK |
-| status完成 | 分别核对身份bound、platformConnected、宿主available及角色执行能力；未发布服务仍可executionReady=false |
-| configuration_changed / installation_changed | 用空JSON文件调用runtime.stop，等待实际安全停止后按原配置启动；不改data_dir或私钥 |
-| authenticate | 核对本机账号配置；原实例存在时先正常runtime.stop并核释放，再调用account.login，成功后runtime.start；不换data_dir或删除账号库 |
-| unknown | 保留原参数文件及operationId，按原角色查询/恢复；不重做签约、付款或通知 |
+configuration_changed或installation_changed时按原配置正常停止并核锁释放，再启动；不换data_dir或私钥。unknown保留原参数和operationId，查询原业务，不重做签约、付款或通知。status分别核身份bound、platformConnected、宿主available与角色执行能力；未发布服务不能报告可接单。
 
 账号恢复：`python "<skill_directory>/scripts/ioalab.py" account.login --config "<外置配置文件>"`。此命令不需要args-file，由SDK持同一实例锁，只恢复账号会话，不启动九问、模型或业务。有效凭据复用不赠币；明确失效时才新登录。原登录未知时恢复同一标识，结果仍未知或输入已变则保留现场，不改密码/操作标识后反复请求。已明确拒绝后可修正本机配置并再次显式登录；newLogin只表示本次是否建立新的登录操作，不能据历史credited推定再次到账。普通重启不暗中重登。
 
@@ -37,9 +21,7 @@ python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置�
 
 两个角色默认共用~/.ioalab/settings.local.json，也可用同一个--config指定其他外置文件。配置不要放在技能目录或data_dir中；原生覆盖导入会替换技能目录。data_dir保管稳定身份、原Session和业务，依赖缓存是另一个目录，不得删除运行数据来修复安装。
 
-明确失败的安装仅在归属记录和实际安装锁核验后，经显式runtime.install归档原自有环境再新建；回执的retainedAttempt指向原attempt、日志和归档记录。查询与runtime.start不触发归档。旧环境缺归属、状态unknown、完成标记冲突或目录链接时保留原件并报告，不删除缓存、手工补pip或把其他目录认领为本次环境。
-
-需要九问辅助增加角色、业务能力或调整并发时，先runtime.install并等完成，再调用runtime.configuration --config "<外置配置文件>"取得configurationDigest、身份和可修改字段；不要读取设置正文。生成独立UTF-8 JSON文件，例如：
+需要九问辅助增加角色、业务能力或调整并发时，先runtime.install.status核安装完成，再调用runtime.configuration --config "<外置配置文件>"取得configurationDigest、身份和可修改字段；不要读取设置正文。生成独立UTF-8 JSON文件，例如：
 
 ```json
 {"expectedDigest":"<实际configurationDigest>","changes":{"max_model_runs":2,"identities":[{"key":"coding","role":"service","name":"我的编程服务"}],"provider":{"services":{"coding":{"instructions":"用户明确的业务处理规则","skills":[],"max_active_delegations":2}}}}}

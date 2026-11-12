@@ -83,6 +83,7 @@ FILE_RULES = {
     'tools/test_layers.py': ('test_layers', 'check_workflow'),
     'tools/check_frontend.cjs': ('frontend',),
     'tools/stamp_static.py': ('frontend',),
+    'tools/build_client.py': ('package_installation', 'background_installation', 'access_products'),
     'tools/build_requirements.py': ('access_products', 'package_installation', 'package_manifest_boundary'),
     'tools/media/script_documents.py': ('review_story', 'demo_artifacts'),
     'tools/media/review_story.py': ('review_story', 'demo_artifacts'),
@@ -93,12 +94,12 @@ FILE_RULES = {
 RULES = (
     (('.agents/', '.github/', 'tools/check_scope.py'), ('check_workflow', 'check_scope')),
     (('tests/js/user_confirmation_view.cjs',), ('user_confirmation_view',)),
-    (('src/access/examples/',), ('external_provider', 'resident_runtime', 'configuration_boundary')),
+    (('src/client/examples/',), ('external_provider', 'resident_runtime', 'configuration_boundary')),
     (('src/trial/',), ('trial_*',)),
-    (('src/access/skills/',), ('access_products', 'business_skills', 'skill_*', 'cli_encoding', 'private_files')),
-    (('src/access/sdk/',), ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries')),
-    (('src/hosts/codex/',), ('codex_host',)),
-    (('src/hosts/',), ('jiuwen_host', 'host_tool_names', 'native_*', 'web_*', 'runtime_delivery')),
+    (('src/client/skills/',), ('access_products', 'business_skills', 'skill_*', 'cli_encoding', 'private_files')),
+    (('src/client/sdk/',), ('runtime_delivery', 'runtime_scheduling', 'installation_identity', 'resident_input_boundaries')),
+    (('src/client/hosts/codex/',), ('codex_host',)),
+    (('src/client/hosts/',), ('jiuwen_host', 'host_tool_names', 'native_*', 'web_*', 'runtime_delivery')),
     (('src/platform/',), ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission')),
     (('src/official/',), ('official_*', 'business_tools', 'appointment_source', 'agentmail_*')),
     (('vendor/',), ('deployment*', 'vendor_deployment', 'owned_workspace', 'production_release', 'sync_a2c')),
@@ -307,7 +308,7 @@ def select_tests(paths, root=ROOT, *, base=None):
         if path in available:
             add((available[path],)); reasons.append(path + ': changed test (quick integration matrix where declared)')
             continue
-        if not code and not path.startswith('src/access/skills/'):
+        if not code and not path.startswith('src/client/skills/'):
             continue
         module = module_of(path)
         if module is not None:

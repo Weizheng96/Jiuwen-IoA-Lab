@@ -19,7 +19,7 @@ def test_frontend_changes_select_authentication_and_pair_privacy_regression(path
 def test_public_pages_and_server_side_workbench_gates(client):
     guide=client.get('/connect',follow_redirects=False)
     assert guide.status_code==307
-    assert guide.headers['location']=='https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/readme_agent.md'
+    assert guide.headers['location']=='https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/README_AGENT.md'
     for page in ('/','/services','/assistants','/login','/register'):
         response=client.get(page)
         assert response.status_code==200

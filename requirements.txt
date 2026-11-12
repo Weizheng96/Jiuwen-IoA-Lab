@@ -6,8 +6,8 @@
 ./vendor/wheels/jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl
 -e ./vendor/A2X-registry
 -e ./src/platform
--e ./src/access/sdk
--e ./src/hosts/jiuwen
+-e ./src/client/sdk
+-e ./src/client/hosts/jiuwen
 -e ./src/official
 
 # 仓库检查与构建工具。

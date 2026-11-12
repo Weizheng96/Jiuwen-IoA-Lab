@@ -63,7 +63,6 @@ OPERATIONS = (
     Operation('confirmations.get', RUNTIME, REFERENCE, READ, False, LOCAL_READ, INTERNAL),
     Operation('account.refresh', RUNTIME, NONE, CONTROL, False, QUERY, AGENT),
     # Product script and CLI commands; arguments come from --config or the args-file.
-    Operation('runtime.install', SCRIPT, NONE, LOCAL, False, SETUP, AGENT),
     Operation('runtime.install.status', SCRIPT, NONE, READ, False, SETUP, AGENT),
     Operation('runtime.validate', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),
     Operation('runtime.start', SCRIPT, NONE, CONTROL, False, SETUP, AGENT),

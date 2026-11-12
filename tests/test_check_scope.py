@@ -36,7 +36,7 @@ def test_archived_code_never_reenters_current_test_scope():
 
 
 def test_archiving_deleted_sdk_source_keeps_current_owner_and_critical_checks():
-    result=select_tests(['src/access/sdk/ioalab_sdk/client.py','历史备份/旧执行链/sdk/client.py'])
+    result=select_tests(['src/client/sdk/ioalab_sdk/client.py','历史备份/旧执行链/sdk/client.py'])
     assert 'tests/test_resident_input_boundaries.py' in result['tests']
     assert all(has_target(result['tests'],target) for target in CRITICAL)
     assert not any(name.startswith('历史备份/') for name in result['tests'])
@@ -50,9 +50,9 @@ def test_archiving_deleted_unmapped_builder_preserves_explicit_coverage_warning(
 
 
 @pytest.mark.parametrize('path,expected',[
-    ('src/access/examples/provider.py','tests/test_external_provider.py'),
-    ('src/access/sdk/ioalab_sdk/runtime/lease.py','tests/test_lease.py'),
-    ('src/access/sdk/ioalab_sdk/runtime/account_store.py','tests/test_account_enrollment.py'),
+    ('src/client/examples/provider.py','tests/test_external_provider.py'),
+    ('src/client/sdk/ioalab_sdk/runtime/lease.py','tests/test_lease.py'),
+    ('src/client/sdk/ioalab_sdk/runtime/account_store.py','tests/test_account_enrollment.py'),
     ('src/official/tools/ioalab_tools/agentmail_setup.py','tests/test_agentmail_setup.py'),
     ('src/official/tools/ioalab_tools/schedule_cli.py','tests/test_local_schedule.py'),
 ])
@@ -98,11 +98,11 @@ def test_shared_inputs_cannot_be_filtered_as_prose_or_test_helpers(path):
 
 
 @pytest.mark.parametrize('path,expected', [
-    ('src/access/sdk/ioalab_sdk/assistant/role.py', 'tests/test_assistant_role.py'),
-    ('src/access/sdk/ioalab_sdk/provider/production.py', 'tests/test_provider_task_recovery.py'),
+    ('src/client/sdk/ioalab_sdk/assistant/role.py', 'tests/test_assistant_role.py'),
+    ('src/client/sdk/ioalab_sdk/provider/production.py', 'tests/test_provider_task_recovery.py'),
     ('src/platform/ioalab/payments/ledger.py', 'tests/test_payment_atomicity.py'),
     ('deploy/deployment.json.example', 'tests/test_vendor_deployment.py'),
-    ('src/access/skills/assistant/SKILL.md', 'tests/test_access_products.py'),
+    ('src/client/skills/assistant/SKILL.md', 'tests/test_access_products.py'),
 ])
 def test_runtime_scope_keeps_related_and_critical_boundaries(path, expected):
     selected = select_tests([path])['tests']
@@ -112,7 +112,7 @@ def test_runtime_scope_keeps_related_and_critical_boundaries(path, expected):
 
 
 @pytest.mark.parametrize('path,module', [
-    ('src/access/sdk/ioalab_sdk/assistant/fulfillment.py', '个人助手端'),
+    ('src/client/sdk/ioalab_sdk/assistant/fulfillment.py', '个人助手端'),
     ('src/platform/ioalab/payments/ledger.py', '支付中心'),
     ('src/platform/ioalab/operations.py', 'web服务'),
     ('deploy/linux.py', '部署'),
@@ -214,7 +214,7 @@ def test_test_edits_select_only_themselves():
 
 
 def test_owner_view_and_its_js_driver_select_behavior_and_security_checks():
-    for path in ['src/access/sdk/ioalab_sdk/runtime/web/user.html', 'tests/js/user_confirmation_view.cjs']:
+    for path in ['src/client/sdk/ioalab_sdk/runtime/web/user.html', 'tests/js/user_confirmation_view.cjs']:
         selected = select_tests([path])['tests']
         assert 'tests/test_user_confirmation_view.py' in selected
         if path.startswith('src/'):

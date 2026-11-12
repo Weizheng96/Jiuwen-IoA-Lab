@@ -11,7 +11,7 @@ import httpx
 
 from .authentication import authenticate
 from .account_store import LocalStore
-from .config import RuntimeConfig,read_configuration,data_directory
+from .config import DEFAULT_PLATFORM_URL,RuntimeConfig,read_configuration,data_directory
 from .files import prepare_home,private_json,read_json
 from .ipc import IpcServer,LocalClient
 from .lease import Lease
@@ -21,25 +21,33 @@ from .session import AccountSession
 from .user_ui import UserUi
 
 
+def setup_document(path,options):
+    if not isinstance(options,dict) or set(options)-{'platform_url','role'} or options.get('role','assistant') not in ('assistant','service'):
+        raise RuntimeFault('invalid_input','Use platform_url and role (assistant or service)','correct_input')
+    if 'platform_url' in options and (not isinstance(options['platform_url'],str) or not options['platform_url'].strip()):
+        raise RuntimeFault('invalid_input','Use a nonempty platform_url address','correct_input')
+    document=read_configuration(path) if path.exists() else {
+        'platform_url':options.get('platform_url',DEFAULT_PLATFORM_URL),'data_dir':str(path.with_suffix('.data')),
+        'identities':[{'key':options.get('role','assistant'),'role':options.get('role','assistant'),'name':'我的智能体'}]}
+    if not path.exists():
+        previous=Path(document['data_dir'])/'account-setup.json'
+        if previous.exists():document=read_json(previous)['configuration']
+    document.setdefault('platform_url',DEFAULT_PLATFORM_URL)
+    base=document['platform_url']
+    parsed=urlsplit(base if isinstance(base,str) else '')
+    if parsed.scheme not in ('https','http') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise RuntimeFault('invalid_input','Provide the actual platform HTTP(S) address','configure')
+    if options.get('platform_url') and options['platform_url'].rstrip('/')!=base.rstrip('/'):
+        raise RuntimeFault('identity_conflict','Reuse the original platform configuration','inspect_configuration')
+    return document
+
+
 class AccountSetupUi(UserUi):
     page_name='account.html'
 
     def __init__(self,path,options):
         self.path=Path(path).resolve()
-        if not isinstance(options,dict) or set(options)-{'platform_url','role'} or options.get('role','assistant') not in ('assistant','service'):
-            raise RuntimeFault('invalid_input','Use platform_url and role (assistant or service)','correct_input')
-        self.document=read_configuration(self.path) if self.path.exists() else {
-            'platform_url':options.get('platform_url'),'data_dir':str(self.path.with_suffix('.data')),
-            'identities':[{'key':options.get('role','assistant'),'role':options.get('role','assistant'),'name':'我的智能体'}]}
-        if not self.path.exists():
-            previous=Path(self.document['data_dir'])/'account-setup.json'
-            if previous.exists():self.document=read_json(previous)['configuration']
-        base=self.document.get('platform_url','')
-        parsed=urlsplit(base if isinstance(base,str) else '')
-        if parsed.scheme not in ('https','http') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
-            raise RuntimeFault('invalid_input','Provide the actual platform HTTP(S) address','configure')
-        if options.get('platform_url') and options['platform_url'].rstrip('/')!=base.rstrip('/'):
-            raise RuntimeFault('identity_conflict','Reuse the original platform configuration','inspect_configuration')
+        self.document=setup_document(self.path,options)
         self.home=data_directory(self.path,self.document)
         prepare_home(self.home)
         self.journal=self.home/'account-setup.json'
@@ -190,6 +198,19 @@ def serve(path,options,run_id,*,timeout=900):
 
 
 def launch(path,options):
+    document=setup_document(Path(path).resolve(),options)
+    base=document['platform_url'].rstrip('/')
+    try:
+        with Network(base) as network:
+            response=network.http.get(base+'/api/config',timeout=5)
+            response.raise_for_status()
+            public=response.json()
+            if not isinstance(public,dict) or public.get('publicUrl','').rstrip('/')!=base:
+                raise ValueError('Platform address mismatch')
+    except (httpx.HTTPError,OSError,ValueError,AttributeError):
+        return {'status':'rejected','data':{'stage':'platform','platformUrl':base,'nextAction':'ask_platform_url'},
+                'error':{'code':'not_ready','message':'Cannot reach the configured platform; ask the user for its address',
+                         'recovery':'provide_platform_url'}}
     ui=AccountSetupUi(path,options)
     with Lease(ui.home/'account-setup-launch.lock',timeout=0):
         try:probe=Lease(ui.home/'account-setup.lock',timeout=0)

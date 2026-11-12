@@ -13,7 +13,7 @@ ROOT=Path(__file__).resolve().parents[1]
 @pytest.mark.parametrize('name',['ioalab-delegate','ioalab-provider'])
 @pytest.mark.parametrize('mode',['data','home','missing'])
 def test_published_location_command_respects_explicit_data_root_and_has_no_execution(tmp_path,name,mode):
-    text=(ROOT/'src/access/skills/_shared/references/location.md').read_text(encoding='utf-8').replace('__IOALAB_SKILL_NAME__',name)
+    text=(ROOT/'src/client/skills/_shared/references/location.md').read_text(encoding='utf-8').replace('__IOALAB_SKILL_NAME__',name)
     commands=re.findall(r'python -X utf8 -c "([^"\n]+)"',text)
     assert len(commands)==1
     home=tmp_path/'九问用户';data=tmp_path/'指定数据'

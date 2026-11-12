@@ -1,14 +1,14 @@
 # 首次账号引导
 
-公开接入说明统一指向 [GitCode 接入引导](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/readme_agent.md)。已下载技能时，先等待用户在九问“我的技能”原生导入、在会话菜单选择，并用skill_tool实际读取SKILL.md；只有此后才呈现“提供已有账号”“帮我注册”。
+公开接入说明统一指向 [GitCode 接入引导](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/README_AGENT.md)。已下载技能时，先等待用户在九问“我的技能”原生导入、在会话菜单选择，并用skill_tool实际读取SKILL.md；只有此后才呈现“提供已有账号”“帮我注册”。
 
-先读location.md定位实际脚本，核CPython3.11。先调用runtime.install并查询runtime.install.status直到completed；不向用户要求手写命令或配置秘密。首次账号阶段优先按本页执行，shared-runtime.md中“普通接入完成安装后runtime.start”只适用于账号配置已经完成的实例。安装完成后，用独立非秘密JSON文件传递平台与角色，例如：
+先读location.md定位实际脚本，核CPython3.11。平台默认https://120.46.80.150；已有配置或用户已提供的platform_url优先。不先询问平台地址：SDK的account.setup先探测实际/api/config，只有返回stage=platform、nextAction=ask_platform_url时才询问用户完整地址；证书或网络失败不绕过TLS。已有账号与未知注册保留原平台和身份，不因探测失败重建。先调用runtime.install.status核统一客户端安装completed；不向用户要求手写命令或配置秘密。首次账号阶段优先按本页执行，shared-runtime.md中“普通接入完成安装后runtime.start”只适用于账号配置已经完成的实例。安装完成后，用独立非秘密JSON文件传递平台与角色，例如：
 
 ```json
-{"platform_url":"https://实际平台地址","role":"assistant"}
+{"role":"assistant"}
 ```
 
-默认assistant；明确提供服务使用service。执行：
+个人助手Skill使用assistant；服务方Skill使用service，不根据自由文本切换角色。默认地址不可达且用户给出地址后，在同一非秘密参数文件中补platform_url；地址可达时不要求用户重复提供。执行：
 
 ```text
 python "<skill_directory>/scripts/ioalab.py" account.setup --config "<原外置配置或~/.ioalab/settings.local.json>" --args-file "<非秘密参数文件>"
@@ -19,7 +19,7 @@ SDK打开本机账号页，用户在页内填写账号密码，或点击帮我�
 
 | 当前实际阶段 | 唯一继续步骤 |
 |---|---|
-| 依赖尚未完成 | 查询原runtime.install.status；完成后用原非秘密参数文件调用account.setup，不先runtime.start |
+| 依赖尚未完成 | 用原bootstrap核验或修复安装；完成后用原非秘密参数文件调用account.setup，不先runtime.start |
 | 本机账号页未弹出、误关或一次性入口失效 | 再次account.setup，重新打开原账号工作进程中的页面；保留原请求与注册进度 |
 | account.setup.status仍为waiting | 等待用户在本机页完成；按其nextAction继续，不创建或读取账号配置 |
 | account.setup.status为completed | 读取host-setup.md，按原SDK脱敏配置回执补齐宿主并启动 |

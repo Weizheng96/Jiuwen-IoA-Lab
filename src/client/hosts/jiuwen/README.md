@@ -2,7 +2,7 @@
 
 本包使用固定原版九问的公开 Process SDK，提供能力探测、受限工具轮次、原 Session 续接及同进程用户问题回调。SDK 基础包不导入本包；本包负责装配角色模块和宿主，不修改九问源码、全局指令或私有历史数据库。
 
-安装仓库锁定的依赖后，使用 `python -m ioalab_jiuwen start --config <本机配置>`。共用配置及数据目录见 [SDK](../../access/sdk/README.md)，增加 host 区域：
+安装仓库锁定的依赖后，使用 `python -m ioalab_jiuwen start --config <本机配置>`。共用配置及数据目录见 [SDK](../../sdk/README.md)，增加 host 区域：
 
 ```json
 {
@@ -25,8 +25,8 @@ data_dir 决定九问实际配置及模型目录；不是项目代码或单次�
 
 SDK 回调在本次宿主轮次标记允许，但合同、环节和验收仍分别取得 SDK 绑定的真实用户确认；原生问题仍经真实答复回调处理。修改工具或权限不会静默更换既有合同的冻结定义。
 
-可选本地业务工具按[官方工具说明](../../official/README.md)配置host.business_tools，按profile隔离；SDK仅消费已注入的绑定，不加载具体业务包。构造工厂不初始化日程或发送通知，工具资源在运行时任务全部停止后关闭。
+可选本地业务工具按[官方工具说明](../../../official/README.md)配置host.business_tools，按profile隔离；SDK仅消费已注入的绑定，不加载具体业务包。构造工厂不初始化日程或发送通知，工具资源在运行时任务全部停止后关闭。
 
-可选网页通知：在host.business_tools中为所需profile选择jiuwen-web，options配置固定url（/ws及user_id）、user_id、secret_env及专用credentials_file。执行`python -m ioalab_jiuwen web-extension --config <原配置> --args-file <仅含profile的JSON文件> --role <assistant或service>`，只准备已有九问用户应用目录中的IoA扩展和本扩展私有设置；没有密钥时可创建新的专用凭据文件，已有内容不覆盖。需要时由用户从九问原生入口重启。prepared只表示文件已准备，实际加载、排队、会话接收和用户已读分别报告；不修改九问安装、全局配置或权限。详见[网页通知设计](../../../设计/组件/客户端/宿主适配/接口/九问网页通知.md)。
+可选网页通知：在host.business_tools中为所需profile选择jiuwen-web，options配置固定url（/ws及user_id）、user_id、secret_env及专用credentials_file。执行`python -m ioalab_jiuwen web-extension --config <原配置> --args-file <仅含profile的JSON文件> --role <assistant或service>`，只准备已有九问用户应用目录中的IoA扩展和本扩展私有设置；没有密钥时可创建新的专用凭据文件，已有内容不覆盖。需要时由用户从九问原生入口重启。prepared只表示文件已准备，实际加载、排队、会话接收和用户已读分别报告；不修改九问安装、全局配置或权限。详见[网页通知设计](../../../../设计/组件/客户端/宿主适配/接口/九问网页通知.md)。
 
-当前助手收信模块使用本机受控用户确认入口；普通模型布尔参数不能批准规则。网页通知能力需显式配置公开桥接，未配置不声称通知已显示。实际能力与待完成项见[进展](../../../设计/工程/进展.md)，本包依据见 VERSION。
+当前助手收信模块使用本机受控用户确认入口；普通模型布尔参数不能批准规则。网页通知能力需显式配置公开桥接，未配置不声称通知已显示。实际能力与待完成项见[进展](../../../../设计/工程/进展.md)，本包依据见 VERSION。

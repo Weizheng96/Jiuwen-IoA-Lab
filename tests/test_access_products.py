@@ -22,8 +22,16 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def bootstrap():
-    spec=importlib.util.spec_from_file_location('product_bootstrap',ROOT/'src/access/skills/_shared/ioalab.py')
+    spec=importlib.util.spec_from_file_location('ioalab_client.test_commands',ROOT/'src/client/ioalab_client/commands.py')
     value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value);return value
+
+
+def test_bound_skill_role_cannot_be_overridden_by_call_arguments(monkeypatch):
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:pytest.fail('Role override reached installation or RPC'))
+    with pytest.raises(SystemExit) as error:
+        module.main(['--role','assistant','--role','service','runtime.status'])
+    assert error.value.code==2
 
 
 def test_validate_is_read_only_and_never_returns_credentials(tmp_path,capsys):
@@ -61,18 +69,6 @@ def test_existing_instance_cannot_hide_new_role_configuration(platform,tmp_path,
     finally:runtime.close()
 
 
-@pytest.mark.parametrize('what',['wheel','constraint','path'])
-def test_tampered_installer_inputs_never_create_an_environment(tmp_path,what):
-    module=bootstrap();assets=tmp_path/'assets';(assets/'wheels').mkdir(parents=True)
-    lock=b'package==1\n';(assets/'requirements.lock').write_bytes(lock)
-    data=b'original';(assets/'wheels/local.whl').write_bytes(b'tampered' if what=='wheel' else data)
-    manifest={'format':1,'skillVersion':'0.0.1','versions':{},'constraintsSha256':hashlib.sha256(b'wrong' if what=='constraint' else lock).hexdigest(),
-              'wheels':[{'file':'../outside.whl' if what=='path' else 'local.whl','sha256':hashlib.sha256(data).hexdigest()}]}
-    (assets/'runtime.json').write_text(json.dumps(manifest));cache=tmp_path/'cache'
-    with pytest.raises(RuntimeError,match='checksum|path'):module.installation().Release(assets,cache)
-    assert not cache.exists()
-
-
 @pytest.mark.parametrize('role,operation,example',[
     ('assistant','provider.publish','assistant.delegation.prepare'),
     ('assistant','prepare','assistant.delegation.prepare'),
@@ -87,7 +83,7 @@ def test_unrelated_role_cannot_trigger_bootstrap_or_rpc(tmp_path,monkeypatch,cap
     monkeypatch.setattr(module,'installation',lambda:pytest.fail('unrelated operation installed packages'))
     monkeypatch.setattr(module,'invoke',lambda *args:pytest.fail('invalid operation invoked SDK'))
     arguments=tmp_path/'arguments.json';arguments.write_text('{"request":"unchanged"}')
-    assert module.main([operation,'--config',str(tmp_path/'missing-config.json'),'--args-file',str(arguments)])==1
+    assert module.main(['--role',role,operation,'--config',str(tmp_path/'missing-config.json'),'--args-file',str(arguments)])==1
     result=json.loads(capsys.readouterr().out)
     assert result['status']=='rejected' and result['error']['code']=='invalid_input'
     assert result['error']['recovery']=='correct_input'
@@ -114,41 +110,28 @@ def test_complete_role_operation_is_forwarded_without_alias_or_error_reclassific
         calls.append((actual_python,command))
         return SimpleNamespace(stdout=json.dumps(expected),stderr='',returncode=1 if status=='rejected' else 0)
     monkeypatch.setattr(module,'invoke',invoke)
-    assert module.main([operation,'--config',str(config),'--args-file',str(arguments)])==(1 if status=='rejected' else 0)
+    assert module.main(['--role',role,operation,'--config',str(config),'--args-file',str(arguments)])==(1 if status=='rejected' else 0)
     assert json.loads(capsys.readouterr().out)==expected
     assert calls==[(python,['-m','ioalab_sdk.access','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
     assert json.loads(arguments.read_text())=={'request':'unchanged'} and not config.exists()
 
 
-def test_both_real_product_bundles_have_one_manifest_and_generated_entry(tmp_path):
-    output=tmp_path/'bundles'
-    result=subprocess.run([sys.executable,str(ROOT/'tools/build_access_skills.py'),'--out',str(output)],cwd=ROOT,capture_output=True,text=True)
-    assert result.returncode==0,result.stdout+result.stderr
-    manifests=[]
-    for folder,root,role in [('assistant','ioalab-delegate','assistant'),('provider','ioalab-provider','service')]:
-        with zipfile.ZipFile(output/('ioalab-'+folder+'-skill.zip')) as archive:
-            assert not any('settings.local.json' in name or name.endswith('.pyc') for name in archive.namelist())
-            manifests.append(archive.read(root+'/assets/runtime.json'))
-            assert json.loads(archive.read(root+'/assets/skill.json'))['role']==role
-            for entry in ('ioalab.py','installer.py'):
-                assert archive.read(root+'/scripts/'+entry)==(ROOT/'src/access/skills/_shared'/entry).read_bytes()
-            assert root+'/references/setup.md' in archive.namelist()
-            assert archive.read(root+'/references/shared-runtime.md')==(ROOT/'src/access/skills/_shared/references/shared-runtime.md').read_bytes()
-            assert archive.read(root+'/references/location.md')==(ROOT/'src/access/skills/_shared/references/location.md').read_bytes().replace(b'__IOALAB_SKILL_NAME__',root.encode('ascii'))
-            if role=='service':assert root+'/references/contracts.md' in archive.namelist()
-            assert any('/assets/wheels/ioalab_official-' in name for name in archive.namelist())
-            manifest=json.loads(manifests[-1])
-            assert manifest['format']==1
-            assert manifest['skillVersion']==(ROOT/'src/access/skills/VERSION').read_text().strip().removeprefix('v')
-            assert set(manifest['versions'])=={'a2c','ioalab-sdk','ioalab-jiuwen','ioalab-official','jiuwenswarm-process-sdk'}
-            for wheel in manifest['wheels']:
-                assert hashlib.sha256(archive.read(root+'/assets/wheels/'+wheel['file'])).hexdigest()==wheel['sha256']
-    assert manifests[0]==manifests[1]
-    repeated=tmp_path/'repeated'
-    result=subprocess.run([sys.executable,str(ROOT/'tools/build_access_skills.py'),'--out',str(repeated)],cwd=ROOT,capture_output=True,text=True)
-    assert result.returncode==0,result.stdout+result.stderr
-    with zipfile.ZipFile(repeated/'ioalab-assistant-skill.zip') as archive:
-        assert archive.read('ioalab-delegate/assets/runtime.json')==manifests[0]
+def test_both_real_product_bundles_share_one_installed_client(tmp_path):
+    from ioalab_client import export_skills
+    paths=export_skills(tmp_path/'bundles',source=ROOT/'src/client/skills',python=sys.executable)
+    for path,root,role in zip(paths,['ioalab-delegate','ioalab-provider'],['assistant','service']):
+        with zipfile.ZipFile(path) as archive:
+            names=archive.namelist()
+            assert root+'/SKILL.md' in names and root+'/references/setup.md' in names
+            assert not any('/assets/' in name or name.endswith('/installer.py') or name.endswith('.whl') for name in names)
+            script=archive.read(root+'/scripts/ioalab.py').decode()
+            assert repr(sys.executable) in script and role in script
+            assert archive.read(root+'/references/shared-runtime.md')==(ROOT/'src/client/skills/_shared/references/shared-runtime.md').read_bytes()
+    assert export_skills(tmp_path/'bundles',source=ROOT/'src/client/skills',python=sys.executable)==paths
+    paths[0].write_bytes(b'previous-user-export')
+    with pytest.raises(RuntimeError,match='preserve'):
+        export_skills(tmp_path/'bundles',source=ROOT/'src/client/skills',python=sys.executable)
+    assert paths[0].read_bytes()==b'previous-user-export'
 
 
 def test_new_downloads_only_serve_fixed_product_names(platform,client,tmp_path,monkeypatch):
@@ -162,18 +145,13 @@ def test_new_downloads_only_serve_fixed_product_names(platform,client,tmp_path,m
 
 
 @pytest.mark.parametrize('parent_encoding',['ascii','gbk'])
-def test_product_entry_returns_utf8_under_non_utf8_parent(tmp_path,parent_encoding):
-    import os
-    import shutil
-    skill=tmp_path/'skill';scripts=skill/'scripts';scripts.mkdir(parents=True)
-    (skill/'assets').mkdir();(skill/'assets/skill.json').write_text('{"role":"assistant"}',encoding='utf-8')
-    shutil.copy2(ROOT/'src/access/skills/_shared/ioalab.py',scripts/'ioalab.py')
-    (scripts/'installer.py').write_text(
-        'def prepare(*args,**kwargs):\n    return {"status":"waiting","data":{"notice":"中文账号与参数路径"}}\n',encoding='utf-8')
-    result=subprocess.run([sys.executable,str(scripts/'ioalab.py'),'runtime.install.status'],capture_output=True,
-        env={**os.environ,'PYTHONIOENCODING':parent_encoding,'PYTHONUTF8':'0'})
-    assert result.returncode==0,result.stderr.decode('utf-8',errors='replace')
-    assert json.loads(result.stdout.decode('utf-8'))=={'status':'waiting','data':{'notice':'中文账号与参数路径'}}
+def test_product_entry_returns_utf8_under_non_utf8_parent(tmp_path,parent_encoding,monkeypatch,capsys):
+    from types import SimpleNamespace
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'notice':'中文账号与参数路径','python':sys.executable}}))
+    assert module.main(['--role','assistant','runtime.install.status'])==0
+    result=capsys.readouterr().out
+    assert result.isascii() and json.loads(result)['data']['notice']=='中文账号与参数路径'
 
 
 def test_old_installation_status_preserves_observation_and_allows_safe_stop(platform,tmp_path,monkeypatch,capsys):

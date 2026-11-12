@@ -3,7 +3,6 @@
  "thresholdSeconds": 1.0,
  "chain": {
   "tests/test_access_products.py": [
-   "test_both_real_product_bundles_have_one_manifest_and_generated_entry",
    "test_existing_instance_cannot_hide_new_role_configuration",
    "test_old_installation_status_preserves_observation_and_allows_safe_stop"
   ],
@@ -90,9 +89,6 @@
    "test_cli_login_uses_same_controller_and_returns_no_credentials",
    "test_invalid_success_response_remains_unknown_and_reuses_original_operation",
    "test_resident_refresh_is_authenticated_bounded_and_never_credits"
-  ],
-  "tests/test_background_installation.py": [
-   "test_known_failure_requires_explicit_install_retry_and_retains_attempt_log"
   ],
   "tests/test_booking_demo.py": [
    "test_booking_verifiers_good_and_bad"
@@ -302,7 +298,9 @@
   ],
   "tests/test_package_installation.py": [
    "test_built_packages_have_own_versions_and_platform_resources",
-   "test_official_wheel_is_reproducible_when_source_mtimes_change"
+   "test_official_wheel_is_reproducible_when_source_mtimes_change",
+   "test_single_client_wheel_installs_both_roles_away_from_checkout",
+   "test_pip_installs_client_from_git_tag_and_records_its_commit"
   ],
   "tests/test_package_manifest_boundary.py": [
    "test_public_package_endpoint_does_not_store_a_filename_as_a_declared_read"

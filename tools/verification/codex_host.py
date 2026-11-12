@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 import uuid
 
 ROOT=Path(__file__).resolve().parents[2]
-sys.path[:0]=[str(ROOT/'src/hosts/codex'),str(ROOT/'src/access/sdk')]
+sys.path[:0]=[str(ROOT/'src/client/hosts/codex'),str(ROOT/'src/client/sdk')]
 from ioalab_codex import CodexHost
 from ioalab_sdk.runtime import AgentDefinition,HostTurn,ToolBinding,private_json
 

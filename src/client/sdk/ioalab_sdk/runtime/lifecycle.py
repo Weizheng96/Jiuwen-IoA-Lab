@@ -92,7 +92,7 @@ def run(argv,*,modules,validate,service_fields):
         item=commands.add_parser(name)
         item.add_argument('--config',type=Path,required=True)
         if name=='account-setup':
-            item.add_argument('--platform');item.add_argument('--role',choices=('assistant','service'),default='assistant')
+            item.add_argument('--platform');item.add_argument('--role',choices=('assistant','service'))
             item.add_argument('--worker');item.add_argument('--args-file',type=Path)
     call=commands.add_parser('call')
     call.add_argument('operation')
@@ -110,11 +110,17 @@ def run(argv,*,modules,validate,service_fields):
             from .account_setup import launch,serve,status
             if args.command=='account-setup-status':result=status(args.config)
             else:
-                options={'role':args.role}
+                options={'role':args.role or 'assistant'}
                 if args.platform:options['platform_url']=args.platform
                 if args.args_file:
                     from .files import read_json
                     options=read_json(args.args_file)
+                    if not isinstance(options,dict):
+                        raise RuntimeFault('invalid_input','Account setup arguments must be an object','correct_input')
+                    if args.role is not None:
+                        if options.get('role',args.role)!=args.role:
+                            raise RuntimeFault('invalid_input','Account role must match the selected role skill','correct_input')
+                        options={**options,'role':args.role}
                 if args.worker:
                     serve(args.config,options,args.worker)
                     return 0

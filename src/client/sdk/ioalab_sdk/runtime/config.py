@@ -10,6 +10,8 @@ from urllib.parse import urlsplit
 from .protocol import RuntimeFault
 from a2c.codec import digest
 
+DEFAULT_PLATFORM_URL='https://120.46.80.150'
+
 
 def read_configuration(path):
     """Read user settings once; diagnostics may only need their data locator."""
@@ -74,9 +76,11 @@ class RuntimeConfig:
                  'max_model_runs','max_pending_requests','assistant','provider','host','user_browser'}
         def invalid(message):raise RuntimeFault('invalid_input',message,'configure')
         if not isinstance(value,dict) or set(value)-allowed:invalid('Unknown common runtime configuration fields')
-        for key in ('platform_url','username'):
+        for key in ('username',):
             if not isinstance(value.get(key),str) or not value[key].strip():invalid('Missing configuration field: '+key)
-        platform=value['platform_url'].rstrip('/')
+        platform=value.get('platform_url',DEFAULT_PLATFORM_URL)
+        if not isinstance(platform,str) or not platform.strip():invalid('Invalid configuration field: platform_url')
+        platform=platform.rstrip('/')
         url=urlsplit(platform)
         if url.scheme not in ('http','https') or not url.hostname or url.username or url.password or url.query or url.fragment:
             invalid('Configure a platform HTTP(S) address without embedded credentials')

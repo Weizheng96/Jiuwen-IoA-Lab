@@ -58,7 +58,7 @@ def configure_with_original_model(receiver,inbox,host,allowed_account,workspace)
     workspace=Path(workspace).resolve()
     evidence=workspace/'owner-rule-authoring.json'
     assert not evidence.exists(),'Preserve the original authoring evidence; use a fresh isolated workspace'
-    flow_path=ROOT/'src/access/skills/assistant/references/inbox-rules.md'
+    flow_path=ROOT/'src/client/skills/assistant/references/inbox-rules.md'
     flow_bytes=flow_path.read_bytes();flow=flow_bytes.decode('utf-8')
     workflow=str(uuid.uuid4());schemas=_schemas()
     actor=next(identity.agent_id for identity in receiver.identities if identity.role=='assistant')

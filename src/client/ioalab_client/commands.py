@@ -1,4 +1,4 @@
-"""Thin product entry: background dependencies, then installed SDK/host public commands."""
+"""Role-bound calls through the single pip-installed client."""
 import argparse
 import importlib.util
 import json
@@ -9,10 +9,8 @@ import sys
 
 
 def installation():
-    path=Path(__file__).with_name('installer.py')
-    if not path.is_file():raise RuntimeError('Download the complete platform skill ZIP, including scripts/installer.py')
-    spec=importlib.util.spec_from_file_location('ioalab_skill_installer',path)
-    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+    from . import installation as installed
+    return installed
 
 
 def invoke(python,arguments):
@@ -41,11 +39,12 @@ def relay(result):
 def main(argv=None):
     for stream in (sys.stdout,sys.stderr):
         if hasattr(stream,"reconfigure"):stream.reconfigure(encoding="utf-8",errors="replace")
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation');parser.add_argument('--config',type=Path);parser.add_argument('--args-file',type=Path)
+    parser=argparse.ArgumentParser(description=__doc__,allow_abbrev=False)
+    parser.add_argument('--role',choices=('assistant','service'),required=True,action='append');parser.add_argument('operation');parser.add_argument('--config',type=Path);parser.add_argument('--args-file',type=Path)
     args=parser.parse_args(argv);root=Path(__file__).resolve().parents[1]
+    if len(args.role)!=1:parser.error('Select exactly one role; a role skill cannot override its bound role')
     try:
-        role=json.loads((root/'assets/skill.json').read_text(encoding='utf-8'))['role']
+        role=args.role[0]
         if role not in ('assistant','service'):raise RuntimeError('The product manifest must declare assistant or service')
         prefixes=('runtime.','identity.','account.','confirmations.','operations.','assistant.' if role=='assistant' else 'provider.')
         if not args.operation.startswith(prefixes):
@@ -54,14 +53,14 @@ def main(argv=None):
                 'message':f'Use the complete operation name for this {role} product, such as runtime.status or {example}. '
                     +'Allowed namespaces: '+', '.join(prefixes)+'. Correct the operation argument; do not change identity roles.',
                 'recovery':'correct_input'}});return 1
-        prepared=installation().prepare(root/'assets',launch=args.operation in ('runtime.start','runtime.install'),
-                                        retry=args.operation=='runtime.install')
-        if args.operation in ('runtime.install','runtime.install.status') or prepared['status']!='completed':
+        prepared=installation().prepare()
+        if args.operation == 'runtime.install.status' or prepared['status']!='completed':
             emit(prepared);return 0 if prepared['status'] in ('completed','waiting') else 1
         python=Path(prepared['data']['python'])
         config=(args.config or Path.home()/'.ioalab/settings.local.json').expanduser().resolve()
         if args.operation in ('account.setup','account.setup.status'):
             arguments=['-m','ioalab_sdk.access','account-setup' if args.operation=='account.setup' else 'account-setup-status','--config',str(config)]
+            if args.operation=='account.setup':arguments+=['--role',role]
             if args.args_file:
                 if args.operation.endswith('.status'):raise RuntimeError('Account status uses only --config')
                 arguments+=['--args-file',str(args.args_file.expanduser().resolve())]

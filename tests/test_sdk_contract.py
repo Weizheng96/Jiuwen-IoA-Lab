@@ -10,7 +10,7 @@ from a2c.service import CertifiedService
 from contract_tables import ROOT, errors, kinds, split
 from ioalab_sdk.runtime.catalog import CATALOG
 
-SDK = ROOT / 'src/access/sdk/ioalab_sdk'
+SDK = ROOT / 'src/client/sdk/ioalab_sdk'
 PARTICIPANT = {'共用运行时', '个人助手端', '服务方端'}
 # Original A2C/AP2 method names travel inside a2c.request bodies; they are not wire kinds.
 A2C_METHODS = {*Provider.OPS, *Market.OPS, *PaymentProvider.OPS, *CertifiedService.OPS}
