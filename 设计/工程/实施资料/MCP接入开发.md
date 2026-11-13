@@ -192,3 +192,44 @@ SDK 使用 `mcp>=1.30,<2`，接入技能和 Linux participant 锁固定 `mcp==1.
 本机诊断证据：temp/mcp-real-20261112/mcp-app-routing-diagnosis.json、mcp-app-process-enum-diagnosis.json、mcp-app-live-diagnosis.json；只读探针为同目录 probe_app_bridge.py。
 
 设备会话、凭据迁移与安装环境要求已改为[设备会话开发](设备会话开发.md)所述实现；上文历史实机验收不代表新版设备认证已经在原生九问或全部系统凭据库中验收。
+
+
+## 2026-11-13：九问 MCP 参数保真修复与原草稿预览
+
+用户明确授权仅修改 MCP 工具参数路径，故本次对独立验收实例的 openJiuwen 安装作局部补丁；不沿用前文“官方源码未打补丁”的历史结论。上游基线仍为 agent-core `f3f8f576164cc405c046e43079c8ad00ee17f0c4`，本机实际运行代码已不同于该原版，不代表上游修复或正式依赖发布。IoA 产品代码、安装来源与部署锁未改；重新安装该原版依赖会覆盖补丁，推广前仍需上游正式修复并更新锁定来源。
+
+故障：模型原始 MCP 参数包含 `allowedSenders: []` 和 `tools: []`，但 `MCPTool.invoke` 使用 `remove_none_values` 递归删除空数组、空对象与 null；原草稿缺字段，预览报 required。不得由 IoA 将缺字段默认为任何权限，也不得把 null 和空列表混用。仅在 MCP 路径改为校验而不格式化、清理参数；原 skip_inputs_validate 行为不变，未修改全局 SchemaUtils。
+
+作用文件为独立九问环境内 `openjiuwen/core/foundation/tool/mcp/base.py`。补丁前 SHA-256 `c9811048a03061c470ed7f898cd260bfa3fd2d691d3429bb90d209b1923378fa`，补丁后 `ada331ecef5ee4b359527758c0f8fa765e9ff525439c7dcef78f95e10bf5b138`。下列差异只对应上述固定基线，不自动应用于其他版本：
+
+```diff
+--- a/openjiuwen/core/foundation/tool/mcp/base.py
++++ b/openjiuwen/core/foundation/tool/mcp/base.py
+@@ -204,12 +204,10 @@
+                     ToolCallEvents.TOOL_PARSE_STARTED,
+                     tool_name=self.card.name, tool_id=self.card.id,
+                     raw_inputs=inputs, schema=self._card.input_params)
+-                skip_none_value = kwargs.get("skip_none_value", True)
+-                arguments = SchemaUtils.format_with_schema(inputs, self._card.input_params,
+-                                                           skip_none_value=False,
+-                                                           skip_validate=kwargs.get("skip_inputs_validate", False))
+-                if skip_none_value:
+-                    arguments = SchemaUtils.remove_none_values(arguments) or {}
++                # MCP arguments are JSON: explicit null/empty containers and omitted
++                # fields have distinct meanings. Validate without rewriting the payload.
++                if not kwargs.get("skip_inputs_validate", False):
++                    SchemaUtils.validate_with_schema(arguments, self._card.input_params)
+                 await trigger(
+                     ToolCallEvents.TOOL_PARSE_FINISHED,
+                     tool_name=self.card.name, tool_id=self.card.id,
+
+```
+
+验证分层：
+
+- 通过唯一 check.py 入口测试已安装 MCPTool，边界替身仅替换 MCP 传输；修复前 4 failed / 4 passed，修复后 8 passed。覆盖显式空数组、空对象、null、嵌套值、false/0/空字符串、未填写字段，以及缺必填/类型错误/额外字段拒绝。报告 `temp/checks/mcp-arguments-red/` 与 `mcp-arguments-green/` 含真实退出码、耗时与 XML。初次宿主 Python 缺 pytest，未安装额外宿主依赖，改用既有测试环境加载原宿主库运行。
+- 通过修复后的真实 MCPTool → stdio MCP → 常驻 IPC 保存原草稿并读回，两个空列表保留。首次预览暴露草稿 Schema 含不受支持的展示关键字 title；仅从业务草稿移除 title，保留字段、描述、必填与其他约束，不扩展平台 Schema 校验。再次预览 completed / previewed，原表单修订到 6；未提交、未发布。
+- 仅重启归属已核实的独立九问后端与 MCP 子进程，保留独立账号设置进程及前端；配置文件摘要不变。通过重启后的 ioalab-experience 公开 Apps 网关读取同一 revision 6 / previewed 和空列表，platformConnected、ipcReady 均为 true。8750 和 IoA 常驻客户端未重启。
+- 这次真实 MCPTool 调用不经过新模型轮次，不能充当修复后原生聊天/用户点击证据。用户刷新聊天后的读取、页面预览及可信发布继续待验；同名旧连接缓存问题此前通过新连接器规避，未修缓存。其他宿主与完整业务闭环仍开放。
+
+局部补丁、探针、运行证据保存在本机 `temp/mcp-argument-fix/`；不包含账号凭据，不入库。仓库保存上述可审阅差异与结论，IoA 已发布实现和本机上游依赖修复分别记录。
