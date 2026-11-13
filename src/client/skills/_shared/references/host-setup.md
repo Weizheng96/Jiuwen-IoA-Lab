@@ -8,7 +8,13 @@
 python3.11 "<skill_directory>/scripts/ioalab.py" runtime.configuration --config "<原外置配置文件>"
 ```
 
-Windows使用已核的python。保留此stdout回执，读取其data中的configurationDigest及hostFields。已有command和data_dir且用户没有要求修改时直接复用；缺项才询问既有九问的公开Process命令和原数据目录。用户给出的command使用argv数组，data_dir指其九问目录。用户已指定模型时，一起提交实际selection_key到host.model；不把SDK dataDir当宿主目录。
+Windows使用已核的python。保留此stdout回执，读取其data中的configurationDigest及hostFields。已有command和data_dir且用户没有要求修改时直接复用。缺项时先读取本进程公开运行信息：用Python的shutil.which('jiuwenswarm-process')定位原版Process可执行文件，command为包含该绝对路径的argv数组；host.data_dir只取环境变量JIUWENSWARM_DATA_DIR。任一值缺失或无法确认属于当前九问时才询问用户，不猜模块名、默认目录或追加--dotenv，不读取.env、模型配置或密钥。SDK回执的dataDir属于IoA，不能用于host.data_dir，两个目录保持分离。用户已指定模型时，一起提交实际selection_key到host.model；未指定则省略，由原版公开目录选择当前模型。
+
+Linux读取上述非秘密元数据可执行：
+
+```text
+python3.11 -c "import os,shutil,json; print(json.dumps({'command':[shutil.which('jiuwenswarm-process')],'data_dir':os.environ.get('JIUWENSWARM_DATA_DIR')}))"
+```
 
 2. 用新的独立UTF-8文件提交仅包含宿主的更改，例如：
 

@@ -37,3 +37,5 @@
 **实现阶段：** 已实现共用Network包内CA、HTTPS/WSS同源信任及脱敏状态；维护CLI已通过真实OpenSSL签发、错误CA拒绝、导出无私钥和续期失败恢复接缝。定向temp/checks/ca-impl-focused4为118 passed、5 skipped；temp/checks/ca-impl-client2的离仓wheel通过，原两条默认IP断言已同步并在focused4验证。Windows跳过链接与Linux单元等专项，保留原失败日志，不作实机通过。CA公共证书DER SHA-256为8d9dcaea6e34f557ab8cad9047babf75e181c4d90ac641a629021859b56dd686，仅公钥证书已经固定SSH核验导出。
 
 **提交前回归：** temp/checks/ca-impl-fast快速层1723 passed、31 skipped、516 deselected、14 subtests passed，退出0；受测代码冻结至真实退出。Linux单元及服务器域名切换仍待执行。
+
+**后续回归观察（客户端18收口，2026-11-13）：** temp/checks/client18-close-fast为1721 passed、31 skipped、516 deselected、14 subtests passed、2 failed，真实退出1。失败均为test_deployment_tls中的issue_export_and_idempotent_renew_preserve_ca_and_private_keys与due_renewal_restores_old_certificate_on_failed_activation_then_recovers：issue入口返回FileNotFoundError，根因尚未定位。保留原ca-impl-fast通过报告，不以旧结果覆盖本次失败；最终统一发行和客户端17整体验收前需由本票定位并复核。客户端18仅转移验收责任，不表示TLS或整体验收通过。

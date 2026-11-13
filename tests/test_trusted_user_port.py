@@ -1,5 +1,6 @@
 """Remote confirmation transport is closed and never becomes model RPC."""
 import uuid
+import time
 
 import httpx
 import pytest
@@ -38,4 +39,26 @@ def test_trusted_transport_authenticates_epoch_actor_and_revocation(tmp_path):
             assert call({'generation':'epoch-1','method':'list'}).status_code==403
         port.close()
         with pytest.raises(RuntimeFault):port.get({'generation':'epoch-1'},first['reference'])
+    finally:server.close();store.close()
+
+
+@pytest.mark.parametrize('forbidden',['key','origin'])
+def test_rejected_fragmented_body_returns_forbidden_without_decoding(tmp_path,forbidden):
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['a'],owner_id='owner')
+    manager=Confirmations(store)
+    port=TrustedUserPort(manager,actor='a',generation='epoch',authorize=lambda *_:True)
+    server=TrustedUserServer(port,key='k'*40).start()
+    body=b'not-valid-json'
+    headers={'Content-Type':'application/json','Content-Length':str(len(body)),
+             'Authorization':'Bearer '+('wrong' if forbidden=='key' else 'k'*40)}
+    if forbidden=='origin':headers['Origin']='http://untrusted'
+    def fragmented():
+        # Headers reach the server before the body, as on a slow local gateway.
+        time.sleep(.03)
+        yield body
+    try:
+        with httpx.Client(trust_env=False) as client:
+            response=client.post(server.address,headers=headers,content=fragmented())
+        assert response.status_code==403 and response.json()['error']['code']=='forbidden'
+        assert manager.list()==[]
     finally:server.close();store.close()
