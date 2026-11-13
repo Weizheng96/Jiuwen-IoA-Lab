@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 from urllib.parse import urlsplit
 
@@ -65,16 +68,33 @@ def clean_main(git, expected=None):
     return head
 
 
+def reviewed_public_ca(git, oid, path):
+    """Only the audited public CA is publishable, including every historical blob."""
+    if path != 'src/client/sdk/ioalab_sdk/runtime/trust/ioalab-ca.pem':
+        return False
+    if not 0 < int(git.text('cat-file', '-s', oid)) <= 16384:
+        return False
+    pem = git.text('cat-file', 'blob', oid)
+    certificate = re.fullmatch(r'-----BEGIN CERTIFICATE-----\r?\n([A-Za-z0-9+/=\r\n]+)-----END CERTIFICATE-----', pem)
+    if certificate is None:
+        return False
+    try:
+        der = base64.b64decode(''.join(certificate[1].splitlines()), validate=True)
+    except ValueError:
+        return False
+    return hashlib.sha256(der).hexdigest() == '8d9dcaea6e34f557ab8cad9047babf75e181c4d90ac641a629021859b56dd686'
+
+
 def check_history_paths(git, head):
     candidates = []
     for row in git.text('rev-list', '--objects', head).splitlines():
-        _, _, path = row.partition(' ')
+        oid, _, path = row.partition(' ')
         parts = path.lower().split('/')
         if (parts[0] in ('data', 'temp', 'apikey') or
                 parts[-1] in ('.env', 'settings.local.json', 'llm_apikey.json', 'llm_apikey') or
                 # Only development skills are public under .agents; keys, server access and data stay local.
                 (parts[0] == '.agents' and len(parts) > 1 and parts[1] != 'skills') or
-                path.lower().endswith(('.pem', '.key'))):
+                (path.lower().endswith(('.pem', '.key')) and not reviewed_public_ca(git, oid, path))):
             candidates.append(path)
     if candidates:
         raise SyncError('Historical private-path candidates require review; refusing publication: ' +

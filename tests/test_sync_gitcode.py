@@ -131,3 +131,32 @@ def test_history_guard_accepts_public_llm_tool_and_skill():
     class History:
         def text(self, *args): return '0'*40+' tools/llm.py\n'+'1'*40+' .agents/skills/llm/SKILL.md'
     sync_gitcode.check_history_paths(History(),'HEAD')
+
+
+@pytest.mark.parametrize('contents', ['public', 'private', 'appended-private', 'changed-certificate', 'historical-private', 'other-path'])
+def test_public_ca_can_be_published_but_other_pem_content_including_history_is_refused(repositories, contents):
+    git, source, target, initial = repositories
+    public_path = 'src/client/sdk/ioalab_sdk/runtime/trust/ioalab-ca.pem'
+    certificate = (Path(__file__).resolve().parents[1]/public_path).read_bytes()
+    path = git.root/(public_path if contents != 'other-path' else 'other.pem')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    private = b'-----BEGIN PRIVATE KEY-----\nZHVtbXk=\n-----END PRIVATE KEY-----\n'
+    body = {'private':private, 'appended-private':certificate+private,
+            'changed-certificate':b'-----BEGIN CERTIFICATE-----\nZHVtbXk=\n-----END CERTIFICATE-----\n',
+            'historical-private':private}.get(contents, certificate)
+    path.write_bytes(body)
+    git.call('add', str(path.relative_to(git.root)))
+    git.call('commit', '-m', 'certificate input')
+    if contents == 'historical-private':
+        path.write_bytes(certificate)
+        git.call('add', str(path.relative_to(git.root)))
+        git.call('commit', '-m', 'replace with public certificate')
+    git.call('push', source, 'main')
+    if contents == 'public':
+        assert synchronize(git, source, target)['status'] == 'synchronized'
+        assert Git(Path(target)).text('show', 'main:'+public_path).splitlines() == certificate.decode().splitlines()
+    else:
+        before = git.text('ls-remote', target)
+        with pytest.raises(SyncError):
+            synchronize(git, source, target)
+        assert git.text('ls-remote', target) == before
