@@ -10,7 +10,7 @@ from a2c.service import CertifiedService
 from contract_tables import ROOT, errors, kinds, split
 from ioalab_sdk.runtime.catalog import CATALOG
 
-SDK = ROOT / 'src/access/sdk/ioalab_sdk'
+SDK = ROOT / 'src/client/sdk/ioalab_sdk'
 PARTICIPANT = {'共用运行时', '个人助手端', '服务方端'}
 # Original A2C/AP2 method names travel inside a2c.request bodies; they are not wire kinds.
 A2C_METHODS = {*Provider.OPS, *Market.OPS, *PaymentProvider.OPS, *CertifiedService.OPS}
@@ -59,6 +59,11 @@ def test_kinds_named_by_the_sdk_are_in_the_contract_table():
         labels = {id(value) for node in ast.walk(tree) if isinstance(node, ast.Dict)
                   for key, value in zip(node.keys, node.values)
                   if isinstance(key, ast.Constant) and key.value in ('stage', 'action')}
+        # A form registration names a local UI workflow, not a platform message kind.
+        # wire_kinds below still checks every actual envelope/control/frame occurrence.
+        labels.update(id(node.args[0]) for node in ast.walk(tree)
+                      if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                      and node.func.id in ('FormDefinition', 'WorkflowDefinition') and node.args)
         for node in ast.walk(tree):
             if (isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value.count('.') == 1
                     and id(node) not in labels

@@ -18,7 +18,7 @@ def build_router(platform,subject,current_user):
     def assistants_page():return FileResponse(STATIC/'assistants.html')
 
     @router.get('/connect')
-    def connect_page():return FileResponse(STATIC/'connect.html')
+    def connect_page():return RedirectResponse('https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/README_AGENT.md',status_code=307)
 
     @router.get('/login')
     @router.get('/register')

@@ -1,0 +1,181 @@
+"""A user-only browser channel; its authority is never returned to model RPC."""
+from http.cookies import SimpleCookie
+import hashlib
+import hmac
+from importlib.resources import files
+import json
+import secrets
+import subprocess
+import threading
+import time
+from urllib.parse import urlsplit
+import uuid
+import webbrowser
+
+from .protocol import RuntimeFault
+from .confirmation_view import present
+
+
+class UserUi:
+    def snapshot(self):
+        return {'confirmations':[present(item) for item in self.confirmations.list()]}
+
+    def decision(self,body,session):
+        if set(body)-{'reference','bindingDigest','decision','answers'}:raise RuntimeFault('invalid_input','Unknown user decision fields')
+        return self.confirmations.decide(body.get('reference'),body.get('bindingDigest'),body.get('decision'),
+            authority=self._authority,source='local_user_ui:'+session['id']+':'+str(uuid.uuid4()),answers=body.get('answers'))
+
+    def __init__(self,confirmations=None,*,browser=None,clock=time.time,forms=None,onboarding=None,open_setup=None):
+        self.confirmations,self.clock,self.browser=confirmations,clock,browser
+        self.forms=forms
+        self.onboarding=onboarding
+        self.open_setup=open_setup
+        self._authority=confirmations.user_channel() if confirmations else None
+        self._entries={};self._sessions={};self._lock=threading.RLock()
+        self.origin=None
+
+    def entry_url(self,form_reference=None):
+        if not self.origin:raise RuntimeFault('not_ready','Local user page is not listening')
+        token=secrets.token_urlsafe(32)
+        with self._lock:
+            now=self.clock()
+            self._entries={key:until for key,until in self._entries.items() if until>now}
+            self._entries[hashlib.sha256(token.encode()).hexdigest()]=now+60
+        if form_reference is not None:
+            if self.forms is None:raise RuntimeFault('not_ready','Forms are not configured')
+            self.forms.get(form_reference)
+        path='/user' if form_reference is None else '/user/forms/'+form_reference
+        return self.origin+path+'#'+token
+
+    def open(self,form_reference=None):
+        url=self.entry_url(form_reference)
+        try:
+            if self.browser:
+                subprocess.Popen([self.browser,url],shell=False,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,close_fds=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                return True
+            if not webbrowser.open(url):
+                raise RuntimeFault('not_ready','The local user browser could not be opened','configure_browser')
+            return True
+        except (OSError,webbrowser.Error):
+            # OS errors can contain the one-time URL; never return them over RPC.
+            raise RuntimeFault('not_ready','The local user browser could not be opened','configure_browser') from None
+
+    def _cookie_name(self):
+        # Browser cookies do not isolate ports; this origin comes from our listener.
+        return 'ioa_user_'+hashlib.sha256(self.origin.encode()).hexdigest()
+
+    def _session(self,request):
+        cookie=SimpleCookie()
+        try:cookie.load(request.headers.get('Cookie',''))
+        except Exception:raise RuntimeFault('forbidden','Invalid local browser session') from None
+        name=self._cookie_name()
+        key=cookie[name].value if name in cookie else ''
+        with self._lock:record=self._sessions.get(key)
+        if not record or record['expires']<=self.clock():raise RuntimeFault('forbidden','Open the local user page again')
+        return record
+
+    @staticmethod
+    def _body(request):
+        try:size=int(request.headers.get('Content-Length',''))
+        except ValueError:raise RuntimeFault('invalid_input','JSON body length is required') from None
+        if not 0<size<=128*1024 or request.headers.get('Transfer-Encoding'):
+            raise RuntimeFault('invalid_input','Invalid user request size')
+        if request.headers.get('Content-Type','').split(';')[0]!='application/json':raise RuntimeFault('invalid_input','Use JSON')
+        try:
+            raw=request.rfile.read(size)
+            request._user_body_read=True
+            body=json.loads(raw)
+        except (ValueError,RecursionError):raise RuntimeFault('invalid_input','Invalid user JSON') from None
+        if not isinstance(body,dict):raise RuntimeFault('invalid_input','User request must be an object')
+        return body
+
+    def handle(self,request):
+        path=urlsplit(request.path)
+        if not path.path.startswith('/user'):return False
+        try:
+            origin=self.origin
+            if request.headers.get('Host')!=urlsplit(origin).netloc or path.query:
+                raise RuntimeFault('forbidden','User page Host must match the local listener')
+            supplied=request.headers.get('Origin')
+            if supplied is not None and supplied!=origin:raise RuntimeFault('forbidden','User actions must come from the local page')
+            form_page_request=path.path.startswith('/user/forms/') and path.path!='/user/forms/api'
+            if request.command=='GET' and (path.path=='/user' or form_page_request):
+                if form_page_request:
+                    from .form_view import form_page
+                    page=form_page('browser').encode('utf-8')
+                else:page=files('ioalab_sdk').joinpath('runtime/web/identity/setup.html' if self.onboarding else 'runtime/web/user.html').read_bytes()
+                request.send_response(200)
+                request.send_header('Content-Type','text/html; charset=utf-8')
+                request.send_header('Content-Length',str(len(page)))
+                request.send_header('Cache-Control','no-store')
+                request.send_header('Content-Security-Policy',"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'")
+                request.end_headers();request.wfile.write(page)
+                return True
+            if request.command=='POST' and path.path=='/user/session':
+                if supplied!=origin:raise RuntimeFault('forbidden','Entry exchange requires same Origin')
+                body=self._body(request)
+                if set(body)!={'token'} or not isinstance(body['token'],str):raise RuntimeFault('forbidden','Invalid one-time user entry')
+                digest=hashlib.sha256(body['token'].encode()).hexdigest()
+                with self._lock:
+                    expires=self._entries.pop(digest,0)
+                    if expires<=self.clock():raise RuntimeFault('forbidden','User entry expired or was already used')
+                    key=secrets.token_urlsafe(32)
+                    self._sessions={key:item for key,item in self._sessions.items() if item['expires']>self.clock()}
+                    record={'csrf':secrets.token_urlsafe(32),'expires':self.clock()+14400,'id':str(uuid.uuid4())}
+                    self._sessions[key]=record
+                request.reply(200,{'csrf':record['csrf']},headers={'Set-Cookie':self._cookie_name()+'='+key+'; HttpOnly; SameSite=Strict; Path=/user; Max-Age=14400'})
+                return True
+            session=self._session(request)
+            if request.command=='POST' and path.path=='/user/setup/open' and self.open_setup:
+                if supplied!=origin or not hmac.compare_digest(request.headers.get('X-Ioa-Csrf','').encode(),session['csrf'].encode()):
+                    raise RuntimeFault('forbidden','A same-origin user session is required')
+                if self._body(request):raise RuntimeFault('invalid_input','Setup opening takes no credential fields')
+                request.reply(200,self.open_setup())
+                return True
+            if self.onboarding:
+                if request.command=='GET' and path.path=='/user/api':
+                    request.reply(200,{'csrf':session['csrf'],**self.onboarding.status(),'client':self.onboarding.configuration()})
+                    return True
+                if request.command=='POST' and path.path in ('/user/setup','/user/configuration','/user/credentials','/user/devices'):
+                    if supplied!=origin or not hmac.compare_digest(request.headers.get('X-Ioa-Csrf','').encode(),session['csrf'].encode()):
+                        raise RuntimeFault('forbidden','A same-origin account session is required')
+                    operation={'/user/setup':self.onboarding.submit,'/user/configuration':self.onboarding.control,
+                               '/user/credentials':self.onboarding.credentials,'/user/devices':self.onboarding.devices}[path.path]
+                    request.reply(200,operation(self._body(request)))
+                    return True
+                raise RuntimeFault('forbidden','Account setup does not grant business confirmation')
+            if request.command=='POST' and path.path=='/user/forms/api':
+                if supplied!=origin or not hmac.compare_digest(request.headers.get('X-Ioa-Csrf','').encode(),session['csrf'].encode()):
+                    raise RuntimeFault('forbidden','A same-origin form session is required')
+                if self.forms is None:raise RuntimeFault('not_ready','Forms are not configured')
+                body=self._body(request)
+                action=body.pop('action',None)
+                shapes={'list':set(),'get':{'reference'},'update':{'reference','revision','values'},
+                        'preview':{'reference','revision'},'submit':{'reference','revision'}}
+                if not isinstance(action,str) or action not in shapes or set(body)!=shapes[action]:
+                    raise RuntimeFault('invalid_input','Use a documented form action')
+                request.reply(200,getattr(self.forms,action)(**body))
+                return True
+            if request.command=='GET' and path.path=='/user/api':
+                request.reply(200,{'csrf':session['csrf'],**self.snapshot()})
+                return True
+            if request.command=='POST' and path.path=='/user/decision':
+                if supplied!=origin or not hmac.compare_digest(request.headers.get('X-Ioa-Csrf','').encode(),session['csrf'].encode()):
+                    raise RuntimeFault('forbidden','A real same-origin user decision is required')
+                body=self._body(request)
+                result=self.decision(body,session)
+                request.reply(200,result)
+                return True
+            raise RuntimeFault('forbidden','Unknown local user operation')
+        except RuntimeFault as exc:
+            if request.command=='POST' and not getattr(request,'_user_body_read',False):
+                try:
+                    size=int(request.headers.get('Content-Length','0'))
+                    if 0<size<=128*1024+1 and not request.headers.get('Transfer-Encoding'):
+                        request.connection.settimeout(.25)
+                        request.rfile.read(size)
+                except (ValueError,OSError):pass
+            request.reply(403 if exc.code=='forbidden' else 409 if exc.code in ('expired','id_conflict') else 400,
+                          {'error':{'code':exc.code,'message':str(exc),'recovery':exc.recovery}})
+            return True

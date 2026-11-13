@@ -1,0 +1,1 @@
+domainViews.registry=(target,evidence)=>{for(const [key,value]of Object.entries(evidence)){if(Array.isArray(value)){for(const item of value)evidencePair(target,item.name||item.title||key,item.description||('修订 '+(item.revision??'—')));evidenceDetail(target,key+'：完整声明',value);}else evidencePair(target,key,value);}};

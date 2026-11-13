@@ -118,6 +118,24 @@ def test_stale_preview_preserves_new_manual_configuration(tmp_path,capsys):
     assert path.read_bytes()==before and not (tmp_path/'state/account.sqlite').exists()
 
 
+@pytest.mark.parametrize('host_directory',['state','state/swarm','.'])
+def test_host_and_sdk_directories_cannot_overlap(tmp_path,capsys,host_directory):
+    path,_=settings(tmp_path);before=path.read_bytes()
+    args=arguments(tmp_path,path,{'host':{'data_dir':str(tmp_path/host_directory)}})
+    code,result=command(capsys,'configure',path,args)
+    assert code==1 and result['error']['code']=='invalid_input'
+    assert path.read_bytes()==before and not (tmp_path/'state').exists()
+
+
+def test_assembly_rejects_mixed_host_directory_before_loading_resources(tmp_path,monkeypatch):
+    from ioalab_jiuwen import assembled
+    path,value=settings(tmp_path);value['host']['data_dir']='state';private_json(path,value)
+    monkeypatch.setattr('ioalab_jiuwen.assembly.ConfiguredTools',lambda *_a,**_k:pytest.fail('Mixed directory loaded private resources'))
+    with pytest.raises(RuntimeFault) as error:
+        with assembled(path):pytest.fail('Mixed directory started an assembly')
+    assert error.value.code=='invalid_input' and not (tmp_path/'state').exists()
+
+
 def test_live_instance_lock_prevents_configuration_changes(tmp_path,capsys):
     path,_=settings(tmp_path);args=arguments(tmp_path,path,{'max_model_runs':1})
     before=path.read_bytes()

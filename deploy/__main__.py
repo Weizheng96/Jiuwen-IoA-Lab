@@ -49,12 +49,16 @@ def status(layout):
 
 
 def submit(args):
-    value=load(args.config)
-    if stat.S_IMODE(args.config.stat().st_mode)&0o077:
-        raise ValueError('Protect the initial deployment JSON with private owner-only permissions')
+    if args.command=='test-reset':
+        layout=existing(args.state)
+        value=read_json(regular_file(layout.private/'initial.json'))['input']
+    else:
+        value=load(args.config)
+        if stat.S_IMODE(args.config.stat().st_mode)&0o077:
+            raise ValueError('Protect the initial deployment JSON with private owner-only permissions')
+        layout=Layout(args.root,args.state,args.config_dir,
+                      core_user=getattr(args,'core_user','ioalab-core'),agents_user=getattr(args,'agents_user','ioalab-agents'))
     source=Path(__file__).resolve().parent.parent
-    layout=Layout(args.root,args.state,args.config_dir,
-                  core_user=getattr(args,'core_user','ioalab-core'),agents_user=getattr(args,'agents_user','ioalab-agents'))
     if any(path.is_relative_to(source) or source.is_relative_to(path) for path in (layout.root,layout.state,layout.config)):
         raise ValueError('Source, runtime, state and configuration roots must be disjoint')
     identity=layout.claim()
@@ -98,7 +102,7 @@ def worker(args):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
-    commands=parser.add_subparsers(dest='command',required=True,metavar='{install,upgrade,repair-bootstrap,start,stop,status}')
+    commands=parser.add_subparsers(dest='command',required=True,metavar='{install,upgrade,test-reset,repair-bootstrap,start,stop,status}')
     for name in ('install','upgrade'):
         item=commands.add_parser(name)
         item.add_argument('--config',type=Path,required=True)
@@ -110,7 +114,11 @@ def main(argv=None):
     item=commands.add_parser('repair-bootstrap')
     item.add_argument('--state',type=Path,required=True)
     item.add_argument('--operation',required=True)
+    item=commands.add_parser('test-reset');item.add_argument('--state',type=Path,required=True)
     item=commands.add_parser('status');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
+    item=commands.add_parser('replace-admin-assistant');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
+    item=commands.add_parser('mail-login');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
+    item.add_argument('--sender',required=True)
     for name in ('start','stop'):
         item=commands.add_parser(name);item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
         if name=='stop':item.add_argument('--wait-seconds',type=float,default=30)
@@ -119,7 +127,13 @@ def main(argv=None):
     args=parser.parse_args(argv)
     try:
         require_host()
-        if args.command in ('start','stop'):
+        if args.command == 'mail-login':
+            from .administrator import mail_login
+            answer=mail_login(existing(args.state),args.sender)
+        elif args.command == 'replace-admin-assistant':
+            from .administrator import replace
+            answer=replace(existing(args.state))
+        elif args.command in ('start','stop'):
             from . import lifecycle
             layout=existing(args.state)
             answer=lifecycle.start(layout) if args.command=='start' else lifecycle.stop(layout,wait_seconds=args.wait_seconds)

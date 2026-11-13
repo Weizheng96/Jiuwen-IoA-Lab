@@ -353,6 +353,8 @@ def create_app(platform: Platform) -> FastAPI:
     # ── 页面 ──────────────────────────────────────────────────────────
     from .frontend import build_router as frontend_router
     app.include_router(frontend_router(platform,subject,current_user))
+    from .agent_setup import router as agent_setup_router
+    app.include_router(agent_setup_router(platform))
 
     @app.get("/")
     async def index():
@@ -366,6 +368,11 @@ def create_app(platform: Platform) -> FastAPI:
             return RedirectResponse('/login?next=%2Fadmin',status_code=303)
         if not platform.auth.is_admin(actor):raise HTTPException(403,'需要管理员权限')
         return FileResponse(STATIC / "admin.html")
+
+    @app.get('/api/access/packages')
+    def access_packages():
+        from .access_packages import packages
+        return packages(platform.s.bundles_dir)
 
     @app.get('/downloads/{bundle}')
     def access_skill_download(bundle:str):

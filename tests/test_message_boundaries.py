@@ -22,7 +22,7 @@ def test_restricted_account_cannot_read_admin_message_audit(platform,client):
     admin=platform.db.one("SELECT id FROM users WHERE username='ISC_001'")['id']
     assert platform.auth.is_admin(admin)
     assert not platform.auth.is_admin('assistant:'+admin)
-    denied=client.get('/api/admin/messages',headers={'Authorization':'Bearer '+platform.auth.bearer(admin,restricted=True)})
+    denied=client.get('/api/admin/messages',headers={'Authorization':'Bearer '+platform.accounts.login('ISC_001',platform.s.assistant_password or '001',audience='sdk')['token']})
     assert denied.status_code==401
     allowed=client.get('/api/admin/messages',headers={'Authorization':'Bearer '+platform.auth.bearer(admin)})
     assert allowed.status_code==200 and all('payload' not in row for row in allowed.json())

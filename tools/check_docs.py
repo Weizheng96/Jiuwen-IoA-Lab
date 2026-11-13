@@ -41,9 +41,9 @@ def local_links(path):
         resolved = (path.parent / name).resolve() if name else path.resolve()
         # Product references generated from the one shared source at build time.
         for role in ('assistant', 'provider'):
-            references = ROOT / 'src/access/skills' / role / 'references'
+            references = ROOT / 'src/client/skills' / role / 'references'
             if resolved.is_relative_to(references) and not resolved.exists():
-                shared = ROOT / 'src/access/skills/_shared/references' / resolved.relative_to(references)
+                shared = ROOT / 'src/client/skills/_shared/references' / resolved.relative_to(references)
                 if shared.is_file():
                     resolved = shared
         yield target, name, resolved, unquote(fragment)
@@ -60,11 +60,11 @@ def current_documents():
     files.extend(design_documents())
     files.append(ROOT / "设计/变更/README.md")
     files.extend((ROOT / ".agents/skills").rglob("*.md"))
-    files.extend((ROOT / "src/access/skills").rglob("*.md"))
+    files.extend((ROOT / "src/client/skills").rglob("*.md"))
     files.extend((ROOT / "tools/media").rglob("*.md"))
 
     for folder in (
-        "src/platform", "src/access/sdk", "src/access/examples", "src/hosts/jiuwen", "src/official",
+        "src/platform", "src/client/sdk", "src/client/examples", "src/client/hosts/jiuwen", "src/official",
         "tools", "tools/media", "tools/verification",
     ):
         files.append(ROOT / folder / "README.md")

@@ -100,7 +100,7 @@ def main():
         assert count==1
         req.write_text(new,encoding='utf-8',newline='\n')
         # The SDK, core and product Skill all consume this exact local dependency.
-        for name in ('src/platform/pyproject.toml','src/access/sdk/pyproject.toml','src/access/skills/_shared/requirements.lock'):
+        for name in ('src/platform/pyproject.toml','src/client/sdk/pyproject.toml','src/client/skills/_shared/requirements.lock'):
             path=ROOT/name;before=path.read_text(encoding='utf-8')
             after,count=re.subn(r'a2c==[0-9]+\.[0-9]+\.[0-9]+',f'a2c=={version}',before)
             if count!=1:raise ValueError('Expected exactly one A2C version pin: '+name)

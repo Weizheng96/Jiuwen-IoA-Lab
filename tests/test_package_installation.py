@@ -14,6 +14,73 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
+    from tools.build_client import build
+    wheel=build(tmp_path/'wheels')
+    with zipfile.ZipFile(wheel) as archive:
+        names=archive.namelist()
+        assert 'ioalab_sdk/runtime/web/identity/setup.html' in names
+        assert 'ioalab_sdk/mcp/server.py' in names
+        assert 'ioalab_sdk/runtime/web/shared/app.js' in names
+        assert 'ioalab_sdk/runtime/trust/platform-trust.json' in names
+        assert 'ioalab_sdk/runtime/trust/ioalab-ca.pem' in names
+        assert not any(b'PRIVATE KEY' in archive.read(name) for name in names if name.endswith(('.pem', '.key')))
+        assert 'ioalab_client/components.json' in names
+        assert 'a2c/__init__.py' in names and 'jiuwenswarm_sdk/__init__.py' in names
+        assert not any(name.endswith('/installer.py') or 'settings.local.json' in name for name in names)
+    environment=tmp_path/'environment';venv.EnvBuilder(with_pip=True).create(environment)
+    python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+    run([str(python),'-I','-m','pip','install','--no-index','--no-deps',str(wheel)],tmp_path)
+    purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
+    Path(purelib,'zz-third-party.pth').write_text(sysconfig.get_paths()['purelib']+'\n',encoding='utf-8')
+    # Both exported launchers bind this interpreter; the host interpreter need not contain the client.
+    exported=json.loads(run([str(python),'-I','-m','ioalab_client','skills','--output',str(tmp_path/'skills')],tmp_path))
+    assert exported['status']=='completed' and len(exported['data']['files'])==2
+    for path in exported['data']['files']:
+        with zipfile.ZipFile(path) as archive:
+            script=next(name for name in archive.namelist() if name.endswith('/scripts/ioalab.py'))
+            launch=tmp_path/Path(path).stem;archive.extractall(launch)
+        result=json.loads(run([sys.executable,str(launch/script),'runtime.install.status'],tmp_path))
+        assert result['status']=='completed' and Path(result['data']['python'])==python.absolute()
+    output=run([str(python),'-I','-c',
+        'import json;from ioalab_sdk.runtime.installation import current;print(json.dumps(current("ioalab-jiuwen")))'],tmp_path)
+    assert json.loads(output)['versions']['ioalab-client']==(ROOT/'src/client/VERSION').read_text().strip().removeprefix('v')
+
+
+def test_pip_installs_client_from_git_tag_and_records_its_commit(tmp_path):
+    repository=tmp_path/'repository'
+    shutil.copytree(ROOT/'src/client',repository/'src/client',
+                    ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
+    vendor=repository/'vendor';vendor.mkdir()
+    manifest=json.loads((ROOT/'vendor/SOURCES.json').read_text(encoding='utf-8'))
+    shutil.copy2(ROOT/'vendor/SOURCES.json',vendor/'SOURCES.json')
+    shutil.copytree(ROOT/'vendor/licenses',vendor/'licenses')
+    for item in manifest['components']:
+        if item['id'] in ('a2c','jiuwenswarm-process-sdk'):
+            target=vendor/item['wheelInfo']['file'];target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(ROOT/'vendor'/item['wheelInfo']['file'],target)
+    run(['git','init','-q',str(repository)],tmp_path)
+    run(['git','-C',str(repository),'add','.'],tmp_path)
+    run(['git','-C',str(repository),'-c','user.name=Client Test','-c','user.email=client-test@example.invalid',
+         'commit','-qm','isolated client tag'],tmp_path)
+    run(['git','-C',str(repository),'tag','client-test'],tmp_path)
+    commit=run(['git','-C',str(repository),'rev-parse','HEAD'],tmp_path).strip()
+    environment=tmp_path/'environment';venv.EnvBuilder(with_pip=True).create(environment)
+    python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+    purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
+    # Supply already-verified third-party/build tools offline, after the new client's installed site.
+    Path(purelib,'zz-third-party.pth').write_text(sysconfig.get_paths()['purelib']+'\n',encoding='utf-8')
+    Path(purelib,'zz-third-party.pth').write_text('import sys; sys.path.insert(0, '+repr(sysconfig.get_paths()['purelib'])+')\n',encoding='utf-8')
+    requirement='git+'+repository.as_uri()+'@client-test#subdirectory=src/client'
+    run([str(python),'-I','-m','pip','install','--no-index','--no-deps','--no-build-isolation','--ignore-installed',requirement],tmp_path)
+    Path(purelib,'zz-third-party.pth').write_text(sysconfig.get_paths()['purelib']+'\n',encoding='utf-8')
+    result=json.loads(run([str(python),'-I','-m','ioalab_client','status'],tmp_path))
+    assert result['status']=='completed'
+    assert result['data']['source']['vcs_info']['commit_id']==commit
+    assert result['data']['source']['vcs_info']['requested_revision']=='client-test'
+    assert result['data']['source']['subdirectory']=='src/client'
+
+
 def run(command, cwd):
     result = subprocess.run(command, cwd=cwd, capture_output=True, text=True,
                             encoding='utf-8', env={**os.environ, 'PYTHONUTF8':'1'}, timeout=120)
@@ -39,12 +106,15 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
     stale = source/'build/lib/ioalab/psp/obsolete.py'
     stale.parent.mkdir(parents=True)
     stale.write_text("raise RuntimeError('obsolete module must never ship')\n",encoding='utf-8')
-    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(source),str(ROOT/'src/access/sdk'),str(ROOT/'src/hosts/jiuwen')], tmp_path)
+    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(source),str(ROOT/'src/client/sdk'),str(ROOT/'src/client/hosts/jiuwen')], tmp_path)
     shutil.copy2(official_snapshot[1],wheels/official_snapshot[1].name)
     with zipfile.ZipFile(next(wheels.glob('ioalab-*.whl'))) as archive:
         assert not any(name.startswith('ioalab/psp/') for name in archive.namelist())
     with zipfile.ZipFile(next(wheels.glob('ioalab_sdk-*.whl'))) as archive:
         assert 'ioalab_sdk/runtime/web/user.html' in archive.namelist()
+        assert 'ioalab_sdk/mcp/__main__.py' in archive.namelist()
+        assert {'ioalab_sdk/runtime/web/shared/forms.html', 'ioalab_sdk/runtime/web/shared/app.js',
+                'ioalab_sdk/runtime/web/shared/browser.js', 'ioalab_sdk/runtime/web/messaging/fields.js'}.issubset(archive.namelist())
         assert 'ioalab_sdk/runtime/__main__.py' not in archive.namelist()
         assert not any(name.startswith('ioalab_jiuwen/') for name in archive.namelist())
         assert 'ioalab_sdk/assistant.py' not in archive.namelist()
@@ -84,6 +154,9 @@ import ioalab.config as core_config
 import ioalab_services.catalog as service_catalog
 from ioalab.config import Settings
 from ioalab_services.catalog import definitions,seed_manifest
+from ioalab_sdk.runtime import form_page
+from ioalab_sdk.mcp import create_server
+assert callable(create_server) and 'ui/initialize' in form_page('app') and '/user/forms/api' in form_page('browser')
 page=r.files('ioalab').joinpath('web/static/index.html').read_text(encoding='utf-8')
 print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host':m.version('ioalab-jiuwen'),'official':m.version('ioalab-official'),
                  'ownedServices':len(definitions()),'ownedSeed':len(seed_manifest()['domains']),
@@ -95,8 +168,8 @@ print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host
 '''], tmp_path)
     result = json.loads(output)
     assert result['core'] == (ROOT/'src/platform/VERSION').read_text().strip().removeprefix('v')
-    assert result['sdk'] == (ROOT/'src/access/sdk/VERSION').read_text().strip().removeprefix('v')
-    assert result['host'] == (ROOT/'src/hosts/jiuwen/VERSION').read_text().strip().removeprefix('v')
+    assert result['sdk'] == (ROOT/'src/client/sdk/VERSION').read_text().strip().removeprefix('v')
+    assert result['host'] == (ROOT/'src/client/hosts/jiuwen/VERSION').read_text().strip().removeprefix('v')
     assert result['official'] == (ROOT/'src/official/VERSION').read_text().strip().removeprefix('v')
     assert result['resource'] and result['userPage']
     assert result['ownedServices'] == 52 and result['ownedSeed'] == 8
@@ -121,3 +194,10 @@ def test_official_wheel_is_reproducible_when_source_mtimes_change(tmp_path,offic
     output=run([sys.executable,'-I','-c',
         "import sys;sys.path.insert(0,sys.argv[1]);from ioalab_services.catalog import definitions,seed_manifest;print(len(definitions()),len(seed_manifest()['domains']))",str(wheel)],tmp_path)
     assert output.strip()=='52 8'
+
+
+def test_shared_constraints_cover_system_credential_backends():
+    from tools.build_requirements import constraints
+    locked=constraints([ROOT/'src/client/sdk',ROOT/'src/client/hosts/jiuwen',ROOT/'src/official'])
+    names={line.split('==')[0].lower().replace('_','-') for line in locked.splitlines()}
+    assert {'keyring','secretstorage','jeepney','pywin32-ctypes'} <= names

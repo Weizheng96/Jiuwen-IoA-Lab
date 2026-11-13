@@ -120,7 +120,7 @@ def admin_login(session):
 
 def test_public_pages_load_without_errors_and_private_pages_ask_for_login(browser, platform):
     with visit(browser, platform) as session:
-        for path in ('/', '/connect', '/services', '/assistants'):
+        for path in ('/', '/services', '/assistants'):
             session.open(path)
             assert session.path == path
         assert session.problems == []

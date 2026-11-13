@@ -13,6 +13,7 @@ import pytest
 from conftest import wait_for
 from ioalab_sdk.runtime.lease import Lease
 from ioalab_sdk.runtime.authentication import login
+from ioalab_sdk.runtime.onboarding import Onboarding
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json,read_json
 from ioalab_sdk.runtime.ipc import LocalClient
@@ -29,12 +30,14 @@ def session_at(config):
     return AccountSession(value.platform,value.username,value.password,value.home,connect=False)
 
 
-def expired(platform,config):
+def revoked(platform,config):
     account=session_at(config)
-    try:
-        account.account.update(token=platform.auth.token('assistant:'+account.account['id'],expires_at=time.time()-10),expiresAt='2000-01-01T00:00:00Z')
-        account.cache.put('session','current',account.account)
+    try:account.api('POST','/sessions/'+account.account['sessionId']+'/revoke',{})
     finally:account.close()
+
+
+def relogin(config):
+    return {'data':Onboarding(config).devices({'action':'login','password':PASSWORD})}
 
 
 def test_short_controller_only_authenticates_and_reuses_valid_credit(platform,tmp_path,monkeypatch):
@@ -56,10 +59,11 @@ def test_expired_credentials_recover_without_touching_keys_or_business(platform,
     home=tmp_path/'state'
     retained={path:path.read_bytes() for path in home.rglob('*') if path.is_file() and
               (path.is_relative_to(home/'identities') or path.name in ('runtime.sqlite','identity-index.json'))}
-    expired(platform,config)
+    revoked(platform,config)
     from ioalab_sdk.runtime.store import RuntimeStore
     monkeypatch.setattr(RuntimeStore,'__init__',lambda *args,**kwargs:pytest.fail('login opened business state'))
-    result=login(config)
+    with pytest.raises(RuntimeFault):login(config)
+    result=relogin(config)
     assert result['data']['authenticated'] and result['data']['newLogin']
     assert login(config)['data']['newLogin'] is False
     assert platform.wallets.balance(user['id'])==200
@@ -177,12 +181,12 @@ def test_binding_survives_token_row_loss_and_rejects_same_name_new_owner(platfor
     config,user=configuration(platform,tmp_path,service=False);login(config)
     account=session_at(config)
     try:
-        owner=account.cache.get('meta','owner_id');account.cache.delete('session','current')
+        owner=account.cache.get('meta','owner_id');account.cache.delete('session','current');account.vault.update(current=None)
     finally:account.close()
     def wrong(client,url,*args,**kwargs):
         return httpx.Response(200,json={'id':'different-owner','username':user['username'],'token':'synthetic-only'},request=httpx.Request('POST',url))
     monkeypatch.setattr(httpx.Client,'post',wrong)
-    with pytest.raises(RuntimeFault) as error:login(config)
+    with pytest.raises(RuntimeFault) as error:relogin(config)
     assert error.value.code=='identity_conflict'
     account=session_at(config)
     try:
@@ -231,7 +235,7 @@ def test_both_skill_roles_route_login_to_installed_sdk_without_starting_host(tmp
         calls.append(arguments);return subprocess.CompletedProcess(arguments,0,'{"status":"completed","data":{"authenticated":true}}','')
     monkeypatch.setattr(product,'invoke',invoke)
     config=tmp_path/'outside.json'
-    assert product.main(['account.login','--config',str(config)])==0
+    assert product.main(['--role',role,'account.login','--config',str(config)])==0
     assert calls==[['-m','ioalab_sdk.access','login','--config',str(config.resolve())]]
 
 
@@ -253,14 +257,13 @@ def test_invalid_success_response_remains_unknown_and_reuses_original_operation(
 
 def test_lost_reauthentication_reply_keeps_original_new_credit(platform,tmp_path,monkeypatch):
     config,user=configuration(platform,tmp_path,service=False);first=login(config)
-    expired(platform,config);original=httpx.Client.post;sent=[]
+    revoked(platform,config);original=httpx.Client.post;sent=[]
     def lose(client,url,*args,**kwargs):
         response=original(client,url,*args,**kwargs)
         sent.append(kwargs['json']['operationId']);raise httpx.ReadError('lost renewed login reply')
     with monkeypatch.context() as patch:
         patch.setattr(httpx.Client,'post',lose)
-        with pytest.raises(RuntimeFault) as error:login(config)
-        assert error.value.code=='result_unknown'
+        with pytest.raises(RuntimeFault,match='unverified'):relogin(config)
     assert sent[0]!=first['data']['operationId'] and platform.wallets.balance(user['id'])==200
     restored=login(config)
     assert restored['data']['operationId']==sent[0] and not restored['data']['newLogin']
@@ -328,7 +331,7 @@ def test_sdk_credential_check_rejects_browser_sessions_without_breaking_web_me(p
     account=session_at(config)
     try:
         sdk=account.account['token']
-        account.account.update(browser);account.cache.put('session','current',account.account)
+        account.account.update(browser);account.vault.update(current=account.account)
     finally:account.close()
     with httpx.Client(base_url=platform.s.base_url,trust_env=False) as http:
         assert http.get('/api/v1/me',headers={'Authorization':'Bearer '+sdk}).status_code==200
@@ -336,6 +339,7 @@ def test_sdk_credential_check_rejects_browser_sessions_without_breaking_web_me(p
         http.cookies.set('ioalab_session',browser['token'])
         assert http.get('/api/v1/me').status_code==401
         assert http.get('/api/me').status_code==200
-    restored=login(config)
+    with pytest.raises(RuntimeFault):login(config)
+    restored=relogin(config)
     assert restored['data']['newLogin'] and restored['data']['id']==user['id']
     assert platform.wallets.balance(user['id'])==300

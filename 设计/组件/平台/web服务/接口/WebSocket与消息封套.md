@@ -31,6 +31,8 @@
 
 `POST /api/v1/messaging/interfaces` 的输入为 operationId、name、expectedRevision 与 definition；definition 仅包含公开说明、object 根输入/输出 Schema、allowedSenders、enabled、完整本地规则的 contentDigest。原文处理步骤不上传。发布返回不可变修订和目标 agentId；读取及发送均复核当前权限，操作重试不重复建立修订。
 
+连接票据绑定身份中心的[设备会话](../../身份中心/接口.md#设备会话)，旧无绑定票据拒绝。已建立连接在每次入站控制和投递批次前及至多 1 秒间隔内复核授权；撤销主动唤醒检查并以 4401 关闭。撤销不回滚已经受理的在途业务，客户端保留原操作并停止新的执行。
+
 ## 种类契约
 
 本表是 WebSocket 帧 `type`、控制操作与持久消息 `kind` 的唯一清单，平台分派表与 SDK 发送方各由测试解析本表核对（[平台侧](../../../../../tests/test_platform_contract.py)、[SDK 侧](../../../../../tests/test_sdk_contract.py)）。新增、改名或删除种类时先改本表，再改实现；错误码的唯一清单见[幂等与错误](幂等与错误.md#错误码)。上文各表与本节一致，只补字段与语义。

@@ -33,7 +33,7 @@ B示例：`python .agents/skills/develop/scripts/check.py --tests tests/test_off
 
 ## 公开SDK路径与授权门槛
 
-资产作者应知道下面的真实消费顺序，不把这张表当作执行外部业务的授权。操作参数从[服务方SDK](../../../../设计/组件/客户端/服务方端/接口.md)与产品[发布流程](../../../../src/access/skills/provider/references/publication.md)读取，不自行拼JSON签名或编造回执。
+资产作者应知道下面的真实消费顺序，不把这张表当作执行外部业务的授权。操作参数从[服务方SDK](../../../../设计/组件/客户端/服务方端/接口.md)与产品[发布流程](../../../../src/client/skills/provider/references/publication.md)读取，不自行拼JSON签名或编造回执。
 
 | 阶段 | 现有入口及必须保存的事实 |
 |---|---|

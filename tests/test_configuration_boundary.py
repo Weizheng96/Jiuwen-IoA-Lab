@@ -24,6 +24,8 @@ def product(tmp_path,monkeypatch,role):
     module.__file__=str(root/'scripts/ioalab.py')
     monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda *a,**k:
         {'status':'completed','data':{'python':sys.executable},'error':None}))
+    original=module.main
+    module.main=lambda argv:original(['--role',role,*argv])
     return module
 
 

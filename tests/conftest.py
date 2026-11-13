@@ -7,6 +7,24 @@ import time
 from pathlib import Path
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def credential_mount(tmp_path_factory, monkeypatch):
+    """External credential-manager boundary, inherited by test SDK subprocesses.
+
+    A disposable protected mount avoids creating entries in the developer's keychain.
+    The product's real encryption, atomic writes and credential checks still execute.
+    """
+    from cryptography.fernet import Fernet
+    mount = tmp_path_factory.mktemp('credential-mount')
+    mount.chmod(0o700)
+    key = mount / 'ioalab-vault-key'
+    key.write_bytes(Fernet.generate_key())
+    from ioalab_sdk.runtime.files import restrict
+    restrict(key)
+    monkeypatch.setenv('CREDENTIALS_DIRECTORY', str(mount))
+    return mount
+
 ROOT=Path(__file__).resolve().parents[1]
 CHAIN_LAYER=ROOT/'tests/chain_layer.json'
 

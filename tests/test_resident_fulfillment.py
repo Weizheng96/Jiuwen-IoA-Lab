@@ -253,7 +253,7 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         assert verify_card(template,actual['card'],protocol.keys).accepted==1
         assert all(actual['card']['signatures'][str(i)] for i in range(1,8) if i!=3 or formation=='proposal')
         assert actual['payment']=='paid' and actual['vouchers'][0]['amount']==8
-        own_headers={'Authorization':'Bearer '+platform.auth.bearer(assistant.account.account['id'],restricted=True)}
+        own_headers={'Authorization':'Bearer '+assistant.account.bearer()}
         response=http.get('/api/workbench',headers=own_headers)
         assert response.status_code==200
         views=response.json()['orders']
@@ -292,7 +292,7 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         assert http.get('/api/orders/'+ref,headers={'Authorization':'Bearer '+platform.auth.bearer(outsider['id'])}).status_code==404
         global_orders=http.get('/api/admin/orders',headers={'Authorization':'Bearer '+platform.auth.token('admin')}).json()
         assert all('card' not in row and 'detail' not in row for row in global_orders)
-        service_headers={'Authorization':'Bearer '+platform.auth.bearer(provider.account.account['id'],restricted=True)}
+        service_headers={'Authorization':'Bearer '+provider.account.bearer()}
         service=next(row for row in http.get('/api/workbench',headers=service_headers).json()['services'] if row['id']==provider.identities[0].agent_id)
         assert service['earned']==('10.00' if formation=='proposal' else '9.00')
         assert service['commissionEarned']=='9.00' and service['completedCount']==1

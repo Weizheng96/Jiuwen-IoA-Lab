@@ -103,15 +103,20 @@ class Configuration:
         options=self.input['admin_assistant'];notification,_=self.notification()
         return self.file(self.layout.private/'admin-assistant/config.json',{
             'deployment_id':self.identity['deploymentId'],'platform_url':self.input['public_url'],
-            'password':self.core()['runtime']['assistant_password'],'host':self.host(workspace),
+            'password':self.core()['admin']['password'],'host':self.host(workspace),
             'web_url':'ws://127.0.0.1:'+str(self.input['swarm_ports']['web'])+'/ws?user_id=ioa-admin',
-            'recipient':options['recipient'],'notification':notification,'max_model_runs':self.input['max_model_runs']})
+            'recipient':self.core()['runtime']['admin_email'],'notification':notification,'max_model_runs':self.input['max_model_runs']})
 
     def notification(self):
-        notice=self.input['admin_assistant']['notification']
+        override=self.layout.private/'administrator-mail.json'
+        notice=read_json(path_without_links(override)) if override.exists() else self.input['admin_assistant']['notification']
         notification=None
         variables={}
         if notice is not None:
+            if notice['transport']=='agently':
+                from .agently import VERSION
+                return {'transport':'agently','sender':notice['sender'],'command':[str(self.layout.root/'tools/agently'/VERSION/'agently-cli')],
+                        'config_dir':str(self.layout.state/'agents/agently-auth')}, {}
             notification={key:value for key,value in notice.items() if key not in ('api_key','username','password')}
             if 'client_id' in notice:
                 # The token stays in the administrator assistant's own directory; the
@@ -127,5 +132,5 @@ class Configuration:
         # Only this projection is suitable for CLI/status; record/input contain secrets.
         return {'deploymentId':self.identity['deploymentId'],'publicUrl':self.input['public_url'],
             'administratorEnabled':self.input['admin_assistant']['enabled'],
-            'meetingConfigured':self.input['admin_assistant']['notification'] is not None,
+            'meetingConfigured':self.notification()[0] is not None,
             'configurationFiles':len(self.record['files'])}

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ioalab-sdk"
+dynamic = ["version"]
+description = "Local IoA Lab client and provider access, using the A2C SDK"
+requires-python = ">=3.11"
+dependencies = ["a2c==0.0.23", "a2a-sdk[http-server]==1.0.0", "grpcio>=1.60", "httpx>=0.27", "jsonschema>=4.23", "referencing>=0.37", "rfc3339-validator>=0.1.4", "websockets>=15,<18", "tzdata>=2025.1", "PyYAML>=6.0", "mcp>=1.30,<2", "keyring>=25.7,<26"]
+
+[project.scripts]
+ioalab-access = "ioalab_sdk.access:main"
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.setuptools.packages.find]
+include = ["ioalab_sdk*"]
+
+[tool.setuptools.package-data]
+ioalab_sdk = ["runtime/web/*.html", "runtime/web/shared/*", "runtime/web/identity/*", "runtime/web/messaging/*", "runtime/web/registry/*", "runtime/web/delegation/*", "runtime/web/payments/*", "runtime/web/provider/*", "runtime/trust/*.json", "runtime/trust/*.pem"]

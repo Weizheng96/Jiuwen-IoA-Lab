@@ -62,7 +62,7 @@ class Deployment:
     def environment(self):
         allowed={'PATH','SYSTEMROOT','WINDIR','COMSPEC','PATHEXT','TEMP','TMP','USERPROFILE','HOMEDRIVE','HOMEPATH',
                  'PROCESSOR_ARCHITECTURE','PROCESSOR_ARCHITEW6432','NUMBER_OF_PROCESSORS',
-                 'APPDATA','LOCALAPPDATA','PROGRAMDATA','HOME','USERNAME','USER','LOGNAME','LANG','LC_ALL','A2C_CACHE_DIR','SSL_CERT_FILE','SSL_CERT_DIR',
+                 'CREDENTIALS_DIRECTORY','DBUS_SESSION_BUS_ADDRESS','XDG_RUNTIME_DIR','APPDATA','LOCALAPPDATA','PROGRAMDATA','HOME','USERNAME','USER','LOGNAME','LANG','LC_ALL','A2C_CACHE_DIR','SSL_CERT_FILE','SSL_CERT_DIR',
                  'REQUESTS_CA_BUNDLE','HTTP_PROXY','HTTPS_PROXY','NO_PROXY'}
         for domain in self.accounts:
             value=read_json(self.config_path(domain['account'])) if self.config_path(domain['account']).exists() else self.base(domain)

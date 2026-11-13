@@ -64,6 +64,18 @@ def test_status_rechecks_stopped_groups_and_locks(subject):
     assert obj.status()['phase']=='unknown'
 
 
+def test_status_with_incomplete_candidate_progress_does_not_hide_the_original_task(subject):
+    import json
+    obj,_,_=subject
+    progress=obj.layout.private/'candidate-progress.json'
+    progress.write_text(json.dumps({'stage':'candidate'}))
+    def readiness():return json.loads(progress.read_text())['candidate']['release']
+    obj.readiness=readiness
+    result=obj.status()
+    assert result['phase']=='starting' and result['runtimeReadinessVerified'] is False
+    assert all(row['ActiveState']=='active' for row in result['components'].values())
+
+
 def test_start_waits_for_original_core_and_resumes_without_relogin(subject,monkeypatch):
     obj,calls,live=subject
     for name in live:live[name]='inactive'
@@ -84,6 +96,25 @@ def test_start_waits_for_original_core_and_resumes_without_relogin(subject,monke
     assert calls.count('start-core')==1 and calls.count('start-official')==1
     ids['core']='replacement'
     with pytest.raises(RuntimeError,match='changed'):obj.start(0)
+
+
+def test_start_waits_for_new_invocation_instead_of_stopped_unit_id(subject,monkeypatch):
+    obj,calls,live=subject
+    obj.plans={'core':obj.plans['core']};obj.metadata['units']={'core':{}}
+    for name in live:live[name]='inactive'
+    ids={'core':'old-core'};pending=[]
+    obj.manager.ready=lambda name:{'ActiveState':live[name],'InvocationID':ids[name]}
+    obj.manager.freeze=lambda names:{name:obj.manager.ready(name) for name in names}
+    obj.manager.start=lambda name:pending.append(name)
+    def activated(delay):
+        calls.append('await-new-invocation');live['core']='active';ids['core']='new-core'
+    monkeypatch.setattr(lifecycle.time,'sleep',activated)
+    monkeypatch.setattr(lifecycle.activation,'current',lambda layout:{'setId':'fixed'})
+    obj.installer=lambda:SimpleNamespace(core_ready=lambda:None)
+    obj.start(1)
+    from deploy.release import read_json
+    assert pending==['core'] and 'await-new-invocation' in calls
+    assert read_json(obj.path)['started']=={'core':'new-core'}
 
 
 def test_units_stop_on_core_loss_without_automatic_restart():

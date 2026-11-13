@@ -1,0 +1,1 @@
+function paymentView(target,facts){evidencePair(target,'已交付期数',facts.availablePeriods);evidencePair(target,'已验收期数',facts.acceptedPeriods);evidencePair(target,'付款状态',({paid:'已付清',partial:'部分付款',unpaid:'尚未付款'})[facts.payment]||facts.payment);if(facts.vouchers?.length)evidenceDetail(target,'原始付款凭证',facts.vouchers);}

@@ -9,7 +9,8 @@ import subprocess
 import pytest
 from a2c.codec import digest_bytes
 from ioalab_jiuwen.process import ProcessHost
-from ioalab_jiuwen.skills import FrozenSkills,documents,MAX_FILE
+from ioalab_sdk.runtime import FrozenSkills,documents
+from ioalab_sdk.runtime.business_skills import MAX_FILE
 from ioalab_sdk.runtime.files import private_text
 from ioalab_sdk.runtime.host import AgentDefinition,HostTurn,ToolBinding
 from ioalab_sdk.runtime.protocol import RuntimeFault
@@ -96,7 +97,7 @@ def test_host_requires_actual_scoped_read_before_role_actions_and_reuses_origina
 
 @pytest.mark.skipif(not os.environ.get('IOALAB_REAL_JIUWEN_DATA_DIR'),reason='requires explicitly configured original Jiuwen/model')
 def test_real_original_host_reads_exact_current_skill_documents_through_the_bound_reader(tmp_path):
-    root=Path(__file__).resolve().parents[1]/'src/access/skills/assistant'
+    root=Path(__file__).resolve().parents[1]/'src/client/skills/assistant'
     host=ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],
         model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'),skill_directories={'ioalab-delegate':root})
     capabilities=host.probe()

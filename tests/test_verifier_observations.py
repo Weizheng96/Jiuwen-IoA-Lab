@@ -228,9 +228,9 @@ def test_real_original_jiuwen_observation_is_judged_by_actual_l2_wasm(tmp_path):
             from ioalab_sdk.runtime import observations,scheduling
             from ioalab_jiuwen import process
             sources={label:digest_bytes(Path(module.__file__).read_bytes()) for label,module in (
-                ('src/access/sdk/ioalab_sdk/runtime/observations.py',observations),
-                ('src/access/sdk/ioalab_sdk/runtime/scheduling.py',scheduling),
-                ('src/hosts/jiuwen/ioalab_jiuwen/process.py',process))}
+                ('src/client/sdk/ioalab_sdk/runtime/observations.py',observations),
+                ('src/client/sdk/ioalab_sdk/runtime/scheduling.py',scheduling),
+                ('src/client/hosts/jiuwen/ioalab_jiuwen/process.py',process))}
             Path(os.environ['IOALAB_REAL_L2_REPORT']).write_text(json.dumps({'scope':'Real original Jiuwen JSON observations consumed by actual L2 WASM; not full business, native web or video',
                 'model':host.capabilities()['model'],'verdict':actual['data']['verdict'],'observation':records[0],
                 'verifierSourceDigest':digest_bytes(SOURCE.encode()),'sources':sources},ensure_ascii=False,indent=2),encoding='utf-8')

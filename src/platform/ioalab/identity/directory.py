@@ -18,6 +18,14 @@ class IdentityDirectory:
             raise LabError('forbidden','Agent is unavailable',status=403,recovery='check_identity')
         return row
 
+    def retire_preset_assistant_in(self, conn, actor):
+        """Explicit offline retirement, fenced to the original ISC deployment assistant."""
+        row = conn.execute("SELECT a.*,u.username,u.note FROM agents a JOIN users u ON u.id=a.owner_id WHERE a.id=?", (actor,)).fetchone()
+        if not row or row['username'] != 'ISC_001' or row['note'] != '部署自带' or row['role'] != 'assistant' or row['name'] != '管理员的个人助手':
+            raise LabError('forbidden', 'Only the original managed ISC_001 assistant can be retired', status=403)
+        conn.execute("UPDATE agents SET status='disabled' WHERE id=?", (actor,))
+        return row['owner_id']
+
     def owned(self,owner,agent_id):
         row=self.agent(agent_id)
         if row['owner_id']!=owner:
@@ -113,26 +121,21 @@ class IdentityDirectory:
         return row['id'] if row else owner
 
     def bearer(self,authorization):
-        if not isinstance(authorization,str) or not authorization.startswith('Bearer '):
-            raise LabError('forbidden','SDK Bearer authentication is required',status=401)
-        subject=self.auth.verify(authorization[7:].strip())
-        if not isinstance(subject,str) or not subject.startswith('assistant:'):
-            raise LabError('forbidden','SDK authentication expired or is invalid',status=401,recovery='authenticate')
-        owner=subject.removeprefix('assistant:')
-        if not self.db.one('SELECT id FROM users WHERE id=?',owner):
-            raise LabError('forbidden','Account is unavailable',status=401)
+        owner,_=self.auth.devices.from_access(authorization)
         return owner
 
-    def issue(self,owner,actors):
+    def issue(self,owner,actors,*,session=None):
         if not isinstance(actors,list) or not 1<=len(actors)<=64 or not all(isinstance(a,str) and 1<=len(a)<=256 for a in actors) or len(set(actors))!=len(actors):
             raise LabError('invalid_input','agentIds must contain 1 to 64 distinct identities')
+        if session and self.auth.devices.check(session)!=owner:
+            raise LabError('forbidden','Device session owner mismatch',status=403)
         for actor in actors:self.owned(owner,actor)
         ticket=secrets.token_urlsafe(32)
         expires=self.clock()+self.settings.connection_ticket_seconds
         with self.db.tx() as conn:
             conn.execute('DELETE FROM connection_tickets WHERE expires<?',(self.clock()-300,))
-            conn.execute('INSERT INTO connection_tickets(digest,owner,actors,expires) VALUES(?,?,?,?)',
-                         (hashlib.sha256(ticket.encode()).hexdigest(),owner,json.dumps(actors),expires))
+            conn.execute('INSERT INTO connection_tickets(digest,owner,actors,expires,session) VALUES(?,?,?,?,?)',
+                         (hashlib.sha256(ticket.encode()).hexdigest(),owner,json.dumps(actors),expires,session))
         return {'ticket':ticket,'expiresAt':datetime.fromtimestamp(expires,timezone.utc).isoformat().replace('+00:00','Z')}
 
     def consume(self,ticket):
@@ -142,7 +145,8 @@ class IdentityDirectory:
             row=conn.execute('SELECT * FROM connection_tickets WHERE digest=?',(hashlib.sha256(ticket.encode()).hexdigest(),)).fetchone()
             if not row or row['consumed'] or row['expires']<=self.clock():
                 raise LabError('forbidden','Connection ticket is expired or already used',status=401,recovery='new_ticket')
+            if row['session']:self.auth.devices.check(row['session'])
             actors=json.loads(row['actors'])
             for actor in actors:self.owned(row['owner'],actor)
             conn.execute('UPDATE connection_tickets SET consumed=1 WHERE digest=?',(row['digest'],))
-            return row['owner'],actors
+            return row['owner'],actors,row['session']

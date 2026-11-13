@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel", "packaging>=24"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ioalab-client"
+dynamic = ["version", "dependencies"]
+description = "One resident IoA client with assistant and provider skills"
+requires-python = ">=3.11,<3.12"
+
+[project.scripts]
+ioalab-client = "ioalab_client.cli:main"
+ioalab-access = "ioalab_sdk.access:main"
+ioalab-jiuwen = "ioalab_jiuwen.__main__:main"
+
+[project.entry-points."ioalab.business_tools"]
+jiuwen-web = "ioalab_jiuwen.web_notifications:factory"

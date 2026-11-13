@@ -89,6 +89,11 @@ class Auth:
         self.admin_hash = self._admin_hash()
 
     # ── 管理员 ───────────────────────────────────────────────────────
+    @property
+    def devices(self):
+        from .devices import DeviceSessions
+        return DeviceSessions(self.db, self)
+
     def _admin_hash(self) -> str:
         if not self.s.admin_username or not self.s.admin_password:
             raise ValueError('Configure the existing administrator credentials explicitly')
@@ -225,6 +230,17 @@ class Auth:
             user=self.login_in(conn,verified)
         return {**user,'token':self.token(user['id'])}
 
+    def is_preset_account(self, username, kind):
+        row = self.db.one('SELECT kind,note FROM users WHERE username=?', username)
+        return bool(row and row['kind'] == kind and row['note'] == '部署自带')
+
+    def normalize_preset_display_name_in(self, conn, username, kind):
+        """Migrate only a manifest-selected account with deployment provenance."""
+        return conn.execute(
+            "UPDATE users SET display_name=username WHERE username=? AND kind=? "
+            "AND note='部署自带' AND display_name<>username", (username, kind)
+        ).rowcount == 1
+
     def reset_default_password_in(self,conn,username,current,replacement):
         """Replace a preset account's still-default password inside the caller's transaction."""
         row=conn.execute('SELECT id,pw_hash FROM users WHERE username=?',(username,)).fetchone()
@@ -249,7 +265,7 @@ class Auth:
         """脚本用的长效 token（30 天），与 cookie 同一算法。"""
         return self.token(("assistant:" if restricted else "")+subject, ttl=30 * 86400)
 
-    def verify(self, token: str | None) -> str | None:
+    def signed_subject(self, token: str | None) -> str | None:
         """返回 subject（用户 id 或 "admin"），无效返回 None。"""
         if not token:
             return None
@@ -259,6 +275,14 @@ class Auth:
             if not hmac.compare_digest(sig,want) or int(exp)<time.time():return None
         except (ValueError,TypeError,UnicodeError):
             return None
+        return subject
+
+    def verify(self, token: str | None) -> str | None:
+        subject = self.signed_subject(token)
+        if subject and subject.startswith('device:'):
+            try: return 'assistant:' + self.devices.check(subject.removeprefix('device:'))
+            except LabError: return None
+        if subject and subject.startswith('assistant:'):return None
         return subject
 
 

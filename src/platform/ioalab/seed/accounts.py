@@ -7,15 +7,22 @@ from __future__ import annotations
 
 def ensure_accounts(platform, *, domains=None) -> dict:
     """建齐内部账号，返回 {"isp": [uid…], "isc": [uid…]}（按序号排列）。"""
+    administrator = platform.identities.account('admin')
+    if administrator:
+        if not platform.auth.is_preset_account('admin', 'isc'):
+            raise ValueError('The reserved admin account is not a deployment preset')
+    else:
+        administrator = platform.accounts.create_account('admin', platform.s.admin_password,
+            kind='isc', display_name='admin', note='部署自带')
+    with platform.db.tx() as conn:
+        platform.auth.grant_admin_in(conn, administrator['id'])
     out: dict[str, list[str]] = {"isp": [], "isc": []}
     if domains is None:
         from .domains import load_domains
         domains = load_domains(platform.s.seed_file)
-    accounts={}
-    for domain in domains:
-        accounts.setdefault(domain['account'],[]).append(domain['label'])
-    for username,labels in accounts.items():
-        out["isp"].append(_ensure(platform, username, username[-3:], "isp", '内部服务方 · '+'、'.join(labels)))
+    accounts = dict.fromkeys(domain['account'] for domain in domains)
+    for username in accounts:
+        out["isp"].append(_ensure(platform, username, username[-3:], "isp"))
     for i in range(1, max(0, platform.s.isc_count) + 1):
         password=platform.s.assistant_password if i==1 and platform.s.assistant_password else f"{i:03d}"
         if i==1 and platform.s.open:
@@ -27,7 +34,7 @@ def ensure_accounts(platform, *, domains=None) -> dict:
             if len(password)<12: raise ValueError('ISC_001 requires a password of at least 12 characters in trial mode')
             with platform.db.tx() as conn:
                 platform.auth.reset_default_password_in(conn,'ISC_001','001',password)
-        uid = _ensure(platform, f"ISC_{i:03d}", password, "isc", f"内部用户 {i:03d}")
+        uid = _ensure(platform, f"ISC_{i:03d}", password, "isc")
         if i==1:
             with platform.db.tx() as conn:
                 platform.auth.grant_admin_in(conn,uid)
@@ -35,11 +42,13 @@ def ensure_accounts(platform, *, domains=None) -> dict:
     return out
 
 
-def _ensure(platform, username: str, password: str, kind: str, display_name: str) -> str:
+def _ensure(platform, username: str, password: str, kind: str) -> str:
     row = platform.identities.account(username)
     if row:
+        with platform.db.tx() as conn:
+            platform.auth.normalize_preset_display_name_in(conn, username, kind)
         return row["id"]
-    return platform.accounts.create_account(username, password, kind=kind, display_name=display_name, note="部署自带")["id"]
+    return platform.accounts.create_account(username, password, kind=kind, display_name=username, note="部署自带")["id"]
 
 
 __all__ = ["ensure_accounts"]

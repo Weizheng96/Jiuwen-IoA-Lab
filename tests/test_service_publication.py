@@ -93,7 +93,7 @@ def test_upload_checks_bound_identity_signature_category_and_ordinary_template_p
     url=account.base+'/api/v1/services/'+identity.agent_id+'/publications'
     assert account.http.post(url,json=body).status_code==401
     stranger=new_user(platform)
-    assert account.http.post(url,headers={'Authorization':'Bearer '+platform.auth.bearer(stranger['id'],restricted=True)},json=body).status_code==403
+    assert account.http.post(url,headers={'Authorization':'Bearer '+platform.accounts.login(stranger['username'],PASSWORD,audience='sdk',operation_id=str(uuid.uuid4()))['token']},json=body).status_code==403
     bad=copy.deepcopy(body);bad['declaration']['protocolId']='http://untrusted.invalid/private'
     assert submit(account,identity,bad).status_code==403
     bad=copy.deepcopy(body);bad['declaration']['name']='未经原签名允许的修改'
@@ -236,7 +236,7 @@ def test_resident_publish_needs_user_channel_and_recovers_lost_reply_after_resta
         assert service_status(runtime.account,identity)['revision']==1
         request=runtime.store.checkpoint('provider:'+identity.agent_id,'publish:'+operation)['body']
     finally:runtime.close()
-    runtime=ResidentRuntime(settings,modules=(ProviderRole(),)).start()
+    runtime=ResidentRuntime(RuntimeConfig.load(config),modules=(ProviderRole(),)).start()
     try:
         wait_for(lambda:runtime.connection.connected)
         monkeypatch.setattr(runtime.confirmations,'ensure',lambda *a,**kw:(_ for _ in ()).throw(AssertionError('restore original request, not a new confirmation')))

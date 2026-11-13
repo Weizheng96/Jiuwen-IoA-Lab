@@ -1,0 +1,134 @@
+"""Common configuration only; role/host namespaces are validated by their owners."""
+from dataclasses import dataclass,field,replace
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+from urllib.parse import urlsplit
+
+from .protocol import RuntimeFault
+from a2c.codec import digest
+
+DEFAULT_PLATFORM_URL='https://ioalab.openjiuwen.com'
+
+
+def read_configuration(path):
+    """Read user settings once; diagnostics may only need their data locator."""
+    return configuration_snapshot(path)[0]
+
+
+def configuration_snapshot(path):
+    try:
+        raw=Path(path).read_bytes()
+        value=json.loads(raw.decode('utf-8-sig'))
+    except (OSError,ValueError):
+        raise RuntimeFault('invalid_input','Use a readable UTF-8 JSON configuration object','configure') from None
+    if not isinstance(value,dict):raise RuntimeFault('invalid_input','Configuration must be an object','configure')
+    return value,hashlib.sha256(raw).hexdigest()
+
+
+def data_directory(path,value):
+    name=value.get('data_dir')
+    if not isinstance(name,str) or not name.strip():raise RuntimeFault('invalid_input','Missing configuration field: data_dir','configure')
+    home=Path(name).expanduser()
+    return (home if home.is_absolute() else Path(path).resolve().parent/home).resolve()
+
+
+@dataclass(frozen=True)
+class RuntimeConfig:
+    platform: str
+    username: str
+    password: str=field(repr=False)
+    home: Path
+    identities: tuple
+    max_model_runs: int=2
+    max_pending_requests: int=128
+    assistant: dict=field(default_factory=dict)
+    provider: dict=field(default_factory=dict)
+    host: dict=field(default_factory=dict)
+    user_browser: str|None=None
+    credential_ref: str|None=None
+    source: Path|None=field(default=None,repr=False,compare=False)
+    source_digest: str|None=field(default=None,repr=False,compare=False)
+
+    def require_current(self):
+        if self.source is None:return
+        try:current=hashlib.sha256(self.source.read_bytes()).hexdigest()
+        except OSError:current=None
+        if current!=self.source_digest:
+            raise RuntimeFault('configuration_changed','Configuration changed during setup; inspect it and start again','runtime.configuration')
+
+    def public_summary(self):
+        value={'platform':self.platform,'username':self.username,'dataDir':str(self.home),'identities':list(self.identities),
+               'maxModelRuns':self.max_model_runs,'maxPendingRequests':self.max_pending_requests,
+               'assistant':self.assistant,'provider':self.provider,'host':self.host,'userBrowser':self.user_browser}
+        return {'configurationDigest':digest(value),'dataDir':str(self.home),'identities':list(self.identities)}
+
+    @classmethod
+    def load(cls,path):
+        path=Path(path).resolve()
+        value,snapshot=configuration_snapshot(path)
+        return replace(cls.from_mapping(path,value),source=path,source_digest=snapshot)
+
+    @classmethod
+    def from_mapping(cls,path,value):
+        allowed={'platform_url','username','password','password_env','credential_ref','data_dir','identities',
+                 'max_model_runs','max_pending_requests','assistant','provider','host','user_browser'}
+        def invalid(message):raise RuntimeFault('invalid_input',message,'configure')
+        if not isinstance(value,dict) or set(value)-allowed:invalid('Unknown common runtime configuration fields')
+        for key in ('username',):
+            if not isinstance(value.get(key),str) or not value[key].strip():invalid('Missing configuration field: '+key)
+        platform=value.get('platform_url',DEFAULT_PLATFORM_URL)
+        if not isinstance(platform,str) or not platform.strip():invalid('Invalid configuration field: platform_url')
+        platform=platform.rstrip('/')
+        url=urlsplit(platform)
+        if url.scheme not in ('http','https') or not url.hostname or url.username or url.password or url.query or url.fragment:
+            invalid('Configure a platform HTTP(S) address without embedded credentials')
+        if 'password' in value and 'password_env' in value:invalid('Choose password or password_env, not both')
+        if 'password_env' in value:
+            key=value['password_env']
+            if not isinstance(key,str) or not re.fullmatch('[A-Za-z_][A-Za-z0-9_]*',key):invalid('Invalid password environment reference')
+            password=os.environ.get(key)
+        else:password=value.get('password')
+        credential_ref=value.get('credential_ref')
+        if credential_ref is not None:
+            if not isinstance(credential_ref,str) or not re.fullmatch('[0-9a-f]{64}',credential_ref):invalid('Invalid credential_ref')
+            if 'password' in value or 'password_env' in value:invalid('Migrate password configuration before using credential_ref')
+            password=''
+        elif not isinstance(password,str) or not password:invalid('Open the account setup page to create a device session')
+        browser=value.get('user_browser')
+        if browser is not None:
+            if not isinstance(browser,str) or not 1<=len(browser)<=8192 or not Path(browser).is_absolute():
+                invalid('user_browser requires an absolute browser executable path without arguments')
+            try:
+                executable=Path(browser).resolve(strict=True)
+                valid=executable.is_file() and (executable.suffix.lower()=='.exe' if os.name=='nt' else os.access(executable,os.X_OK))
+            except (OSError,ValueError,RuntimeError):valid=False
+            if not valid:invalid('user_browser must reference an existing executable file')
+            browser=str(executable)
+        home=data_directory(path,value)
+        if credential_ref:
+            expected=hashlib.sha256(json.dumps([str(home),{'platform':platform,'username':value['username'].strip()}],sort_keys=True).encode()).hexdigest()
+            if credential_ref!=expected:invalid('credential_ref belongs to another account directory')
+        profiles=value.get('identities')
+        if not isinstance(profiles,list) or not 1<=len(profiles)<=64:invalid('Configure one to 64 local identity profiles')
+        keys=set();assistants=0
+        for profile in profiles:
+            if not isinstance(profile,dict) or set(profile)!={'key','role','name'}:invalid('Identity profiles require key, role and name')
+            key=profile['key']
+            if not isinstance(key,str) or not re.fullmatch('[A-Za-z0-9][A-Za-z0-9_-]{0,63}',key) or key.casefold() in keys:
+                invalid('Identity profile keys must be distinct local names')
+            keys.add(key.casefold())
+            if profile['role'] not in ('assistant','service'):invalid('Unsupported identity role')
+            if not isinstance(profile['name'],str) or not 1<=len(profile['name'])<=120:invalid('A bounded identity display name is required')
+            assistants+=profile['role']=='assistant'
+        if assistants>1:invalid('An account has one logical personal assistant')
+        for key,default,limit in [('max_model_runs',2,64),('max_pending_requests',128,10000)]:
+            number=value.get(key,default)
+            if type(number) is not int or not 1<=number<=limit:invalid('Invalid '+key)
+        for key in ('assistant','provider','host'):
+            if not isinstance(value.get(key,{}),dict):invalid(key+' configuration must be an object')
+        return cls(platform,value['username'].strip(),password,home.resolve(),tuple(dict(p) for p in profiles),
+                   value.get('max_model_runs',2),value.get('max_pending_requests',128),
+                   value.get('assistant',{}),value.get('provider',{}),value.get('host',{}),user_browser=browser,credential_ref=credential_ref)

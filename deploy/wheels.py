@@ -14,6 +14,7 @@ IGNORED = ('build', 'dist', '*.egg-info', '__pycache__', '*.pyc', '.git', '.venv
 
 
 def source_modules(source):
+    source = Path(source).resolve()
     settings = tomllib.loads((source / 'pyproject.toml').read_text(encoding='utf-8'))
     config = settings.get('tool', {}).get('setuptools', {})
     find = config.get('packages', {}).get('find', {})

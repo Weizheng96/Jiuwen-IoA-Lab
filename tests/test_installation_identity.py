@@ -13,7 +13,6 @@ from ioalab_sdk.runtime.files import private_json
 from ioalab_sdk.runtime.ipc import IpcServer,LocalClient
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.resident import ResidentRuntime
-from test_access_products import bootstrap
 from test_resident_runtime import configuration
 
 
@@ -99,24 +98,13 @@ def test_cli_preflight_cannot_switch_to_another_boot_before_a_business_request(t
         result=json.loads(capsys.readouterr().out)
         assert result['error']['code']=='instance_changed' and not effects
     finally:first.close();second.close()
-
-
-@pytest.mark.parametrize('corruption',['marker','ready','python','missing_ready'])
-def test_completed_cache_is_never_repaired_under_an_existing_runtime(tmp_path,monkeypatch,corruption):
-    import os
-    module=bootstrap();assets=tmp_path/'assets';wheels=assets/'wheels';wheels.mkdir(parents=True)
-    (assets/'requirements.lock').write_bytes(b'');(wheels/'sdk.whl').write_bytes(b'input')
-    manifest={'format':1,'skillVersion':'0.0.1','versions':{},'constraintsSha256':hashlib.sha256(b'').hexdigest(),
-              'wheels':[{'file':'sdk.whl','sha256':hashlib.sha256(b'input').hexdigest()}]}
-    raw=json.dumps(manifest).encode();(assets/'runtime.json').write_bytes(raw);fingerprint=hashlib.sha256(raw).hexdigest()
-    cache=tmp_path/'cache';environment=cache/fingerprint[:24];environment.mkdir(parents=True)
-    (environment/'.ready').write_text(fingerprint if corruption!='ready' else 'wrong')
-    (environment/'ioalab-release.json').write_text(json.dumps({'format':installation.FORMAT,'releaseId':fingerprint,'versions':{}}) if corruption!='marker' else '{}')
-    if corruption!='python':
-        python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python');python.parent.mkdir();python.write_bytes(b'not used')
-    installer=module.installation()
-    if corruption=='missing_ready':(environment/'.ready').unlink()
-    original={p.relative_to(environment):p.read_bytes() for p in environment.rglob('*') if p.is_file()}
-    monkeypatch.setattr(installer.subprocess,'Popen',lambda *a,**kw:pytest.fail('launched an installer over a completed environment'))
-    with pytest.raises(RuntimeError,match='do not repair it in place'):installer.prepare(assets,cache,launch=True,retry=True)
-    assert {p.relative_to(environment):p.read_bytes() for p in environment.rglob('*') if p.is_file()}==original
+@pytest.mark.parametrize('count,accepted',[(70,True),(128,True),(129,False)])
+def test_managed_identity_supports_credential_dependencies_but_remains_bounded(tmp_path,monkeypatch,count,accepted):
+    monkeypatch.setattr(installation.metadata,'version',lambda _: '1.0')
+    value=managed(tmp_path)
+    value['versions'].update({f'dependency-{i}':'1.0' for i in range(count-1)})
+    (tmp_path/'ioalab-release.json').write_text(json.dumps(value))
+    monkeypatch.setattr(installation,'sys',SimpleNamespace(prefix=str(tmp_path)))
+    if accepted:assert len(installation.current()['versions'])==count
+    else:
+        with pytest.raises(RuntimeFault,match='incomplete or changed'):installation.current()

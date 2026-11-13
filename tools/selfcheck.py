@@ -43,7 +43,7 @@ def main():
                 imports.append(str(path.relative_to(ROOT)))
     ok('Core imports no participant SDK or agent runtime',not imports)
     imports=[]
-    for path in (ROOT/'src/access/sdk/ioalab_sdk').rglob('*.py'):
+    for path in (ROOT/'src/client/sdk/ioalab_sdk').rglob('*.py'):
         tree=ast.parse(path.read_text(encoding='utf-8'))
         for node in ast.walk(tree):
             names=[node.module] if isinstance(node,ast.ImportFrom) and not node.level else [name.name for name in node.names] if isinstance(node,ast.Import) else []
@@ -51,7 +51,7 @@ def main():
     ok('Core SDK imports no platform, host implementation or official tools',not imports)
     if imports:print('\n'.join(imports))
     hits=[]
-    for folder in ['src/platform/ioalab','src/access/sdk','src/hosts/jiuwen','src/official','tools/verification','设计','docs','deploy']:
+    for folder in ['src/platform/ioalab','src/client/sdk','src/client/hosts/jiuwen','src/official','tools/verification','设计','docs','deploy']:
         for path in (ROOT/folder).rglob('*'):
             if path.suffix not in ('.py','.md','.js','.html','.json','.txt','.sh','.example','.service'): continue
             if any(part in ('__pycache__','变更','*.egg-info') or part.endswith('.egg-info') for part in path.parts): continue

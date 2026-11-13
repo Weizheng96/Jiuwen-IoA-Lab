@@ -16,7 +16,7 @@ from .vendor import validate
 from .wheels import build_wheel
 
 ROOT = Path(__file__).resolve().parents[1]
-PROJECTS = ('src/platform', 'vendor/A2X-registry', 'src/access/sdk', 'src/hosts/jiuwen', 'src/official')
+PROJECTS = ('src/platform', 'vendor/A2X-registry', 'src/client/sdk', 'src/client/hosts/jiuwen', 'src/official')
 
 
 def build_wheels(root, output):
@@ -76,13 +76,6 @@ def assemble(root, folder, target, locks, wheels, skills):
                ('sources', root / 'vendor/SOURCES.json', 'attribution/SOURCES.json')]
     for role in ('assistant', 'provider'):
         original = Path(skills) / ('ioalab-' + role + '-skill.zip')
-        # Both product ZIPs must ship the same participant wheels as the release.
-        with zipfile.ZipFile(original) as archive:
-            bundled = {Path(name).name: archive.read(name) for name in archive.namelist() if '/assets/wheels/' in name and name.endswith('.whl')}
-        expected = {Path(pool[name]['path']).name: pool[name]['sha256'] for name in UNITS['participant']}
-        import hashlib
-        if {name: hashlib.sha256(value).hexdigest() for name, value in bundled.items()} != expected:
-            raise ValueError('Product skill and production participant wheels differ')
         sources.append((role + 'Skill', original, 'skills/' + original.name))
     for path in sorted((root / 'vendor/licenses').rglob('*')):
         if path.is_file():

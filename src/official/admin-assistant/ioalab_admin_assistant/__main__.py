@@ -12,13 +12,18 @@ from .preparation import prepare, status
 def main(argv=None):
     configure_stdio()
     parser=argparse.ArgumentParser(prog='ioalab-admin-assistant')
-    parser.add_argument('command',choices=('prepare','status'))
+    parser.add_argument('command',choices=('prepare','status','configure-email'))
     parser.add_argument('--config',type=Path,required=True)
+    parser.add_argument('--recipient')
     args=parser.parse_args(argv)
     try:
         operator()
         deployment=Deployment(args.config)
-        value=(prepare if args.command=='prepare' else status)(deployment)
+        if args.command=='configure-email':
+            from .configuration import configure_email
+            value=configure_email(deployment,args.recipient)
+        else:
+            value=(prepare if args.command=='prepare' else status)(deployment)
         print(json.dumps(value,ensure_ascii=False))
         return 0 if value['status']=='completed' else 2
     except RuntimeFault as exc:

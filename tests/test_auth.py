@@ -142,7 +142,7 @@ def test_internal_accounts_seeded_idempotent(platform):
     assert ensure_accounts(pf) == acc and pf.db.one("SELECT COUNT(*) AS n FROM users")["n"] == after
     assert after - before <= len(acc["isp"]) + len(acc["isc"])
     row = pf.db.one("SELECT username, kind, display_name FROM users WHERE id=?", acc["isp"][0])
-    assert row["username"] == "ISP_001" and row["kind"] == "isp" and row["display_name"].startswith("内部服务方")
+    assert row["username"] == "ISP_001" and row["kind"] == "isp" and row["display_name"] == "ISP_001"
     assert pf.auth.login("ISC_001", "001")["kind"] == "isc"
     assert not pf.db.one("SELECT id FROM agents WHERE owner_id=?", acc["isc"][0])
     assert pf.auth.roles(acc["isc"][0]) == ["admin"] and all(not pf.auth.roles(uid) for uid in acc["isc"][1:])

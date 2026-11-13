@@ -6,11 +6,15 @@
 ./vendor/wheels/jiuwenswarm_process_sdk-0.1.0-py3-none-any.whl
 -e ./vendor/A2X-registry
 -e ./src/platform
--e ./src/access/sdk
--e ./src/hosts/jiuwen
+-e ./src/client/sdk
+-e ./src/client/hosts/jiuwen
 -e ./src/official
 
 # 仓库检查与构建工具。
 pytest>=8
 setuptools>=68
 wheel>=0.43
+
+# 维护共享凭据后端约束所需的跨平台元数据（运行时按平台选择）。
+SecretStorage>=3.5,<4
+pywin32-ctypes>=0.2.3,<0.3

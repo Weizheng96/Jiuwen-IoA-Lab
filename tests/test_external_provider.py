@@ -16,7 +16,7 @@ from conftest import wait_for
 
 
 def test_third_party_resident_provider_uses_public_publication_and_completes_contract(platform,client,tmp_path):
-    source=Path(__file__).resolve().parents[1]/'src/access/examples/provider.py'
+    source=Path(__file__).resolve().parents[1]/'src/client/examples/provider.py'
     spec=importlib.util.spec_from_file_location('external_resident_example',source)
     example=importlib.util.module_from_spec(spec);spec.loader.exec_module(example)
     created=[]

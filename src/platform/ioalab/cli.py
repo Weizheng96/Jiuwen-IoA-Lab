@@ -65,6 +65,10 @@ def main(argv: list[str] | None = None) -> None:
     ini = sub.add_parser("init")
     ini.add_argument("--no-seed", action="store_true")
     sv = sub.add_parser("serve")
+    retired = sub.add_parser('retire-admin-assistant')
+    retired.add_argument('--agent', required=True)
+    email = sub.add_parser('upgrade-admin-email')
+    email.add_argument('--email', default='zhengw.cc@outlook.com')
     rs = sub.add_parser("reset")
     rs.add_argument("--keep-keys", action="store_true")
     bk = sub.add_parser("backup")
@@ -72,8 +76,25 @@ def main(argv: list[str] | None = None) -> None:
     args = ap.parse_args(argv)
     _logging()
     from .configuration import PlatformConfiguration
+    if args.cmd == 'upgrade-admin-email':
+        from .configuration import upgrade_admin_email
+        upgrade_admin_email(args.config, args.email)
+        print('{"status":"completed"}')
+        return
     configuration = PlatformConfiguration.load(args.config)
     s = configuration.settings()
+    if args.cmd == 'retire-admin-assistant':
+        from .app import Platform
+        import json
+        pf = Platform(s, configuration=configuration)
+        try:
+            with pf.db.tx() as conn:
+                owner = pf.identities.retire_preset_assistant_in(conn, args.agent)
+                pf.delivery.withdraw_preset_interfaces_in(conn, owner)
+            print(json.dumps({'status':'completed','retiredAgent':args.agent}))
+        finally:
+            pf.close()
+        return
     if args.cmd == 'init' and args.no_seed:
         s.autoseed = False
 

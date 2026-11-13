@@ -14,10 +14,14 @@
 
 ## HTTP 入口
 
+公开接入说明 `GET /readme_agent.md` 使用平台固定 public_url 生成；`GET /api/access/bundles` 只列两款完整产品包的实际大小、SHA-256、可用性与下载 URL。未构建时不伪造摘要，不访问用户配置、不发起安装。校验及下载一致性由客户端核对，包更新期间不一致时重新取清单并拒绝使用旧摘要。测试：access_products。
+
 | 方法与路径 | 输入与结果 |
 |---|---|
+| `GET /api/access/packages` | 公开format=1下载清单；仅枚举实际可读的完整两角色ZIP，含同源相对url、字节数、SHA-256、skillVersion、runtimeFormat=1及Python3.11要求；不含可执行指令，缺包不伪造可用项；测试access_discovery |
+| `POST /api/v1/accounts` | 与网页注册相同的注册策略、operationId和赠币事务，返回受限SDK凭据；浏览器和SDK受众绑定参数摘要，不允许相同操作跨受众重放；客户端采用该会话，不再额外密码登录；测试account_setup、account_enrollment |
 | `POST /api/auth/register` | 用户名、密码及注册操作标识；创建账号并返回注册/登录结果，不创建助手进程 |
-| `POST /api/v1/token`；`POST /api/v1/token/refresh`；`GET /api/v1/me` | 登录操作标识与凭据 → 受限SDK登录态；有效Bearer续用不发币；/api/v1/me仅接受受限SDK Bearer，查询本账号、权限与可操作身份；网页登录查询使用/api/me，不以网页cookie或网页Bearer冒充SDK凭据 |
+| `POST /api/v1/token`；`POST /api/v1/token/refresh`；`GET /api/v1/me` | 登录操作标识与凭据 → 受限SDK登录态；refreshToken 与 operationId 轮换续期不发币；/api/v1/me仅接受受限SDK Bearer，查询本账号、权限与可操作身份；网页登录查询使用/api/me，不以网页cookie或网页Bearer冒充SDK凭据 |
 | `POST /api/v1/identity/challenge`；`POST /api/v1/identity` | 一次性挑战 → 本地签名绑定对象 → 稳定 agentId 与绑定结果 |
 | `POST /api/v1/connections/ticket` | SDK Bearer 及 agentIds 数组 → ticket、expiresAt；仅限所属的 1—64 个已登记身份，不接受浏览器 cookie 代替 Bearer |
 | `POST /api/v1/search`；`GET /api/v1/providers/reputation` | 分类/需求 → A2X 候选、现有服务状态快照及真实信誉；完整模板另按返回引用取得并验签 |
@@ -31,7 +35,7 @@
 | `GET /api/v1/messages/{messageId}` | 本端 agentId → 原消息的投递/处理状态及权限允许的已存结果；不存在与无权读取均不披露内容 |
 | `GET /api/v1/operations/{operationId}` | 本端 agentId + 操作类型 → 原平台控制/发布/付款操作结果；付款返回原 AP2 凭证，不重新执行 |
 | `GET /api/v1/payments/{paymentId}`；`GET /api/v1/payments` | 按 paymentId，或 ref + purpose + period 查询；仅原付款/收款账号可读原摘要、voucher 与 Payment Receipt；无此权限或不存在统一返回不可读，不触发付款或重新签署 |
-| `GET /downloads/ioalab-skill.zip`；`GET /downloads/ioalab-client.zip` | 下载配置目录中的通用接入包；缺失返回未就绪，不从源码相邻路径查找或在请求中触发构建，不包含用户配置 |
+| `GET /downloads/ioalab-assistant-skill.zip`；`GET /downloads/ioalab-provider-skill.zip` | 下载配置目录中的通用接入包；缺失返回未就绪，不从源码相邻路径查找或在请求中触发构建，不包含用户配置 |
 | `POST /api/v1/provider/packages`；`GET /api/v1/packages/{digest}` | 验收器包 → 内容摘要；按摘要获取原包，SDK 必须核摘要 |
 | `POST /api/v1/files/{agentId}` | SDK Bearer、原上传 operationId、name、digest 查询参数及原始字节 → 私有文件引用；单文件最多16MiB，同操作异内容冲突 |
 | `GET /api/v1/files/{fileId}?agentId=…` | SDK Bearer 及所属读取身份 → 已获准文件原字节；不存在或无权统一不可读，下载方复核摘要和字节数 |
@@ -55,7 +59,7 @@
 
 没有对应公开投影时availability为null，表示未取得状态，不伪装为online。快照用于识别当时的离线、暂停或满额情况，不保证宿主可执行，也不预留容量；正式征集仍读取并核验完整模板、材料、规格、验收依据、期限及信誉，由实际接单门禁决定是否接纳。状态不包含所属账号、连接标识、私有执行配置或业务正文；历史搜索中的快照不能冒充当前状态。
 
-注册和登录 body 含 operationId、username、password，注册另含 display_name 与 invite；操作绑定调用通道，不能用 SDK 操作取得浏览器管理员凭据。响应含原操作标识与 credited；登录重传恢复原令牌有效期。续用入口只读 Authorization Bearer，不接受 cookie 代替，不产生新的登录记录。
+注册和登录 body 含 operationId、username、password，注册另含 display_name 与 invite；操作绑定调用通道，不能用 SDK 操作取得浏览器管理员凭据。响应含原操作标识与 credited；登录重传恢复原令牌有效期。SDK 登录另带 deviceId、deviceName，返回设备会话凭据；续用入口 body 为 refreshToken、operationId，不接受 cookie 或 access token 代替，不产生新的登录记录。GET /api/v1/sessions 返回本账号公开设备列表；POST /api/v1/sessions/{sessionId}/revoke 撤销本账号会话并返回公开状态，不删除身份或业务数据。
 
 角色绑定的 challenge body 为 operationId、role（assistant/service）、agentId；服务 ID 使用 `svc-` 加本地 UUID，个人助手保留本地稳定 URN。响应包含 challenge、expiresAt、protocolId 和当前 phase。提交绑定 body 含同一 operationId、challenge、owner、platform、role、agentId、name、source、keys、proof；source 为 client/provider/experiment，keys 的 assistant 用途为 agent/user/payer，service 用途为 agent/payee。agent/user 为 Ed25519 公钥，payer/payee 为 P-256 公钥，禁止私钥字段。proof 是以相应 agent 密钥签署完整绑定对象摘要的 A2C 签名，slot 使用 client 或 provider；绑定时按提交的内联公钥验签，proof 不携带 kid，公钥可保留后续 JWKS 发布用的 kid。protocolId 由平台导出，不由调用者提供任意 URL。
 

@@ -60,7 +60,11 @@ def main():
               'host':{'command':[str(python.parent/('jiuwenswarm-process.exe' if os.name=='nt' else 'jiuwenswarm-process'))],'data_dir':str(swarm),
                       'business_tools':[{'factory':'jiuwen-web','profile':'personal','options':options}]}}
     configfile=root/'settings.local.json';configfile.write_text(json.dumps(settings,ensure_ascii=False,indent=2),encoding='utf-8')
-    prepared=prepare_extension(configfile,'personal')
+    restrict(configfile)
+    arguments=root/'notification-arguments.json'
+    arguments.write_text(json.dumps({'profile':'personal'}),encoding='utf-8')
+    restrict(arguments)
+    prepared=prepare_extension(configfile,arguments,'assistant')
     processes=[]
     for label,module in [('app','jiuwenswarm.app'),('web','jiuwenswarm.channels.web.app_web')]:
         with (root/(label+'.log')).open('w',encoding='utf-8') as log:

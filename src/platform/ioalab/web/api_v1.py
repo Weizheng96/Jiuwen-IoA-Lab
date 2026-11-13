@@ -15,16 +15,35 @@ def build_router(platform, current_user):
     def token(body: dict, request: Request):
         from .source import client_ip
         return platform.accounts.login(body.get('username',''),body.get('password',''),ip=client_ip(request,platform.s),
-                              operation_id=body.get('operationId'),audience='sdk')
+                              operation_id=body.get('operationId'),audience='sdk',
+                              device={'id':body.get('deviceId'),'name':body.get('deviceName')})
 
     @router.post('/token/refresh')
-    def refresh(request:Request):
-        uid=platform.identities.bearer(request.headers.get('authorization',''))
-        from datetime import datetime,timezone
-        import time
-        until=int(time.time())+30*86400
-        return {'id':uid,'token':platform.auth.token('assistant:'+uid,expires_at=until),
-                'expiresAt':datetime.fromtimestamp(until,timezone.utc).isoformat().replace('+00:00','Z'),'credited':False}
+    def refresh(body:dict):
+        if set(body) != {'refreshToken','operationId'}:
+            from ..errors import LabError
+            raise LabError('invalid_input', 'Use refreshToken and operationId')
+        return platform.auth.devices.refresh(body['refreshToken'],body['operationId'])
+
+    @router.get('/sessions')
+    def sessions(request:Request,uid=Depends(sdk_user)):
+        _,current=platform.auth.devices.from_access(request.headers.get('authorization',''))
+        return platform.auth.devices.list(uid,current)
+
+    @router.post('/sessions/{sessionId}/revoke')
+    def revoke(sessionId:str,body:dict,request:Request):
+        if body:
+            from ..errors import LabError
+            raise LabError('invalid_input','Session revocation takes no additional fields')
+        result=platform.auth.devices.revoke_access(request.headers.get('authorization',''),sessionId)
+        platform.delivery.notify()
+        return result
+
+    @router.post('/accounts')
+    def register_account(body:dict,request:Request):
+        from .source import client_ip
+        return platform.accounts.register(body.get('username',''),body.get('password',''),display_name=body.get('display_name',''),invite=body.get('invite',''),
+            operation_id=body.get('operationId'),ip=client_ip(request,platform.s),audience='sdk')
 
     @router.get("/me")
     def me(uid=Depends(sdk_user)):
