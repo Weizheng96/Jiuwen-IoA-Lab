@@ -29,7 +29,7 @@ develop 的提交标题为 `v0.0.x.y：主题`。前两位由用户决定；x �
 
 ## 发行输入与锁一致性
 
-发布前更新产物VERSION、pyproject安装要求或构建输入时，沿实际消费者检查到最终发行：本仓wheel版本、接入技能固定版本、各目标运行锁及配套JSON必须对应同一份受审输入。重点核`src/access/skills/_shared/requirements.lock`和`deploy/locks/<target>/{core,participant,swarm}.{lock,json}`；不能只改VERSION，或凭单元/轻量检查通过就认定发行可构建。
+发布前更新产物VERSION、pyproject安装要求或构建输入时，沿实际消费者检查到最终发行：本仓wheel版本、接入技能固定版本、各目标运行锁及配套JSON必须对应同一份受审输入。重点核`src/client/skills/_shared/requirements.lock`和`deploy/locks/<target>/{core,participant,swarm}.{lock,json}`；不能只改VERSION，或凭单元/轻量检查通过就认定发行可构建。
 
 先从最终源码构建实际wheel，再用现有`tools/build_requirements.py`消费者和`tools/lock_deployment.py`唯一目标锁入口更新相应输入。目标锁JSON中的inputSha256包含本仓版本等构建依据；即使第三方包未变，本仓版本变化也可能要求更新元数据。所有受影响目标均须核对，输入未变的结果复用，不机械重生成无关文件。
 

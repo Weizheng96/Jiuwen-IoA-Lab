@@ -62,7 +62,7 @@ def test_original_sender_discovers_interface_and_reschedules_without_scripted_se
                     private_json(tmp_path/'sender-tools.json',trace)
                     return result
                 bindings=tuple(ToolBinding(name,'IoA Lab SDK operation '+name,schema,lambda *_:None) for name,schema in schemas.items())
-                flow=(ROOT/'src/access/skills/assistant/references/messaging.md').read_text(encoding='utf-8')
+                flow=(ROOT/'src/client/skills/assistant/references/messaging.md').read_text(encoding='utf-8')
                 definition=AgentDefinition('ioa_message_sender','按用户需求、授权范围和以下IoA Lab流程使用实际SDK工具。只依据真实回执决定下一步，不编造对方结果。\n'+flow,bindings)
                 local_start=datetime.fromisoformat(initial['start']).astimezone(ZoneInfo('Asia/Shanghai'))
                 day=local_start.strftime('%Y-%m-%d')

@@ -8,7 +8,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def constraints(projects=None):
     local={}
-    for path in projects or [ROOT/'src/access/sdk']:
+    for path in projects or [ROOT/'src/client/sdk']:
         project=tomllib.loads((path/'pyproject.toml').read_text(encoding='utf-8'))['project']
         local[project['name'].lower().replace('_','-')]=(project,(path/'VERSION').read_text().strip().removeprefix('v'))
     pending=[(name,set()) for name in local]

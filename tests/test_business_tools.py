@@ -201,8 +201,8 @@ def test_resident_meeting_conflict_retry_same_uuid_session_and_real_smtp_capture
                     from ioalab_sdk.assistant import role
                     sources={label:digest_bytes(Path(module.__file__).read_bytes()) for label,module in (
                         ('src/official/tools/ioalab_tools/appointments.py',appointments),
-                        ('src/hosts/jiuwen/ioalab_jiuwen/tools.py',composition),
-                        ('src/access/sdk/ioalab_sdk/assistant/role.py',role))}
+                        ('src/client/hosts/jiuwen/ioalab_jiuwen/tools.py',composition),
+                        ('src/client/sdk/ioalab_sdk/assistant/role.py',role))}
                     Path(os.environ['IOALAB_REAL_BUSINESS_REPORT']).write_text(json.dumps({
                         'scope':'Original Jiuwen, actual installed calendar factory, HTTP/WS resident roles and real loopback SMTP; scripted local-browser user confirmation',
                         'model':host.capabilities()['model'],'interactionId':first['interactionRef'],'sessionId':record['context']['sessionId'],

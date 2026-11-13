@@ -14,7 +14,7 @@
 
 ## 3. 开发
 
-按[develop](.agents/skills/develop/SKILL.md)的路由表进入模块文件夹，只读本模块、所依赖模块的接口页及所列测试，不通读全部规范；保持架构简洁，不增兼容别名、旧格式回退或双执行链。产物VERSION只在发布时更新，不随每次改模块递增，不高于设计。合同、授权、付款及沙箱边界从设计入口读取，不以模型文字代替用户批准。产品Skill与开发技能分别归src/access/skills与.agents/skills。
+按[develop](.agents/skills/develop/SKILL.md)的路由表进入模块文件夹，只读本模块、所依赖模块的接口页及所列测试，不通读全部规范；保持架构简洁，不增兼容别名、旧格式回退或双执行链。产物VERSION只在发布时更新，不随每次改模块递增，不高于设计。合同、授权、付款及沙箱边界从设计入口读取，不以模型文字代替用户批准。产品Skill与开发技能分别归src/client/skills与.agents/skills。
 
 ## 4. 测试
 

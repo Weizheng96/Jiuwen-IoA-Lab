@@ -9,6 +9,50 @@ from ioalab_sdk.runtime.account_setup import AccountSetupUi
 from ioalab_sdk.runtime.ipc import IpcServer
 from ioalab_sdk.runtime.files import read_json
 from ioalab_sdk.runtime.protocol import RuntimeFault
+
+
+@pytest.mark.parametrize('configured,override,expected',[
+    (None,None,'https://120.46.80.150'),
+    (None,'https://chosen.example','https://chosen.example'),
+    ('https://existing.example',None,'https://existing.example'),
+])
+def test_unreachable_platform_is_probed_before_requesting_address_or_credentials(tmp_path,monkeypatch,capsys,configured,override,expected):
+    from ioalab_sdk.access import main
+    config=tmp_path/'settings.json';calls=[]
+    if configured:config.write_text(json.dumps({'platform_url':configured,'password':'private-test-only'}))
+    original=config.read_bytes() if config.exists() else None
+    def get(client,url,**kwargs):
+        calls.append(url)
+        assert kwargs['timeout']==5
+        return httpx.Response(503,request=httpx.Request('GET',url))
+    monkeypatch.setattr(httpx.Client,'get',get)
+    arguments=['account-setup','--config',str(config)]
+    if override:arguments+=['--platform',override]
+    assert main(arguments)==1
+    result=json.loads(capsys.readouterr().out)
+    assert calls==[expected+'/api/config']
+    assert result['data']['nextAction']=='ask_platform_url' and result['data']['platformUrl']==expected
+    assert 'private-test-only' not in json.dumps(result)
+    assert (config.read_bytes() if config.exists() else None)==original
+    assert not config.with_suffix('.data').exists()
+
+
+def test_runtime_platform_default_is_configurable_without_rewriting_input(tmp_path):
+    from ioalab_sdk.runtime import RuntimeConfig
+    value={'username':'owner','password':'local-test','data_dir':str(tmp_path/'data'),
+           'identities':[{'key':'personal','role':'assistant','name':'Owner'}]}
+    assert RuntimeConfig.from_mapping(tmp_path/'settings.json',value).platform=='https://120.46.80.150'
+    assert 'platform_url' not in value
+    assert RuntimeConfig.from_mapping(tmp_path/'settings.json',{**value,'platform_url':'https://chosen.example'}).platform=='https://chosen.example'
+
+
+@pytest.mark.parametrize('parameters',[{'role':'assistant'},[]])
+def test_account_parameters_cannot_override_bound_skill_role(tmp_path,monkeypatch,capsys,parameters):
+    from ioalab_sdk.access import main
+    args=tmp_path/'args.json';args.write_text(json.dumps(parameters))
+    monkeypatch.setattr(httpx.Client,'get',lambda *a,**k:pytest.fail('Role conflict reached network'))
+    assert main(['account-setup','--config',str(tmp_path/'settings.json'),'--role','service','--args-file',str(args)])==1
+    assert json.loads(capsys.readouterr().out)['error']['code']=='invalid_input'
 from _support import PASSWORD,new_user
 
 

@@ -30,7 +30,7 @@
 
 通知邮箱的可选准备命令为 `ioalab-agentmail`：`signup --human-email <所有者邮箱> --username <收件箱名称>` 登记，`verify --code-file <本机验证码文件>` 验证所有权，`configure --credentials-file <专用凭据文件>` 保存 `AGENTMAIL_API_KEY` 并返回可用于下述 `notification` 的配置片段。默认登记目录为 `~/.ioalab/agentmail`，可用顶层 `--home` 指定；已有参数不匹配或注册结果未知时停止，不自动再次注册。配置保留凭据文件的其他键，安装或配置不自动启用工具、不发送邀请。
 
-九问装配入口读取 `host.business_tools`，只加载明确选中的已安装工厂。将[日程配置片段](../hosts/jiuwen/examples/calendar-tools.json)合入自己的本机运行配置，`profile` 对应已配置的个人助手身份；相对路径以本机运行配置文件所在目录为基准。示例的 smtp-capture 只用于回环收件测试。
+九问装配入口读取 `host.business_tools`，只加载明确选中的已安装工厂。将[日程配置片段](../client/hosts/jiuwen/examples/calendar-tools.json)合入自己的本机运行配置，`profile` 对应已配置的个人助手身份；相对路径以本机运行配置文件所在目录为基准。示例的 smtp-capture 只用于回环收件测试。
 
 | 字段 | 类型与作用 | 生效与敏感性 |
 |---|---|---|
