@@ -18,8 +18,7 @@ def test_both_roles_share_external_default_after_skill_replacement_and_explicit_
         @classmethod
         def home(cls):return cls(profile)
     def product(role):
-        module=bootstrap();root=tmp_path/('skill-'+role);(root/'assets').mkdir(parents=True)
-        (root/'assets/skill.json').write_text(json.dumps({'role':role}),encoding='utf-8')
+        module=bootstrap();root=tmp_path/('skill-'+role);root.mkdir()
         # A stale file in the replaceable package is not an alternative configuration source.
         (root/'settings.local.json').write_text('{"username":"wrong-source"}',encoding='utf-8')
         module.__file__=str(root/'scripts/ioalab.py')
@@ -27,21 +26,21 @@ def test_both_roles_share_external_default_after_skill_replacement_and_explicit_
         monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda *a,**k:
             {'status':'completed','data':{'python':sys.executable},'error':None}))
         return module,root
-    def validate(module,args=()):
-        assert module.main(['runtime.validate',*args])==0
+    def validate(module,role,args=()):
+        assert module.main(['--role',role,'runtime.validate',*args])==0
         text=capsys.readouterr().out
         assert 'PRIVATE-CONFIG-VALUE' not in text and 'password' not in text
         result=json.loads(text);assert result['status']=='completed'
         return result['data']
-    assistant,root=product('assistant');first=validate(assistant)
+    assistant,root=product('assistant');first=validate(assistant,'assistant')
     archived=(tmp_path/'replaced-skill-assistant').resolve()
     assert root.resolve().is_relative_to(tmp_path.resolve()) and archived.is_relative_to(tmp_path.resolve())
     root.rename(archived)
-    assistant,_=product('assistant');assert validate(assistant)==first
-    provider,_=product('service');assert validate(provider)==first
+    assistant,_=product('assistant');assert validate(assistant,'assistant')==first
+    provider,_=product('service');assert validate(provider,'service')==first
     assert shared.read_bytes()==original and not home.exists()
     other=tmp_path/'other-platform.json'
     private_json(other,{**value,'username':'other-account'})
-    changed=validate(provider,['--config',str(other)])
+    changed=validate(provider,'service',['--config',str(other)])
     assert changed['configurationDigest']!=first['configurationDigest']
     assert shared.read_bytes()==original and not home.exists()
