@@ -262,3 +262,32 @@ def test_messaging_flow_unknown_lookup_recovers_original_message_without_resendi
             final = observe(rpc,'assistant.messaging.flow',ref)
             assert final['data']['messageRef']==mid
             assert final['data']['result']['requestState']=='expired',final
+
+
+def test_rejected_original_spec_allows_corrected_decision_in_same_flow(platform,tmp_path,monkeypatch):
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        monkeypatch.setattr(assistant.user_ui,'open',lambda:True)
+        rpc=LocalClient(assistant.config.home)
+        begun=rpc.call('assistant.delegation.flow',{'action':'begin','input':{
+            'purpose':'Correct a rejected input without replacing the authorized task','budget':30,'proposalFeeLimit':2}})
+        ref=begun['data']['flowRef']
+        user_decision(assistant,begun['data']['evidence']['confirmationRef'])
+        wait_for(lambda:settled(rpc,'assistant.delegation.flow',ref))
+        original_task=observe(rpc,'assistant.delegation.flow',ref)['data']['taskRef']
+        inspected=rpc.call('assistant.delegation.flow',{'action':'inspect','flowRef':ref,
+            'input':{'service':provider.identities[0].agent_id}})
+        assert inspected['status']=='completed'
+        rejected=rpc.call('assistant.delegation.flow',{'action':'request','flowRef':ref,'input':{
+            'service':provider.identities[0].agent_id,'spec':{'result':{'unexpected':'value'}}}})
+        assert rejected['status']=='rejected' and rejected['error']['code']=='invalid_input'
+        observed=observe(rpc,'assistant.delegation.flow',ref)
+        assert observed['status']=='rejected' and observed['data']['flowRef']==ref
+        assert observed['data']['taskRef']==original_task
+        corrected=rpc.call('assistant.delegation.flow',{'action':'request','flowRef':ref,'input':{
+            'service':provider.identities[0].agent_id,'spec':{'result':{}}}})
+        assert corrected['status'] in ('waiting','completed'),corrected
+        wait_for(lambda:settled(rpc,'assistant.delegation.flow',ref))
+        result=observe(rpc,'assistant.delegation.flow',ref)
+        assert result['status']=='completed' and result['data']['taskRef']==original_task
+        assert len(result['data']['quoteRefs'])==1
+        assert rpc.call('runtime.status')['data']['roleErrors']==[]

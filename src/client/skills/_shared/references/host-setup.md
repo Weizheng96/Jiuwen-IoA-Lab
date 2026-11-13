@@ -8,7 +8,7 @@
 | 宿主 | host字段 | 来源与边界 |
 |---|---|---|
 | Codex | type="codex"、command为argv数组、model为显式模型名；skill_directories可选 | shutil.which('codex')定位既有命令；模型取用户明确选择或原版公开model/list实际返回的模型，不猜模型名。缺项才询问；不提供九问data_dir或business_tools |
-| Claude Code | type="claude_code"、command为只含一个真实CLI绝对可执行路径的数组、model显式选择；skill_directories可选 | 复用已安装CLI与原认证；Windows使用claude.exe而非claude.ps1/.cmd包装脚本。模型取官方Agent SDK公开model_catalog返回的value；公开default别名可用，不猜首个模型为默认。不能定位真实可执行文件时只询问缺项 |
+| Claude Code | type="claude_code"、command为只含一个真实CLI绝对可执行路径的数组、model显式选择；skill_directories可选 | 复用已安装CLI与原认证；Windows使用claude.exe而非claude.ps1/.cmd包装脚本。模型取官方Agent SDK公开model_catalog返回的value；公开default别名可用，不猜首个模型为默认。遇到包装脚本可读其公开安装清单或包装内容定位真实可执行文件；不能定位时只询问缺项 |
 | 九问 | type="jiuwen"、command为argv数组、data_dir为原九问目录；model、skill_directories可选 | shutil.which('jiuwenswarm-process')及JIUWENSWARM_DATA_DIR定位，缺项或归属不明才询问。model只取原版公开model.list的selection_key；SDK与宿主目录互不包含 |
 
 3. 用新建独立UTF-8参数文件提交expectedDigest和changes.host，例如Codex：

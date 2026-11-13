@@ -88,6 +88,12 @@ class CodexHost:
         except Exception as exc:
             self._capabilities={'available':False,'model':self.model,'reason':'Codex capability/model probe failed',
                                 'errorType':type(exc).__name__}
+        sources={};errors={}
+        if self._capabilities['available']:
+            for name,path in self.skill_directories.items():
+                try:documents(path);sources[name]=True
+                except (RuntimeFault,OSError):sources[name]=False;errors[name]='Restore the selected business skill source'
+        self._capabilities.update(skillSources=sources,skillSourceErrors=errors)
         return self.capabilities()
 
     def run(self,turn):
@@ -99,10 +105,11 @@ class CodexHost:
         if len(names)!=len(set(names)) or any(not isinstance(name,str) or not 1<=len(name)<=128 for name in names):
             raise RuntimeFault('invalid_input','Tool names must be distinct bounded strings')
         workspace=Path(turn.workspace).resolve();workspace.mkdir(parents=True,exist_ok=True)
+        # This adapter never enables native tools; a production phase keeps the original permissions and binding.
         definition=digest({'actor':turn.actor,'interactionId':turn.interaction_id,'model':self.model,
             'command':list(self.command),'instructions':turn.definition.instructions,'name':turn.definition.name,
             'tools':[tool.policy() for tool in turn.definition.tools],'nativeTools':[list(x) for x in turn.definition.native_tools],
-            'skills':list(turn.definition.skills),'nativeEnabled':turn.allow_native_tools,'policy':CONFIG,'disabled':list(DISABLED),
+            'skills':list(turn.definition.skills),'nativeEnabled':False,'policy':CONFIG,'disabled':list(DISABLED),
             'adapterInstructions':INSTRUCTIONS})
         binding=workspace/'codex-session.json'
         if turn.session_id:
@@ -186,13 +193,14 @@ class CodexHost:
                         raise WireError('Unbound SDK tool call')
                     if state['cancelled'].is_set():
                         value={'status':'rejected','error':{'code':'closed','message':'Original turn was cancelled'}}
+                    elif (problem:=next(Draft202012Validator(tools[name].input_schema).iter_errors(params['arguments']),None)) is not None:
+                        value={'status':'rejected','error':{'code':'invalid_input','message':problem.message,'recovery':'correct_input'}}
                     elif selected and aliases[name]==reader:
                         value=selected.read(params['arguments'])
                         if value['path']=='SKILL.md':read_names.add(value['skill'])
                     elif selected and read_names!=set(turn.definition.skills):
                         value={'status':'rejected','error':{'code':'read_business_skill','message':'Read every selected SKILL.md through the frozen reader first'}}
                     else:
-                        Draft202012Validator(tools[name].input_schema).validate(params['arguments'])
                         if turn.on_tool is None:raise WireError('No role tool callback')
                         value=turn.on_tool(aliases[name],params['arguments'],params['callId'])
                     wire.send({'id':message['id'],'result':{'success':True,'contentItems':[{'type':'inputText','text':encode(value)}]}})

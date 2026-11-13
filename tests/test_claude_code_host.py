@@ -15,7 +15,7 @@ from ioalab_sdk.runtime import AgentDefinition, HostTurn, ToolBinding, RuntimeFa
 
 @pytest.fixture
 def boundary(monkeypatch):
-    state=SimpleNamespace(mode='normal',calls=[],clients=[],options=[],terminal=None)
+    state=SimpleNamespace(mode='normal',calls=[],clients=[],options=[],terminal=None,tool_results=[])
     class Client:
         def __init__(self, options):self.options=options;self.interrupted=asyncio.Event();state.options.append(options)
         async def __aenter__(self):state.clients.append(self);return self
@@ -30,16 +30,21 @@ def boundary(monkeypatch):
             elif state.mode=='drop':raise OSError('lost stream')
             else:
                 tool=self.options.mcp_servers['ioa_sdk']['tools'][0]
-                name='mcp__ioa_sdk__'+tool.name;arguments={'text':'hello'}
+                name='mcp__ioa_sdk__'+tool.name
                 if state.mode=='foreign':name='Bash'
+                attempts=[('call-original',{'text':'hello'})]
+                if state.mode=='schema-retry':attempts=[('call-invalid',{'text':42}),('call-corrected',{'text':'hello'})]
                 hook=self.options.hooks['PreToolUse'][0].hooks[0]
-                result=await hook({'tool_name':name,'tool_input':arguments,'tool_use_id':'call-original',
-                                   'session_id':sid},'call-original',{})
-                state.calls.append(result)
-                if result['hookSpecificOutput']['permissionDecision']=='allow':
-                    try:state.terminal=await tool.handler(arguments)
-                    except Exception:
-                        if state.mode!='swallow':raise
+                for call,arguments in attempts:
+                    result=await hook({'tool_name':name,'tool_input':arguments,'tool_use_id':call,
+                                       'session_id':sid},call,{})
+                    state.calls.append(result)
+                    if result['hookSpecificOutput']['permissionDecision']=='allow':
+                        try:
+                            state.terminal=await tool.handler(arguments)
+                            state.tool_results.append(state.terminal)
+                        except Exception:
+                            if state.mode!='swallow':raise
             yield sdk.ResultMessage(subtype='error_during_execution' if state.mode=='wait' else 'success',
                 duration_ms=1,duration_api_ms=1,is_error=state.mode=='wait',num_turns=1,session_id=sid,
                 usage={'input_tokens':3},stop_reason=None if state.mode=='wait' else 'end_turn',
@@ -65,7 +70,7 @@ def test_original_session_is_bound_before_tool_and_resumed_with_fixed_permission
     request=turn(tmp_path,on_session=sessions.append,on_tool=invoke)
     first=h.run(request);assert first.status=='completed'
     sessions.clear();h=host();h.probe()
-    second=h.run(replace(request,session_id=first.session_id));assert second.status=='completed'
+    second=h.run(replace(request,session_id=first.session_id,allow_native_tools=True));assert second.status=='completed'
     assert calls==[('local.notice',{'text':'hello'},'call-original')]*2
     assert json.loads(boundary.terminal['content'][0]['text'])=={'receipt':'actual-json','status':'completed'}
     options=boundary.options[-1]
@@ -104,12 +109,26 @@ def test_real_interrupt_waits_for_original_terminal(boundary,tmp_path):
     assert h.cancel('operation') is False
 
 
-def test_unprobed_or_native_enabled_round_is_rejected_without_files(boundary,tmp_path):
-    h=host()
-    with pytest.raises(RuntimeFault):h.run(turn(tmp_path))
-    h.probe()
-    with pytest.raises(RuntimeFault):h.run(turn(tmp_path,allow_native_tools=True))
+def test_unprobed_round_is_rejected_without_files(boundary,tmp_path):
+    with pytest.raises(RuntimeFault):host().run(turn(tmp_path))
     assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('enabled',[False,True])
+@pytest.mark.parametrize('resumed',[False,True])
+@pytest.mark.parametrize('permission',['allow','ask'])
+def test_actual_native_permissions_are_rejected_before_files_or_effects(boundary,tmp_path,enabled,resumed,permission):
+    h=host();h.probe();effects=[]
+    request=turn(tmp_path,on_tool=lambda *a:effects.append(a) or {'receipt':'actual'})
+    if resumed:
+        first=h.run(request);assert first.status=='completed'
+        request=replace(request,session_id=first.session_id)
+    before={p.relative_to(tmp_path):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    prior_effects=list(effects);prior_calls=len(boundary.calls);prior_clients=len(boundary.clients)
+    request=replace(request,allow_native_tools=enabled,definition=replace(request.definition,native_tools=(('Bash',permission),)))
+    with pytest.raises(RuntimeFault,match='native production tools are not supported'):h.run(request)
+    assert effects==prior_effects and len(boundary.calls)==prior_calls and len(boundary.clients)==prior_clients
+    assert {p.relative_to(tmp_path):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}==before
 
 
 def test_sdk_cannot_bypass_frozen_skill_reader(boundary,tmp_path):
@@ -121,10 +140,14 @@ def test_sdk_cannot_bypass_frozen_skill_reader(boundary,tmp_path):
     assert json.loads(boundary.terminal['content'][0]['text'])['error']['code']=='read_business_skill'
 
 
-def test_callback_failure_stays_unknown_even_if_sdk_returns_success(boundary,tmp_path):
+@pytest.mark.parametrize('failure',['io','validation'])
+def test_callback_failure_stays_unknown_even_if_sdk_returns_success(boundary,tmp_path,failure):
     boundary.mode='swallow';h=host();h.probe();effects=[]
     def invoke(*args):
         effects.append(args)
+        if failure=='validation':
+            from jsonschema.exceptions import ValidationError
+            raise ValidationError('callback may already have changed external state')
         raise OSError('effect result was lost')
     result=h.run(turn(tmp_path,on_tool=invoke))
     assert result.status=='unknown' and result.error['code']=='host_unknown' and len(effects)==1
@@ -151,3 +174,74 @@ def test_model_catalog_exposes_public_default_alias_without_private_initializati
     assert catalog['default']=='default' and catalog['models'][0]['resolvedModel']=='test-model'
     assert 'private-sentinel' not in json.dumps(catalog)
     catalog['models'].clear();assert h.model_catalog()['models']
+
+
+def test_probe_reports_valid_skill_sources_to_provider_readiness(boundary,tmp_path):
+    from types import SimpleNamespace
+    from ioalab_sdk.provider.execution import ProviderExecution
+    source=tmp_path/'source';source.mkdir();(source/'SKILL.md').write_text('private-skill-content',encoding='utf-8')
+    refs=source/'references';refs.mkdir();(refs/'flow.md').write_text('Reference rules',encoding='utf-8')
+    h=ClaudeCodeHost([sys.executable],model='test-model',skill_directories={'selected':str(source),'missing':str(tmp_path/'missing')})
+    caps=h.probe()
+    assert caps['available'] and caps['skillSources']=={'selected':True,'missing':False}
+    assert caps['skillSourceErrors']=={'missing':'Restore the selected business skill source'}
+    execution=SimpleNamespace(host=h,configs={'service':{'skills':['selected','missing','unconfigured']}})
+    assert ProviderExecution.skill_errors(execution,'service')==['missing','unconfigured']
+    assert 'private-skill-content' not in json.dumps(caps)
+    caps['skillSources']['selected']=False
+    assert h.capabilities()['skillSources']['selected'] is True
+    (source/'SKILL.md').unlink()
+    assert h.probe()['skillSources']=={'selected':False,'missing':False}
+    assert ProviderExecution.skill_errors(execution,'service')==['selected','missing','unconfigured']
+
+
+@pytest.mark.parametrize('invalid',['missing_main','empty','non_utf8','linked_root','linked_references','linked_document'])
+def test_probe_keeps_invalid_skill_sources_unavailable(boundary,tmp_path,invalid):
+    source=tmp_path/'source';source.mkdir();(source/'SKILL.md').write_text('Business rules',encoding='utf-8')
+    if invalid=='missing_main':(source/'SKILL.md').unlink()
+    elif invalid=='empty':(source/'SKILL.md').write_bytes(b'')
+    elif invalid=='non_utf8':(source/'SKILL.md').write_bytes(b'\xff')
+    else:
+        import subprocess
+        target=tmp_path/'target';target.mkdir();(target/'SKILL.md').write_text('Target rules',encoding='utf-8')
+        if invalid=='linked_root':link=tmp_path/'linked';destination=source;source=link
+        elif invalid=='linked_references':link=source/'references';destination=target
+        else:
+            link=source/'SKILL.md';link.unlink();destination=target/'SKILL.md'
+        directory=invalid!='linked_document'
+        try:link.symlink_to(destination,target_is_directory=directory)
+        except OSError:
+            if sys.platform!='win32' or not directory:pytest.skip('Local environment cannot create this link')
+            result=subprocess.run(['cmd','/c','mklink','/J',str(link),str(destination)],capture_output=True)
+            if result.returncode:pytest.skip('Local environment cannot create directory links')
+    h=ClaudeCodeHost([sys.executable],model='test-model',skill_directories={'selected':str(source)})
+    caps=h.probe()
+    assert caps['available'] and caps['skillSources']=={'selected':False}
+    assert caps['skillSourceErrors']=={'selected':'Restore the selected business skill source'}
+
+
+def test_failed_host_reprobe_clears_previous_skill_availability(boundary,tmp_path,monkeypatch):
+    source=tmp_path/'source';source.mkdir();(source/'SKILL.md').write_text('Business rules',encoding='utf-8')
+    h=ClaudeCodeHost([sys.executable],model='test-model',skill_directories={'selected':str(source)})
+    assert h.probe()['skillSources']=={'selected':True}
+    def unavailable(*args,**kwargs):raise OSError('CLI unavailable')
+    monkeypatch.setattr('ioalab_claude_code.host.subprocess.run',unavailable)
+    caps=h.probe()
+    assert not caps['available'] and caps['skillSources']=={} and caps['skillSourceErrors']=={}
+    assert h.capabilities()['skillSources']=={}
+
+
+def test_invalid_tool_arguments_can_be_corrected_in_the_same_bound_round(boundary,tmp_path):
+    boundary.mode='schema-retry';h=host();h.probe();effects=[];sessions=[]
+    def invoke(name,args,call):
+        assert sessions==['original-session']
+        effects.append((name,args,call));return {'receipt':'actual-valid-result'}
+    request=turn(tmp_path,on_session=sessions.append,on_tool=invoke)
+    checked=replace(request.definition.tools[0],output_schema={'type':'object','properties':{'receipt':{'type':'string'}},'required':['receipt'],'additionalProperties':False})
+    result=h.run(replace(request,definition=replace(request.definition,tools=(checked,))))
+    assert result.status=='completed' and result.session_id=='original-session'
+    assert effects==[('local.notice',{'text':'hello'},'call-corrected')]
+    rejected=json.loads(boundary.tool_results[0]['content'][0]['text'])
+    assert rejected['status']=='rejected' and rejected['error']['code']=='invalid_input'
+    assert 'callback was not invoked' in rejected['error']['message']
+    assert json.loads(boundary.tool_results[1]['content'][0]['text'])=={'receipt':'actual-valid-result'}

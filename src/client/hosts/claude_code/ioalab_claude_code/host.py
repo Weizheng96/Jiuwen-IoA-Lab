@@ -12,7 +12,8 @@ import uuid
 
 from a2c.codec import digest
 from jsonschema import Draft202012Validator
-from ioalab_sdk.runtime import FrozenSkills, HostResult, RuntimeFault, ToolBinding, encode, private_json, read_json, validate_output
+from jsonschema.exceptions import ValidationError
+from ioalab_sdk.runtime import FrozenSkills, HostResult, RuntimeFault, ToolBinding, documents, encode, private_json, read_json, validate_output
 
 POLICY = {'tools': [], 'skills': [], 'setting_sources': [], 'strict_mcp_config': True,
           'permission_mode': 'dontAsk', 'plugins': [], 'native_tools': False}
@@ -89,12 +90,18 @@ class ClaudeCodeHost:
         except Exception as exc:
             self._capabilities = {'available': False, 'model': self.model,
                 'reason': 'Claude CLI/protocol/model catalog probe failed', 'errorType': type(exc).__name__}
+        sources={};errors={}
+        if self._capabilities['available']:
+            for name,path in self.skill_directories.items():
+                try:documents(path);sources[name]=True
+                except (RuntimeFault,OSError):sources[name]=False;errors[name]='Restore the selected business skill source'
+        self._capabilities.update(skillSources=sources,skillSourceErrors=errors)
         return self.capabilities()
 
     def run(self, turn):
         if not self._capabilities['available']:
             raise RuntimeFault('not_ready', 'Probe the selected Claude protocol/model catalog first', 'configure_host')
-        if turn.allow_native_tools or any(level != 'deny' for _, level in turn.definition.native_tools):
+        if any(level != 'deny' for _, level in turn.definition.native_tools):
             raise RuntimeFault('not_ready', 'Claude native production tools are not supported', 'configure_host')
         names = [tool.name for tool in turn.definition.tools]
         if len(names) != len(set(names)) or any(not isinstance(n,str) or not 1 <= len(n) <= 128 for n in names):
@@ -179,7 +186,10 @@ class ClaudeCodeHost:
                 if call in consumed_calls:raise RuntimeFault('identity_conflict','A tool call cannot execute twice')
                 consumed_calls.add(call)
                 if arguments != expected: raise RuntimeFault('identity_conflict','Tool arguments differ from the permission-bound call')
-                Draft202012Validator(tool.input_schema).validate(arguments)
+                try:Draft202012Validator(tool.input_schema).validate(arguments)
+                except ValidationError:
+                    return {'content':[{'type':'text','text':encode({'status':'rejected','error':{'code':'invalid_input',
+                        'message':'Arguments do not match the selected SDK tool input schema; callback was not invoked'}})}]}
                 if selected and tool.name == reader:
                     value=selected.read(arguments)
                     if value['path']=='SKILL.md':read_names.add(value['skill'])
