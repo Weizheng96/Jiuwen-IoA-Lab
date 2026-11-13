@@ -43,7 +43,7 @@ def test_bootstrap_only_forwards_user_paths_without_opening_them(tmp_path,monkey
     assert len(calls)==1 and str(config.resolve()) in calls[0] and str(args.resolve()) in calls[0]
     assert '--home' not in calls[0] and not config.exists() and not args.exists()
     if operation=='runtime.web-extension':assert calls[0][-2:]==['--role',role]
-    if operation=='runtime.configure':assert calls[0]==['-m','ioalab_jiuwen','configure','--config',str(config.resolve()),'--args-file',str(args.resolve())]
+    if operation=='runtime.configure':assert calls[0]==['-m','ioalab_client.runtime','configure','--config',str(config.resolve()),'--args-file',str(args.resolve())]
 
 
 def test_bom_configuration_and_arguments_cross_actual_product_cli_and_ipc(platform,tmp_path,monkeypatch,capsys):

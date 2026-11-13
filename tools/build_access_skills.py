@@ -12,7 +12,7 @@ from deploy.build import build_skills as build
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--out',type=Path,default=ROOT/'dist')
-    parser.add_argument('--update-lock',action='store_true',help='refresh the shared release lock from a verified development environment')
+    parser.add_argument('--update-lock',action='store_true',help='refresh the shared release lock universally from declared source requirements')
     args=parser.parse_args()
-    if args.update_lock:(ROOT/'src/client/skills/_shared/requirements.lock').write_text(constraints([ROOT/'src/client/sdk',ROOT/'src/client/hosts/jiuwen',ROOT/'src/official']),encoding='utf-8')
+    if args.update_lock:(ROOT/'src/client/skills/_shared/requirements.lock').write_text(constraints(root=ROOT),encoding='utf-8',newline='\n')
     for path in build(args.out):print(path)

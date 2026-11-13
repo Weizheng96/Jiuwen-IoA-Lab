@@ -93,7 +93,7 @@ def run(argv,*,modules,validate,service_fields):
         item.add_argument('--config',type=Path,required=True)
         if name=='account-setup':
             item.add_argument('--platform');item.add_argument('--role',choices=('assistant','service'))
-            item.add_argument('--worker');item.add_argument('--args-file',type=Path)
+            item.add_argument('--worker');item.add_argument('--args-file',type=Path);item.add_argument('--browser')
     call=commands.add_parser('call')
     call.add_argument('operation')
     call.add_argument('--config',type=Path,required=True)
@@ -112,6 +112,7 @@ def run(argv,*,modules,validate,service_fields):
             else:
                 options={'role':args.role or 'assistant'}
                 if args.platform:options['platform_url']=args.platform
+                if args.browser:options['user_browser']=args.browser
                 if args.args_file:
                     from .files import read_json
                     options=read_json(args.args_file)

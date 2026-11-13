@@ -41,7 +41,7 @@
 
 ## 使用教程
 
-普通用户使用自己的九问 Swarm，说“读取 https://api.gitcode.com/api/v5/repos/WeiZheng96/jiuwen-IoA-lab/raw/README_AGENT.md?ref=main ，帮我接入 IoA Lab；若引导不可读就停止并报告，不猜地址、不克隆仓库、不绕过TLS校验”。这是GitCode同一仓库根文件的正式原文接口，无需在指令中提供GitCode凭据；[GitCode文件页面](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/README_AGENT.md)供浏览器查看。引导包括完整技能包下载、原生导入、账号设置及就绪核对。
+普通用户可让自己的九问Swarm或Codex：“从 https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git 用Git浅克隆最新已发布客户端tag，读取仓内README_AGENT.md并帮我接入IoA Lab；Git下载或验证失败时停止报告，不猜地址、不关闭TLS校验。”引导包含客户端及安装脚本取得、两角色Skill加载、本机账号设置及对应宿主配置。
 
 ### 发布服务演示
 

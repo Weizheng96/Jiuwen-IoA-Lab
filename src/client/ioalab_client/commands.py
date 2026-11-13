@@ -70,21 +70,21 @@ def main(argv=None):
             result=invoke(python,['-m','ioalab_sdk.access','login','--config',str(config)])
         elif args.operation=='runtime.web-extension':
             if not args.args_file:raise RuntimeError('Use an args-file containing the owned profile key')
-            result=invoke(python,['-m','ioalab_jiuwen','web-extension','--config',str(config),
+            result=invoke(python,['-m','ioalab_client.runtime','web-extension','--config',str(config),
                 '--args-file',str(args.args_file.expanduser().resolve()),'--role',role])
         elif args.operation in ('runtime.configuration','runtime.configure'):
             if args.operation=='runtime.configure' and not args.args_file:raise RuntimeError('Create a separate non-credential changes file')
             if args.operation=='runtime.configuration' and args.args_file:raise RuntimeError('runtime.configuration only uses --config')
-            arguments=['-m','ioalab_jiuwen',args.operation.split('.',1)[1],'--config',str(config)]
+            arguments=['-m','ioalab_client.runtime',args.operation.split('.',1)[1],'--config',str(config)]
             if args.args_file:arguments+=['--args-file',str(args.args_file.expanduser().resolve())]
             result=invoke(python,arguments)
         elif args.operation in ('runtime.validate','runtime.start'):
-            checked=invoke(python,['-m','ioalab_jiuwen','validate','--config',str(config)])
+            checked=invoke(python,['-m','ioalab_client.runtime','validate','--config',str(config)])
             if checked.returncode:emit(json.loads(checked.stdout));return checked.returncode
             summary=json.loads(checked.stdout)['data']
             if not any(item['role']==role for item in summary['identities']):raise RuntimeError('Add this role to the existing shared configuration before starting it')
             if args.operation=='runtime.validate':emit(json.loads(checked.stdout));return 0
-            result=invoke(python,['-m','ioalab_jiuwen','start','--config',str(config)])
+            result=invoke(python,['-m','ioalab_client.runtime','start','--config',str(config)])
         else:
             arguments=['-m','ioalab_sdk.access','call',args.operation,'--config',str(config)]
             if args.args_file:arguments+=['--args-file',str(args.args_file.expanduser().resolve())]

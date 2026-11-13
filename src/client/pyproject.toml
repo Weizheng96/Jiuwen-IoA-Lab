@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ioalab-client"
-dynamic = ["version", "dependencies"]
+dynamic = ["version", "dependencies", "optional-dependencies"]
 description = "One resident IoA client with assistant and provider skills"
 requires-python = ">=3.11,<3.12"
 

@@ -1,24 +1,17 @@
 # 帮用户接入 IoA Lab
 
-复用用户已有九问Swarm。IoA只有一个客户端，个人助手和服务方由两个角色Skill区分；不按角色重复安装客户端。
+复用当前宿主：九问Swarm选jiuwen，Codex选codex，Claude Code选claude_code；有原配置就复用原宿主。只有当前环境无法确定或用户要求换框架时才询问。一个客户端、同一账号和常驻实例，个人助手与服务方由两个角色Skill区分。默认平台https://ioalab.openjiuwen.com，原显式地址优先。
 
-1. 使用GitCode中已发布、包含`src/client/pyproject.toml`的客户端tag。标签形如`design-v0.0.N`，按数字N核对版本。下载同一tag的[bootstrap.py](https://api.gitcode.com/api/v5/repos/WeiZheng96/jiuwen-IoA-lab/raw/src/client/bootstrap.py?ref=TAG)到本机独立工作目录，将URL中的TAG替换为实际tag。原文不可读、tag不存在或版本尚未发布时报告实际原因，不猜其他地址，不使用平台网站下载客户端，不关闭TLS校验。
-2. 核本机Git和CPython3.11，在终端执行下载的脚本（Windows使用已核的Python3.11；Linux用python3.11）：
+1. 核Git与CPython3.11，从GitCode公开标签中按数字N选择最新已发布design-v0.0.N，Git下载包含bootstrap.py的客户端：
 
-   ```text
-   python bootstrap.py --tag <实际已发布tag>
-   ```
+   ~~~text
+   git clone --depth 1 --filter=blob:none --sparse --single-branch --branch <实际发布tag> https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git <新源码目录>
+   git -C <新源码目录> sparse-checkout set src/client
+   python <新源码目录>/src/client/bootstrap.py --tag <同一tag> --host <jiuwen或codex或claude_code>
+   ~~~
 
-   默认使用持久客户端目录`~/.ioalab/client`和Skill导出目录`~/.ioalab/role-skills`。需要其他持久目录时才指定`--install-dir`和`--output`。宿主终端有短时限时，用其原生后台任务能力执行并保留任务引用；观察超时只查询原任务，不重复安装。
+   Windows使用已核CPython3.11；Linux用python3.11。默认安装~/.ioalab/client并导出~/.ioalab/role-skills；隔离测试可指定--install-dir和--output。仅安装所选宿主依赖。安装器核官方来源、tag/commit及自身内容，从固定Git对象按需取得受审vendor并构建，不再让pip克隆客户端。source保留真实pip来源，checkout另报仓库/tag/commit；依赖与文件校验通过仍为connected=false。
+2. 按当前宿主加载所选角色ZIP。九问：用send_file_to_user发送两个真实绝对路径ZIP，用户在“我的技能→创建”导入、选择，再用skill_tool读取。Codex及Claude Code：在本次用户工作目录解压所选ZIP，用本机文件工具读取实际SKILL.md和references/setup.md。使用同一薄脚本，不改宿主全局设置或历史聊天。
+3. 按setup.md进入SDK本机账号页，录入或生成账号；秘密只留在页面，不读账号配置正文。账号完成后按host-setup.md补齐公开命令、模型及宿主字段，启动并分别核authenticated、host.available、platformConnected与身份bound。已有角色共用原配置，不重新注册。
 
-   脚本通过pip从GitCode tag解析出的固定commit安装`src/client`，检查依赖、安装文件摘要及来源，导出个人助手和服务方两个轻量Skill。普通第三方依赖与构建工具使用本机配置的可信包源；客户端无需发布到PyPI。安装失败时停止本次接入，报告脱敏错误并保留原目录及原任务引用，等待安装程序修复；不自行删除目录、修改脚本或改写安装步骤。成功不代表账号或平台连接已就绪。
-3. 按真实回执中的绝对文件路径，用九问原生`send_file_to_user`发送两个Skill ZIP到`web`（`abs_file_path_list`为绝对路径列表的JSON字符串，`target_channels`为`["web"]`），核交付成功。引导用户在原生“我的技能→创建”上传或保存文件卡片，再在会话中选择“个人助手”或“服务方”Skill；实际用`skill_tool`读取所选Skill及`references/setup.md`，继续其账号、宿主、启动与状态流程。账号秘密只在本机账号页填写，角色切换复用原账号、配置、身份与常驻客户端。
-
-已有客户端也可直接在其独立环境执行等价pip安装：
-
-```text
-python -m pip install "ioalab-client @ git+https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git@<实际已发布tag>#subdirectory=src/client"
-python -m ioalab_client skills --output <角色Skill导出目录>
-```
-
-首次接入推荐bootstrap，以便自动核验来源并保留可恢复的安装归属。升级前按Skill的安全停止流程处理原实例，不在活动环境中直接覆盖安装。
+Git对象、包或命令失败时保留目录、原任务引用及脱敏错误；短时限用宿主原生后台能力并查原任务，不重复安装，不关闭TLS或现场改发布源码。升级先安全停止原实例，保留账号、身份与在途业务。Codex/Claude首版原生生产工具、原生问题回调和当前桌面聊天通知尚不支持，按实际能力报告；业务批准只走SDK可信确认页。

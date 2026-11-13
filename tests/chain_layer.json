@@ -2,6 +2,9 @@
  "$comment": "整链路、真实进程及 opt-in 真实宿主用例。按函数名登记，参数化随函数归层；依据真实 pytest.xml 逐项耗时维护：python tools/test_layers.py --audit <pytest.xml>。",
  "thresholdSeconds": 1.0,
  "chain": {
+  "tests/test_client_hosts.py": [
+   "test_codex_resident_connects_binds_both_roles_and_closes_original_runtime"
+  ],
   "tests/test_access_products.py": [
    "test_existing_instance_cannot_hide_new_role_configuration",
    "test_old_installation_status_preserves_observation_and_allows_safe_stop"
