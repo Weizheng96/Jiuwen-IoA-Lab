@@ -94,10 +94,10 @@ class InteractionForms:
             with self._lock: records = list(self.store.checkpoints('forms').values())
             for record in records:
                 if self._stop.is_set() or not self.can_advance(): break
-                if not isinstance(self.definitions.get(record['kind']), WorkflowDefinition): continue
                 try:
                     confirmation = ((record.get('result') or {}).get('data') or {}).get('confirmationRef')
-                    if record['phase'] not in ('accepted', 'running') and not (
+                    advancing = isinstance(self.definitions.get(record['kind']), WorkflowDefinition) and record['phase'] in ('accepted', 'running')
+                    if not advancing and not (
                             record['phase'] == 'waiting' and confirmation and self.decision_ready(confirmation)): continue
                     self.submit(record['reference'], record['revision'])
                 except RuntimeFault: pass  # The durable form keeps the actual denial/unknown result.

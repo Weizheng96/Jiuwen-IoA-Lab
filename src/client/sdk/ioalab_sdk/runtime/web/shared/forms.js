@@ -1,4 +1,4 @@
-let current=null, editors={},dirty=false,busy=false,needsRefresh=false;
+let current=null, editors={},dirty=false,busy=false,needsRefresh=false,polling=false;
 const $=id=>document.getElementById(id);
 const phases={draft:'草稿',previewed:'已预览',waiting:'等待确认',completed:'已完成',rejected:'已拒绝',failed:'失败',unknown:'待核实原结果',accepted:'已受理',running:'处理中'};
 function problem(error){$('error').textContent=error.message||String(error);$('error').hidden=false;}
@@ -75,4 +75,12 @@ $('discard').onclick=()=>act('get');
 $('browser').onclick=async()=>{try{await transport.openBrowser(current.reference);}catch(error){problem(error);}};
 $('setupButton').onclick=async()=>{try{await transport.openSetup();}catch(error){problem(error);}};
 buttons();transport.init(render).catch(problem);
-setInterval(()=>{if(current&&!dirty&&!busy&&!needsRefresh&&['accepted','running','waiting'].includes(current.phase))act('get');},2500);
+setInterval(async()=>{
+  if(!current||dirty||busy||polling||needsRefresh||!['accepted','running','waiting'].includes(current.phase))return;
+  const original=current;polling=true;
+  try{
+    const form=await transport.call('get',{reference:original.reference});
+    if(current===original&&!dirty&&!busy&&!needsRefresh&&JSON.stringify(form)!==JSON.stringify(current))render(form);
+  }catch(error){if(current===original&&!dirty&&!busy)problem(error);}
+  finally{polling=false;}
+},2500);

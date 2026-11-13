@@ -95,6 +95,13 @@ def create_server(config_path):
                 raise RuntimeFault('invalid_input', 'Use the declared tool fields and current form revision')
             if name == 'ioa_configuration':
                 result = await asyncio.to_thread(api.configuration)
+            elif name == 'ioa_open_browser':
+                result = await asyncio.to_thread(api.call, 'runtime.forms.get', arguments)
+                form = result.get('data') or {}
+                if result.get('status') == 'completed':
+                    confirmation = ((form.get('result') or {}).get('data') or {}).get('confirmationRef')
+                    operation = 'runtime.open_ui' if form.get('phase') == 'waiting' and confirmation else 'runtime.forms.open_ui'
+                    result = await asyncio.to_thread(api.call, operation, {} if operation == 'runtime.open_ui' else arguments)
             elif name in ('ioa_setup', 'ioa_setup_status'):
                 result = await asyncio.to_thread(setup, config_path, open_browser=name == 'ioa_setup')
             else:

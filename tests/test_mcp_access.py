@@ -4,6 +4,8 @@ from datetime import timedelta
 import json
 import os
 import sys
+from pathlib import Path
+import ioalab_sdk
 
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
@@ -25,7 +27,7 @@ def test_standard_stdio_tools_and_app_resource_preserve_runtime(platform, tmp_pa
 
         async def exercise():
             params = StdioServerParameters(command=sys.executable,
-                args=['-m', 'ioalab_sdk.mcp', '--config', str(path)], env=dict(os.environ))
+                args=['-m', 'ioalab_sdk.mcp', '--config', str(path)], env={**os.environ, 'PYTHONPATH': str(Path(ioalab_sdk.__file__).resolve().parent.parent)})
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=30)) as session:
                     await session.initialize()
@@ -44,6 +46,18 @@ def test_standard_stdio_tools_and_app_resource_preserve_runtime(platform, tmp_pa
                     assert 'http://127.0.0.1' not in resource.contents[0].text
                     bad = await session.call_tool('ioa_submit_form', {'reference': 'missing', 'revision': 0, 'approve': True})
                     assert bad.isError
+                    from test_interaction_forms import rule_values
+                    ref = form.structuredContent['data']['reference']
+                    updated = await session.call_tool('ioa_update_form', {'reference': ref, 'revision': 0, 'values': rule_values()})
+                    target = {'reference': ref, 'revision': updated.structuredContent['data']['revision']}
+                    previewed = await session.call_tool('ioa_preview_form', target)
+                    assert not previewed.isError, previewed.structuredContent
+                    pending = await session.call_tool('ioa_submit_form', target)
+                    assert pending.structuredContent['data']['phase'] == 'waiting', pending.structuredContent
+                    opened = await session.call_tool('ioa_open_browser', {'reference': ref})
+                    assert not opened.isError
+                    assert launches[-1].split('#')[0] == runtime.user_ui.origin + '/user'
+                    assert launches[-1].split('#')[1] not in json.dumps(opened.model_dump())
                     status = await session.call_tool('ioa_status', {})
                     assert status.structuredContent['data']['bootId'] == boot
         asyncio.run(exercise())
@@ -56,7 +70,7 @@ def test_app_metadata_requires_capability_and_preserves_no_ui_mode(tmp_path):
     # Initialization and static resources do not require an installed/running account.
     async def exercise():
         params = StdioServerParameters(command=sys.executable,
-            args=['-m', 'ioalab_sdk.mcp', '--config', str(tmp_path/'missing.json')], env=dict(os.environ))
+            args=['-m', 'ioalab_sdk.mcp', '--config', str(tmp_path/'missing.json')], env={**os.environ, 'PYTHONPATH': str(Path(ioalab_sdk.__file__).resolve().parent.parent)})
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=20)) as session:
                 await session.send_request(types.ClientRequest(types.InitializeRequest(params=types.InitializeRequestParams(

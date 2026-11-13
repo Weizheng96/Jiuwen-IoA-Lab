@@ -64,7 +64,8 @@ def test_public_forms_preview_wait_for_browser_approval_and_recover_publication(
                 'bindingDigest': record['bindingDigest'], 'decision': 'approve'},
                 headers={'Origin': runtime.user_ui.origin, 'X-Ioa-Csrf': entry.json()['csrf']})
             assert decided.status_code == 200
-        completed = api.call('runtime.forms.submit', target)
+        wait_for(lambda: api.call('runtime.forms.get', {'reference': form['reference']})['data']['phase'] == 'completed')
+        completed = api.call('runtime.forms.get', {'reference': form['reference']})
         assert completed['data']['result']['status'] == 'completed'
         assert completed['data']['result']['data']['revision'] == 1
         assert api.call('runtime.forms.submit', target)['data'] == completed['data']
@@ -169,3 +170,18 @@ def test_lost_publication_response_recovers_same_form_and_same_platform_revision
         recovered = api.call('runtime.forms.submit', target)['data']['result']
         assert recovered['status'] == 'completed' and recovered['data']['revision'] == 1
         assert len(api.call('assistant.rules.list', {})['data']['versions']) == 1
+
+
+def test_single_stage_rejection_automatically_finishes_without_publication(platform, tmp_path):
+    from test_assistant_role import user_decision
+    path, _ = configuration(platform, tmp_path, service=False)
+    with ResidentRuntime(RuntimeConfig.load(path), modules=(AssistantRole(),)) as runtime:
+        wait_for(lambda: runtime.connection.connected)
+        api = ClientOperations(path)
+        form = api.call('runtime.forms.open', {'kind': 'messaging.interface', 'values': rule_values()})['data']
+        target = {'reference': form['reference'], 'revision': 0}
+        api.call('runtime.forms.preview', target)
+        pending = api.call('runtime.forms.submit', target)['data']
+        user_decision(runtime, pending['result']['data']['confirmationRef'], decision='reject')
+        wait_for(lambda: api.call('runtime.forms.get', {'reference': form['reference']})['data']['phase'] == 'rejected')
+        assert api.call('assistant.rules.list', {})['data']['versions'] == []

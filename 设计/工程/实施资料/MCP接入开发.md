@@ -242,3 +242,18 @@ SDK 使用 `mcp>=1.30,<2`，接入技能和 Linux participant 锁固定 `mcp==1.
 随后按用户明确授权恢复原隔离测试发送端：旧实例为 SDK 0.0.148，公开状态 installation_changed、connectionError=stale_generation，调度 active=0、pendingOperations=0。通过原 bootId 正常 runtime.stop，再用当前统一客户端 ioalab_jiuwen start 沿原配置启动，未新建账号。公开复核 authenticated、verifiedOnline、platformConnected、ipcReady、host.available 和个人助手 executionReady 均为 true，connectionError=null；runtimeId 与身份标识不变，保存消息仍为10条。配置文件摘要发生变化，不能声明配置逐字不变；当前启动入口包含验证在线设备会话后迁移旧密码配置的逻辑，本次没有读取或展示配置正文，未逐字段比较迁移前后内容。原草稿未在本次恢复中修改或发布。
 
 只读状态摘要及启动回执保存在本机 temp/sender-recovery；下一步由用户将原表单限制为指定测试账号、启用并预览，经受控确认后才能进行双方收发。没有因客户端恢复而发送测试消息、发布服务或推进合同。
+
+
+## v0.0.176：确认页直达、静默轮询和批准后自动续接
+
+用户在旧版内嵌页面提交后，等待页面反复重建控件；ioa_open_browser打开原业务表单，第二次点击才到确认页；批准记录已为approved，但普通FormDefinition被后台推进器排除，必须人工续接。原接口已沿原revision发布完成，没有重建或重复发布。
+
+修复仅改变三处生产代码：MCP server按原表单的waiting/confirmationRef选择既有runtime.open_ui；forms推进器消费所有表单的已决确认，只保留WorkflowDefinition的accepted/running自动推进；共享JS以独立polling执行只读查询，未变数据不渲染，迟到响应不覆盖新状态/编辑。没有增加批准工具、自动批准或unknown自动重试。确认入口仍使用原一次性令牌和受控用户浏览器。
+
+验证：form-confirm-red复现2项失败；form-poll-red通过真实Chromium复现等待时DOM节点被替换。首轮修复回归29 passed/1 failed，进一步发现MCP测试子进程加载了测试环境旧安装；测试显式设置当前SDK源码根，保留对真实stdio传输的覆盖。最终form-confirm-final 10 passed（含批准自动发布、拒绝不发布、失响应恢复、确认页直达、两次轮询后DOM/焦点保持及页面确认按钮）。未变的多阶段和user_browser回归沿用前轮通过结果。报告均在temp/checks，保留实际退出码与耗时。
+
+本机候选由tools/build_client.py构建：ioalab_client-0.0.169-py3-none-any.whl，SHA-256 9ca9954c5f1609ac593fd8df80bb78034edebbdd4bf48203bd9e47e8b16712d7。组件VERSION未作为正式发行递增，当前安装来源为本机构建wheel，不再声称是原design-v0.0.175的未修改安装；pip RECORD核验通过。按原bootId正常停止两个无在途调度的验收实例，安装后沿原配置启动；公开快照验证配置SHA、runtimeId、身份标识、保存消息数量不变，平台/IPC/宿主/执行能力均就绪。8750无需更新；原meeting_request表单仍revision10/completed，发布版本1。重启独立九问后端加载新MCP资源，网关返回静默轮询资源摘要1c4ba4644acfb338ab7906cff0e5d84f8e12e943e58f850c3997b3a66fda5ff6，原结果可读。证据temp/form-confirm-update与temp/form-confirm-release不入库。
+
+本轮没有代用户批准真实业务或发送测试消息。新代码的协议及隔离浏览器验证与九问网关资源加载已完成，用户在九问新表单上的按钮/等待/批准后自动完成仍待继续；现有已完成接口无需再次发布。openJiuwen参数保真仍为此前本机局部补丁，上游发布状态未变。
+
+提交前快速层 form-confirm-fast：1778 passed、4 failed、16 skipped、516 deselected、14 subtests passed，271.33秒。失败仍为此前3项deployment_tls及1项trial_ingress阻塞写退出测试，本次未修改相关实现，未宣称整仓全绿；浏览器专项已在显式IOA_BROWSER_TESTS环境完成，快速层跳过项不作为通过。

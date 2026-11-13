@@ -110,6 +110,16 @@ def test_browser_preserves_edits_across_conflicts_preview_failure_and_unknown_su
                 playwright.expect(page.locator('#state')).to_have_text('等待确认')
                 playwright.expect(page.get_by_label('用途说明')).to_have_value('保存后仍能恢复的旅行进展')
                 assert page.url.split('#')[0] == page.url
+                page.evaluate("window.waitingField = document.getElementById('field-description')")
+                page.get_by_role('button', name='打开确认页面', exact=True).focus()
+                page.wait_for_timeout(5500)  # Two real polling cycles must leave the DOM and focus intact.
+                assert page.evaluate("window.waitingField === document.getElementById('field-description')")
+                playwright.expect(page.get_by_role('button', name='打开确认页面', exact=True)).to_be_focused()
+                with page.expect_popup() as popup:
+                    page.get_by_role('button', name='打开确认页面', exact=True).click()
+                confirmation_page = popup.value
+                playwright.expect(confirmation_page.get_by_role('button', name='允许此操作', exact=True)).to_be_visible()
+                confirmation_page.close()
                 page.screenshot(path=str(tmp_path/'form-waiting.png'), full_page=True)
             finally:
                 browser.close()
