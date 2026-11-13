@@ -18,12 +18,13 @@ window.WebSession=(()=>{
     }catch{return '/workbench';}
   }
   function loginUrl(next){return '/login?'+new URLSearchParams({next:safeNext(next)});}
+  const word=(zh,en)=>document.documentElement?.lang==='en'?en:zh;
   function render(){
     const nav=document.querySelector('.site-header nav');if(!nav)return;
     let box=nav.querySelector('.auth-actions');if(!box){box=document.createElement('div');box.className='auth-actions';nav.append(box);}box.replaceChildren();
-    if(sessionError){const retry=document.createElement('button');retry.className='auth-exit';retry.textContent='会话状态未知 · 重试';retry.onclick=()=>refresh().catch(()=>{});box.append(retry);return;}
-    if(current){const name=document.createElement('span');name.className='auth-username';name.textContent=current.username;const exit=document.createElement('button');exit.className='auth-exit';exit.textContent='退出';exit.onclick=()=>logout().catch(error=>{exit.textContent=error.message;});box.append(name,exit);}
-    else {for(const [text,path] of [['登录','/login'],['注册','/register']]){const link=document.createElement('a');link.href=path;link.textContent=text;link.className=text==='登录'?'nav-login':'nav-register';box.append(link);}}
+    if(sessionError){const retry=document.createElement('button');retry.className='auth-exit';retry.textContent=word('会话状态未知 · 重试','Session unknown · Retry');retry.onclick=()=>refresh().catch(()=>{});box.append(retry);return;}
+    if(current){const name=document.createElement('span');name.className='auth-username';name.textContent=current.username;const exit=document.createElement('button');exit.className='auth-exit';exit.textContent=word('退出','Log out');exit.onclick=()=>logout().catch(error=>{exit.textContent=error.message;});box.append(name,exit);}
+    else {for(const [text,path] of [[word('登录','Log in'),'/login'],[word('注册','Sign up'),'/register']]){const link=document.createElement('a');link.href=path;link.textContent=text;link.className=path==='/login'?'nav-login':'nav-register';box.append(link);}}
   }
   async function refresh(){
     try {const value=await api('/api/session');
@@ -35,6 +36,7 @@ window.WebSession=(()=>{
   async function logout(){await api('/api/auth/logout',{});current=null;location.assign('/');}
   const ready=refresh().catch(()=>null);
   document.addEventListener('DOMContentLoaded',render);
+  document.addEventListener('ioa:language',render);
   document.addEventListener('click',event=>{
     const link=event.target.closest('a[href]');if(!link||event.ctrlKey||event.metaKey||event.shiftKey||link.target==='_blank')return;
     const url=new URL(link.href,location.href);if(url.origin!==location.origin||!['/workbench','/admin'].includes(url.pathname))return;

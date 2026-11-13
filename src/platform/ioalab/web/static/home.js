@@ -12,8 +12,8 @@
   const background = layer('network-background'), routesLayer = layer('network-routes');
   const nodesLayer = layer('network-nodes'), packetsLayer = layer('network-packets');
   const infraLayer = layer('network-infrastructure');
-  const colors = {trade:'#42e2d0', chat:'#ad91ff', delegate:'#ff9b65', bounty:'#f2d269'};
-  const blue = '#66a5ff', red = '#ff7886';
+  const colors = {trade:'#497a58', chat:'#7c8190', delegate:'#b17c59', bounty:'#a79455'};
+  const blue = '#547c60', red = '#b17c65';
   let seed = 271828;
   const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   const pick = list => list[Math.floor(random() * list.length)];
@@ -70,7 +70,7 @@
     return [source,nearbyAgent(to,source)];
   }
   // Depth, orbital arcs and a sparse field of stars behind the active network.
-  for (let i=0; i<45; i++) make('circle',{cx:15+random()*1170,cy:16+random()*510,r:.7,fill:'#6783aa',opacity:.15},background);
+  for (let i=0; i<45; i++) make('circle',{cx:15+random()*1170,cy:16+random()*510,r:.7,fill:'#8c9d83',opacity:.15},background);
   const glyphs = {
     identity:['M0 -8 L7 -5 V0 Q7 5 0 9 Q-7 5 -7 0 V-5 Z','M-3 0 L-1 3 L4 -3'],
     registry:['M-7 -7 H-1 V-1 H-7 Z M2 -7 H8 V-1 H2 Z M-7 2 H-1 V8 H-7 Z M2 2 H8 V8 H2 Z'],
@@ -136,7 +136,7 @@
     make('rect',{x:center.x-16,y:center.y-16,width:32,height:32,rx:7,class:'infra-border'},group);
     const glyph=make('g',{transform:`translate(${center.x} ${center.y})`,class:'infra-glyph'},group);
     drawGlyph(center.kind,glyph);
-    const light = make('circle',{cx:center.x+12,cy:center.y-12,r:1.2,fill:'#c0e5ff'},group);
+    const light = make('circle',{cx:center.x+12,cy:center.y-12,r:1.2,fill:'#a9b69a'},group);
     return {group,light,index};
   });
   const nodeElements = nodes.map((node,index) => {
@@ -152,16 +152,16 @@
       make('circle',{cx:node.x,cy:node.y,r:12,fill:'none',stroke:color,'stroke-width':.8,opacity:.5},group);
       make('text',{x:node.x,y:node.y+28,'text-anchor':'middle',class:'node-label'},group,node.label);
     }
-    const core = make('circle',{cx:node.x,cy:node.y,r:radius,class:'agent-core',fill:color,stroke:node.main||depth>.85?'#d2e4ff':'none','stroke-width':.6,opacity:baseOpacity},group);
+    const core = make('circle',{cx:node.x,cy:node.y,r:radius,class:'agent-core',fill:color,stroke:node.main||depth>.85?'#e4e8d6':'none','stroke-width':.6,opacity:baseOpacity},group);
     const orbit = make('circle',{cx:node.x,cy:node.y,r:radius+3,fill:'none',stroke:color,'stroke-width':.6,opacity:depth<.32 ? .06 : .16},group);
     return {core,orbit,radius,index,depth,baseOpacity};
   });
   const types = ['trade','chat','delegate','bounty'];
   const descriptions = {
-    trade:['让个人助手寻找专业服务，制作微信小程序，或就具体问题寻求法律咨询。','青绿线 · 具体能力以已发布服务为准'],
-    chat:['让你的个人助手与另一位个人助手交流：预约会议、转达消息，或汇报项目进展。','紫线 · 具体操作取决于对方开放的接口'],
-    delegate:['小程序开发服务将测试认证委托给微信官方智能体，分解专业工作。','橙线 · 开发中，微信官方智能体尚未接入'],
-    bounty:['“我的程序有 Bug，需要修复。”向网络公开任务，符合条件者可接取，完成并通过约定验收后付款。','金线 · 开发中，不指定承接对象'],
+    trade:['让个人助手寻找专业服务，制作微信小程序，或就具体问题寻求法律咨询。','森林绿线 · 具体能力以已发布服务为准'],
+    chat:['让你的个人助手与另一位个人助手交流：预约会议、转达消息，或汇报项目进展。','灰蓝线 · 具体操作取决于对方开放的接口'],
+    delegate:['小程序开发服务将测试认证委托给微信官方智能体，分解专业工作。','赭色线 · 开发中，微信官方智能体尚未接入'],
+    bounty:['“我的程序有 Bug，需要修复。”向网络公开任务，符合条件者可接取，完成并通过约定验收后付款。','暖金线 · 开发中，不指定承接对象'],
   };
   // Smooth curves can visit a public center without implying protocol sequencing.
   function curve(points,bend) {

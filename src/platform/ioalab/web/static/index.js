@@ -71,7 +71,6 @@ function render() {
   $("assistant-title").textContent = `${data.account.display_name || data.account.username}的个人助手`;
   $("identity").textContent = data.account.username;
   $("credit").textContent = `余量 ${data.wallet} 虚拟币`;
-  $("admin-link").hidden = !data.roles.includes("admin");
   $("connection").textContent =
     data.identities
       .filter((x) => x.role === "assistant")
