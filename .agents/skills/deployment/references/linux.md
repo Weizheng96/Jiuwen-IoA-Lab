@@ -33,15 +33,16 @@
 
 旧版本曾出现core停止挂起，并对`ws_admin`断连后任务未收敛作过独立临时实例复现；这是历史证据，不代表最新发行已复现，也不证明Windows supervisor句柄问题同因。不要以增加停止等待或强杀宣称修好。
 
-未完成初装不能直接套正常升级或另建根绕归属。当前公开CLI无`bootstrap-upgrade`，不照旧规范表或旧草稿调用；`repair-bootstrap`仅适用于该发布实际支持的窄控制器修复，不能用它更新业务候选。未发布跨版恢复草稿不能作为操作入口，实际切换必须重新核执行锁与原单位归属。若原source/input无法合法续跑，报告具体阶段及公开入口缺口，等待受审方案；不伪造completed、改父请求、重置账号或删除合同/付款。明确授权的归档后新装不能推广成默认清空旧数据。
+未完成初装不能直接套正常升级或另建根绕归属。当前公开CLI无`bootstrap-upgrade`，不照旧规范表或旧草稿调用；`repair-bootstrap`仅适用于该发布实际支持的窄控制器修复，不能用它更新业务候选。未发布跨版恢复草稿不能作为操作入口，实际切换必须重新核执行锁与原单位归属。test-reset已清空旧数据、失败于initializing且原来源需修复时，按教程使用test-reset --resume-from：绑定原父操作、来源及候选，先构建新来源再核实际锁，继续初始化且不再clear。其他失败阶段保留原来源续跑；不改父请求或进度。子任务真实就绪后将必要父证据收进当前任务；旧失败transient单位仍引用退役来源时，先核原部署Description、FragmentPath及空控制组，再reset-failed释放它，保留journal及本机证据后清理明确目录。明确授权的归档后新装不能推广成默认清空旧数据。
 
 旧版本的同IP登录5次/小时曾阻断官方准备；源码新策略与服务器实际生效分别验证。不能清计数、伪头换IP、删除SDK nonce、循环重试或用新控制器配旧候选冒称升级成功。SDK结果unknown先核原回执，用户批准不能由模型补签。
 
 ## TLS与反代专项
 
 - 先确认可达来源：仅指定局域网可直连的服务器不具备公网 HTTP-01 前提。已确认此策略后停止公网签发重试。域名可经DNS管理方协作验证；用户选择内部CA时按教程配置，客户端包内信任按[内部CA与域名HTTPS](../../../../设计/组件/部署/接口/内部CA与域名HTTPS.md)核实际发布与安装身份，不凭设计宣称客户端已支持；不关闭源限制或用VPN凑可达。SSH不经代理不代表浏览器也直连，需另核Windows路由、系统ProxyOverride及目标IP例外；保持其他地址的代理配置。
+- 内部CA维护入口见唯一教程：issue只准备叶证书；绑定Nginx后以SNI实测。renew按30天窗口签90天证书，重载并核实际指纹；未到期changed=false只证明幂等分支。应用更新核timer的WorkingDirectory仍指向当前保留来源；不能清理它引用的目录。实际安装的SDK可通过临时空SSL_CERT_FILE/SSL_CERT_DIR证明系统根为零后仍使用包内CA，HTTPS与WSS都须通过；不要修改系统信任库来代替这个专项。
 - 内部CA的服务端系统信任、每个客户端系统信任与各HTTP库信任是三件事。CA私钥留服务器；只经固定SSH传公共CA、核指纹后按明确授权加入客户端当前用户库。Windows导入可能等待“安全警告”，需用户处理实际弹窗，再查目标指纹确已入库；命令发起不等于导入完成。浏览器仍有警告时不自动越过。
-- 系统curl/readiness成功而SDK、官方授权或A2C执行握手出现ConnectError，先查具体请求URL、异常链与实际Python客户端的CA来源；先核 SDK 共用 Network owner、两角色注入与短期授权入口是否都采用同一信任策略；账号登录成功不证明模板、公钥或服务执行 HTTPS 已通。按[模型诊断](../../llm/references/instance-configuration.md#目标主机诊断)做真实TLS对照并回所属源码修复；不能在发行venv里改certifi或禁用验证。发布/索引就绪而执行未就绪时先查该段握手，不据此更换LLM。Nginx reload后核实际握手证书与指纹，不凭一次旧worker响应反复重签。
+- 系统curl/readiness成功而SDK、官方授权或A2C执行握手出现ConnectError，先查具体请求URL、异常链与实际Python客户端的CA来源；先核 SDK 共用 Network owner、两角色注入与短期授权入口是否都采用同一信任策略；账号登录成功不证明模板、公钥或服务执行 HTTPS 已通。按[模型诊断](../../llm/references/instance-configuration.md#目标主机诊断)做真实TLS对照并回所属源码修复；不能在发行venv里改certifi或禁用验证。发布/索引就绪而执行未就绪时先查该段握手，不据此更换LLM。Nginx reload后核实际握手证书与指纹；旧worker短暂响应旧证书或旧HTTP404时，先复查重载后的实际连接，不重复改站点或重签。测试依赖真实OpenSSL CLI；Windows仅给测试进程加入已安装工具路径，缺工具明确skip并保留Linux专项，不把FileNotFoundError当签发规则失败。
 
 - IP证书核SAN的实际IP、默认信任链、到期时间及服务器续期任务。已有证书复用，不每次应用发布都签发。诊断先查`nginx -t`、指定续期timer状态及日志，再按教程执行一次dry-run；禁止`curl -k`或关闭验证。
 - 历史环境中ACME协商失败，曾仅为独立Certbot进程指定受限`OPENSSL_CONF`约束TLS1.2后签发及续期dry-run通过。这个网络专项不能写成所有服务器的默认SSL设置；若确需复用，先以该主机实际握手证据确认，并确保续期service引用同一配置，不能只在临时SSH shell设置。主站TLS不降级，系统OpenSSL配置不改。

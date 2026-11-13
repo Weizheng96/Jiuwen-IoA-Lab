@@ -15,6 +15,8 @@ from deploy.layout import Layout
 
 @pytest.fixture
 def certificate_authority(tmp_path):
+    if shutil.which('openssl') is None:
+        pytest.skip('Real OpenSSL CLI required; run the Linux certificate-maintenance suite')
     layout = Layout(tmp_path/'runtime', tmp_path/'state', tmp_path/'config')
     layout.claim()
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
