@@ -14,7 +14,7 @@
 
 ## HTTP 入口
 
-公开接入说明 `GET /readme_agent.md` 使用平台固定 public_url 生成；`GET /api/access/bundles` 只列两款完整产品包的实际大小、SHA-256、可用性与下载 URL。未构建时不伪造摘要，不访问用户配置、不发起安装。校验及下载一致性由客户端核对，包更新期间不一致时重新取清单并拒绝使用旧摘要。测试：access_products。
+接入说明唯一维护于代码仓 README_AGENT.md；平台不提供 `/readme_agent.md` 正文端点，旧地址返回 404。网页 `/connect` 跳转仓库说明，平台地址由用户指令传递。`GET /api/access/bundles` 只列两款角色 Skill 包的实际大小、SHA-256、可用性与下载 URL，不执行安装、不访问用户配置。包更新期间摘要不一致时重新取清单并拒绝使用旧摘要。测试：access_products。
 
 | 方法与路径 | 输入与结果 |
 |---|---|

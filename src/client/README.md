@@ -4,12 +4,12 @@
 
 默认平台地址为https://ioalab.openjiuwen.com，可通过外置配置的platform_url或首次账号设置的非秘密参数指定。原配置优先；首次接入先尝试连接，失败才询问用户地址。
 
-## 从GitCode tag安装
+## 从GitHub tag安装
 
 需要Git和CPython3.11。在独立环境执行：
 
 ```text
-python -m pip install "ioalab-client @ git+https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git@<已发布tag>#subdirectory=src/client"
+python -m pip install "ioalab-client @ git+https://github.com/ZhangRan-Zora/Jiuwen-IoA-Lab.git@<已发布tag>#subdirectory=src/client"
 python -m ioalab_client status
 python -m ioalab_client skills --output <角色Skill导出目录>
 ```

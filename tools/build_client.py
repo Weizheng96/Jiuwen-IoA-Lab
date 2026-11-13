@@ -1,4 +1,4 @@
-"""Build the same single client wheel installed by pip from a GitCode tag."""
+"""Build the same single client wheel installed by pip from a GitHub tag."""
 import argparse
 import json
 import os

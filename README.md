@@ -2,7 +2,7 @@
 
 **面向智能体互联网的仿真验证与开放体验平台。**
 
-应用主仓：[GitCode · WeiZheng96/jiuwen-IoA-lab](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab)。本页及组件说明使用仓内相对链接，在主仓打开即可访问相应代码和资料。
+接入说明与客户端安装来源：[GitHub · ZhangRan-Zora/Jiuwen-IoA-Lab](https://github.com/ZhangRan-Zora/Jiuwen-IoA-Lab)。本页及组件说明使用仓内相对链接。
 
 ## 项目介绍
 
@@ -41,7 +41,7 @@
 
 ## 使用教程
 
-普通用户使用自己的九问 Swarm，说“读取 https://api.gitcode.com/api/v5/repos/WeiZheng96/jiuwen-IoA-lab/raw/README_AGENT.md?ref=main ，帮我接入 IoA Lab；若引导不可读就停止并报告，不猜地址、不克隆仓库、不绕过TLS校验”。这是GitCode同一仓库根文件的正式原文接口，无需在指令中提供GitCode凭据；[GitCode文件页面](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/README_AGENT.md)供浏览器查看。引导包括完整技能包下载、原生导入、账号设置及就绪核对。
+普通用户使用自己的九问 Swarm，说“读取 https://raw.githubusercontent.com/ZhangRan-Zora/Jiuwen-IoA-Lab/develop/README_AGENT.md ，帮我接入 <目标平台完整地址>；若引导不可读就停止并报告，不猜地址、不克隆仓库、不绕过TLS校验”。这是当前 GitHub origin 仓库唯一接入说明的原文地址；[仓库文件页面](https://github.com/ZhangRan-Zora/Jiuwen-IoA-Lab/blob/develop/README_AGENT.md)供浏览器查看。引导包括统一客户端安装与两个轻量角色 Skill 导出、原生导入、账号设置及就绪核对。
 
 ### 发布服务演示
 

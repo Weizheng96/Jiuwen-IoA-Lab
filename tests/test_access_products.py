@@ -149,10 +149,7 @@ def test_new_downloads_only_serve_fixed_product_names(platform,client,tmp_path,m
         actual=client.get('/downloads/'+item['name']).content
         assert item['available'] and item['size']==len(actual)
         assert item['sha256']==hashlib.sha256(actual).hexdigest()
-    guide=client.get('/readme_agent.md')
-    assert guide.status_code==200 and 'account.setup' in guide.text
-    assert platform.s.public_url in guide.text and 'runtime.mcp.configuration' in guide.text
-    assert 'private.json' not in guide.text
+    assert client.get('/readme_agent.md',follow_redirects=False).status_code==404
 
 
 @pytest.mark.parametrize('parent_encoding',['ascii','gbk'])

@@ -39,7 +39,8 @@ def test_tag_install_pins_commit_and_reuses_client(bootstrap,boundary,tmp_path,c
     result=json.loads(capsys.readouterr().out)
     assert result['data']['connected'] is False and len(result['data']['files'])==2
     installs=[c for c in boundary if 'install' in c]
-    assert len(installs)==1 and installs[0][-1].endswith('@'+COMMIT+'#subdirectory=src/client')
+    assert len(installs)==1 and installs[0][-1]=='ioalab-client @ git+https://github.com/ZhangRan-Zora/Jiuwen-IoA-Lab.git@'+COMMIT+'#subdirectory=src/client'
+    assert [c for c in boundary if c[0]=='git'][0][3]=='https://github.com/ZhangRan-Zora/Jiuwen-IoA-Lab.git'
     assert not any('runtime.start' in c for c in boundary)
     assert bootstrap.main(args)==0
     assert len([c for c in boundary if 'install' in c])==1

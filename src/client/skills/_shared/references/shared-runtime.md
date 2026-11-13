@@ -6,7 +6,7 @@
 
 触发：完成本机角色配置后安装、启动、诊断、停止或打开确认页。先用skill_tool读取location.md并确定唯一脚本路径；其余流程页也使用relative_file_path读取。
 
-客户端已由GitCode tag的bootstrap安装在独立环境，两个角色Skill使用同一解释器；Skill不下载或安装客户端。先执行runtime.install.status核客户端安装完整性，失败回到原bootstrap安装记录诊断，保留目录和原账号数据，不自行补包或读取源码猜安装结果。
+客户端已由GitHub tag的bootstrap安装在独立环境，两个角色Skill使用同一解释器；Skill不下载或安装客户端。先执行runtime.install.status核客户端安装完整性，失败回到原bootstrap安装记录诊断，保留目录和原账号数据，不自行补包或读取源码猜安装结果。
 
 ```text
 python "<skill_directory>/scripts/ioalab.py" runtime.install.status

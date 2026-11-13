@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 
-REPOSITORY = 'https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git'
+REPOSITORY = 'https://github.com/ZhangRan-Zora/Jiuwen-IoA-Lab.git'
 PYTHON_PROBE = 'import json,sys; print(json.dumps([sys.implementation.name,list(sys.version_info[:2])]))'
 
 
@@ -50,7 +50,7 @@ def install(directory, ref, output):
         tags = run(['git', 'ls-remote', '--tags', REPOSITORY, 'refs/tags/'+ref, 'refs/tags/'+ref+'^{}'])
         references = dict(line.split()[::-1] for line in tags.splitlines() if line.strip())
         resolved = references.get('refs/tags/'+ref+'^{}', references.get('refs/tags/'+ref, ''))
-        if not re.fullmatch('[0-9a-f]{40}', resolved): raise RuntimeError('Requested GitCode tag was not found')
+        if not re.fullmatch('[0-9a-f]{40}', resolved): raise RuntimeError('Requested GitHub tag was not found')
         directory.mkdir(parents=True)
         marker.write_text(json.dumps({**expected, 'phase': 'installing', 'commit': resolved}), encoding='utf-8')
         # A copied host venv can report 3.11 while its unversioned base executable
@@ -83,7 +83,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--install-dir', type=Path, default=Path.home()/'.ioalab/client')
     parser.add_argument('--output', type=Path, default=Path.home()/'.ioalab/role-skills')
-    parser.add_argument('--tag', required=True, help='published GitCode release tag')
+    parser.add_argument('--tag', required=True, help='published GitHub release tag')
     args = parser.parse_args(argv)
     try: result = install(args.install_dir, args.tag, args.output)
     except (OSError, ValueError, RuntimeError, KeyError, TypeError) as error:
