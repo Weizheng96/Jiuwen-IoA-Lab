@@ -1,6 +1,6 @@
 # 部署 · 内部CA与域名HTTPS
 
-部署独占CA/服务器私钥、服务器证书签发续期、Nginx绑定及公共证书导出；客户端信任语义只在[平台TLS信任](../../客户端/共用运行时/接口/平台TLS信任.md)定义。当前实施见[部署07](../进展/07-域名HTTPS与公共地址切换.md)，下列维护入口为待实现设计。
+部署独占CA/服务器私钥、服务器证书签发续期、Nginx绑定及公共证书导出；客户端信任语义只在[平台TLS信任](../../客户端/共用运行时/接口/平台TLS信任.md)定义。当前实施见[部署07](../进展/07-域名HTTPS与公共地址切换.md)，维护入口已实现，实际候选与验证范围见[部署事实](../../../工程/实施资料/部署发行.md#域名与内部ca实机验收2026-11-13)。
 
 ## 证书与数据归属
 
@@ -16,12 +16,15 @@ CA实际证书/私钥路径、指纹和叶证书引用由部署专用受限`配�
 
 | 接口 | 输入与结果 | 拒绝与恢复 | 测试 |
 |---|---|---|---|
-| `status --state` | 核部署归属和authority.json，返回CA/叶证书指纹、SAN、到期时间、续期单元状态；不输出密钥 | 缺登记只报未配置，不创建CA | deployment_configs、deployment_entry |
-| `issue --state --authority <JSON> --hostname <域名>` | 显式登记现有CA，按明确目标hostname提前签叶证书，核CA/私钥与路径；输出脱敏回执，不修改平台公共地址 | 非法hostname、归属冲突或CA无效拒绝；已有合格叶证书复用，不更换CA | deployment_configs、deployment_entry |
+| `status --state` | 核部署归属和authority.json，返回CA/叶证书指纹、SAN、到期时间、续期单元状态；不输出密钥 | 缺登记只报未配置，不创建CA | deployment_tls、deployment_configs、deployment_entry |
+| `issue --state --authority <JSON> --hostname <域名>` | 显式登记现有CA，按明确目标hostname提前签叶证书，核CA/私钥与路径；输出脱敏回执，不修改平台公共地址 | 非法hostname、归属冲突或CA无效拒绝；已有合格叶证书复用，不更换CA | deployment_tls、deployment_configs、deployment_entry |
+| `install-renewal --state` | 校验候选systemd单元后安装每日timer，限定原部署归属及当前固定维护来源；应用部署完成时更新来源引用 | 同名单元归属不符拒绝，不覆盖其他部署 | deployment_tls、deployment_lifecycle |
 | `renew --state` | 叶证书有效期90天，剩余30天以内签发并替换；未达窗口返回changed=false；同一维护锁串行 | CA剩余寿命不足以覆盖新叶证书时拒绝并报告换CA；保留原证书和失败日志 | deployment_configs、deployment_lifecycle |
 | `export-ca --state --origin <HTTPS Origin> --output <目录>` | 只导出已核CA公共PEM、DER指纹和明确目标Origin，供客户端受审发布形成信任清单 | 输出非空/越界或证书校验失败拒绝，不导出密钥，不自动发布客户端 | deployment_configs、package_installation |
 
 issue/export的明确目标仅用于签发与发布准备，不成为另一份平台地址配置；切换验收与后续renew必须核SAN/Origin与唯一平台JSON一致。服务器自身的公共HTTPS就绪探针仍用系统信任链，部署者在服务器系统信任库安装或复用同一CA公共证书；这不扩展到客户端系统信任库。
+
+issue只准备签发证书，不修改现有Nginx绑定；首次域名绑定由部署教程在签发后配置并实测。renew负责已有域名绑定的重载与握手核验。续期复用原服务器私钥，仅原子替换叶证书；激活意图持久化，进程中断后沿同一待激活证书继续重载并核握手。
 
 签发候选在受限临时目录内核证书链、SAN、有效期、serverAuth和私钥匹配，再以完整证书集合切换Nginx引用；执行nginx -t、reload及带SNI的实际握手核对指纹。失败沿原维护回执恢复，不能凭已写文件报告成功；只允许恢复本次受管证书引用，不改应用数据或放宽TLS验证。
 

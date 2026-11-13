@@ -19,4 +19,4 @@ version = {file = "VERSION"}
 include = ["ioalab_sdk*"]
 
 [tool.setuptools.package-data]
-ioalab_sdk = ["runtime/web/*.html"]
+ioalab_sdk = ["runtime/web/*.html", "runtime/trust/*.json", "runtime/trust/*.pem"]

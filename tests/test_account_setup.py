@@ -1,6 +1,7 @@
 """Public short controller and authenticated browser channel, against the real platform."""
 import json
 import threading
+from pathlib import Path
 
 import httpx
 import pytest
@@ -12,7 +13,7 @@ from ioalab_sdk.runtime.protocol import RuntimeFault
 
 
 @pytest.mark.parametrize('configured,override,expected',[
-    (None,None,'https://120.46.80.150'),
+    (None,None,'https://ioalab.openjiuwen.com'),
     (None,'https://chosen.example','https://chosen.example'),
     ('https://existing.example',None,'https://existing.example'),
 ])
@@ -41,7 +42,7 @@ def test_runtime_platform_default_is_configurable_without_rewriting_input(tmp_pa
     from ioalab_sdk.runtime import RuntimeConfig
     value={'username':'owner','password':'local-test','data_dir':str(tmp_path/'data'),
            'identities':[{'key':'personal','role':'assistant','name':'Owner'}]}
-    assert RuntimeConfig.from_mapping(tmp_path/'settings.json',value).platform=='https://120.46.80.150'
+    assert RuntimeConfig.from_mapping(tmp_path/'settings.json',value).platform=='https://ioalab.openjiuwen.com'
     assert 'platform_url' not in value
     assert RuntimeConfig.from_mapping(tmp_path/'settings.json',{**value,'platform_url':'https://chosen.example'}).platform=='https://chosen.example'
 
@@ -133,7 +134,9 @@ def test_register_browser_and_replay_keep_one_account(platform,tmp_path):
 
 @pytest.mark.parametrize('role',['assistant','service'])
 def test_lost_registration_receipt_resumes_original(platform,tmp_path,monkeypatch,role):
-    ui=AccountSetupUi(tmp_path/'settings.json',{'platform_url':platform.s.base_url,'role':role})
+    import sys
+    browser=str(Path(sys.executable).resolve())
+    ui=AccountSetupUi(tmp_path/'settings.json',{'platform_url':platform.s.base_url,'role':role,'user_browser':browser})
     post=httpx.Client.post
     lost=[]
     def drop(client,url,*args,**kwargs):
@@ -151,6 +154,7 @@ def test_lost_registration_receipt_resumes_original(platform,tmp_path,monkeypatc
     assert result['id']==lost[0]['id']
     assert read_json(ui.journal)['body']==original['body']
     assert read_json(ui.path)['identities'][0]['role']==role
+    assert read_json(ui.path)['user_browser']==browser
     assert platform.wallets.balance(result['id'])==100
 
 

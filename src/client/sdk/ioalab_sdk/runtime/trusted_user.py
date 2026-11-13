@@ -66,6 +66,7 @@ class TrustedUserServer:
                 self.connection.settimeout(5)
             def log_message(self,*args):pass
             def do_POST(self):
+                body_read=False
                 try:
                     if self.headers.get('Origin') is not None:
                         raise RuntimeFault('forbidden','Browser requests must use the authenticated gateway')
@@ -75,7 +76,8 @@ class TrustedUserServer:
                         raise RuntimeFault('forbidden','Unknown trusted user endpoint')
                     size=int(self.headers.get('Content-Length','0'))
                     if not 0<size<=128*1024:raise RuntimeFault('invalid_input','Invalid trusted request size')
-                    body=json.loads(self.rfile.read(size))
+                    raw=self.rfile.read(size);body_read=True
+                    body=json.loads(raw)
                     if not isinstance(body,dict) or set(body)-{'generation','method','reference','bindingDigest','decision','answers','eventId'}:
                         raise RuntimeFault('invalid_input','Unknown trusted request fields')
                     if body.get('generation')!=controller.port.generation:
@@ -88,7 +90,16 @@ class TrustedUserServer:
                         result=controller.port.decide(context,body['reference'],body['bindingDigest'],body['decision'],event_id=body['eventId'],answers=body.get('answers'))
                     else:raise RuntimeFault('invalid_input','Unknown trusted user method')
                     self.reply(200,{'data':result})
-                except RuntimeFault as exc:self.reply(403 if exc.code=='forbidden' else 409,{'error':{'code':exc.code,'message':str(exc)}})
+                except RuntimeFault as exc:
+                    # Drain only a bounded fixed-length body, without decoding or
+                    # dispatching it. Closing with unread bytes can reset TCP and
+                    # hide the rejection response on Windows gateways.
+                    if not body_read and not self.headers.get('Transfer-Encoding'):
+                        try:
+                            size=int(self.headers.get('Content-Length','0'))
+                            if 0<size<=128*1024:self.rfile.read(size)
+                        except (ValueError,TimeoutError,OSError):pass
+                    self.reply(403 if exc.code=='forbidden' else 409,{'error':{'code':exc.code,'message':str(exc)}})
                 except (ValueError,TypeError,KeyError,RecursionError):self.reply(400,{'error':{'code':'invalid_input','message':'Invalid trusted request'}})
                 except (TimeoutError,OSError):self.close_connection=True
             def reply(self,status,value):

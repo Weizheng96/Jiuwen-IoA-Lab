@@ -221,7 +221,7 @@ def test_resident_assembly_probes_before_tools_and_closes_runtime_first(monkeypa
     from types import SimpleNamespace
     from ioalab_jiuwen import assembly as module
     events=[]
-    config=SimpleNamespace(host={'command':['original'],'business_tools':['spec']},home=tmp_path,
+    config=SimpleNamespace(host={'command':['original'],'data_dir':str(tmp_path/'swarm'),'business_tools':['spec']},home=tmp_path/'sdk',
                            identities=[{'key':'personal','role':'assistant'},{'key':'svc','role':'service'}])
     class Tools:
         by_profile={'svc':{}}
@@ -231,6 +231,7 @@ def test_resident_assembly_probes_before_tools_and_closes_runtime_first(monkeypa
         def start(self):events.append('tools.start')
         def close(self):events.append('tools.close')
     class Host:
+        data_dir=tmp_path/'swarm'
         def capabilities(self):return {}
         def probe(self):events.append('probe');return {'available':available}
     class Runtime:
@@ -239,7 +240,7 @@ def test_resident_assembly_probes_before_tools_and_closes_runtime_first(monkeypa
         def close(self):events.append('runtime.close')
     monkeypatch.setattr(module,'RuntimeConfig',SimpleNamespace(load=lambda path:config))
     monkeypatch.setattr(module,'ConfiguredTools',Tools)
-    monkeypatch.setattr(module,'ProcessHost',SimpleNamespace(from_config=lambda host,base_dir:events.append(('host',host)) or Host()))
+    monkeypatch.setattr('ioalab_jiuwen.configuration.ProcessHost',SimpleNamespace(from_config=lambda host,base_dir:events.append(('host',host)) or Host()))
     monkeypatch.setattr(module,'AssistantRole',lambda host,tools:'assistant')
     monkeypatch.setattr(module,'ProviderRole',lambda host,tools:'provider')
     monkeypatch.setattr(module,'ResidentRuntime',Runtime)
@@ -250,7 +251,8 @@ def test_resident_assembly_probes_before_tools_and_closes_runtime_first(monkeypa
         else:
             with pytest.raises(RuntimeFault,match='probe') as caught:assembly.run()
             assert caught.value.code=='not_ready'
-    assert events[0]==('tools',['spec'],path.resolve().parent) and events[1]==('host',{'command':['original']})
+    assert events[0]==('host',{'command':['original'],'data_dir':str(tmp_path/'swarm')})
+    assert events[1]==('tools',['spec'],path.resolve().parent)
     assert ('profile','personal') in events and ('runtime',2,'ioalab-jiuwen') in events
     tail=events[events.index('probe'):]
     assert tail==(['probe','tools.start','runtime.run','runtime.close','tools.close'] if available else ['probe','runtime.close','tools.close'])

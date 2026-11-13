@@ -7,7 +7,7 @@ name = "ioalab-codex"
 dynamic = ["version"]
 description = "Codex App Server host adapter for IoA Lab"
 requires-python = ">=3.11"
-dependencies = ["ioalab-sdk>=0.0.168"]
+dependencies = ["ioalab-sdk>=0.0.178"]
 
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}

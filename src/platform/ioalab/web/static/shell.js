@@ -1,30 +1,27 @@
-/* Common browser header; existing workbench control IDs stay intact. */
+/* Shared navigation only; authentication and business operations retain their owners. */
 'use strict';
 (() => {
-  const header=document.querySelector('.site-header,.topbar');
-  if(!header)return;
+ const home=document.body.classList.contains('landing-home');
+ const header=document.querySelector('.site-header,.topbar');if(!header)return;
+ const logoURL=document.querySelector('link[rel="icon"]').getAttribute('href');
+ function brandLink(className){
+  const link=document.createElement('a');link.className=className+' ioa-brand';link.href='/';link.setAttribute('aria-label','九问IoA实验室首页');
+  const mark=document.createElement('img');mark.src=logoURL;mark.alt='';mark.width=27;mark.height=27;mark.className='site-logo';
+  const word=document.createElement('span');word.className='ioa-wordmark';word.append(document.createTextNode('ioa'));const dot=document.createElement('span');dot.className='ioa-dot';dot.textContent='.';word.append(dot);link.append(mark,word);return link;
+ }
+ const entries=[['智能体网络','/#network'],['如何接入','/connect'],['发现专业服务','/services'],['发现个人助手','/assistants'],['我的智能体','/workbench'],['管理者全局','/admin'],['在线试用','/trial']];
+ if(!home){
+  const side=document.createElement('aside');side.className='home-sidebar shell-sidebar';side.setAttribute('aria-label','页面导航');
+  const logo=brandLink('side-monogram');side.append(logo);
+  const label=document.createElement('p');label.className='side-caption';label.textContent='THE INTERNET OF AGENTS';side.append(label);
+  const links=document.createElement('nav');for(const [text,path] of entries){const a=document.createElement('a');a.href=path;const word=document.createElement('span');word.textContent=text;a.append(word);if(location.pathname===path){a.classList.add('active');a.setAttribute('aria-current','page');}links.append(a);}side.append(links);
+  const bottom=document.createElement('div');bottom.className='side-bottom';bottom.innerHTML='<span class="side-orbit" aria-hidden="true">✳</span><p>从独立的智能，<br>到连接的力量。</p><small>DISCOVER · CONNECT · CREATE</small>';side.append(bottom);document.body.prepend(side);
   header.classList.add('unified-header');
-  const brand=document.createElement('a');brand.className='brand';brand.href='/';brand.setAttribute('aria-label','九问IoA实验室首页');
-  const mark=document.createElement('img');mark.src='/static/logo.svg';mark.alt='';mark.width=36;mark.height=40;mark.className='site-logo';
-  const words=document.createElement('span');words.className='brand-words';words.textContent='九问IoA实验室';
-  const english=document.createElement('small');english.textContent='JIUWEN IoA LAB';words.append(english);brand.append(mark,words);
-  const oldBrand=header.querySelector('.brand');if(oldBrand)oldBrand.replaceWith(brand);else header.prepend(brand);
-  header.querySelectorAll('.auth-back').forEach(link=>link.remove());
-  document.querySelectorAll('main .back-link').forEach(link=>{if(new URL(link.href,location.href).pathname==='/')link.remove();});
-  const home=location.pathname==='/';
-  const back=document.createElement(home?'span':'a');back.className=home?'header-back-placeholder':'header-back';
-  if(home)back.setAttribute('aria-hidden','true');
-  else{back.href='/';back.setAttribute('aria-label','返回首页');back.innerHTML='<span aria-hidden="true">←</span><span>返回</span>';}
-  header.prepend(back);
-  const nav=header.querySelector('nav');
-  if(nav&&!nav.querySelector('a[href="/connect"]')){
-    const guide=document.createElement('a');guide.href='/connect';guide.textContent='如何接入';
-    nav.insertBefore(guide,nav.querySelector('.nav-owned,.auth-actions'));
-  }
-  if(!nav){const guide=document.createElement('a');guide.href='/connect';guide.className='header-help';guide.textContent='如何接入';header.append(guide);}
-  if(nav&&!nav.querySelector('a[href="/trial"]')){const trial=document.createElement('a');trial.href='/trial';trial.textContent='在线试用';nav.insertBefore(trial,nav.querySelector('.auth-actions'));}
-  function measureHeader(){
-    document.documentElement.style.setProperty('--shell-height',header.getBoundingClientRect().height+'px');
-  }
-  const observer=new ResizeObserver(measureHeader);observer.observe(header);measureHeader();
+  const brand=brandLink('brand');const caption=document.createElement('span');caption.className='brand-caption';caption.textContent='九问IoA实验室';brand.append(caption);
+  const old=header.querySelector('.brand');if(old)old.replaceWith(brand);else header.prepend(brand);
+  header.querySelectorAll('.auth-back,.header-back,.header-back-placeholder').forEach(n=>n.remove());
+  const nav=header.querySelector('nav');if(nav)nav.querySelectorAll('a').forEach(a=>{if(entries.some(([,path])=>path===a.getAttribute('href')))a.remove();});
+ }
+ function measure(){document.documentElement.style.setProperty('--shell-height',header.getBoundingClientRect().height+'px');}
+ new ResizeObserver(measure).observe(header);measure();
 })();

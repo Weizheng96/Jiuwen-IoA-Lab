@@ -1,27 +1,13 @@
 # IoA 统一客户端
 
-一个常驻客户端承载个人助手和服务方两个角色，源码与适配器统一放在本目录。用户在九问中选择角色Skill，复用同一账号、配置、身份数据与运行实例。
+一个常驻客户端承载个人助手和服务方两个角色。九问、Codex与Claude Code分别按自己的Skill加载方式使用同一账号、配置、身份数据和运行实例。
 
-默认平台地址为https://120.46.80.150，可通过外置配置的platform_url或首次账号设置的非秘密参数指定。原配置优先；首次接入先尝试连接，失败才询问用户地址。
+默认平台https://ioalab.openjiuwen.com；原外置配置或用户显式地址优先。首次账号预检失败才询问平台地址，不绕过TLS。
 
-## 从GitCode tag安装
+## 安装和接入
 
-需要Git和CPython3.11。在独立环境执行：
+按仓库根README_AGENT.md，用Git浅克隆已发布tag、稀疏检出src/client，再运行其中bootstrap.py。安装器核官方来源、tag/commit及脚本内容，从固定Git对象生成含受审vendor输入的构建快照；pip本地安装，不再次远端克隆客户端。普通依赖及构建工具沿用户可信包源取得，客户端不必发布到PyPI。
 
-```text
-python -m pip install "ioalab-client @ git+https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git@<已发布tag>#subdirectory=src/client"
-python -m ioalab_client status
-python -m ioalab_client skills --output <角色Skill导出目录>
-```
+安装完成导出个人助手与服务方两个Skill。九问经文件卡片/菜单导入；Codex和Claude Code读取本机实际解压目录中的Skill。账号在SDK本机页面录入，随后显式选择host.type=jiuwen、codex或claude_code。Codex及Claude Code提供command和model；九问提供command及原data_dir，三者均可显式配置业务技能目录。
 
-客户端本身不发布到PyPI；普通第三方依赖与构建工具使用配置的包源。A2C与Process SDK使用仓库vendor中锁定的原版内容，构建核摘要并保留许可证，不安装九问本体或平台核心。
-
-首次自动接入使用同一tag的bootstrap.py：
-
-```text
-python bootstrap.py --tag <已发布tag> --install-dir <独立客户端目录> --output <角色Skill导出目录>
-```
-
-脚本解析tag为固定commit、创建独立venv、pip安装、核依赖与安装文件摘要并导出两个Skill ZIP；成功不代表账号、宿主或平台连接已完成。原生导入并选择Skill后继续账号页和宿主接入。既有目录冲突或安装失败保留现场，不覆盖原环境和数据。
-
-源码分为sdk、hosts、skills、examples与ioalab_client。构建使用tools/build_client.py，两个轻量Skill只包含说明和绑定客户端解释器的薄调用脚本。Linux受管部署的组件wheel沿部署模块管理，使用同一客户端源码。
+按SDK状态分别核账号认证、host.available、platformConnected和身份bound。Codex和Claude Code首版不支持原生生产工具、原生提问回调或自动通知当前桌面聊天，缺失能力不伪装就绪。升级先沿原配置安全停止，保留身份与在途业务。

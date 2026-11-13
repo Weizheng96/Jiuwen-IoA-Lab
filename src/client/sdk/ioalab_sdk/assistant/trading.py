@@ -145,6 +145,51 @@ class Trading:
         except httpx.TransportError:pass
         return None
 
+    def recover_prepared(self,reference,key,record):
+        actor=self.identity.agent_id;ref=record['quoteRef'];binding=request_digest(record['subject'])
+        original=self.store.operation(actor,'message.send',stable('quote-intent',ref))
+        if not original:return
+        payload=original['payload'];response=original.get('response')
+        body={'formation':'proposal','templateDigest':record['template']['templateDigest'],
+              'scopeDigest':record['subject']['delegationScopeDigest'],'bindingDigest':binding,'request':record['subject']}
+        if (payload.get('kind')!='delegation.intent' or payload.get('recipient')!=record['service']
+                or payload.get('body')!=body or not payload.get('messageId')
+                or response and response.get('ok') is not True):return
+        origin=payload['messageId'];status=self.role.delegation.intent_status(origin)
+        if status.get('status')!='completed':return
+        proof=status['data'];relation=proof.get('interaction') or {};reservation=proof.get('result') or {}
+        if (proof.get('messageRef')!=origin or proof.get('taskRef')!=record['taskRef'] or proof.get('requestState')!='completed'
+                or relation.get('originMessageId')!=origin or relation.get('sender')!=actor
+                or relation.get('recipient')!=record['service'] or relation.get('interactionType')!='delegation'
+                or relation.get('state')!='open' or relation.get('bindingDigest')!=binding or not relation.get('interactionId')
+                or reservation.get('outcome')!='reserved' or reservation.get('bindingDigest')!=binding
+                or not reservation.get('admissionId')):return
+        transport=SessionTransport(self.runtime,self.identity,relation['interactionId'],reservation['admissionId'],self.protocol_id(record['service']),public=self.public)
+        if transport.received('request.submit') is not None:return
+        if any(value['actor']==actor and value['kind']=='message.send'
+                and value['payload'].get('interactionId')==relation['interactionId']
+                and value['payload'].get('kind')=='a2c.request' and value['payload'].get('body',{}).get('op')=='request.submit'
+                for value in self.store.pending()):return
+        continuation={'kind':'assistant.quote.admission','quoteRef':ref,'messageRef':origin,
+                      'interactionId':relation['interactionId'],'admissionId':reservation['admissionId'],'bindingDigest':binding}
+        operation=stable('resume-quote-admission',ref,digest(continuation))
+        if self.runtime.scheduler.resumption(actor,operation,reference):return
+        # A new read ID obtains current admission state; it is not a new intent,
+        # hold, signed request or payment. The resume identity stays immutable.
+        current=self.runtime.connection.call(actor,'admission.status',{'admissionId':reservation['admissionId']},operation_id=str(uuid.uuid4()))
+        expected={'admissionId':reservation['admissionId'],'interactionId':relation['interactionId'],'originMessageId':origin,
+                  'client':actor,'service':record['service'],'scopeDigest':body['scopeDigest'],'bindingDigest':binding}
+        if any(current.get(name)!=value for name,value in expected.items()):return
+        if current.get('state')=='released':
+            self.runtime.scheduler.resolve(reference,self.finish(key,record,'rejected',{'quoteRef':ref,
+                'error':{'code':'closed','message':'The original admission is released; no replacement request was created'}}))
+        # The service precommits zero-fee proposal capacity before reserved;
+        # that commit alone is not a submitted quote. Prepared is persisted
+        # before this Client's protocol call; calling never returns to prepared.
+        elif (current.get('state')=='held' or current.get('state')=='committed'
+                and record['template']['formation']=='proposal' and record['template']['pricing'].get('proposalFee',0)==0):
+            self.runtime.scheduler.requeue(reference,operation,continuation)
+
     def run(self,job):
         ref=job['payload']['quoteRef'];key='quote:'+ref;record=self.store.checkpoint(self.namespace,key)
         if record.get('result') is not None:return JobOutcome('completed',record['result'])
@@ -153,7 +198,18 @@ class Trading:
             approval=record['materialApproval']
             self.runtime.confirmations.claim(approval['reference'],approval['binding'])
         template=record['template']
-        try:relation,receipt=self.establish(record,stable('quote-intent',ref),'request')
+        try:
+            continuation=job.get('continuation')
+            if continuation is None:relation,receipt=self.establish(record,stable('quote-intent',ref),'request')
+            else:
+                relation=self.store.interaction(interaction_id=continuation.get('interactionId'))
+                if (continuation.get('kind')!='assistant.quote.admission' or continuation.get('quoteRef')!=ref
+                        or continuation.get('bindingDigest')!=request_digest(record['subject']) or not continuation.get('admissionId')
+                        or not relation or relation['actor']!=self.identity.agent_id or relation['peer']!=record['service']
+                        or relation['origin']!=continuation.get('messageRef') or relation['name']!='delegation'
+                        or relation['details'].get('bindingDigest')!=continuation['bindingDigest']):
+                    raise RuntimeFault('identity_conflict','Restore the original verified quote admission')
+                receipt={'admissionId':continuation['admissionId']}
         except RuntimeFault as exc:
             rejection=self.rejected_intent(record)
             if rejection:return self.finish(key,record,'rejected',{'quoteRef':ref,'error':rejection})
@@ -180,12 +236,13 @@ class Trading:
             reference=self.runtime.scheduler.reference(self.identity.agent_id,'assistant.quote',record['quoteRef'])
             try:job=self.runtime.scheduler.get(reference)
             except RuntimeFault:continue
-            if job['status']!='unknown':continue
+            if job['status']!='unknown' or self.runtime.scheduler.is_executing(reference):continue
             if record.get('result') is not None:
                 self.runtime.scheduler.resolve(reference,JobOutcome(record['status'],record['result']));continue
             if record['phase']=='prepared':
                 rejection=self.rejected_intent(record)
                 if rejection:self.runtime.scheduler.resolve(reference,self.finish(key,record,'rejected',{'quoteRef':record['quoteRef'],'error':rejection}))
+                else:self.recover_prepared(reference,key,record)
                 continue
             if record['phase']!='calling':continue
             transport=SessionTransport(self.runtime,self.identity,record['interactionId'],record['admissionId'],self.protocol_id(record['service']),public=self.public)

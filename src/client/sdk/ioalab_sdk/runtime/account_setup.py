@@ -11,7 +11,7 @@ import httpx
 
 from .authentication import authenticate
 from .account_store import LocalStore
-from .config import DEFAULT_PLATFORM_URL,RuntimeConfig,read_configuration,data_directory
+from .config import DEFAULT_PLATFORM_URL,RuntimeConfig,read_configuration,data_directory,browser_executable
 from .files import prepare_home,private_json,read_json
 from .ipc import IpcServer,LocalClient
 from .lease import Lease
@@ -22,8 +22,8 @@ from .user_ui import UserUi
 
 
 def setup_document(path,options):
-    if not isinstance(options,dict) or set(options)-{'platform_url','role'} or options.get('role','assistant') not in ('assistant','service'):
-        raise RuntimeFault('invalid_input','Use platform_url and role (assistant or service)','correct_input')
+    if not isinstance(options,dict) or set(options)-{'platform_url','role','user_browser'} or options.get('role','assistant') not in ('assistant','service'):
+        raise RuntimeFault('invalid_input','Use platform_url, role (assistant or service) and optional user_browser','correct_input')
     if 'platform_url' in options and (not isinstance(options['platform_url'],str) or not options['platform_url'].strip()):
         raise RuntimeFault('invalid_input','Use a nonempty platform_url address','correct_input')
     document=read_configuration(path) if path.exists() else {
@@ -32,6 +32,13 @@ def setup_document(path,options):
     if not path.exists():
         previous=Path(document['data_dir'])/'account-setup.json'
         if previous.exists():document=read_json(previous)['configuration']
+    if 'user_browser' in options:
+        browser=browser_executable(options['user_browser'])
+        if document.get('user_browser') is not None and document['user_browser']!=browser:
+            raise RuntimeFault('identity_conflict','Reuse the configured browser; change it through runtime.configure','inspect_configuration')
+        if path.exists() and document.get('user_browser')!=browser:
+            raise RuntimeFault('identity_conflict','Change the existing browser through runtime.configure','inspect_configuration')
+        document['user_browser']=browser
     document.setdefault('platform_url',DEFAULT_PLATFORM_URL)
     base=document['platform_url']
     parsed=urlsplit(base if isinstance(base,str) else '')
@@ -221,8 +228,9 @@ def launch(path,options):
             return result
         probe.close()
         run_id=str(uuid.uuid4())
+        browser_args=['--browser',ui.document['user_browser']] if ui.document.get('user_browser') else []
         subprocess.Popen([sys.executable,'-m','ioalab_sdk.access','account-setup','--config',str(ui.path),
-            '--worker',run_id,'--platform',ui.document['platform_url'],'--role',options.get('role','assistant')],
+            '--worker',run_id,'--platform',ui.document['platform_url'],'--role',options.get('role','assistant'),*browser_args],
             stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         deadline=time.monotonic()+5

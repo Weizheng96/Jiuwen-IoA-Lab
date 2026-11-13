@@ -10,8 +10,13 @@ import venv
 import shutil
 import zipfile
 import pytest
+from email.parser import BytesParser
+from packaging.requirements import Requirement
 
 ROOT = Path(__file__).resolve().parents[1]
+# A dev venv may itself borrow dependencies via .pth; use their actual installed site.
+DEPENDENCY_SITES = list(dict.fromkeys([sysconfig.get_paths()["purelib"], str(importlib.metadata.distribution("httpx").locate_file(""))]))
+DEPENDENCY_PATHS = "\n".join(DEPENDENCY_SITES)+"\n"
 
 
 def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
@@ -20,14 +25,30 @@ def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
     with zipfile.ZipFile(wheel) as archive:
         names=archive.namelist()
         assert 'ioalab_sdk/runtime/web/account.html' in names
+        assert 'ioalab_sdk/runtime/trust/platform-trust.json' in names
+        assert 'ioalab_sdk/runtime/trust/ioalab-ca.pem' in names
+        assert not any(b'PRIVATE KEY' in archive.read(name) for name in names if name.endswith(('.pem', '.key')))
         assert 'ioalab_client/components.json' in names
+        assert 'ioalab_client/runtime.py' in names and 'ioalab_codex/assembly.py' in names
+        assert 'ioalab_claude_code/assembly.py' in names
+        metadata = BytesParser().parsebytes(archive.read(next(name for name in names if name.endswith('.dist-info/METADATA'))))
+        requirements = [Requirement(value) for value in metadata.get_all('Requires-Dist', [])]
+        for host in ('jiuwen', 'codex', 'claude-code'):
+            for platform in ('win32', 'linux', 'darwin'):
+                resolved = {req.name for req in requirements if not req.marker or req.marker.evaluate({
+                    'extra': host, 'sys_platform': platform, 'python_full_version': '3.11.4'})}
+                assert ('claude-agent-sdk' in resolved) == (host == 'claude-code')
+                assert ('pywin32' in resolved) == (host == 'claude-code' and platform == 'win32')
         assert 'a2c/__init__.py' in names and 'jiuwenswarm_sdk/__init__.py' in names
         assert not any(name.endswith('/installer.py') or 'settings.local.json' in name for name in names)
     environment=tmp_path/'environment';venv.EnvBuilder(with_pip=True).create(environment)
     python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
     run([str(python),'-I','-m','pip','install','--no-index','--no-deps',str(wheel)],tmp_path)
     purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
-    Path(purelib,'zz-third-party.pth').write_text(sysconfig.get_paths()['purelib']+'\n',encoding='utf-8')
+    Path(purelib,'zz-third-party.pth').write_text(DEPENDENCY_PATHS,encoding='utf-8')
+    default=run([str(python),'-I','-c',
+        'from ioalab_sdk.runtime.config import DEFAULT_PLATFORM_URL; from ioalab_codex import assembled; print(DEFAULT_PLATFORM_URL)'],tmp_path)
+    assert default.strip()=='https://ioalab.openjiuwen.com'
     # Both exported launchers bind this interpreter; the host interpreter need not contain the client.
     exported=json.loads(run([str(python),'-I','-m','ioalab_client','skills','--output',str(tmp_path/'skills')],tmp_path))
     assert exported['status']=='completed' and len(exported['data']['files'])==2
@@ -64,11 +85,11 @@ def test_pip_installs_client_from_git_tag_and_records_its_commit(tmp_path):
     python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
     purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
     # Supply already-verified third-party/build tools offline, after the new client's installed site.
-    Path(purelib,'zz-third-party.pth').write_text(sysconfig.get_paths()['purelib']+'\n',encoding='utf-8')
-    Path(purelib,'zz-third-party.pth').write_text('import sys; sys.path.insert(0, '+repr(sysconfig.get_paths()['purelib'])+')\n',encoding='utf-8')
+    Path(purelib,'zz-third-party.pth').write_text(DEPENDENCY_PATHS,encoding='utf-8')
+    Path(purelib,'zz-third-party.pth').write_text('import sys; sys.path[:0] = '+repr(DEPENDENCY_SITES)+'\n',encoding='utf-8')
     requirement='git+'+repository.as_uri()+'@client-test#subdirectory=src/client'
     run([str(python),'-I','-m','pip','install','--no-index','--no-deps','--no-build-isolation',requirement],tmp_path)
-    Path(purelib,'zz-third-party.pth').write_text(sysconfig.get_paths()['purelib']+'\n',encoding='utf-8')
+    Path(purelib,'zz-third-party.pth').write_text(DEPENDENCY_PATHS,encoding='utf-8')
     result=json.loads(run([str(python),'-I','-m','ioalab_client','status'],tmp_path))
     assert result['status']=='completed'
     assert result['data']['source']['vcs_info']['commit_id']==commit
@@ -139,7 +160,7 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
     # Package entries import their third-party dependencies; borrow them from the checkout's
     # environment after the installed site, so own modules and resources still load from the wheels.
     purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
-    Path(purelib,'zz-third-party.pth').write_text(sysconfig.get_paths()['purelib']+'\n',encoding='utf-8')
+    Path(purelib,'zz-third-party.pth').write_text(DEPENDENCY_PATHS,encoding='utf-8')
     output = run([str(python),'-I','-c', '''
 import importlib.metadata as m, importlib.resources as r, json
 import ioalab.config as core_config

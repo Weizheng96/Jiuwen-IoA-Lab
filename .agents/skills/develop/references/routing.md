@@ -19,6 +19,7 @@
 | `src/client/sdk/ioalab_sdk/access.py` | [SDK装配](../../../../设计/组件/客户端/SDK装配/接口.md) |
 | `src/client/examples/` | [共用运行时](../../../../设计/组件/客户端/共用运行时/接口.md)（调用方示例） |
 | `src/client/hosts/codex/` | [Codex适配](../../../../设计/组件/客户端/Codex适配/接口.md) |
+| `src/client/hosts/claude_code/` | [ClaudeCode适配](../../../../设计/组件/客户端/ClaudeCode适配/接口.md) |
 | `src/client/hosts/jiuwen/` | [宿主适配](../../../../设计/组件/客户端/宿主适配/接口.md) |
 | `src/official/services/` | [官方服务](../../../../设计/组件/官方服务/接口.md) |
 | `src/official/admin-assistant/`、`src/official/tools/` | [管理员助手](../../../../设计/组件/管理员助手/接口.md) |

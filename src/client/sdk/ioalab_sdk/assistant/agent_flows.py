@@ -15,7 +15,7 @@ class AssistantFlows:
         self.deliveries = DeliveryWatch(self)
 
     def invoke(self, name, operation, args):
-        return self.role._call(name.split('.', 1)[1], operation, args)
+        return self.role._operation(name.split('.', 1)[1])(self.role.runtime, operation, args)
 
     def step(self, journal, record, index, name, args):
         return journal.step(record, index, 'assistant.' + name, args, self.invoke)

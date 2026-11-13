@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 from .protocol import RuntimeFault
 from a2c.codec import digest
 
-DEFAULT_PLATFORM_URL='https://120.46.80.150'
+DEFAULT_PLATFORM_URL='https://ioalab.openjiuwen.com'
 
 
 def read_configuration(path):
@@ -33,6 +33,20 @@ def data_directory(path,value):
     if not isinstance(name,str) or not name.strip():raise RuntimeFault('invalid_input','Missing configuration field: data_dir','configure')
     home=Path(name).expanduser()
     return (home if home.is_absolute() else Path(path).resolve().parent/home).resolve()
+
+
+def browser_executable(browser):
+    if browser is None:return None
+    def invalid(message):raise RuntimeFault('invalid_input',message,'configure')
+    if not isinstance(browser,str) or not 1<=len(browser)<=8192 or not Path(browser).is_absolute():
+        invalid('user_browser requires an absolute browser executable path without arguments')
+    try:
+        executable=Path(browser).resolve(strict=True)
+        valid=executable.is_file() and (executable.suffix.lower()=='.exe' if os.name=='nt' else os.access(executable,os.X_OK))
+    except (OSError,ValueError,RuntimeError):valid=False
+    if not valid:invalid('user_browser must reference an existing executable file')
+    browser=str(executable)
+    return browser
 
 
 @dataclass(frozen=True)
@@ -91,16 +105,7 @@ class RuntimeConfig:
             password=os.environ.get(key)
         else:password=value.get('password')
         if not isinstance(password,str) or not password:invalid('Configure local account credentials')
-        browser=value.get('user_browser')
-        if browser is not None:
-            if not isinstance(browser,str) or not 1<=len(browser)<=8192 or not Path(browser).is_absolute():
-                invalid('user_browser requires an absolute browser executable path without arguments')
-            try:
-                executable=Path(browser).resolve(strict=True)
-                valid=executable.is_file() and (executable.suffix.lower()=='.exe' if os.name=='nt' else os.access(executable,os.X_OK))
-            except (OSError,ValueError,RuntimeError):valid=False
-            if not valid:invalid('user_browser must reference an existing executable file')
-            browser=str(executable)
+        browser=browser_executable(value.get('user_browser'))
         home=data_directory(path,value)
         profiles=value.get('identities')
         if not isinstance(profiles,list) or not 1<=len(profiles)<=64:invalid('Configure one to 64 local identity profiles')

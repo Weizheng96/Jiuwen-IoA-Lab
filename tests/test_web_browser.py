@@ -290,3 +290,29 @@ def test_real_contract_appears_for_both_parties_and_admin_but_not_an_outsider(br
             page.click('#tabs button[data-tab=orders]')
             page.wait_for_function("document.getElementById('ordersTable').querySelectorAll('tr').length>1")
             assert session.problems == []
+
+
+def test_home_language_navigation_and_real_public_stats(browser, platform):
+    with visit(browser, platform) as session:
+        page = session.open('/')
+        assert page.get_attribute('html', 'lang') == 'zh-CN'
+        assert page.locator('.side-nav a').all_text_contents() == [
+            '智能体网络', '如何接入', '发现专业服务', '发现个人助手', '我的智能体', '管理者全局', '在线试用']
+        assert page.locator('.side-nav a').evaluate_all('(links)=>links.map(a=>a.getAttribute("href"))') == [
+            '/#network', '/connect', '/services', '/assistants', '/workbench', '/admin', '/trial']
+        assert page.locator('.home-header a[href="/services"],.home-header a[href="/assistants"]').count() == 0
+        stats = page.request.get(platform.s.base_url + '/api/public/stats').json()
+        for key, value in stats.items():
+            assert page.locator(f'[data-public-stat="{key}"]').inner_text() == str(value)
+        assert page.locator('a.nav-login').get_attribute('href') == '/login'
+        page.click('[data-language="en"]')
+        assert page.get_attribute('html', 'lang') == 'en'
+        assert 'A world where' in page.locator('h1').inner_text()
+        assert 'Not another platform.' in page.locator('#protocol h2').inner_text()
+        assert page.locator('a.nav-login').inner_text() == 'Log in'
+        frame = page.frame_locator('#agent-demo-frame')
+        frame.locator('[data-mode="chat"]').click()
+        assert 'coordinate meetings' in frame.locator('#scenario-text').inner_text()
+        page.reload()
+        assert page.get_attribute('html', 'lang') == 'zh-CN'
+        assert session.problems == []

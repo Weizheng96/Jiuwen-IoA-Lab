@@ -6,6 +6,7 @@ from ioalab_sdk.assistant import AssistantRole
 from ioalab_sdk.provider import ProviderRole
 from ioalab_sdk.runtime import ResidentRuntime, RuntimeConfig, RuntimeFault
 from .process import ProcessHost
+from .configuration import validate_host
 from .tools import ConfiguredTools
 
 
@@ -29,11 +30,11 @@ def assembled(path):
     path = Path(path)
     base = path.resolve().parent
     config = RuntimeConfig.load(path)
+    host = validate_host(config,base_dir=base) or ProcessHost.from_config({},base_dir=base)
     host_config = dict(config.host)
     tools = ConfiguredTools(host_config.pop('business_tools', []), config.identities, home=config.home, base_dir=base)
     runtime = None
     try:
-        host = ProcessHost.from_config(host_config, base_dir=base)
         personal = next((item['key'] for item in config.identities if item['role'] == 'assistant'), None)
         runtime = ResidentRuntime(config, modules=(AssistantRole(host, tools.for_profile(personal)), ProviderRole(host, tools.by_profile)),
                                   host_status=lambda: {**host.capabilities(), 'businessTools': tools.status()}, assembly='ioalab-jiuwen')
