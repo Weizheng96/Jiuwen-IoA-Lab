@@ -233,3 +233,12 @@ SDK 使用 `mcp>=1.30,<2`，接入技能和 Linux participant 锁固定 `mcp==1.
 - 这次真实 MCPTool 调用不经过新模型轮次，不能充当修复后原生聊天/用户点击证据。用户刷新聊天后的读取、页面预览及可信发布继续待验；同名旧连接缓存问题此前通过新连接器规避，未修缓存。其他宿主与完整业务闭环仍开放。
 
 局部补丁、探针、运行证据保存在本机 `temp/mcp-argument-fix/`；不包含账号凭据，不入库。仓库保存上述可审阅差异与结论，IoA 已发布实现和本机上游依赖修复分别记录。
+
+
+### 隔离发送端恢复与手动验收交接
+
+用户提供修复后九问新模型轮次回执：revision 8，空列表保留、预览 valid=true、读回成功；期间模型重新加入不支持的 title 后自行移除，最终内容与 revision 6 一致。这证明新模型轮次的参数路径恢复，不代表发布和双方收发完成。
+
+随后按用户明确授权恢复原隔离测试发送端：旧实例为 SDK 0.0.148，公开状态 installation_changed、connectionError=stale_generation，调度 active=0、pendingOperations=0。通过原 bootId 正常 runtime.stop，再用当前统一客户端 ioalab_jiuwen start 沿原配置启动，未新建账号。公开复核 authenticated、verifiedOnline、platformConnected、ipcReady、host.available 和个人助手 executionReady 均为 true，connectionError=null；runtimeId 与身份标识不变，保存消息仍为10条。配置文件摘要发生变化，不能声明配置逐字不变；当前启动入口包含验证在线设备会话后迁移旧密码配置的逻辑，本次没有读取或展示配置正文，未逐字段比较迁移前后内容。原草稿未在本次恢复中修改或发布。
+
+只读状态摘要及启动回执保存在本机 temp/sender-recovery；下一步由用户将原表单限制为指定测试账号、启用并预览，经受控确认后才能进行双方收发。没有因客户端恢复而发送测试消息、发布服务或推进合同。
