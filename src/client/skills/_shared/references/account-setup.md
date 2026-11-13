@@ -2,7 +2,7 @@
 
 公开接入说明统一指向 [GitCode 接入引导](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/README_AGENT.md)。已下载技能时，先等待用户在九问“我的技能”原生导入、在会话菜单选择，并用skill_tool实际读取SKILL.md；只有此后才呈现“提供已有账号”“帮我注册”。
 
-先读location.md定位实际脚本，核CPython3.11。平台默认https://120.46.80.150；已有配置或用户已提供的platform_url优先。不先询问平台地址：SDK的account.setup先探测实际/api/config，只有返回stage=platform、nextAction=ask_platform_url时才询问用户完整地址；证书或网络失败不绕过TLS。已有账号与未知注册保留原平台和身份，不因探测失败重建。先调用runtime.install.status核统一客户端安装completed；不向用户要求手写命令或配置秘密。首次账号阶段优先按本页执行，shared-runtime.md中“普通接入完成安装后runtime.start”只适用于账号配置已经完成的实例。安装完成后，用独立非秘密JSON文件传递平台与角色，例如：
+先读location.md定位实际脚本，核CPython3.11。平台默认https://ioalab.openjiuwen.com；已有配置或用户已提供的platform_url优先。不先询问平台地址：SDK的account.setup先探测实际/api/config，只有返回stage=platform、nextAction=ask_platform_url时才询问用户完整地址；证书或网络失败不绕过TLS。已有账号与未知注册保留原平台和身份，不因探测失败重建。先调用runtime.install.status核统一客户端安装completed；不向用户要求手写命令或配置秘密。首次账号阶段优先按本页执行，shared-runtime.md中“普通接入完成安装后runtime.start”只适用于账号配置已经完成的实例。安装完成后，用独立非秘密JSON文件传递平台与角色，例如：
 
 ```json
 {"role":"assistant"}

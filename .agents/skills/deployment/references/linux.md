@@ -7,6 +7,7 @@
 - GitCode只含用户要求合入main后同步的提交；正式部署核GitHub与GitCode的main为同一完整SHA，服务器直连GitCode取这个SHA。合入前的受审候选按教程从已推送develop复制固定提交到独立目录，仍走同一安装入口并明确待发布身份。保存源码SHA、内容发行摘要、环境集合和实际运行身份，控制器更新不能冒充业务产物更新。未提交工作树、设计标签、同名wheel版本都不足以证明输入一致。
 - Git请求用`git -c http.proxy= -c https.proxy= ...`，HTTP诊断用`curl --noproxy '*' ...`，SSH用`-o ProxyCommand=none -o ProxyJump=none`并核主机指纹。若系统TUN改变路由，这些参数并不保证物理路径直连；分别记录TCP连通、SSH主机身份和GitCode/TLS结果，不修改全局代理或放宽主机校验。
 - 自动连接的唯一私有源为本机`.agents/server-connection.json`，现已替换为新服务器配置；旧配置与临时凭据源已移除，不再使用。JSON含format、host、port、username、password、host_key_type、host_key_base64、host_key_sha256和connect_timeout_seconds；不读取正文来写报告，不同步Git。使用`tools/server_connection.py`（开发环境paramiko 4），直接读取该JSON并固定校验已核主机公钥及SHA-256指纹，未知或变更密钥拒绝，不依赖旧服务器或另一份known_hosts配置。`--script`经stdin传输Bash，`--upload`经SFTP传输文件；不硬编码口令，敏感配置经已固定会话stdin或受限文件传输。人类使用自己的SSH凭据或已核alias，不绑定该文件。
+- 通过Git归档传固定候选时，用`git -c tar.umask=0022 archive`导出并在构建前核源码文件无组/其他用户写权限；归档解包不是Git checkout，权限会被copy2带入发行。若曝光检查拒绝宽权限，只修原源码输入并沿原任务重建，不chmod冻结发行或已安装环境；源码内容摘要应保持不变。
 - Git来源依赖采用随仓固定原件；普通包走已配置国内HTTPS镜像。先检查本地固定输入、目标锁及真实环境身份，不现场从GitHub/VCS补包或向运行venv手工pip修补。
 
 ## Linux消费者格式与权限

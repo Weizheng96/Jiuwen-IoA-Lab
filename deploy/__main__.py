@@ -51,6 +51,9 @@ def status(layout):
 def submit(args):
     if args.command=='test-reset':
         layout=existing(args.state)
+        if getattr(args,'resume_from',None):
+            from .reset_resume import submit as resume_reset
+            return resume_reset(layout,Path(__file__).resolve().parent.parent,args.resume_from)
         value=read_json(regular_file(layout.private/'initial.json'))['input']
     else:
         value=load(args.config)
@@ -78,7 +81,8 @@ def submit(args):
                    'inputDigest':configuration.owner['inputDigest']}
             save(pointer,entry);selected=Job(layout,entry['operationId'])
         else:entry=read_json(pointer)
-        selected.create(entry['action'],entry['source'],entry['inputDigest'])
+        resume=selected.request().get('resumeTestReset') if (selected.folder/'request.json').exists() else None
+        selected.create(entry['action'],entry['source'],entry['inputDigest'],resume=resume)
     return selected.submit()
 
 
@@ -93,6 +97,8 @@ def worker(args):
         from .installation import Installation
         from .repair import worker_admission
         worker_admission(job,request)
+        from .reset_resume import admit
+        admit(job,request)
         installer=Installation(job,config)
         try:return installer.run()
         except Exception as error:
@@ -115,6 +121,7 @@ def main(argv=None):
     item.add_argument('--state',type=Path,required=True)
     item.add_argument('--operation',required=True)
     item=commands.add_parser('test-reset');item.add_argument('--state',type=Path,required=True)
+    item.add_argument('--resume-from',help='explicit stopped failed test-reset initialization parent')
     item=commands.add_parser('status');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
     item=commands.add_parser('replace-admin-assistant');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))
     item=commands.add_parser('mail-login');item.add_argument('--state',type=Path,default=Path('/var/lib/ioalab'))

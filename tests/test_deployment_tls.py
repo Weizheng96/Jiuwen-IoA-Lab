@@ -92,7 +92,6 @@ def test_renewal_timer_is_bound_to_current_source_and_cannot_take_foreign_units(
     directory = source.parent/'units'; directory.mkdir()
     monkeypatch.setattr(tls, 'SYSTEMD_DIRECTORY', directory)
     seen = []; monkeypatch.setattr(tls, 'systemctl', lambda *args: seen.append(args))
-    monkeypatch.setattr(tls, 'verify_units', lambda paths: seen.append(tuple(p.name for p in paths)))
     assert tls.main(['install-renewal','--state',str(layout.state)]) == 0
     result = json.loads(capsys.readouterr().out)
     text = (directory/'ioalab-tls-renew.service').read_text()
