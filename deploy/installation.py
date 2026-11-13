@@ -406,6 +406,9 @@ print(json.dumps(r,ensure_ascii=False))
             if activation.current(self.layout)!=self.progress['candidate']:
                 raise RuntimeError('The current installed set differs from this original operation')
             ready=self.wait(self.readiness)
+            if (self.layout.config/'tls/authority.json').exists():
+                from .tls import install_renewal
+                install_renewal(self.layout)
             self.metadata.update(completedSet=self.progress['candidate']['setId'],source=self.request['source'],
                                  lastReadiness=ready,verifiedAt=datetime.now(timezone.utc).isoformat())
             self.save_metadata();self.saved(stage='completed',outcome='completed')

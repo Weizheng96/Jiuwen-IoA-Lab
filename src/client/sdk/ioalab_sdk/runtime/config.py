@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 from .protocol import RuntimeFault
 from a2c.codec import digest
 
-DEFAULT_PLATFORM_URL='https://120.46.80.150'
+DEFAULT_PLATFORM_URL='https://ioalab.openjiuwen.com'
 
 
 def read_configuration(path):

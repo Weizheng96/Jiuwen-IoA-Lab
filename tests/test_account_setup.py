@@ -12,7 +12,7 @@ from ioalab_sdk.runtime.protocol import RuntimeFault
 
 
 @pytest.mark.parametrize('configured,override,expected',[
-    (None,None,'https://120.46.80.150'),
+    (None,None,'https://ioalab.openjiuwen.com'),
     (None,'https://chosen.example','https://chosen.example'),
     ('https://existing.example',None,'https://existing.example'),
 ])
@@ -41,7 +41,7 @@ def test_runtime_platform_default_is_configurable_without_rewriting_input(tmp_pa
     from ioalab_sdk.runtime import RuntimeConfig
     value={'username':'owner','password':'local-test','data_dir':str(tmp_path/'data'),
            'identities':[{'key':'personal','role':'assistant','name':'Owner'}]}
-    assert RuntimeConfig.from_mapping(tmp_path/'settings.json',value).platform=='https://120.46.80.150'
+    assert RuntimeConfig.from_mapping(tmp_path/'settings.json',value).platform=='https://ioalab.openjiuwen.com'
     assert 'platform_url' not in value
     assert RuntimeConfig.from_mapping(tmp_path/'settings.json',{**value,'platform_url':'https://chosen.example'}).platform=='https://chosen.example'
 

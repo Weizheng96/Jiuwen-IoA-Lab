@@ -20,6 +20,9 @@ def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
     with zipfile.ZipFile(wheel) as archive:
         names=archive.namelist()
         assert 'ioalab_sdk/runtime/web/account.html' in names
+        assert 'ioalab_sdk/runtime/trust/platform-trust.json' in names
+        assert 'ioalab_sdk/runtime/trust/ioalab-ca.pem' in names
+        assert not any(b'PRIVATE KEY' in archive.read(name) for name in names if name.endswith(('.pem', '.key')))
         assert 'ioalab_client/components.json' in names
         assert 'a2c/__init__.py' in names and 'jiuwenswarm_sdk/__init__.py' in names
         assert not any(name.endswith('/installer.py') or 'settings.local.json' in name for name in names)

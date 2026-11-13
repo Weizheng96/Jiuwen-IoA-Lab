@@ -1,6 +1,6 @@
 # 07：域名HTTPS与公共地址切换
 
-**状态：** ready；内部CA方案设计完成，待实现及实机验收
+**状态：** claimed；实现与验证中
 
 **阻塞于：** 无；实现、发布和实机验收按下列阶段衔接。
 
@@ -33,3 +33,7 @@
 **证据：** 本机忽略目录`temp/domain-tls-check/`；原始服务器配置和私钥不入库。
 
 **设计检查：** v0.0.170轻量四项通过（版本、文档链接与索引、模块、阅读预算），日志temp/checks/ca-design170-reviewed；部署Skill结构校验通过。只验证设计文档，未执行实现单元测试、产品构建或服务器切换。
+
+**实现阶段：** 已实现共用Network包内CA、HTTPS/WSS同源信任及脱敏状态；维护CLI已通过真实OpenSSL签发、错误CA拒绝、导出无私钥和续期失败恢复接缝。定向temp/checks/ca-impl-focused4为118 passed、5 skipped；temp/checks/ca-impl-client2的离仓wheel通过，原两条默认IP断言已同步并在focused4验证。Windows跳过链接与Linux单元等专项，保留原失败日志，不作实机通过。CA公共证书DER SHA-256为8d9dcaea6e34f557ab8cad9047babf75e181c4d90ac641a629021859b56dd686，仅公钥证书已经固定SSH核验导出。
+
+**提交前回归：** temp/checks/ca-impl-fast快速层1723 passed、31 skipped、516 deselected、14 subtests passed，退出0；受测代码冻结至真实退出。Linux单元及服务器域名切换仍待执行。

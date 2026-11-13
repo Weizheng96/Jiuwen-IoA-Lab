@@ -1,9 +1,9 @@
 """One instance's HTTP pool and system trust policy; credentials are request scoped."""
 from http.cookiejar import CookieJar, DefaultCookiePolicy
-import ssl
 from urllib.parse import urlsplit
 import httpx
 from .protocol import RuntimeFault
+from .tls_trust import context
 
 
 class NoCookies(DefaultCookiePolicy):
@@ -13,9 +13,13 @@ class NoCookies(DefaultCookiePolicy):
 class Network:
     def __init__(self, base):
         self.base=base.rstrip('/')
-        self.ssl=ssl.create_default_context()
+        self.ssl,self.trust=context(self.base)
         self.http=httpx.Client(timeout=120,trust_env=False,verify=self.ssl,
-                               follow_redirects=False,cookies=CookieJar(policy=NoCookies()))
+                               follow_redirects=False,cookies=CookieJar(policy=NoCookies()),
+                               event_hooks={'request':[self._check_request]})
+
+    def _check_request(self,request):
+        self.public_url(str(request.url))
 
     def public_url(self, url):
         value=urlsplit(url);base=urlsplit(self.base)

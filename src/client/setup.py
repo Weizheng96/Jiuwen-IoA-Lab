@@ -81,5 +81,5 @@ class BuildClient(build_py):
 
 setup(options={'egg_info': {'egg_base': 'build'}}, version=versions['ioalab-client'], install_requires=sorted(dependencies), packages=packages,
       package_dir=directories, cmdclass={'build_py': BuildClient},
-      package_data={'ioalab_sdk': ['runtime/web/*.html'],
+      package_data={'ioalab_sdk': ['runtime/web/*.html', 'runtime/trust/*.json', 'runtime/trust/*.pem'],
                     'ioalab_jiuwen': ['resources/ioa-notifications/*.py', 'resources/ioa-notifications/*.yaml']})

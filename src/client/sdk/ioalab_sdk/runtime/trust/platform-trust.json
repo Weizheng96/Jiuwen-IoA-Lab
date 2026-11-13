@@ -1,0 +1,12 @@
+{
+  "format": "ioalab.platform-trust/1",
+  "origins": [
+    "https://ioalab.openjiuwen.com:443"
+  ],
+  "anchors": [
+    {
+      "file": "ioalab-ca.pem",
+      "sha256": "8d9dcaea6e34f557ab8cad9047babf75e181c4d90ac641a629021859b56dd686"
+    }
+  ]
+}

@@ -98,6 +98,7 @@ class ResidentRuntime:
                 'installation':self.installation,
                 'ipcReady':bool(self.ipc.thread and self.ipc.thread.is_alive()),
                 'account':self.account.status(),'platformConnected':connected,
+                'networkTrust':dict(self.account.network.trust),
                 'connectionError':public_error(self.connection.error) if self.connection.error else None,
                 'identities':[{**p.public(),'executionReady':available and p.profile in self.ready_profiles and role_ready(p.profile)} for p in self.identities],
                 'host':host,'scheduler':scheduler,'delivery':self.store.summary(),
