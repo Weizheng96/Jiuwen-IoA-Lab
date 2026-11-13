@@ -16,12 +16,13 @@ def bootstrap():
 @pytest.fixture
 def boundary(bootstrap,monkeypatch):
     calls=[]
-    def create(builder,directory):
-        (Path(directory)/('Scripts' if sys.platform=='win32' else 'bin')).mkdir(exist_ok=True)
-    monkeypatch.setattr(bootstrap.venv.EnvBuilder,'create',create)
     def execute(command,**kwargs):
         calls.append(command)
         if command[0]=='git':output=COMMIT+'\trefs/tags/client-test\n'
+        elif command[-1]==bootstrap.PYTHON_PROBE:output=json.dumps(['cpython',[3,11]])
+        elif 'venv' in command:
+            (Path(command[-1])/('Scripts' if sys.platform=='win32' else 'bin')).mkdir(exist_ok=True)
+            output=''
         elif command[-1]=='status':
             output=json.dumps({'status':'completed','data':{'python':command[0],'source':{
                 'url':bootstrap.REPOSITORY,'subdirectory':'src/client',
@@ -42,6 +43,33 @@ def test_tag_install_pins_commit_and_reuses_client(bootstrap,boundary,tmp_path,c
     assert not any('runtime.start' in c for c in boundary)
     assert bootstrap.main(args)==0
     assert len([c for c in boundary if 'install' in c])==1
+
+
+def test_copied_host_python_uses_verified_versioned_base(bootstrap,boundary,tmp_path):
+    folder=tmp_path/'client'
+    assert bootstrap.main(['--tag','client-test','--install-dir',str(folder)])==0
+    expected=Path(sys.base_prefix)/('python.exe' if sys.platform=='win32' else 'bin/python3.11')
+    creates=[c for c in boundary if 'venv' in c]
+    assert creates==[[str(expected),'-I','-m','venv',str(folder)]]
+
+
+@pytest.mark.parametrize('wrong_stage',['base','created'])
+def test_wrong_python_never_reaches_pip(bootstrap,boundary,monkeypatch,tmp_path,wrong_stage,capsys):
+    execute=bootstrap.subprocess.run
+    probes=[]
+    def wrong_python(command,**kwargs):
+        result=execute(command,**kwargs)
+        if command[-1]==bootstrap.PYTHON_PROBE:
+            probes.append(command)
+            if len(probes)==(1 if wrong_stage=='base' else 2):result.stdout=json.dumps(['cpython',[3,12]])
+        return result
+    monkeypatch.setattr(bootstrap.subprocess,'run',wrong_python)
+    folder=tmp_path/'client'
+    assert bootstrap.main(['--tag','client-test','--install-dir',str(folder)])==1
+    result=json.loads(capsys.readouterr().out)
+    assert result['data']['connected'] is False
+    assert not any('install' in command for command in boundary)
+    assert json.loads((folder/'ioalab-bootstrap.json').read_text())['phase']=='installing'
 
 @pytest.mark.parametrize('existing',['foreign','incomplete','different-tag'])
 def test_existing_directory_preserved(bootstrap,boundary,tmp_path,existing,capsys):
