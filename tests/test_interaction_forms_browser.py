@@ -130,6 +130,7 @@ def test_app_bridge_runs_in_opaque_sandbox_and_preserves_host_tool_result(tmp_pa
         browser = manager.chromium.launch(headless=True)
         try:
             page = browser.new_page(viewport={'width': 1000, 'height': 900})
+            page.clock.install()
             page.set_content('<html><body><iframe id="app" sandbox="allow-scripts" style="width:950px;height:800px;border:0"></iframe></body></html>')
             form = {'reference':'saved-form','kind':'messaging.interface','title':'定义消息接口','revision':0,
                     'phase':'draft','values':{'description':'来自宿主的原草稿'},'schema':{'type':'object','properties':{
@@ -158,5 +159,31 @@ def test_app_bridge_runs_in_opaque_sandbox_and_preserves_host_tool_result(tmp_pa
             page.wait_for_function("events.some(event=>event.method==='tools/call')")
             sent = page.evaluate("events.find(event=>event.method==='tools/call').params.arguments.values")
             assert sent == {'description': '用户正在编辑'}
+            # A native host may wait for its user longer than our former RPC timeout.
+            page.clock.fast_forward(40000)
+            playwright.expect(frame.get_by_role('status')).to_contain_text('等待宿主授权或工具返回')
+            playwright.expect(frame.get_by_role('alert')).not_to_be_visible()
+            playwright.expect(frame.get_by_role('button', name='接入与客户端配置', exact=True)).to_be_disabled()
+            playwright.expect(frame.get_by_role('button', name='保存草稿', exact=True)).to_be_disabled()
+            form.update(revision=1, phase='waiting', readOnly=True,
+                        values={'description':'用户正在编辑'}, result={'data':{'confirmationRef':'confirmation-1'}})
+            page.evaluate("""form=>{
+                const request=events.find(event=>event.method==='tools/call');
+                document.getElementById('app').contentWindow.postMessage({jsonrpc:'2.0',id:request.id,
+                    result:{structuredContent:{status:'completed',data:form}}},'*');
+            }""",form)
+            playwright.expect(frame.locator('#state')).to_have_text('等待确认')
+            playwright.expect(frame.get_by_role('status')).not_to_be_visible()
+            page.clock.fast_forward(60000)
+            assert page.evaluate("events.filter(event=>event.method==='tools/call').length")==1
+            frame.get_by_role('button',name='刷新状态',exact=True).click()
+            page.wait_for_function("events.filter(event=>event.method==='tools/call').length===2")
+            page.evaluate("""()=>{
+                const request=events.filter(event=>event.method==='tools/call').at(-1);
+                document.getElementById('app').contentWindow.postMessage({jsonrpc:'2.0',id:request.id,
+                    result:{isError:true,content:[{type:'text',text:'User declined tool call'}]}},'*');
+            }""")
+            playwright.expect(frame.get_by_role('alert')).to_contain_text('User declined')
+            playwright.expect(frame.get_by_role('button',name='刷新状态',exact=True)).to_be_enabled()
         finally:
             browser.close()

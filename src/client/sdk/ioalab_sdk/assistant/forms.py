@@ -2,6 +2,11 @@
 from ..runtime import FormDefinition, WorkflowDefinition, RuntimeFault
 from ..runtime import form_schema as schema, form_text as text, form_next as next_step
 from .messaging import stable
+from .rules import KEYWORDS
+
+
+MESSAGE_SCHEMA_HELP = ('根类型必须为 object；支持的关键字：' + ', '.join(sorted(KEYWORDS)) +
+    '。title/description 是字符串注解；format 仅 date-time 或 email。结构深度不超过8、总大小不超过16 KiB；不支持引用及其他关键字。')
 
 
 RULE_SCHEMA = {
@@ -11,8 +16,8 @@ RULE_SCHEMA = {
         'description': {'type': 'string', 'title': '用途说明', 'minLength': 1, 'maxLength': 1000},
         'allowedSenders': {'type': ['array', 'null'], 'title': '谁可以发送',
                            'items': {'type': 'string'}, 'uniqueItems': True, 'maxItems': 100},
-        'inputSchema': {'type': 'object', 'title': '消息格式（JSON Schema）'},
-        'outputSchema': {'type': 'object', 'title': '回复格式（JSON Schema）'},
+        'inputSchema': {'type': 'object', 'title': '消息格式（JSON Schema）', 'description': MESSAGE_SCHEMA_HELP},
+        'outputSchema': {'type': 'object', 'title': '回复格式（JSON Schema）', 'description': MESSAGE_SCHEMA_HELP},
         'instructions': {'type': 'string', 'title': '收到消息后怎么做', 'minLength': 1, 'maxLength': 16384},
         'tools': {'type': 'array', 'title': '允许使用的本地工具', 'items': {'type': 'string'}, 'uniqueItems': True},
         'enabled': {'type': 'boolean', 'title': '发布后启用'},

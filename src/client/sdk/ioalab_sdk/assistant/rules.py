@@ -17,7 +17,7 @@ from ..runtime import RuntimeFault,encode
 
 
 FIELDS={'name','description','inputSchema','outputSchema','allowedSenders','enabled','tools'}
-KEYWORDS={'type','properties','required','additionalProperties','items','enum','minimum','maximum','minLength','maxLength','minItems','maxItems','description','format'}
+KEYWORDS={'type','properties','required','additionalProperties','items','enum','minimum','maximum','minLength','maxLength','minItems','maxItems','description','title','format'}
 
 
 def invalid(message):raise RuntimeFault('invalid_input',message,'edit_rule')

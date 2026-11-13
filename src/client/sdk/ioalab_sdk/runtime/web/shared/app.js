@@ -2,13 +2,25 @@ const transport = (()=>{
   let nextId=0,receive,origin=null,ready=false;
   const pending=new Map();
   const target=()=>origin&&origin!=='null'?origin:'*';
-  function request(method,params) {
-    return new Promise((resolve,reject)=>{
-      const id=++nextId;
-      const timer=setTimeout(()=>{pending.delete(id);reject(new Error('请求结果未知，请刷新原表单，不要重新创建业务。'));},35000);
-      pending.set(id,{resolve,reject,timer});
-      parent.postMessage({jsonrpc:'2.0',id,method,params},target());
-    });
+  function notice(text) {
+    const node=document.getElementById('transportStatus');
+    node.textContent=text;node.hidden=!text;
+  }
+  async function request(method,params) {
+    const tool=method==='tools/call';
+    if(tool&&[...pending.values()].some(item=>item.tool))throw new Error('请先完成当前宿主授权或等待原工具返回。');
+    if(tool)notice('等待宿主授权或工具返回，请查看表单外的宿主授权提示。');
+    try {
+      return await new Promise((resolve,reject)=>{
+        const id=++nextId;
+        const timer=setTimeout(()=>{
+          if(tool)notice('仍在等待宿主授权或工具返回。请查看表单外的授权提示；如连接已断开，重开原表单核实结果，不要重复创建业务。');
+          else {pending.delete(id);reject(new Error('宿主连接超时，请重新打开原表单。'));}
+        },35000);
+        pending.set(id,{resolve,reject,timer,tool});
+        parent.postMessage({jsonrpc:'2.0',id,method,params},target());
+      });
+    } finally {if(tool)notice('');}
   }
   function unwrap(result) {
     if(result.isError)throw new Error(result.structuredContent?.error?.message||result.content?.[0]?.text||'操作未完成。');

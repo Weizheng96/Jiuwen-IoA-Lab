@@ -2,7 +2,7 @@
 from fastapi import HTTPException
 from jsonschema import Draft202012Validator,FormatChecker
 
-KEYWORDS={'type','properties','required','additionalProperties','items','enum','minimum','maximum','minLength','maxLength','minItems','maxItems','description','format'}
+KEYWORDS={'type','properties','required','additionalProperties','items','enum','minimum','maximum','minLength','maxLength','minItems','maxItems','description','title','format'}
 
 
 def error(code,message): raise HTTPException(code,message)

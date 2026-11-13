@@ -3,6 +3,7 @@ const $=id=>document.getElementById(id);
 const phases={draft:'草稿',previewed:'已预览',waiting:'等待确认',completed:'已完成',rejected:'已拒绝',failed:'失败',unknown:'待核实原结果',accepted:'已受理',running:'处理中'};
 function problem(error){$('error').textContent=error.message||String(error);$('error').hidden=false;}
 function buttons(){
+  $('setupButton').disabled=busy;
   for(const id of ['save','previewButton','submit','refresh','browser','discard'])$(id).disabled=busy||!current;
   $('discard').hidden=!dirty;
   if(!current)return;
@@ -43,7 +44,7 @@ function render(form,error){
   }
   $('previewSection').hidden=!form.preview;if(form.preview)preview(form.preview);
   $('resultSection').hidden=!form.result;
-  if(form.result){$('result').textContent=JSON.stringify(form.result,null,2);$('resultText').textContent=form.phase==='waiting'?(form.result.data?.confirmationRef?'请打开受控确认页面，核对具体内容并作出决定。客户端会续接原操作。':'正在等待原业务结果。'):(phases[form.phase]||form.phase);}
+  if(form.result){$('result').textContent=JSON.stringify(form.result,null,2);$('resultText').textContent=form.phase==='waiting'?(form.result.data?.confirmationRef?'请打开受控确认页面，核对具体内容并作出决定。客户端会续接原操作。'+(transport.mode==='app'?'完成后返回这里点击“刷新状态”。':''):'正在等待原业务结果。'):(phases[form.phase]||form.phase);}
   buttons();
 }
 $('fields').oninput=()=>{dirty=true;$('error').hidden=true;buttons();};
@@ -72,11 +73,17 @@ async function act(action){
 $('save').onclick=()=>act('update');$('previewButton').onclick=()=>act('preview');$('submit').onclick=()=>act('submit');
 $('refresh').onclick=()=>{if(dirty){problem(new Error('先保存当前草稿，再刷新状态。'));return;}act('get');};
 $('discard').onclick=()=>act('get');
-$('browser').onclick=async()=>{try{await transport.openBrowser(current.reference);}catch(error){problem(error);}};
-$('setupButton').onclick=async()=>{try{await transport.openSetup();}catch(error){problem(error);}};
+async function navigate(open){
+  if(busy)return;
+  busy=true;buttons();$('error').hidden=true;
+  try{await open();}catch(error){problem(error);}
+  finally{busy=false;buttons();}
+}
+$('browser').onclick=()=>navigate(()=>transport.openBrowser(current.reference));
+$('setupButton').onclick=()=>navigate(()=>transport.openSetup());
 buttons();transport.init(render).catch(problem);
 setInterval(async()=>{
-  if(!current||dirty||busy||polling||needsRefresh||!['accepted','running','waiting'].includes(current.phase))return;
+  if(transport.mode==='app'||!current||dirty||busy||polling||needsRefresh||!['accepted','running','waiting'].includes(current.phase))return;
   const original=current;polling=true;
   try{
     const form=await transport.call('get',{reference:original.reference});

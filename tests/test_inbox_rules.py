@@ -122,6 +122,7 @@ def test_actual_preview_change_cannot_reuse_user_approval(rules):
     {'tools':['unconfigured.shell']},
     {'inputSchema':{'type':'object','$ref':'http://external.invalid'}},
     {'inputSchema':{'type':'string'}},
+    {'inputSchema':{'type':'object','title':42}},
     {'allowedSenders':['missing@account.invalid']},
 ])
 def test_unsafe_or_unconfigured_rule_is_rejected_without_side_effects(rules,change):
@@ -199,3 +200,16 @@ def test_bad_name_keeps_existing_draft_scope_schemas_and_instructions_unchanged(
     assert saved['declaration']=={**original,'enabled':True}
     assert saved['instructions']=='只按原定范围处理，不删输出字段。'
     assert rejected=={**original,'name':'私密中文机器名'}
+
+
+def test_schema_titles_survive_preview_and_real_publication(rules):
+    schema=copy.deepcopy(INPUT)
+    schema['title']='来信'
+    schema['properties']['text']['title']='正文'
+    reference,value=draft(rules,inputSchema=schema)
+    assert value['valid']
+    operation=uid()
+    confirmation=accepted(rules,rules.publish(operation,reference,value['contentDigest'],0))
+    result=rules.publish(operation,reference,value['contentDigest'],0,confirmation)
+    assert result['status']=='completed'
+    assert rules.version('travel.update',1)['declaration']['inputSchema']==schema
