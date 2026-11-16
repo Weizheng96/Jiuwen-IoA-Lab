@@ -254,3 +254,25 @@ def test_failed_transition_excludes_concurrent_resume_until_terminal_is_persiste
     assert len(failures) == 1 and len(continuation) == 1 and isinstance(continuation[0], A2CError)
     assert fresh.task(tid).state == "failed"
     assert fresh.store.get("pending_countersigns", tid)["terminal"] == "failed"
+
+
+def test_counter_pre_review_resume_keeps_original_slot_one_and_task(tmp_path, monkeypatch):
+    world, policy, tid = prepared(tmp_path, monkeypatch); fresh = restarted(world, tmp_path, policy)
+    original = fresh.store.get('pending_countersigns', tid); policy.paused = False
+    scopes = []
+    deferred = fresh.resume_material_review(tid, guard=scopes.append)
+    assert policy.calls == 0 and not original['reviewed'] and deferred.task_id == tid
+    result = fresh.finish(deferred)
+    assert result.body['card']['signatures']['1'] == original['body']['card']['signatures']['1']
+    assert result.body['card']['signatures']['2'] and result.task_id == tid and policy.calls == 1
+    assert len(scopes) == 2 and scopes[0] == scopes[1] and len(fresh.tasks) == 1
+
+
+def test_counter_material_guard_reentry_does_not_complete_or_sign(tmp_path, monkeypatch):
+    world, policy, tid = prepared(tmp_path, monkeypatch); fresh = restarted(world, tmp_path, policy)
+    deferred = fresh.resume_material_review(tid, guard=lambda scope: None)
+    original = fresh.store.get('pending_countersigns', tid)
+    world.clock.advance(days=2)
+    with pytest.raises(A2CError): fresh.finish(deferred)
+    assert not fresh.store.get('pending_countersigns', tid)['reviewed'] and not fresh.store.all('cards')
+    assert original['body']['card']['signatures']['2'] is None and policy.calls == 0

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, ContextManager
 
 from ..codec import digest, parse_time
 from ..errors import NOT_ARBITRABLE, A2CError, fail
@@ -55,7 +55,8 @@ def _combine(runs: list[VerifierRun]) -> TargetResult:
 def run_target(refs: Mapping[str, Mapping[str, Any]], *, fetch: Fetch, template: Mapping[str, Any],
                card: Mapping[str, Any], target: str, files: Mapping[str, bytes], period: int | None = None,
                anchored_at: str | None = None, manifest_digest: str | None = None, card_digest: str | None = None,
-               model: ModelPort | None = None, attest: AttestPort | None = None) -> TargetResult:
+               model: ModelPort | None = None, attest: AttestPort | None = None,
+               observation_context: Callable[[str, Mapping, int, Mapping], ContextManager[None]] | None = None) -> TargetResult:
     """Run every verifier of one deliverable (``period`` set) or one material (``period`` None)."""
     runs: list[VerifierRun] = []
     for kind in ("script", "skill", "service"):
@@ -75,7 +76,9 @@ def run_target(refs: Mapping[str, Mapping[str, Any]], *, fetch: Fetch, template:
                 return {"statement": a["statement"], "signedAt": signed_at}
         values = values_for(pkg.manifest["reads"], template, card, material=None if period else target)
         outcome = run(pkg, target=target, values=values, files=files, period=period, anchored_at=anchored_at,
-                      resolver=resolver)
+                      resolver=resolver, resolve_context=(
+                          lambda ordinal, need, ref=ref: observation_context(target, ref, ordinal, need)
+                      ) if kind == "skill" and observation_context is not None else None)
         runs.append(VerifierRun(kind, ref, outcome, attestations))
     return _combine(runs)
 

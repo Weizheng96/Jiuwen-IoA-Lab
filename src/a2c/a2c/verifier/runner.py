@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import json
+import copy
+from contextlib import nullcontext
 import shutil
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence, ContextManager
 
 from ..codec import canonical, digest_bytes
 from ..errors import TEMPLATE_INVALID, fail
@@ -55,7 +57,8 @@ def values_for(reads: Sequence[str], template: Mapping[str, Any], card: Mapping[
 def run(package: Package, *, target: str, values: Mapping[str, Any], files: Mapping[str, bytes],
         period: int | None = None, anchored_at: str | None = None, resolver: Resolver | None = None,
         recorded: Sequence[Mapping[str, Any]] = (), sandbox: Sandbox | None = None,
-        fuel: int = DEFAULT_FUEL) -> Outcome:
+        fuel: int = DEFAULT_FUEL,
+        resolve_context: Callable[[int, Mapping[str, Any]], ContextManager[None]] | None = None) -> Outcome:
     kind = package.manifest["kind"]
     sandbox = sandbox or Sandbox.get(package.manifest["runtime"])
     work = Path(tempfile.mkdtemp(prefix="a2c-files-"))
@@ -93,7 +96,10 @@ def run(package: Package, *, target: str, values: Mapping[str, Any], files: Mapp
             if resolver is None:
                 return Outcome("error", error="no resolver for an external answer", responses=responses,
                                rounds=rounds)
-            responses.append({"need": need, "response": resolver(need)})
+            context = resolve_context(len(responses), copy.deepcopy(need)) if resolve_context else nullcontext()
+            with context:
+                response = resolver(need)
+            responses.append({"need": need, "response": response})
         return Outcome("error", error="too many external requests", responses=responses, rounds=MAX_ROUNDS + 1)
     finally:
         shutil.rmtree(work, ignore_errors=True)

@@ -101,3 +101,55 @@ def test_package_checks():
     blob2 = build({"m.py": "x"}, {**m, "runtime": "cpython-9-wasi"})
     with pytest.raises(A2CError):
         load(blob2, {**ref, "digest": digest_bytes(blob2)}, "script")
+
+
+def test_runner_observation_context_uses_original_response_ordinal():
+    from contextlib import contextmanager
+    observed = []
+    @contextmanager
+    def context(ordinal, need):
+        observed.append((ordinal, need.copy()))
+        need['request'] = {'untrusted_mutation': True}  # context receives an isolated copy
+        yield
+    src = """from a2c_verifier import observe
+def verify(ctx):
+    values = [observe({'q': 1})['v'] for _ in range(3)]
+    return {'status': 'pass', 'checks': values}
+"""
+    original = [{'need': {'kind': 'observe', 'request': {'q': 1}}, 'response': {'v': 1}}]
+    calls = []
+    def resolve(need):
+        calls.append(need)
+        assert need == {'kind': 'observe', 'request': {'q': 1}}
+        return {'v': len(calls) + 1}
+    out = _run(src, kind='skill', recorded=original, resolver=resolve, resolve_context=context)
+    assert out.status == 'pass' and out.checks == [1, 2, 3]
+    assert [ordinal for ordinal, _ in observed] == [1, 2] and len(calls) == 2
+
+
+def test_material_observation_context_replays_same_need_after_paused_second_call():
+    from contextlib import contextmanager
+    src = """from a2c_verifier import observe
+def verify(ctx):
+    values = [observe({'q': 1})['v'] for _ in range(2)]
+    return {'status': 'pass', 'checks': values}
+"""
+    saved = {}; seen = []; active = []; stopped = [True]; dispatches = []
+    @contextmanager
+    def context(ordinal, need):
+        seen.append((ordinal, need.copy())); active.append(ordinal)
+        try:
+            if ordinal == 1 and stopped[0]: raise RuntimeError('machine proven not submitted')
+            yield
+        finally: active.pop()
+    def resolve(need):
+        ordinal = active[-1]
+        if ordinal not in saved:
+            dispatches.append(ordinal); saved[ordinal] = {'v': ordinal + 1}
+        return saved[ordinal]
+    with pytest.raises(RuntimeError): _run(src, kind='skill', resolver=resolve, resolve_context=context)
+    assert dispatches == [0]
+    stopped[0] = False
+    out = _run(src, kind='skill', resolver=resolve, resolve_context=context)
+    assert out.status == 'pass' and out.checks == [1, 2] and dispatches == [0, 1]
+    assert seen[0] == seen[2] and seen[1] == seen[3]

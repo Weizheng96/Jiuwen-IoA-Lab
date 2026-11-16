@@ -94,3 +94,68 @@ def test_returned_decision_and_unknown_signing_never_reenter_the_policy(tmp_path
     assert len(calls)==1 and calls[0]['card']['signatures']['2'] and policy.calls==2
     with pytest.raises(A2CError) as error:world.provider.resume_request(task_id)
     assert error.value.code=='out-of-order' and len(calls)==1 and policy.calls==2
+
+
+def test_pre_review_preparation_is_local_and_restores_original_request(tmp_path, monkeypatch):
+    world, policy, request, tid = prepared(tmp_path, monkeypatch)
+    fresh = restarted(world, tmp_path, policy); policy.paused = False
+    original = copy.deepcopy(fresh.store.get('pending_requests', tid)); scopes = []
+    with monkeypatch.context() as local:
+        def forbidden(*a, **k): pytest.fail('preparation performed an execution effect')
+        local.setattr(fresh, '_materials', forbidden); local.setattr(fresh, 'fetch', forbidden)
+        local.setattr(fresh, 'model', forbidden); local.setattr(fresh.policy, 'draft', forbidden)
+        local.setattr(world.net, 'send', forbidden)
+        with pytest.raises(A2CError): fresh.resume_request(tid)
+        deferred = fresh.resume_material_review(tid, guard=scopes.append)
+        assert deferred.task_id == tid and deferred.state == 'working'
+        assert fresh.store.get('pending_requests', tid) == original and policy.calls == 0
+    result = fresh.finish(deferred)
+    assert result.task_id == tid and result.state == 'completed' and policy.calls == 1
+    assert len(scopes) == 2 and scopes[0] == scopes[1] and scopes[0].request_id == request['requestId']
+    assert len(world.psp.ledger) == 1 and len(fresh.tasks) == 1
+    with pytest.raises(A2CError): fresh.resume_material_review(tid, guard=scopes.append)
+
+
+def test_pre_review_old_unsealed_record_refuses_without_mutation(tmp_path, monkeypatch):
+    world, policy, _, tid = prepared(tmp_path, monkeypatch)
+    fresh = restarted(world, tmp_path, policy); record = fresh.store.get('pending_requests', tid)
+    record.pop('material_seal'); fresh.store.put('pending_requests', tid, record)
+    before = copy.deepcopy(fresh.store.all('pending_requests'))
+    with pytest.raises(A2CError): fresh.resume_material_review(tid, guard=lambda _: pytest.fail('unsealed proof admitted'))
+    assert fresh.store.all('pending_requests') == before and policy.calls == 0
+
+
+def test_pre_review_finish_rechecks_guard_before_materials(tmp_path, monkeypatch):
+    world, policy, _, tid = prepared(tmp_path, monkeypatch); fresh = restarted(world, tmp_path, policy)
+    checks = []
+    def guard(scope):
+        checks.append(scope)
+        if len(checks) > 1: raise RuntimeError('original execution proof changed')
+    deferred = fresh.resume_material_review(tid, guard=guard)
+    with pytest.raises(RuntimeError): fresh.finish(deferred)
+    assert fresh.task(tid).state == 'working'
+    assert not fresh.store.get('pending_requests', tid)['reviewed'] and policy.calls == 0
+
+
+def test_material_resume_retains_sealed_template_not_changed_store_value(tmp_path, monkeypatch):
+    world, policy, request, tid = prepared(tmp_path, monkeypatch); policy.paused = False
+    fresh = restarted(world, tmp_path, policy)
+    template = fresh.template(request['templateDigest']); template['validUntil'] = '2000-01-01T00:00:00Z'
+    fresh.store.put('templates', request['templateDigest'], template)
+    result = fresh.finish(fresh.resume_material_review(tid, guard=lambda scope: None))
+    assert result.state == 'completed' and policy.calls == 1 and len(world.psp.ledger) == 1
+
+
+@pytest.mark.parametrize('fault', ['body', 'file', 'template', 'seal', 'deadline', 'terminal'])
+def test_material_preparation_rejects_changed_original_snapshot(tmp_path, monkeypatch, fault):
+    world, policy, _, tid = prepared(tmp_path, monkeypatch); fresh = restarted(world, tmp_path, policy)
+    rec = fresh.store.get('pending_requests', tid)
+    if fault == 'body': rec['body']['request']['version'] += 1
+    elif fault == 'file': rec['files'][next(iter(rec['files']))] = 'Y2hhbmdlZA=='
+    elif fault == 'template': rec['material_seal']['template']['validUntil'] = '2000-01-01T00:00:00Z'
+    elif fault == 'seal': rec['material_seal']['bodyDigest'] = 'changed'
+    elif fault == 'deadline': world.clock.advance(days=2)
+    elif fault == 'terminal': rec['terminal'] = 'failed'
+    fresh.store.put('pending_requests', tid, rec)
+    with pytest.raises(A2CError): fresh.resume_material_review(tid, guard=lambda _: pytest.fail('invalid scope'))
+    assert policy.calls == 0
