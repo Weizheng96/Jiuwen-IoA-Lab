@@ -19,6 +19,10 @@ def prepare(service_id, *, profile, verifier_ref, payment_provider, now=None):
     definition = next((item for item in definitions() if item['id'] == service_id), None)
     if definition is None:
         raise ValueError('Unknown official service ID')
+    definition = deepcopy(definition)
+    deadlines = definition.setdefault('deadlines', {})
+    for field in ('respondWithin', 'acceptWithin', 'authorizeWithin'):
+        deadlines.setdefault(field, 'PT24H')
     verifier = definition['verifier']
     if (not isinstance(verifier_ref, dict) or set(verifier_ref) != {'id', 'uri', 'digest'}
             or verifier_ref.get('id') != verifier['id']
@@ -49,7 +53,7 @@ def prepare(service_id, *, profile, verifier_ref, payment_provider, now=None):
         'pricing': deepcopy(definition['pricing']),
         'acceptance': {deliverable['name']: {'verifiers': {verifier.get('kind', 'script'): deepcopy(verifier_ref)},
                                             'notCovered': list(definition.get('notCovered', []))}},
-        'acceptWithin': {deliverable['name']: definition.get('deadlines', {}).get('acceptWithin', 'PT15M')},
+        'acceptWithin': {deliverable['name']: definition.get('deadlines', {}).get('acceptWithin', 'PT24H')},
         'requiredAuthorizations': deepcopy(definition.get('steps', [])),
     }
     instructions = '\n'.join(part for part in (generator.get('system', ''), generator.get('quote_system', ''),

@@ -299,7 +299,17 @@ def test_home_language_navigation_and_real_public_stats(browser, platform):
         assert page.locator('.side-nav a').all_text_contents() == [
             '智能体网络', '如何接入', '发现专业服务', '发现个人助手', '我的智能体', '管理者全局', '在线试用']
         assert page.locator('.side-nav a').evaluate_all('(links)=>links.map(a=>a.getAttribute("href"))') == [
-            '/#network', '/connect', '/services', '/assistants', '/workbench', '/admin', '/trial']
+            '/#network', '/connect', '/services', '/assistants', '/workbench', '/admin', None]
+        # Online trial is closed for now: shown greyed out and not selectable on the home and shell navigation.
+        assert page.locator('.side-nav a.nav-disabled[aria-disabled="true"]').all_text_contents() == ['在线试用']
+        assert page.locator('.mobile-nav a.nav-disabled[aria-disabled="true"]').count() == 1
+        shell = session.context.new_page()
+        shell.goto(session.base + '/services')
+        shell.wait_for_selector('.shell-sidebar nav a')
+        assert shell.locator('.shell-sidebar nav a.nav-disabled').evaluate_all(
+            '(links)=>links.map(a=>[a.textContent,a.getAttribute("href"),a.getAttribute("aria-disabled")])') == [
+            ['在线试用', None, 'true']]
+        shell.close()
         assert page.locator('.home-header a[href="/services"],.home-header a[href="/assistants"]').count() == 0
         stats = page.request.get(platform.s.base_url + '/api/public/stats').json()
         for key, value in stats.items():

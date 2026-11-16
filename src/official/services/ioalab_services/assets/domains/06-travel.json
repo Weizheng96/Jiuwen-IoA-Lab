@@ -43,10 +43,10 @@
    },
    "inputs": [],
    "deadlines": {
-    "respondWithin": "PT10M",
+    "respondWithin": "PT24H",
     "startWithin": "PT30M",
     "deliverWithin": "PT30M",
-    "acceptWithin": "PT15M"
+    "acceptWithin": "PT24H"
    },
    "pricing": {
     "proposalFee": 1,
@@ -131,10 +131,10 @@
    },
    "inputs": [],
    "deadlines": {
-    "respondWithin": "PT10M",
+    "respondWithin": "PT24H",
     "startWithin": "PT30M",
     "deliverWithin": "PT30M",
-    "acceptWithin": "PT15M"
+    "acceptWithin": "PT24H"
    },
    "pricing": {
     "price": "6"
@@ -239,10 +239,10 @@
    },
    "inputs": [],
    "deadlines": {
-    "respondWithin": "PT10M",
+    "respondWithin": "PT24H",
     "startWithin": "PT30M",
     "deliverWithin": "PT30M",
-    "acceptWithin": "PT15M"
+    "acceptWithin": "PT24H"
    },
    "pricing": {
     "price": "4"
@@ -352,10 +352,10 @@
    },
    "inputs": [],
    "deadlines": {
-    "respondWithin": "PT10M",
+    "respondWithin": "PT24H",
     "startWithin": "PT30M",
     "deliverWithin": "PT30M",
-    "acceptWithin": "PT15M"
+    "acceptWithin": "PT24H"
    },
    "pricing": {
     "price": "7"
@@ -495,10 +495,10 @@
    },
    "inputs": [],
    "deadlines": {
-    "respondWithin": "PT10M",
+    "respondWithin": "PT24H",
     "startWithin": "PT30M",
     "deliverWithin": "PT30M",
-    "acceptWithin": "PT15M"
+    "acceptWithin": "PT24H"
    },
    "pricing": {
     "price": "5"
@@ -602,10 +602,10 @@
    },
    "inputs": [],
    "deadlines": {
-    "respondWithin": "PT10M",
+    "respondWithin": "PT24H",
     "startWithin": "PT30M",
     "deliverWithin": "PT30M",
-    "acceptWithin": "PT15M"
+    "acceptWithin": "PT24H"
    },
    "pricing": {
     "price": "16"
