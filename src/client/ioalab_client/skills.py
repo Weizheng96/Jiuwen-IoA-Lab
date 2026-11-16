@@ -9,12 +9,17 @@ import zipfile
 from .layout import binding, configuration_path
 
 
-def skill_manifest(files, bound):
-    return {'format': 'ioalab.skill/1', 'binding': bound,
+def skill_manifest(files, bound, source_binding=None):
+    return {'format': 'ioalab.skill/2', 'binding': bound, 'sourceBinding': source_binding,
             'files': {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}}
 
 
-def export_skills(output, *, source=None, python=None, config=None):
+def export_skills(output, *, source=None, python=None, config=None, host=None, host_ref=None):
+    if host is not None:
+        from .runtime import registry
+        registry({'default':host_ref or host,'registrations':{host_ref or host:{'type':host}}})
+    elif host_ref is not None:
+        raise ValueError('A source registration requires a host type')
     source = Path(source) if source else Path(__file__).parent/'data/skills'
     python = Path(python or sys.executable).absolute()
     output = Path(output).expanduser().resolve()
@@ -32,8 +37,10 @@ def export_skills(output, *, source=None, python=None, config=None):
         launcher = launcher.replace('__IOALAB_ROLE__', role)
         launcher = launcher.replace('__IOALAB_PYTHON__', repr(str(python)))
         launcher = launcher.replace('__IOALAB_CONFIG__', repr(str(configuration_path(config))))
+        launcher = launcher.replace('__IOALAB_HOST_TYPE__',repr(host))
+        launcher = launcher.replace('__IOALAB_HOST_REF__',repr(host_ref or host))
         files['scripts/ioalab.py'] = launcher.encode('utf-8')
-        files['.ioalab-skill.json'] = json.dumps(skill_manifest(files, binding(config, python)),
+        files['.ioalab-skill.json'] = json.dumps(skill_manifest(files, binding(config, python), {"hostType":host,"hostRef":host_ref or host} if host else None),
                                                  sort_keys=True, ensure_ascii=True).encode('utf-8')
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:

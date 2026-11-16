@@ -16,6 +16,8 @@ Windows使用已核解释器，Linux用python3.11或已核绝对CPython3.11。�
 
 SDK首次写动作会保存operationId。等待、未知和原动作恢复均重用原参数文件及标识；不覆盖文件或删除ID。新的业务决定、明确拒绝后的修正才建新文件，按流程白名单提取业务字段，不复制旧operationId或confirmationRef。换文件名但带旧ID仍是旧动作。中文转义不是乱码，不据此重写合同。
 
+宿主原生机制交付不透明来源引用时，同一命令加 `--context-ref "<宿主原样交付的引用>"`。不要自行填写会话或工作目录；引用不放入业务JSON。缺失或过期时，新业务效果明确未就绪；原flow/operation恢复沿已保存来源，不更换绑定。
+
 ## 异步与结果
 
 operations.get参数为{"reference":{"kind":"job","id":"实际UUID"}}；完整复制data.reference。若原回执data.job.reference为UUID字符串，用它作reference.id，保留kind="job"。履约也可按其流程用原fulfillmentOperationId查status；顶层operationId用于本次调用幂等。

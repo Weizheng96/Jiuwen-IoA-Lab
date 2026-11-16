@@ -1,6 +1,35 @@
 """Host selection and durable bindings; business state remains in the original runtime."""
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+from contextlib import contextmanager
+from contextvars import ContextVar
+from collections.abc import Callable
+
+@dataclass(frozen=True)
+class PendingSource:
+    resolve: Callable[[], "HostContext"]
+
+_native_source = ContextVar("ioalab_native_source", default=None)
+
+def pending_source():
+    return _native_source.get()
+
+def native_source():
+    value=_native_source.get()
+    return value.resolve() if isinstance(value,PendingSource) else value
+
+@contextmanager
+def source_scope(context):
+    token = _native_source.set(context)
+    try: yield
+    finally: _native_source.reset(token)
+
+def source_value(context):
+    return {"hostRef":context.host_ref,"sessionId":context.session_id,"workspace":context.workspace} if context else None
+
+def source_context(value):
+    return HostContext(value["hostRef"],value["sessionId"],value["workspace"]) if value else None
+
 import json
 
 from .protocol import RuntimeFault, encode

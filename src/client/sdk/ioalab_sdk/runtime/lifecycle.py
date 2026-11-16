@@ -99,6 +99,8 @@ def run(argv,*,modules,validate,service_fields):
     call.add_argument('operation')
     call.add_argument('--config',type=Path,required=True)
     call.add_argument('--args-file',type=Path)
+    call.add_argument('--context-ref')
+    call.add_argument('--host-ref')
     args=parser.parse_args(argv)
     runtime=None
     try:
@@ -151,7 +153,11 @@ def run(argv,*,modules,validate,service_fields):
                 values['bootId']=client.call('runtime.status')['data']['bootId']
             values['operationId']=operation
             if args.args_file:private_json(args.args_file,values)
-            result=client.call(args.operation,{key:value for key,value in values.items() if key!='operationId'},operation_id=operation)
+            metadata=None
+            if args.context_ref:
+                if not args.host_ref:raise RuntimeFault('invalid_input','Native source requires the bound host reference')
+                metadata={'hostRef':args.host_ref,'reference':args.context_ref}
+            result=client.call(args.operation,{key:value for key,value in values.items() if key!='operationId'},operation_id=operation,context_ref=metadata)
             if args.operation=='runtime.status' and result['status']=='completed':
                 actual=result['data'].get('installation')
                 try:require_matching(actual,assembly=actual.get('assembly') if isinstance(actual,dict) else None)

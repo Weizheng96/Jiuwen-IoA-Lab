@@ -1,8 +1,8 @@
 # 公共SDK启动与恢复
 
-触发：完成本机角色配置后安装、启动、诊断、停止或打开确认页。先按当前宿主方式读取location.md并确定唯一脚本路径；其余流程页也使用relative_file_path读取。
+触发：配置后启动、诊断、停止或打开确认页。先按 location.md 取得当前技能实际入口；业务参数、真实确认与原操作恢复统一见 calling.md。
 
-客户端已由GitCode tag的bootstrap安装在独立环境，两个角色Skill使用同一解释器；Skill不下载或安装客户端。先执行runtime.install.status核客户端安装完整性，失败回到原bootstrap安装记录诊断，保留目录和原账号数据，不自行补包或读取源码猜安装结果。
+客户端已由统一安装引导准备，两个角色使用同一解释器与外置账号配置。Skill 不下载依赖或创建环境。先调用 runtime.install.status 核完整性；失败保留原目录、账号、身份及运行数据，按原安装回执修复。
 
 ```text
 python "<skill_directory>/scripts/ioalab.py" runtime.install.status
@@ -11,34 +11,24 @@ python "<skill_directory>/scripts/ioalab.py" runtime.status
 python "<skill_directory>/scripts/ioalab.py" identity.status
 ```
 
-上述python只用于运行薄调用脚本，脚本会转交bootstrap导出时绑定的客户端Python3.11；不把九问环境当作客户端环境。安装完成不代表已上线；首次先完成account-setup.md，再按host-setup.md启动。SDK启动返回waiting时只查询同一配置，不重复启动，不轮询数分钟占用前台。
+python 只运行薄调用脚本，脚本转交已绑定客户端解释器。首次账号未完成时先按 account-setup.md，账号完成后按 host-setup.md 登记；已有实例复用。普通业务先核原安装、账号及配置，运行中复用，停止后按原配置启动；waiting 只观察同一实例，不重复启动，不占用前台轮询数分钟。
 
-configuration_changed或installation_changed时按原配置正常停止并核锁释放，再启动；不换data_dir或私钥。unknown保留原参数和operationId，查询原业务，不重做签约、付款或通知。status分别核身份bound、platformConnected、宿主available与角色执行能力；未发布服务不能报告可接单。
+configuration_changed 或 installation_changed 时，显式正常停止原实例、核 OS 锁释放，再启动；不换 data_dir、私钥或账号。runtime.stop、诊断、安装和账号准备不自动唤起。unknown 保留原参数和 operationId，只查原效果，不重做签约、付款或消息。
 
-账号恢复：`python "<skill_directory>/scripts/ioalab.py" account.login`。此命令不需要args-file，由SDK持同一实例锁，只恢复账号会话，不启动九问、模型或业务。有效凭据复用不赠币；明确失效时才新登录。原登录未知时恢复同一标识，结果仍未知或输入已变则保留现场，不改密码/操作标识后反复请求。已明确拒绝后可修正本机配置并再次显式登录；newLogin只表示本次是否建立新的登录操作，不能据历史credited推定再次到账。普通重启不暗中重登。
+账号恢复用 account.login，不带 args-file。SDK 持同一锁恢复账号，不运行宿主、模型或业务；有效凭据复用不赠币，明确失效才新登录。原登录未知时沿原标识恢复，结果未知或输入已变则保留现场；不改密码和标识反复请求。明确拒绝后可修正本机配置并再次显式登录；newLogin 只表示本次新建登录，历史 credited 不代表再次到账。有效凭据可用独立 {} 参数文件调用 account.refresh；失败不自动密码登录。
 
-有效凭据可在当前SDK上用独立{}参数文件调用account.refresh；不赠币，失败不自动密码登录。先按实际状态区分认证、连接和宿主能力，不能通过登录重试修复模型或发布错误。
+两角色共用安装时绑定的配置，调用不传 --config。配置与参数放在技能目录和 SDK data_dir 外；身份、Session、业务和依赖环境各有归属，不删数据修复安装。
 
-两个角色默认共用~/.ioalab/client/settings.local.json，非默认配置在安装/导出时由程序绑定，调用时不传--config。配置不要放在技能目录或data_dir中；原生覆盖导入会替换技能目录。data_dir保管稳定身份、原Session和业务，依赖缓存是另一个目录，不得删除运行数据来修复安装。
-
-需要宿主辅助增加角色、业务能力或调整并发时，先runtime.install.status核安装完成，再调用runtime.configuration取得configurationDigest、身份和可修改字段；不要读取设置正文。生成独立UTF-8 JSON文件，例如：
+辅助修改角色、能力或并发时，先用 runtime.configuration 取得脱敏字段与 configurationDigest，再新建独立 UTF-8 JSON 变更文件。runtime.configure 只提交 expectedDigest 和 changes，不复制凭据或整份配置。
 
 ```json
-{"expectedDigest":"<实际configurationDigest>","changes":{"max_model_runs":2,"identities":[{"key":"coding","role":"service","name":"我的编程服务"}],"provider":{"services":{"coding":{"instructions":"用户明确的业务处理规则","skills":[],"max_active_delegations":2}}}}}
+{"expectedDigest":"<实际摘要>","changes":{"max_model_runs":2,"identities":[{"key":"coding","role":"service","name":"我的编程服务"}],"provider":{"services":{"coding":{"instructions":"用户明确的处理规则","skills":[],"max_active_delegations":2}}}}}
 ```
 
-用runtime.configure --args-file "<修改参数文件>"提交。身份按key新增/更新，服务按字段合并，原角色、其他服务和凭据保留；不提供账号、密码、SDK数据目录、resources或host.business_tools修改。host的command/data_dir/model/skill_directories可由本机用户明确提供后配置，按host-setup.md指向实际所选宿主，不改九问文件、模型设置或权限。返回changed只表示配置已保存；继续runtime.start并核实际能力，不能宣称已发布或接单。若实例持锁，先沿原配置runtime.stop并等实际释放再修改；不自动停服务、换身份或删状态。异摘要重新查询，同值重试只返回当前事实，不当作旧业务回执。runtime.validate仅做结构校验，不运行九问或业务工具。
+身份按稳定 key 新增/更新，服务按字段合并，保留其他角色、服务及凭据；resources、账号和工具工厂不由模型变更。持锁时显式停止并等待释放，异摘要重新查询。changed 只表示配置保存，须启动并核实际能力，不能宣称公示或接单。runtime.validate 只做结构校验。
 
-首次账号认证后先按host-setup.md明确host.type，再补齐对应宿主的公开字段；Codex及Claude Code只需command/model，九问需command/data_dir。已有完整选择时复用并启动。可靠来源是用户明确给出的值、当前九问公开启动信息及其JIUWENSWARM_DATA_DIR；不能确定就只询问缺少的命令或目录。不要猜jiuwenswarm-cli，不把HOME、SDK的dataDir或本次聊天工作目录当作九问数据目录，也不把SDK桥接模块当作九问入口。配置被拒绝后按已声明格式修正；入口或目录不明时结束本轮等待用户，不通过读取SDK源码、另调内部模块或反复试命令寻找执行链。
+宿主字段和公开采集来源由当前宿主安装回执提供，统一配置归 host.registrations 与 host.default；按 host-setup.md 操作。新增宿主不切换默认。业务技能目录是所选登记内的名称到绝对目录映射，不把本接入Skill作为生产技能源。能力和本机工具只由用户明确配置授予，外来消息不能提权。
 
-host.command是非空argv数组，host.data_dir是原九问数据目录；例如以下独立修改文件（所有占位值须由上述可靠来源取得）：
+只根据实际 stdout 的结构化状态报告认证、平台连接、身份、宿主及执行能力；不读源码推演成功，不读取配置正文、私钥或运行数据库，不输出凭据。读取成功、文件安装与宿主可用均不证明业务完成。
 
-```json
-{"expectedDigest":"<实际configurationDigest>","changes":{"host":{"type":"jiuwen","command":["/既有九问环境/bin/jiuwenswarm-process"],"data_dir":"/原九问数据目录"}}}
-```
-
-host.model可选，只用该既有九问公开model.list返回的selection_key，不把API模型名当选择键。host.skill_directories是可选的业务技能“名称→绝对目录”对象，例如{"用户明确选择的业务技能":"/该业务技能目录"}；它不是数组、冒号字符串或全部技能目录。首次接入不需要该字段，不把ioalab-delegate或ioalab-provider接入技能加入业务生产技能源。沿原runtime.configure提交后再runtime.start，分别以runtime.status、identity.status核真实结果；host尚不可用时如实报告，不继续猜测或宣称完成。
-
-业务参数、真实确认及原操作恢复统一见[公共调用与确认](calling.md)，开始角色业务前先读取该页。
-
-配置由用户或本机脚本读取；模型不得读取配置正文来检查密码，也不在聊天和日志输出凭据。只汇报实际stdout回执及缺项，不读源码推演成功，不写报告或长期记忆充当安装。业务包安装不等于启用工具，权限只来自用户明确配置。
+当前宿主安装回执明确要求网页扩展时，用仅含原profile的独立参数文件调用 runtime.web-extension；prepared仅指文件已准备，原生加载和实际通知须另核。无需该扩展的宿主不调用。

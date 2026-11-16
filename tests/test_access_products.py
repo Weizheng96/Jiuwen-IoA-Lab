@@ -108,11 +108,13 @@ def test_complete_role_operation_is_forwarded_without_alias_or_error_reclassific
     expected={'status':status,'data':{'reference':'original'},'error':error};calls=[]
     def invoke(actual_python,command):
         calls.append((actual_python,command))
+        if command[1:3]==['ioalab_client.runtime','start']:
+            return SimpleNamespace(stdout=json.dumps({'status':'completed','data':{}}),stderr='',returncode=0)
         return SimpleNamespace(stdout=json.dumps(expected),stderr='',returncode=1 if status=='rejected' else 0)
     monkeypatch.setattr(module,'invoke',invoke)
     assert module.main(['--role',role,operation,'--config',str(config),'--args-file',str(arguments)])==(1 if status=='rejected' else 0)
     assert json.loads(capsys.readouterr().out)==expected
-    assert calls==[(python,['-m','ioalab_sdk.access','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
+    assert calls==[(python,['-m','ioalab_client.runtime','start','--config',str(config.resolve())]),(python,['-m','ioalab_sdk.access','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
     assert json.loads(arguments.read_text())=={'request':'unchanged'} and not config.exists()
 
 
@@ -175,3 +177,31 @@ def test_old_installation_status_preserves_observation_and_allows_safe_stop(plat
         assert stopped['status']=='completed' and stopped['data']['preserved']
         assert stopped['data']['bootId']==before['data']['bootId']
     finally:runtime.close()
+
+
+@pytest.mark.parametrize('operation',['runtime.stop','account.refresh','operations.get'])
+def test_control_and_original_observation_never_auto_start(tmp_path,monkeypatch,capsys,operation):
+    from types import SimpleNamespace
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    monkeypatch.setattr(module,'ensure_running',lambda *args:pytest.fail('Control recursively started the runtime'))
+    calls=[]
+    def invoke(python,command):
+        calls.append(command)
+        return SimpleNamespace(stdout=json.dumps({'status':'completed','data':{},'error':None}),stderr='',returncode=0)
+    monkeypatch.setattr(module,'invoke',invoke)
+    assert module.main(['--role','assistant',operation,'--config',str(tmp_path/'config.json')])==0
+    assert len(calls)==1 and calls[0][1:3]==['ioalab_sdk.access','call']
+
+
+def test_business_waiting_start_never_submits_or_rewrites_original_arguments(tmp_path,monkeypatch,capsys):
+    from types import SimpleNamespace
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    waiting={'status':'waiting','data':{'startingOrBusy':True},'error':{'code':'not_ready'}}
+    monkeypatch.setattr(module,'ensure_running',lambda *args:SimpleNamespace(stdout=json.dumps(waiting),returncode=0))
+    monkeypatch.setattr(module,'invoke',lambda *args:pytest.fail('Busy runtime received a new business call'))
+    path=tmp_path/'original.json';path.write_text('{"operationId":"keep-original"}')
+    assert module.main(['--role','assistant','assistant.delegation.flow','--args-file',str(path)])==0
+    assert json.loads(capsys.readouterr().out)==waiting
+    assert json.loads(path.read_text())=={'operationId':'keep-original'}

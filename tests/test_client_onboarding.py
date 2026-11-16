@@ -186,3 +186,28 @@ def test_external_account_config_does_not_change_reported_client_location(tmp_pa
     assert result['clientDirectory'] == str(root)
     assert result['programDirectory'] == str(root/'env')
     assert result['configurationFile'] == str((tmp_path/'private/settings.json').resolve())
+
+
+def test_same_role_markdown_and_references_are_identical_across_three_host_exports(tmp_path):
+    from ioalab_client.skills import export_skills
+    snapshots=[]
+    for host in ('codex','claude_code','jiuwen'):
+        files=export_skills(tmp_path/host,source=SOURCE,host=host,host_ref='registered-'+host)
+        roles=[]
+        for path in files:
+            with zipfile.ZipFile(path) as archive:
+                roles.append({name:archive.read(name) for name in archive.namelist() if name.endswith('.md')})
+                launcher=next(archive.read(n).decode() for n in archive.namelist() if n.endswith('/scripts/ioalab.py'))
+                assert 'registered-'+host in launcher
+        snapshots.append(roles)
+    assert snapshots[0]==snapshots[1]==snapshots[2]
+
+
+@pytest.mark.parametrize('package_host,package_ref',[('claude_code','codex'),('codex','other-codex')])
+def test_native_status_refuses_other_host_or_registration_binding(tmp_path,monkeypatch,package_host,package_ref):
+    from ioalab_client.skills import export_skills
+    from ioalab_client.native_skills import status
+    monkeypatch.setattr(Path,'home',lambda:tmp_path)
+    for path in export_skills(tmp_path/'exports',source=SOURCE,host=package_host,host_ref=package_ref):
+        with zipfile.ZipFile(path) as archive:archive.extractall(tmp_path/'.agents/skills')
+    assert not any(item['installed'] for item in status('codex',host_ref='codex'))

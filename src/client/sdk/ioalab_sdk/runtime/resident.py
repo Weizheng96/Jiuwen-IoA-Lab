@@ -23,6 +23,7 @@ from .installation import current as current_installation
 class ResidentRuntime:
     def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=(),modules=(),assembly=None,host_registry=None):
         self.config=config
+        self.host_registry=host_registry
         self.installation=current_installation(assembly)
         self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=None
         self.identities=[]
@@ -125,7 +126,20 @@ class ResidentRuntime:
         if not pending:raise RuntimeFault('not_ready','Original operation is not stored in this instance')
         return {'status':'accepted','response':None,'reference':reference}
 
-    def call(self,operation,operation_id,args):
+    def call(self,operation,operation_id,args,*,context_ref=None):
+        from .host_registry import source_scope,PendingSource
+        context=None
+        if context_ref is not None:
+            if (not isinstance(context_ref,dict) or set(context_ref)!={'hostRef','reference'} or
+                any(not isinstance(v,str) or not 1<=len(v)<=8192 for v in context_ref.values())):
+                raise RuntimeFault('invalid_input','Use an opaque native source reference')
+            if self.host_registry is None:
+                raise RuntimeFault('not_ready','The native host registry is unavailable','configure_host')
+            context=PendingSource(lambda:self.host_registry.resolve_context(context_ref['hostRef'],context_ref['reference'],config=self.config))
+        with source_scope(context):
+            return self._call(operation,operation_id,args)
+
+    def _call(self,operation,operation_id,args):
         try:
             state='completed'
             if operation=='runtime.status':

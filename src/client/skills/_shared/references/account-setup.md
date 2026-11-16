@@ -1,6 +1,6 @@
 # 首次账号引导
 
-公开接入沿README_AGENT.md的Git路径取得统一客户端。已下载Skill后，九问经原生菜单导入并选择、用skill_tool读取；Codex和Claude Code通过各自原生技能目录加载并读取实际技能目录中的SKILL.md及其引用页。三者均通过同一SDK本机账号页提供已有账号或生成账号，不要求Codex或Claude Code使用九问菜单。
+公开接入沿安装引导取得统一客户端，通过当前宿主原生入口加载两角色Skill，再用同一SDK本机账号页提供已有账号或生成账号。账号密码不经模型或聊天。
 
 先读location.md定位实际脚本，核CPython3.11。平台默认https://ioalab.openjiuwen.com；已有配置或用户已提供的platform_url优先。不先询问平台地址：SDK的account.setup先探测实际/api/config，只有返回stage=platform、nextAction=ask_platform_url时才询问用户完整地址；证书或网络失败不绕过TLS。已有账号与未知注册保留原平台和身份，不因探测失败重建。先调用runtime.install.status核统一客户端安装completed；不向用户要求手写命令或配置秘密。首次账号阶段优先按本页执行，shared-runtime.md中“普通接入完成安装后runtime.start”只适用于账号配置已经完成的实例。安装完成后，用独立非秘密JSON文件传递平台与角色，例如：
 
@@ -17,7 +17,7 @@ python "<skill_directory>/scripts/ioalab.py" account.setup --args-file "<非秘�
 python "<skill_directory>/scripts/ioalab.py" account.setup.status
 ```
 
-SDK打开本机账号页，用户在页内填写账号密码，或点击帮我注册并按需输入邀请码。模型不索要密码、邀请码，不读账号配置正文或账号日志。随机凭据可在本机页查看并保管。waiting只表示等待本机用户；completed只表示账号认证，不能说已连上九问或可接单。取消或页面到期后再次account.setup，原未知注册先恢复，不改账号反复注册。关闭注册、邀请码无效、重名按实际本机提示处理；网络故障和限流等待后恢复原请求。
+SDK打开本机账号页，用户在页内填写账号密码，或点击帮我注册并按需输入邀请码。模型不索要密码、邀请码，不读账号配置正文或账号日志。随机凭据可在本机页查看并保管。waiting只表示等待本机用户；completed只表示账号认证，不能说宿主已就绪或可接单。取消或页面到期后再次account.setup，原未知注册先恢复，不改账号反复注册。关闭注册、邀请码无效、重名按实际本机提示处理；网络故障和限流等待后恢复原请求。
 
 | 当前实际阶段 | 唯一继续步骤 |
 |---|---|

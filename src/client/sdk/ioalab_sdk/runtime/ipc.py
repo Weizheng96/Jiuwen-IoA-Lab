@@ -88,11 +88,12 @@ class IpcServer:
                         consumed=True
                         request=json.loads(body)
                     except (ValueError,RecursionError):raise RuntimeFault('invalid_input','Invalid local JSON request') from None
-                    if not isinstance(request,dict) or set(request)!={'operation','operationId','arguments'}:
+                    if not isinstance(request,dict) or not {'operation','operationId','arguments'} <= set(request) or set(request)-{'operation','operationId','arguments','contextRef'}:
                         raise RuntimeFault('invalid_input','Expected operation, operationId and arguments')
                     if not isinstance(request['operation'],str) or not 1<=len(request['operation'])<=100 or not isinstance(request['operationId'],str) or not 1<=len(request['operationId'])<=128 or not isinstance(request['arguments'],dict):
                         raise RuntimeFault('invalid_input','Invalid local operation fields')
-                    result=owner.dispatch(request['operation'],request['operationId'],request['arguments'])
+                    metadata = {'context_ref': request['contextRef']} if 'contextRef' in request else {}
+                    result=owner.dispatch(request['operation'],request['operationId'],request['arguments'],**metadata)
                     self.reply(200,result)
                 except RuntimeFault as exc:
                     if not consumed and not self.headers.get('Transfer-Encoding'):
@@ -140,7 +141,7 @@ class LocalClient:
     def __init__(self,home,*,timeout=10,boot_id=None):
         self.home,self.timeout,self.boot_id=Path(home),timeout,boot_id
 
-    def call(self,operation,arguments=None,*,operation_id=None):
+    def call(self,operation,arguments=None,*,operation_id=None,context_ref=None):
         if arguments is not None and not isinstance(arguments,dict):raise RuntimeFault('invalid_input','Local arguments must be an object')
         operation_id=operation_id or str(uuid.uuid4())
         try:descriptor=read_json(self.home/'runtime.json')
@@ -157,6 +158,7 @@ class LocalClient:
         if self.boot_id is not None and descriptor['bootId']!=self.boot_id:
             raise RuntimeFault('instance_changed','The checked runtime instance changed; inspect it before another business call','runtime.status',operation_id=operation_id)
         payload={'operation':operation,'operationId':operation_id,'arguments':arguments or {}}
+        if context_ref is not None:payload['contextRef']=context_ref
         if len(encode(payload).encode())>LIMIT:raise RuntimeFault('invalid_input','Local request exceeds 128 KiB')
         wait=(arguments or {}).get('waitSeconds',0)
         budget=max(self.timeout,wait+5) if type(wait) in (int,float) and 0<wait<=30 else self.timeout

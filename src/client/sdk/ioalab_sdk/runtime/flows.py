@@ -5,6 +5,7 @@ import uuid
 
 from a2c.codec import digest
 from .catalog import CATALOG
+from .host_registry import native_source, pending_source, source_scope, source_value, source_context
 from .protocol import RuntimeFault, encode
 
 
@@ -54,7 +55,7 @@ class FlowJournal:
                 if action in ('observe', 'resume'):
                     raise RuntimeFault('invalid_input', 'An original flowRef is required')
                 ref = flow_key(self.kind, self.actor, operation)
-                record = {'flowRef': ref, 'context': {}, 'action': None, 'results': {}, 'active': False}
+                record = {'flowRef': ref, 'context': {}, 'action': None, 'results': {}, 'active': False, 'nativeSource': None, 'sourcePending': getattr(self.runtime,'host_registry',None) is not None}
             if not original and action not in ('observe', 'resume'):
                 if record['active']:
                     raise RuntimeFault('not_ready', 'Resume the pending action before supplying a new business decision')
@@ -65,6 +66,10 @@ class FlowJournal:
             return self.drive(record)
 
     def drive(self, record, advance=None):
+        with source_scope(source_context(record.get('nativeSource')) or pending_source()):
+            return self._drive(record,advance)
+
+    def _drive(self, record, advance=None):
         if not record['active'] and record.get('receipt'):
             return {**copy.deepcopy(record['receipt']), 'data': {**copy.deepcopy(record['receipt']['data']), **copy.deepcopy(record['context'])}}
         try:
@@ -94,6 +99,13 @@ class FlowJournal:
         child = flow_key(record['flowRef'], record['operation'], key)
         entry = record['results'].get(key)
         if entry is None:
+            if getattr(self.runtime,'host_registry',None) is not None and CATALOG[name].effect != 'read' and not record.get('nativeSource'):
+                if not record.get('sourcePending'):
+                    raise RuntimeFault('not_ready','Explicitly recover the original historical source before a new effect','migrate_host')
+                verified=native_source()
+                if verified is None:raise RuntimeFault('not_ready','Verified native source context is required for a new local effect','connect_native_context')
+                record['nativeSource']=source_value(verified);record['sourcePending']=False
+                self.save(record)
             entry = {'operationId': child, 'name': name, 'args': copy.deepcopy(args)}
             record['results'][key] = entry
             self.save(record)
@@ -101,7 +113,8 @@ class FlowJournal:
             raise RuntimeFault('id_conflict', 'Original flow step changed')
         result = entry.get('result')
         if not result or result['status'] not in ('completed', 'rejected', 'failed', 'unknown'):
-            result = invoke(name, child, args)
+            with source_scope(source_context(record.get("nativeSource")) or pending_source()):
+                result = invoke(name, child, args)
             data = result.get('data') or {}
             job = data.get('job') if isinstance(data, dict) else None
             reference = data.get('reference') if isinstance(data, dict) else None

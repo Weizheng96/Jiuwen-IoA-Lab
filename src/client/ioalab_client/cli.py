@@ -17,13 +17,14 @@ def main(argv=None):
     parser.add_argument('command', choices=('status', 'skills', 'skills-install', 'onboarding'))
     parser.add_argument('--output', type=Path)
     parser.add_argument('--config', type=Path)
+    parser.add_argument('--host-ref')
     parser.add_argument('--host', choices=('jiuwen', 'codex', 'claude_code'))
     parser.add_argument('--format', choices=('json', 'markdown'), default='json')
     args = parser.parse_args(argv)
     result = installation.prepare()
     if result['status'] == 'completed' and args.command == 'skills':
         if args.output is None: parser.error('skills requires --output')
-        try: result['data']['files'] = [str(path) for path in export_skills(args.output, config=args.config)]
+        try: result['data']['files'] = [str(path) for path in export_skills(args.output, config=args.config, host=args.host, host_ref=args.host_ref)]
         except (OSError, ValueError, RuntimeError) as error:
             result = {'status': 'rejected', 'data': None,
                       'error': {'code': 'export_failed', 'message': str(error)}}
@@ -32,7 +33,7 @@ def main(argv=None):
         try:
             if args.command == 'skills-install':
                 from .native_skills import install
-                data = install(args.host, config=args.config, output=args.output)
+                data = install(args.host, config=args.config, output=args.output, host_ref=args.host_ref)
                 result = {'status': 'completed' if data['installed'] else 'waiting', 'data': data, 'error': None}
             else:
                 from .onboarding import summary

@@ -159,7 +159,7 @@
    "test_unresponsive_child_cannot_block_the_turn_deadline_while_writing"
   ],
   "tests/test_configuration_boundary.py": [
-   "test_bom_configuration_and_arguments_cross_actual_product_cli_and_ipc",
+   "test_bom_configuration_and_arguments_cross_sdk_cli_and_ipc",
    "test_business_configuration_mismatch_has_no_effect_or_argument_rewrite",
    "test_original_instance_can_be_diagnosed_and_stopped_with_only_its_locator"
   ],

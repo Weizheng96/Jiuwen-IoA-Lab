@@ -36,11 +36,17 @@ def relay(result):
     return result.returncode
 
 
+def ensure_running(python,config):
+    """The sole ordinary-call start seam; start owns identity checks and the OS lease."""
+    return invoke(python,['-m','ioalab_client.runtime','start','--config',str(config)])
+
+
 def main(argv=None):
     for stream in (sys.stdout,sys.stderr):
         if hasattr(stream,"reconfigure"):stream.reconfigure(encoding="utf-8",errors="replace")
     parser=argparse.ArgumentParser(description=__doc__,allow_abbrev=False)
     parser.add_argument('--role',choices=('assistant','service'),required=True,action='append');parser.add_argument('operation');parser.add_argument('--config',type=Path);parser.add_argument('--args-file',type=Path)
+    parser.add_argument('--context-ref');parser.add_argument('--host-ref');parser.add_argument('--host-type',choices=('jiuwen','codex','claude_code'))
     args=parser.parse_args(argv);root=Path(__file__).resolve().parents[1]
     if len(args.role)!=1:parser.error('Select exactly one role; a role skill cannot override its bound role')
     try:
@@ -99,12 +105,26 @@ def main(argv=None):
             if args.operation=='runtime.validate':emit(json.loads(checked.stdout));return 0
             result=invoke(python,['-m','ioalab_client.runtime','start','--config',str(config)])
         else:
+            if args.operation.startswith(('assistant.','provider.')):
+                started=ensure_running(python,config)
+                readiness=json.loads(started.stdout)
+                if readiness.get('status')!='completed':return relay(started)
             arguments=['-m','ioalab_sdk.access','call',args.operation,'--config',str(config)]
+            if args.context_ref:
+                if not args.host_ref or not args.host_type:raise RuntimeError('Use the original host-bound skill')
+                import importlib
+                from .runtime import HOSTS
+                adapter=importlib.import_module(HOSTS[args.host_type])
+                reference=adapter.collect_context(args.context_ref,host_ref=args.host_ref,config_path=config)
+                arguments+=['--context-ref',reference,'--host-ref',args.host_ref]
             if args.args_file:arguments+=['--args-file',str(args.args_file.expanduser().resolve())]
             result=invoke(python,arguments)
         if result.stderr:print(result.stderr,end='',file=sys.stderr)
         return relay(result)
     except Exception as exc:
+        from ioalab_sdk.runtime import RuntimeFault,public_error
+        if isinstance(exc,RuntimeFault):
+            emit({'status':'rejected','data':None,'error':public_error(exc)});return 1
         message=str(exc) if isinstance(exc,RuntimeError) else 'Check the local bundle/configuration; '+type(exc).__name__
         emit({'status':'rejected','data':None,'error':{'code':'not_ready','message':message,'recovery':'inspect_local_installation'}});return 1
 

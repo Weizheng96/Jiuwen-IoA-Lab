@@ -7,7 +7,7 @@ from a2c.codec import digest
 import httpx
 from jsonschema import Draft202012Validator,FormatChecker
 
-from ..runtime import RuntimeFault,encode,instant,stamp
+from ..runtime import RuntimeFault,encode,instant,stamp,native_source,source_context
 
 
 def stable(*values):return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(list(values))))
@@ -71,6 +71,16 @@ class Messaging:
             envelope={'messageId':mid,'kind':'message.request','recipient':interface['agentId'],'expiresAt':stamp(until),
                       'body':{'interfaceName':interface['name'],'revision':interface['revision'],'input':args['input']}}
             if relation:envelope['interactionId']=relation['id']
+            registry=getattr(self.role.runtime,'host_registry',None)
+            if registry is not None:
+                if relation:
+                    original=registry.context(self.role.identity.agent_id,relation['id'])
+                    if not original:raise RuntimeFault('not_ready','Explicitly recover the original interaction host','migrate_host')
+                    source=source_context(original) if original['source']=='native' else None
+                else:
+                    source=native_source()
+                    if source is None:raise RuntimeFault('not_ready','Verified native source is required','connect_native_context')
+                if source is not None:registry.record_origin(self.role.identity.agent_id,mid,source)
             reference={'kind':'delivery','agentId':self.role.identity.agent_id,'operation':'message.send','operationId':operation}
             record={'fingerprint':fingerprint,'messageId':mid,'operationRef':reference,'interface':interface,'envelope':envelope}
             self.role.store.prepare_checkpointed(self.role.identity.agent_id,'message.send',envelope,operation,self.role.namespace,
