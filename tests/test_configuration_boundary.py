@@ -18,12 +18,12 @@ from test_provider_authoring import terms
 from test_resident_runtime import configuration
 
 
-def product(tmp_path,monkeypatch,role):
+def product(tmp_path,monkeypatch,role,*,python=None):
     module=bootstrap();root=tmp_path/'skill';(root/'assets').mkdir(parents=True)
     (root/'assets/skill.json').write_text(json.dumps({'role':role}),encoding='utf-8')
     module.__file__=str(root/'scripts/ioalab.py')
     monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda *a,**k:
-        {'status':'completed','data':{'python':sys.executable},'error':None}))
+        {'status':'completed','data':{'python':str(python or sys.executable)},'error':None}))
     original=module.main
     module.main=lambda argv:original(['--role',role,*argv])
     return module

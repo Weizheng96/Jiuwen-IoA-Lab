@@ -26,7 +26,7 @@ idna==3.20
 ioalab-claude-code==0.0.178; extra == "claude-code"
 ioalab-codex==0.0.178; extra == "codex"
 ioalab-jiuwen==0.0.178; extra == "jiuwen"
-ioalab-sdk==0.0.178
+ioalab-sdk==0.0.186
 jiuwenswarm-process-sdk==0.1.0; extra == "jiuwen"
 json-rpc==1.15.0
 jsonschema-specifications==2025.9.1

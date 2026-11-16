@@ -13,6 +13,7 @@ from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_jiuwen.__main__ import main
 from test_configuration_boundary import product
 from test_resident_runtime import configuration
+from _client_installation import installed_client_python
 
 
 SECRET='PRIVATE-ACCOUNT-CREDENTIAL-SENTINEL'
@@ -162,8 +163,8 @@ def test_configuration_file_cannot_be_its_own_arguments(tmp_path,capsys):
     assert path.read_bytes()==before and not (tmp_path/'state').exists()
 
 
-def test_actual_product_entry_can_configure_without_reading_settings(tmp_path,monkeypatch,capsys):
-    path,_=settings(tmp_path);module=product(tmp_path,monkeypatch,'service')
+def test_actual_product_entry_can_configure_without_reading_settings(tmp_path,monkeypatch,capsys,installed_client_python):
+    path,_=settings(tmp_path);module=product(tmp_path,monkeypatch,'service',python=installed_client_python)
     assert module.main(['runtime.configuration','--config',str(path)])==0
     text=capsys.readouterr().out;result=json.loads(text)
     assert result['data']['configuredServices']==['existing']
