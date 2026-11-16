@@ -4,6 +4,7 @@ from .host_registry import native_source, source_scope, source_value, source_con
 
 Other modules import the shared runtime only from here; submodules stay importable for installed callers."""
 from .business_skills import FrozenSkills,documents
+from .confirmations import ConfirmationDeadline
 from .catalog import AGENT, ASSISTANT, CATALOG, INTERNAL, OPERATIONS, PROVIDER, RUNTIME, SCRIPT, Operation, fields, handled_by
 from .flows import FlowJournal, flow_key
 from .config import DEFAULT_PLATFORM_URL, RuntimeConfig, data_directory, read_configuration
@@ -27,6 +28,7 @@ from .trusted_user import TrustedUserPort, TrustedUserServer
 from ..templates import TEMPLATE_LIFETIME, TEMPLATE_RENEW_BEFORE, draft_from_terms, template_from_definition
 
 __all__ = [
+    'ConfirmationDeadline',
     'NativeEventTarget','DeliveryNotStarted','DeliveryAttempt','NativeExecutionEvidence','validate_native_execution','NativeEvents','flow_native_notice',
     'native_source', 'source_scope', 'source_value', 'source_context', 'native_source', 'source_scope', 'source_value', 'source_context', 'HostRegistry', 'HostContext', 'DeliveryReceipt', 'for_interaction',
     'FrozenSkills', 'documents',

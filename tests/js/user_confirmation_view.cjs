@@ -104,6 +104,20 @@ function assertPost(h,item,decision='answer'){
   return request;
 }
 const scenarios={
+  async deadlines(){
+    const item={...approval(),expiresAt:null,responseDueAt:'2020-01-01T00:00:00Z',responseOverdue:true};
+    const h=await setup([item]),card=h.card(item.reference);
+    assert(card.innerHTML.includes('合同响应截止'));
+    assert(card.innerHTML.includes('已逾期'));
+    assert(card.innerHTML.includes('不使合同自动解除'));
+    assert(!card.innerHTML.includes('1970')&&!card.innerHTML.includes('Invalid Date'));
+    assert(card.querySelector('[data-decision="approve"]'));
+    await h.poll([{...item,expiresAt:'2099-01-01T00:00:00Z'}]);
+    assert(card.innerHTML.includes('本操作有效至'));
+    await h.poll([{...item,responseDueAt:null,objectBound:true}]);
+    assert(card.innerHTML.includes('执行前须重新核验'));
+    assert(!card.innerHTML.includes('永久')&&!card.innerHTML.includes('1970'));
+  },
   async closed(){
     const item={...question(),questions:[
       {question:'是否同意',allow_custom_input:false,options:[{value:'allow',label:'同意'},{value:'deny',label:'拒绝'}]},

@@ -135,7 +135,10 @@ def test_contract_user_rejection_or_expiry_does_not_sign_or_reserve_counter(plat
         quote=candidate(assistant,provider,template,task)
         pending,args,operation=confirm(assistant,quote,approve=False)
         if decision=='reject':user_decision(assistant,pending['data']['confirmationRef'],decision='reject')
-        else:monkeypatch.setattr(assistant.confirmations,'clock',lambda:time.time()+1000)
+        else:
+            from a2c.codec import parse_time
+            expiry=assistant.confirmations.get(pending['data']['confirmationRef'])['expiresAt']
+            monkeypatch.setattr(assistant.confirmations,'clock',lambda:parse_time(expiry).timestamp()+1)
         result=LocalClient(assistant.config.home).call('assistant.delegation.confirm',args,operation_id=operation)
         assert result['status']=='rejected',result
         record=assistant.modules[0].contracts.record(pending['data']['contractRef'])

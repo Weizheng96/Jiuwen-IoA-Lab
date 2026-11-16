@@ -2,39 +2,94 @@
 import hashlib
 import hmac
 import json
+import math
 import secrets
 import time
 import uuid
+from dataclasses import dataclass
 
 from .protocol import RuntimeFault,encode,stamp
 
 
 SCHEMA='''CREATE TABLE IF NOT EXISTS runtime_confirmations(
  id TEXT PRIMARY KEY,actor TEXT NOT NULL,operation TEXT NOT NULL,kind TEXT NOT NULL,
- binding TEXT NOT NULL,fingerprint TEXT NOT NULL,expires REAL NOT NULL,state TEXT NOT NULL,
+ binding TEXT NOT NULL,fingerprint TEXT NOT NULL,expires REAL,state TEXT NOT NULL,
  answer TEXT,source TEXT,used_by TEXT,created REAL NOT NULL);'''
+
+
+@dataclass(frozen=True)
+class ConfirmationDeadline:
+    """Neutral trusted-owner deadline; protocol due time need not be expiry."""
+    expires_at: float|None = None
+    response_due_at: float|None = None
+    object_bound: bool = False
+
+    def __post_init__(self):
+        if type(self.object_bound) is not bool or (self.object_bound and (self.expires_at is not None or self.response_due_at is not None)):
+            raise RuntimeFault('invalid_input','Object-bound confirmation cannot override a time deadline')
+        for value in (self.expires_at,self.response_due_at):
+            if value is not None and (type(value) not in (int,float) or not math.isfinite(value)):
+                raise RuntimeFault('invalid_input','An absolute finite deadline is required')
+            if value is not None:
+                try:stamp(value)
+                except (OverflowError,OSError,ValueError):
+                    raise RuntimeFault('invalid_input','An absolute deadline must be representable') from None
+        if self.expires_at is None and self.response_due_at is None and not self.object_bound:
+            raise RuntimeFault('invalid_input','An original expiry or response deadline is required')
+
+    def value(self):
+        return {'expiresAt':self.expires_at,'responseDueAt':self.response_due_at,
+                **({'objectBound':True} if self.object_bound else {})}
 
 
 class Confirmations:
     def __init__(self,store,*,clock=time.time):
         self.store,self.clock=store,clock
         self._authority=secrets.token_urlsafe(32)
-        with store.lock:store.db.executescript(SCHEMA)
+        with store.transaction() as conn:
+            conn.execute(SCHEMA)
+            fields=conn.execute('PRAGMA table_info(runtime_confirmations)').fetchall()
+            if any(row['name']=='expires' and row['notnull'] for row in fields):
+                # All twelve original columns survive byte-for-byte in one
+                # transaction; no business decision is migrated here.
+                conn.execute('ALTER TABLE runtime_confirmations RENAME TO runtime_confirmations_legacy')
+                conn.execute(SCHEMA)
+                columns='id,actor,operation,kind,binding,fingerprint,expires,state,answer,source,used_by,created'
+                conn.execute('INSERT INTO runtime_confirmations ('+columns+') SELECT '+columns+' FROM runtime_confirmations_legacy')
+                if (conn.execute('SELECT '+columns+' FROM runtime_confirmations_legacy EXCEPT SELECT '+columns+' FROM runtime_confirmations').fetchone()
+                    or conn.execute('SELECT '+columns+' FROM runtime_confirmations EXCEPT SELECT '+columns+' FROM runtime_confirmations_legacy').fetchone()):
+                    raise RuntimeFault('identity_conflict','Original confirmation migration did not preserve every field')
+                conn.execute('DROP TABLE runtime_confirmations_legacy')
 
-    def ensure(self,binding,*,ttl=900,kind='approval',questions=None):
-        return self._request(binding,ttl=ttl,kind=kind,questions=questions,create=True)
+    def ensure(self,binding,*,ttl=900,kind='approval',questions=None,deadline=None):
+        return self._request(binding,ttl=ttl,kind=kind,questions=questions,create=True,deadline=deadline)
 
-    def find(self,binding):
-        """Read the original approval without creating one or changing its final decision."""
-        return self._request(binding,ttl=900,kind='approval',questions=None,create=False)
+    def find(self,binding,*,kind='approval',questions=None):
+        """Find the same original binding without guessing its former TTL.
 
-    def _request(self,binding,*,ttl,kind,questions,create):
+        Lets its trusted role inspect the original result before choosing
+        ensure or a separately authorized pending-only migration.
+        """
+        if kind not in ('approval','question'):
+            raise RuntimeFault('invalid_input','Invalid confirmation kind')
+        cid=str(uuid.uuid5(uuid.NAMESPACE_URL,encode(['ioa-confirm',binding['actor'],binding['operationId'],binding['stage'],binding['action'],kind])))
+        with self.store.lock:
+            row=self.store.db.execute('SELECT * FROM runtime_confirmations WHERE id=?',(cid,)).fetchone()
+            if row is None:return None
+            value=json.loads(row['binding'])
+            if encode(value['binding'])!=encode(binding) or value['questions']!=(questions or []):
+                raise RuntimeFault('id_conflict','The confirmed object or preview changed')
+            return self._public(row)
+
+    def _request(self,binding,*,ttl,kind,questions,create,deadline=None):
         fields={'actor','operationId','subject','stage','action','preview'}
         if not isinstance(binding,dict) or set(binding)!=fields or not isinstance(binding['subject'],dict) or not isinstance(binding['preview'],dict):
             raise RuntimeFault('invalid_input','A complete confirmation binding is required')
         for field in ('actor','operationId','stage','action'):
             if not isinstance(binding[field],str) or not 1<=len(binding[field])<=256:raise RuntimeFault('invalid_input','Invalid confirmation identity')
-        if kind not in ('approval','question') or type(ttl) not in (int,float) or not 0<ttl<=86400:
+        if (kind not in ('approval','question') or
+            (deadline is None and (type(ttl) not in (int,float) or not 0<ttl<=86400)) or
+            (deadline is not None and (not isinstance(deadline,ConfirmationDeadline) or ttl!=900))):
             raise RuntimeFault('invalid_input','Invalid confirmation kind or deadline')
         questions=[] if questions is None else questions
         if not isinstance(questions,list) or (kind=='question' and not questions):raise RuntimeFault('invalid_input','Native questions are required')
@@ -49,7 +104,8 @@ class Confirmations:
                     raise RuntimeFault('invalid_input','A closed question requires displayed option objects with nonempty string values')
                 if len({option['value'] for option in options})!=len(options):
                     raise RuntimeFault('invalid_input','Closed question option values must not repeat')
-        payload={'binding':binding,'questions':questions,'ttl':ttl}
+        payload={'binding':binding,'questions':questions,
+                 **({'deadline':deadline.value()} if deadline is not None else {'ttl':ttl})}
         serialized=encode(payload)
         if len(serialized.encode())>96*1024:raise RuntimeFault('invalid_input','Confirmation preview is too large')
         fingerprint=hashlib.sha256(serialized.encode()).hexdigest()
@@ -63,19 +119,63 @@ class Confirmations:
             else:
                 if not create:return None
                 now=self.clock()
+                expiry=deadline.expires_at if deadline is not None else now+ttl
+                if expiry is not None and expiry<=now:
+                    raise RuntimeFault('expired','Original business object has expired')
                 conn.execute('INSERT INTO runtime_confirmations VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-                             (cid,binding['actor'],binding['operationId'],kind,serialized,fingerprint,now+ttl,'pending',None,None,None,now))
+                             (cid,binding['actor'],binding['operationId'],kind,serialized,fingerprint,expiry,'pending',None,None,None,now))
                 row=conn.execute('SELECT * FROM runtime_confirmations WHERE id=?',(cid,)).fetchone()
             return self._public(row)
 
     def _public(self,row,*,detail=False):
         value=json.loads(row['binding'])
-        state='expired' if row['expires']<=self.clock() and row['state'] in ('pending','approved','answered') else row['state']
+        state='expired' if self._expired(row) and row['state'] in ('pending','approved','answered') else row['state']
         result={'reference':row['id'],'status':state,'kind':row['kind'],'bindingDigest':row['fingerprint'],
-                'agentId':row['actor'],'operationId':row['operation'],'expiresAt':stamp(row['expires']),
+                'agentId':row['actor'],'operationId':row['operation'],'expiresAt':stamp(row['expires']) if row['expires'] is not None else None,
                 'stage':value['binding']['stage'],'action':value['binding']['action'],'source':row['source']}
         if detail:result.update(binding=value['binding'],questions=value['questions'])
+        if 'deadline' in value:
+            due=value['deadline']['responseDueAt']
+            result.update(responseDueAt=stamp(due) if due is not None else None,
+                          responseOverdue=due is not None and self.clock()>due)
+            if value['deadline'].get('objectBound'):result['objectBound']=True
         return result
+
+    def _expired(self,row):
+        return row['expires'] is not None and row['expires']<=self.clock()
+
+    def migrate_pending(self,reference,binding_digest,binding,*,deadline):
+        """Trusted role only, after revalidating its real unchanged live object.
+
+        No RPC operation exposes this. A role must not call after its job/flow
+        became terminal or when another operation superseded this stage.
+        Previously decided/used records never qualify, even if now expired.
+        """
+        if not isinstance(deadline,ConfirmationDeadline):
+            raise RuntimeFault('invalid_input','A verified original deadline is required')
+        with self.store.transaction() as conn:
+            row=conn.execute('SELECT * FROM runtime_confirmations WHERE id=?',(reference,)).fetchone()
+            if not row or row['fingerprint']!=binding_digest:
+                raise RuntimeFault('id_conflict','The displayed confirmation object changed')
+            payload=json.loads(row['binding'])
+            if encode(payload['binding'])!=encode(binding):
+                raise RuntimeFault('forbidden','Original confirmation object is required')
+            if 'deadline' in payload:
+                if payload['deadline']!=deadline.value():
+                    raise RuntimeFault('id_conflict','The original deadline changed')
+                return self._public(row)
+            if (row['state']!='pending' or any(row[key] is not None for key in ('answer','source','used_by'))
+                    or type(payload.get('ttl')) not in (int,float) or not 0<payload['ttl']<=900):
+                raise RuntimeFault('forbidden','Only an undecided unused legacy pending confirmation can migrate')
+            if deadline.expires_at is not None and deadline.expires_at<=max(self.clock(),row['expires']):
+                raise RuntimeFault('expired','No still-valid longer original expiry exists')
+            payload.pop('ttl')
+            payload['deadline']=deadline.value()
+            serialized=encode(payload)
+            fingerprint=hashlib.sha256(serialized.encode()).hexdigest()
+            conn.execute('UPDATE runtime_confirmations SET binding=?,fingerprint=?,expires=? WHERE id=?',
+                         (serialized,fingerprint,deadline.expires_at,reference))
+            return self._public(conn.execute('SELECT * FROM runtime_confirmations WHERE id=?',(reference,)).fetchone())
 
     def get(self,reference,*,detail=False):
         with self.store.lock:
@@ -98,7 +198,7 @@ class Confirmations:
         with self.store.transaction() as conn:
             row=conn.execute('SELECT * FROM runtime_confirmations WHERE id=?',(reference,)).fetchone()
             if not row or row['fingerprint']!=binding_digest:raise RuntimeFault('id_conflict','The displayed confirmation object changed')
-            if row['expires']<=self.clock():raise RuntimeFault('expired','Confirmation expired')
+            if self._expired(row):raise RuntimeFault('expired','Confirmation expired')
             if row['kind']=='approval':
                 if decision not in ('approve','reject') or answers is not None:raise RuntimeFault('invalid_input','Choose approve or reject for this SDK action')
                 state='approved' if decision=='approve' else 'rejected'
@@ -135,7 +235,7 @@ class Confirmations:
             row=conn.execute('SELECT * FROM runtime_confirmations WHERE id=?',(reference,)).fetchone()
             if not row or row['kind']!='approval' or encode(json.loads(row['binding'])['binding'])!=encode(binding):
                 raise RuntimeFault('forbidden','Approval does not cover the actual object, preview and operation')
-            if row['expires']<=self.clock():raise RuntimeFault('expired','Approval expired before this action')
+            if self._expired(row):raise RuntimeFault('expired','Approval expired before this action')
             if row['state']!='approved':raise RuntimeFault('forbidden','This action has no user approval','wait_for_user')
             if row['used_by'] not in (None,binding['operationId']):raise RuntimeFault('id_conflict','Approval is already assigned')
             conn.execute('UPDATE runtime_confirmations SET used_by=? WHERE id=?',(binding['operationId'],reference))
@@ -144,7 +244,7 @@ class Confirmations:
         with self.store.lock:
             row=self.store.db.execute('SELECT * FROM runtime_confirmations WHERE id=?',(reference,)).fetchone()
             if not row or row['kind']!='question':raise RuntimeFault('forbidden','This is not the original native question')
-            if row['expires']<=self.clock():raise RuntimeFault('expired','Native user question expired')
+            if self._expired(row):raise RuntimeFault('expired','Native user question expired')
             return json.loads(row['answer']) if row['state']=='answered' else None
 
     def cancel_question(self,reference):

@@ -151,6 +151,10 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
         with pytest.raises(RuntimeFault):assistant.connection.call(assistant.identities[0].agent_id,'message.send',bad,operation_id=uid())
         key,pending=invoke(assistant,ref,'answer_step',stepRequestDigest=step_digest)
         assert pending['status']=='waiting'
+        monkeypatch.setattr(assistant.confirmations,'clock',lambda:time.time()+1000)
+        original_wait=assistant.confirmations.get(pending['data']['confirmationRef'])
+        assert original_wait['status']=='pending' and original_wait['expiresAt'] is None
+        assert original_wait['responseDueAt'] is not None
         user_decision(assistant,pending['data']['confirmationRef'],decision='answer',answers=[{'selected_options':['allow']}])
         assert client.call('assistant.delegation.answer_step',{'contractRef':ref,'stepRequestDigest':step_digest},operation_id=key)['status']=='accepted'
         wait_for(lambda:operation(assistant,ref,key));assert operation(assistant,ref,key)['status']=='completed',operation(assistant,ref,key)

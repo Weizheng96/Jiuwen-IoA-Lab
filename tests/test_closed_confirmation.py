@@ -20,7 +20,7 @@ def step(manager,monkeypatch):
     owner=Fulfillment(role);operation=str(uuid.uuid4())
     args={'contractRef':'sha256:'+'a'*64,'stepRequestDigest':'sha256:'+'b'*64}
     record={'name':'answer_step','args':args,'phase':'prepared',
-            'fingerprint':digest({'name':'answer_step','args':args}),
+            'fingerprint':digest({'name':'answer_step','args':args}),'confirmationDeadline':{'expiresAt':None,'responseDueAt':2000.},
             'preview':{'title':'确认本次合同环节','contractRef':args['contractRef']}}
     manager.store.checkpoint_set(owner.namespace,operation,record)
     actual,pending=owner.confirmation(operation,record)

@@ -112,7 +112,16 @@ class DelegationTasks:
                             'categoryIds':context['categoryIds'],'currency':'虚拟币（CNY记账）',
                             'expiresAt':grant['expiresAt'],'revision':grant['revision'],
                             'contractConfirmation':'具体合同、合同要求的环节及验收仍须分别确认'}}
-        confirmation=self.runtime.confirmations.ensure(binding)
+        from .business_deadlines import ensure_original
+        from ..runtime import ConfirmationDeadline
+        original=self.runtime.confirmations.find(binding)
+        recover=not record.get('payload')
+        if original and 'responseDueAt' not in original:
+            current=self.status(reference)['data'].get('authorization')
+            recover=recover and ((not current) if grant['revision']==1 else
+                bool(current and current['revision']==grant['revision']-1 and current['state']==record['previousState']))
+        confirmation=ensure_original(self.runtime.confirmations,binding,
+            ConfirmationDeadline(expires_at=parse_time(grant['expiresAt']).timestamp()),recover=recover)
         if confirmation['status']!='approved':
             return {'status':'waiting' if confirmation['status']=='pending' else 'rejected',
                     'data':{'taskRef':reference,'confirmationRef':confirmation['reference'],'preview':binding['preview']}}

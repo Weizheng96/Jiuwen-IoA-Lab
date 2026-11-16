@@ -17,9 +17,10 @@ from a2c.slots import verify_template,verify_card
 from a2c.errors import A2CError
 from ..adapters import ProtocolStore,SessionTransport,PublicTransport
 from ..adapters import stable
-from ..runtime import RuntimeFault,encode
+from ..runtime import RuntimeFault,encode,ConfirmationDeadline
 from ..runtime import JobOutcome
 from ..runtime import model_port
+from .business_deadlines import ensure_original
 
 
 class Trading:
@@ -91,7 +92,21 @@ class Trading:
             binding={'actor':self.identity.agent_id,'operationId':operation,'subject':{'quoteRef':ref,'materials':{name:record['subject']['inputs'][name] for name in review}},
                      'stage':'delegation.materials','action':'materials.authorize','preview':{'title':'允许候选服务审查这些材料','service':record['service'],
                      'materials':{name:record['subject']['inputs'][name] for name in review}}}
-            decision=self.runtime.confirmations.ensure(binding)
+            scope=self.role.delegation.status(record['taskRef'])['data']
+            if not scope.get('authorized'):raise RuntimeFault('forbidden','Original delegation authorization is not active')
+            deadline=ConfirmationDeadline(expires_at=min(parse_time(template['validUntil']).timestamp(),
+                parse_time(scope['authorization']['expiresAt']).timestamp()))
+            if record.get('materialDeadline') and record['materialDeadline']!=deadline.value():
+                # An explicitly renewed scope cannot extend the original wait.
+                deadline=ConfirmationDeadline(**{'expires_at':record['materialDeadline']['expiresAt'],
+                                                 'response_due_at':record['materialDeadline']['responseDueAt']})
+            decision=ensure_original(self.runtime.confirmations,binding,deadline,
+                # Old records did not freeze their grant revision/deadline;
+                # current scope renewal cannot prove that historical expiry.
+                recover=bool(record.get('materialDeadline')) and record['phase']=='prepared' and not record.get('materialApproval'))
+            if 'responseDueAt' in decision and 'materialDeadline' not in record:
+                record={**record,'materialDeadline':deadline.value()}
+                self.store.checkpoint_set(self.namespace,key,record)
             if decision['status']!='approved':return {'status':'waiting' if decision['status']=='pending' else 'rejected','data':{'quoteRef':ref,'confirmationRef':decision['reference']}}
             self.runtime.confirmations.claim(decision['reference'],binding)
             record={**record,'materialApproval':{'reference':decision['reference'],'binding':binding}}
