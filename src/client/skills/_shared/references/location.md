@@ -1,6 +1,6 @@
 # 脚本定位
 
-Codex先使用本次解压或加载的实际Skill目录，只检查其scripts/ioalab.py；不存在时询问实际目录，不搜索九问目录。九问首次调用本技能脚本前执行本页命令，只读取九问公开的路径环境变量并检查一个文件。原生skill_tool的模型正文可能不含skill_directory，不能猜路径或从账号配置所在目录推断。
+Codex与Claude Code先使用宿主原生加载提供的实际Skill目录，只检查其scripts/ioalab.py；默认用户级位置分别为~/.agents/skills/__IOALAB_SKILL_NAME__和~/.claude/skills/__IOALAB_SKILL_NAME__。未发现时按安装器回执修复原生安装，不要求用户提供客户端路径，也不搜索九问目录。九问首次调用本技能脚本前执行本页命令，只读取九问公开的路径环境变量并检查一个文件。原生skill_tool的模型正文可能不含skill_directory，不能猜路径或从账号配置所在目录推断。
 
 Windows使用下例的已核`python`；Linux先用`python3.11 --version`核实，将下例首项替换为`python3.11`或其已核绝对路径。后续沿用同一解释器，详见[公共调用](calling.md#调用格式)。
 

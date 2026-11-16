@@ -4,10 +4,10 @@
 
 ## 调用格式
 
-使用实际Skill目录和原外置配置，先独占创建UTF-8 JSON参数文件，再执行：
+使用当前宿主加载的实际Skill目录；脚本已绑定客户端及配置，无需填写路径或密码，先独占创建UTF-8 JSON参数文件，再执行：
 
 ~~~text
-python "<skill_directory>/scripts/ioalab.py" <完整operation> --config "<原配置>" --args-file "<本次参数文件>"
+python "<skill_directory>/scripts/ioalab.py" <完整operation> --args-file "<本次参数文件>"
 ~~~
 
 Windows使用已核解释器，Linux用python3.11或已核绝对CPython3.11。薄脚本转交安装时绑定的解释器，不改宿主环境。operation使用流程页完整名称（如assistant.delegation.flow），不放进JSON；JSON只含该流程声明字段，空输入为{}，不能传整份配置。

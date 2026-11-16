@@ -22,13 +22,20 @@ from .user_ui import UserUi
 
 
 def setup_document(path,options):
-    if not isinstance(options,dict) or set(options)-{'platform_url','role','user_browser'} or options.get('role','assistant') not in ('assistant','service'):
+    if not isinstance(options,dict) or set(options)-{'platform_url','role','user_browser','prepare_both_roles'} or options.get('role','assistant') not in ('assistant','service'):
         raise RuntimeFault('invalid_input','Use platform_url, role (assistant or service) and optional user_browser','correct_input')
+    if type(options.get('prepare_both_roles',False)) is not bool:
+        raise RuntimeFault('invalid_input','prepare_both_roles must be a boolean','correct_input')
     if 'platform_url' in options and (not isinstance(options['platform_url'],str) or not options['platform_url'].strip()):
         raise RuntimeFault('invalid_input','Use a nonempty platform_url address','correct_input')
     document=read_configuration(path) if path.exists() else {
         'platform_url':options.get('platform_url',DEFAULT_PLATFORM_URL),'data_dir':str(path.with_suffix('.data')),
         'identities':[{'key':options.get('role','assistant'),'role':options.get('role','assistant'),'name':'我的智能体'}]}
+    if not path.exists() and options.get('prepare_both_roles'):
+        document['identities']=[{'key':'assistant','role':'assistant','name':'我的个人助手'},
+                                {'key':'service','role':'service','name':'我的服务方'}]
+        document['provider']={'services':{'service':{'instructions':'尚未配置专业能力；仅准备服务方入口，不开展生产。',
+                                                     'accepting':False}}}
     if not path.exists():
         previous=Path(document['data_dir'])/'account-setup.json'
         if previous.exists():document=read_json(previous)['configuration']
@@ -68,10 +75,14 @@ class AccountSetupUi(UserUi):
     def snapshot(self):
         result=read_json(self.receipt) if self.receipt.exists() else {'status':'waiting'}
         credentials=None
-        if self.journal.exists():
+        if self.path.exists():
+            config=RuntimeConfig.load(self.path)
+            credentials={'username':config.username,'password':config.password}
+        elif self.journal.exists():
             record=read_json(self.journal)
             if record['mode']=='register':credentials={key:record['body'][key] for key in ('username','password')}
-        return {'result':result,'credentials':credentials}
+        return {'result':result,'credentials':credentials,'configurationFile':str(self.path),
+                'website':self.document['platform_url'].rstrip('/')}
 
     def decision(self,body,session):
         with self._lock:
@@ -229,8 +240,9 @@ def launch(path,options):
         probe.close()
         run_id=str(uuid.uuid4())
         browser_args=['--browser',ui.document['user_browser']] if ui.document.get('user_browser') else []
+        roles_args=['--both-roles'] if options.get('prepare_both_roles') else []
         subprocess.Popen([sys.executable,'-m','ioalab_sdk.access','account-setup','--config',str(ui.path),
-            '--worker',run_id,'--platform',ui.document['platform_url'],'--role',options.get('role','assistant'),*browser_args],
+            '--worker',run_id,'--platform',ui.document['platform_url'],'--role',options.get('role','assistant'),*browser_args,*roles_args],
             stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         deadline=time.monotonic()+5

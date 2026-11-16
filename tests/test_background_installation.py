@@ -39,12 +39,13 @@ def boundary(bootstrap,monkeypatch):
             else:raise AssertionError(command)
         elif command[-1]==bootstrap.PYTHON_PROBE:output=json.dumps(['cpython',[3,11]])
         elif 'venv' in command:
-            (Path(command[-1])/('Scripts' if sys.platform=='win32' else 'bin')).mkdir(exist_ok=True)
+            (Path(command[-1])/('Scripts' if sys.platform=='win32' else 'bin')).mkdir(parents=True,exist_ok=True)
             output=''
         elif command[-1]=='status':
             output=json.dumps({'status':'completed','data':{'python':command[0],'source':{
                 'url':source_url,'dir_info':{}}}})
         elif 'skills' in command:output=json.dumps({'status':'completed','data':{'files':['assistant.zip','provider.zip']}})
+        elif 'skills-install' in command:output=json.dumps({'status':'completed','data':{'installed':True,'skills':[]}})
         elif 'install' in command:
             source_url=Path(command[-1].removesuffix('[codex]')).as_uri();output=''
         else:output=''
@@ -73,7 +74,19 @@ def test_copied_host_python_uses_verified_versioned_base(bootstrap,boundary,tmp_
     assert bootstrap.main(['--host','codex','--tag','client-test','--install-dir',str(folder)])==0
     expected=Path(sys.base_prefix)/('python.exe' if sys.platform=='win32' else 'bin/python3.11')
     creates=[c for c in boundary if 'venv' in c]
-    assert creates==[[str(expected),'-I','-m','venv',str(folder)]]
+    assert creates==[[str(expected),'-I','-m','venv',str(folder/'env')]]
+
+
+def test_adding_calling_host_reuses_environment_and_original_execution_host(bootstrap,boundary,tmp_path,capsys):
+    args=['--tag','client-test','--install-dir',str(tmp_path/'client')]
+    assert bootstrap.main([*args,'--host','codex'])==0
+    capsys.readouterr();boundary.clear()
+    assert bootstrap.main([*args,'--host','jiuwen'])==0
+    result=json.loads(capsys.readouterr().out)
+    assert result['data']['checkout']['selectedHost']=='codex'
+    assert not any('venv' in call or 'install' in call or 'runtime.start' in call for call in boundary)
+    native=next(call for call in boundary if 'skills-install' in call)
+    assert native[native.index('--host')+1]=='jiuwen'
 
 
 @pytest.mark.parametrize('wrong_stage',['base','created'])

@@ -64,6 +64,8 @@ OPERATIONS = (
     Operation('account.refresh', RUNTIME, NONE, CONTROL, False, QUERY, AGENT),
     # Product script and CLI commands; arguments come from --config or the args-file.
     Operation('runtime.install.status', SCRIPT, NONE, READ, False, SETUP, AGENT),
+    Operation('runtime.binding', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),
+    Operation('runtime.onboarding', SCRIPT, (shape(('host',)),), READ, False, SETUP, AGENT),
     Operation('runtime.validate', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),
     Operation('runtime.start', SCRIPT, NONE, CONTROL, False, SETUP, AGENT),
     Operation('runtime.configuration', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),

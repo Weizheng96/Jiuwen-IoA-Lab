@@ -187,7 +187,7 @@ def test_existing_wrong_password_cancel_correct_and_no_secrets(platform,tmp_path
     assert result['authenticated']
     assert PASSWORD not in json.dumps(read_json(ui.receipt))
     assert 'token' not in json.dumps(read_json(ui.receipt))
-    assert ui.snapshot()['credentials'] is None
+    assert ui.snapshot()['credentials']=={'username':user['username'],'password':PASSWORD}
 
 
 @pytest.mark.parametrize('policy',['closed','invite'])

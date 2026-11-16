@@ -94,6 +94,7 @@ def run(argv,*,modules,validate,service_fields):
         if name=='account-setup':
             item.add_argument('--platform');item.add_argument('--role',choices=('assistant','service'))
             item.add_argument('--worker');item.add_argument('--args-file',type=Path);item.add_argument('--browser')
+            item.add_argument('--both-roles',action='store_true')
     call=commands.add_parser('call')
     call.add_argument('operation')
     call.add_argument('--config',type=Path,required=True)
@@ -113,6 +114,7 @@ def run(argv,*,modules,validate,service_fields):
                 options={'role':args.role or 'assistant'}
                 if args.platform:options['platform_url']=args.platform
                 if args.browser:options['user_browser']=args.browser
+                if args.both_roles:options['prepare_both_roles']=True
                 if args.args_file:
                     from .files import read_json
                     options=read_json(args.args_file)
@@ -122,6 +124,7 @@ def run(argv,*,modules,validate,service_fields):
                         if options.get('role',args.role)!=args.role:
                             raise RuntimeFault('invalid_input','Account role must match the selected role skill','correct_input')
                         options={**options,'role':args.role}
+                    if args.both_roles:options={**options,'prepare_both_roles':True}
                 if args.worker:
                     serve(args.config,options,args.worker)
                     return 0

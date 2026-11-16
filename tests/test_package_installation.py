@@ -50,7 +50,8 @@ def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
         'from ioalab_sdk.runtime.config import DEFAULT_PLATFORM_URL; from ioalab_codex import assembled; print(DEFAULT_PLATFORM_URL)'],tmp_path)
     assert default.strip()=='https://ioalab.openjiuwen.com'
     # Both exported launchers bind this interpreter; the host interpreter need not contain the client.
-    exported=json.loads(run([str(python),'-I','-m','ioalab_client','skills','--output',str(tmp_path/'skills')],tmp_path))
+    config=tmp_path/'private-account/settings.local.json'
+    exported=json.loads(run([str(python),'-I','-m','ioalab_client','skills','--output',str(tmp_path/'skills'),'--config',str(config)],tmp_path))
     assert exported['status']=='completed' and len(exported['data']['files'])==2
     for path in exported['data']['files']:
         with zipfile.ZipFile(path) as archive:
@@ -58,6 +59,10 @@ def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
             launch=tmp_path/Path(path).stem;archive.extractall(launch)
         result=json.loads(run([sys.executable,str(launch/script),'runtime.install.status'],tmp_path))
         assert result['status']=='completed' and Path(result['data']['python'])==python.absolute()
+        bound=json.loads(run([sys.executable,str(launch/script),'runtime.binding'],tmp_path))
+        assert bound['data']['configurationFile']==str(config.resolve())
+        assert bound['data']['python']==str(python.absolute())
+        assert not config.exists()  # Neither fresh caller needs user-supplied paths or credentials.
     output=run([str(python),'-I','-c',
         'import json;from ioalab_sdk.runtime.installation import current;print(json.dumps(current("ioalab-jiuwen")))'],tmp_path)
     assert json.loads(output)['versions']['ioalab-client']==(ROOT/'src/client/VERSION').read_text().strip().removeprefix('v')
