@@ -39,6 +39,7 @@ class JobHandler:
     uses_model: bool=True
     ready: Callable|None=None
     control: bool=False
+    retain_model_on_unknown: bool=False
 
 
 class Scheduler:
@@ -48,6 +49,7 @@ class Scheduler:
             raise ValueError('Positive scheduler limits are required')
         if any(not isinstance(name,str) or not isinstance(h,JobHandler) or not h.revision or not callable(h.run)
                or h.control and h.uses_model for name,h in handlers.items()):raise ValueError('Register explicit local handlers; control handlers cannot run models')
+        if any(h.retain_model_on_unknown and (not h.uses_model or h.control) for h in handlers.values()):raise ValueError('Uncertain native execution retains a real model permit')
         self.store,self.handlers=store,dict(handlers)
         self.max_models,self.max_pending,self.max_workers=max_models,max_pending,max_workers
         self.can_dispatch=can_dispatch
@@ -251,8 +253,7 @@ class Scheduler:
                     if self._stop.is_set() or self._draining or cancelled():
                         raise RuntimeFault('closed','Runtime stopped while the original user question was waiting')
                     with self.store.transaction() as conn:
-                        running=conn.execute("SELECT handler FROM runtime_jobs WHERE state='running' AND model_waiting=0").fetchall()
-                        models=sum(self.handlers[row['handler']].uses_model for row in running if row['handler'] in self.handlers)
+                        models=self._model_permits(conn)
                         if self.can_dispatch() and models<self.max_models:
                             conn.execute('UPDATE runtime_jobs SET model_waiting=0 WHERE id=?',(job,))
                             self._condition.notify_all()
@@ -302,11 +303,17 @@ class Scheduler:
         conn.execute('UPDATE runtime_jobs SET state=?,result=?,session=?,model_waiting=0 WHERE id=?',
                      (outcome.state,encode(outcome.data),outcome.session or row['session'],row['id']))
 
+    def _model_permits(self,conn):
+        rows=conn.execute("SELECT handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','unknown')").fetchall()
+        return sum(bool(handler and handler.uses_model and
+                        (row['state']=='running' and not row['model_waiting'] or
+                         row['state']=='unknown' and handler.retain_model_on_unknown))
+                   for row in rows for handler in (self.handlers.get(row['handler']),))
+
     def _next(self):
         with self.store.transaction() as conn:
             held=conn.execute("SELECT id,actor,interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')").fetchall()
-            models=sum(self.handlers[r['handler']].uses_model for r in held
-                       if r['state']=='running' and not r['model_waiting'] and r['handler'] in self.handlers)
+            models=self._model_permits(conn)
             business_threads=sum(not self.handlers[r['handler']].control for r in held if r['id'] in self._active and r['handler'] in self.handlers)
             for row in conn.execute("SELECT * FROM runtime_jobs WHERE state='queued' ORDER BY created,id").fetchall():
                 handler=self.handlers.get(row['handler'])

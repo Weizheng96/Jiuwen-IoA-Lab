@@ -27,6 +27,7 @@ from .trusted_user import TrustedUserPort, TrustedUserServer
 from ..templates import TEMPLATE_LIFETIME, TEMPLATE_RENEW_BEFORE, draft_from_terms, template_from_definition
 
 __all__ = [
+    'NativeEventTarget','DeliveryNotStarted','DeliveryAttempt','NativeExecutionEvidence','validate_native_execution','NativeEvents','flow_native_notice',
     'native_source', 'source_scope', 'source_value', 'source_context', 'native_source', 'source_scope', 'source_value', 'source_context', 'HostRegistry', 'HostContext', 'DeliveryReceipt', 'for_interaction',
     'FrozenSkills', 'documents',
     'FlowJournal', 'flow_key',
@@ -39,3 +40,6 @@ __all__ = [
     'JobHandler', 'JobOutcome', 'RuntimeStore', 'TrustedUserPort', 'TrustedUserServer', 'TEMPLATE_LIFETIME',
     'TEMPLATE_RENEW_BEFORE', 'draft_from_terms', 'template_from_definition',
 ]
+
+from .host_registry import NativeEventTarget,DeliveryNotStarted,DeliveryAttempt,NativeExecutionEvidence,validate_native_execution
+from .native_events import NativeEvents,flow_native_notice

@@ -1,29 +1,26 @@
 """Verified original progress triggers receipt/export/preview, never acceptance/payment."""
 from a2c.codec import digest
+import copy
 from ..runtime import RuntimeFault, flow_key, validate_output
 
 
 class DeliveryWatch:
     def __init__(self, flows):
         self.flows, self.role = flows, flows.role
-        self.cursor = 0
+        self.cursor = ''
 
     def scan(self):
         journal = self.flows.delegation
         with journal.lock:
-            records = [(key,flow) for key,flow in journal.store.checkpoints(journal.namespace).items()
-                       if not key.startswith(('request:','delivery:')) and flow.get('context',{}).get('deliveryWatch')]
-            if not records:
-                return
-            selected = (records + records)[self.cursor:self.cursor + min(16,len(records))]
-            self.cursor = (self.cursor + 16) % len(records)
-            for key, flow in selected:
-                if key.startswith('request:') or key.startswith('delivery:') or not flow.get('context',{}).get('deliveryWatch'):
-                    continue
-                try:
-                    self.advance(journal,flow)
+            page=journal.store.checkpoint_page(journal.namespace,after=self.cursor)
+            if not page:page=journal.store.checkpoint_page(journal.namespace)
+            if not page:return
+            self.cursor=page[-1][0]
+            for key,flow in page:
+                if key.startswith(('request:','delivery:')) or not flow.get('context',{}).get('deliveryWatch'):continue
+                try:self.advance(journal,flow)
                 except RuntimeFault as exc:
-                    flow['context']['deliveryWait'] = {'code':exc.code,'recovery':exc.recovery}
+                    flow['context']['deliveryWait']={'code':exc.code,'recovery':exc.recovery}
                     journal.save(flow)
 
     def advance(self, journal, flow):
@@ -70,7 +67,10 @@ class DeliveryWatch:
         record = journal.store.checkpoint(journal.namespace,record_key)
         if record is None:
             record = {'flowRef':record_key,'context':{'period':period},'action':'delivery','operation':operation,
-                      'results':{},'active':True,'stage':0}
+                      'results':{},'active':True,'stage':0,'parentFlowRef':flow['flowRef'],
+                      'nativeSource':copy.deepcopy(flow.get('nativeSource')),'sourcePending':False}
+        if record.get('nativeSource')!=flow.get('nativeSource'):
+            raise RuntimeFault('identity_conflict','Restore the delivery sub-operation original parent native source')
         ctx['deliveryPending'] = record_key
         journal.save(flow)
         def advance(j,r):
@@ -78,6 +78,15 @@ class DeliveryWatch:
             verified = self.flows.step(j,r,1,'delegation.verify',{'contractRef':ref,'period':period})
             r['context'].update(period=period,files=fetched['files'],report=verified['report'],
                                 requiresUserAcceptance=True)
+            service=getattr(self.role.runtime,'native_events',None)
+            if service and flow.get('nativeSource'):
+                from ..runtime import NativeEventTarget
+                target=NativeEventTarget(journal.actor,flow['flowRef'],journal.namespace,flow['flowRef'])
+                notice=service.publish(target,'delivery:'+ref+':'+str(period),'business.delivery_ready',
+                    {'contractRef':ref,'period':period,'files':fetched['files'],'report':verified['report'],'requiresUserAcceptance':True},
+                    evidence_ref={'contractRef':ref,'period':period},business_operation=operation,interaction=contract['interactionId'])
+                r['active']=False
+                return j.receipt(r,'completed','user_acceptance',notification=notice)
             tool = self.role.tools.get('owner.notify')
             if tool is None:
                 return j.receipt(r,reason='host_unavailable',required=('owner.notify',))

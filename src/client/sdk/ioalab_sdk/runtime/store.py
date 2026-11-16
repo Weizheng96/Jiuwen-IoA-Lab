@@ -16,9 +16,13 @@ SCHEMA = '''
 CREATE TABLE IF NOT EXISTS runtime_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS runtime_cursors(actor TEXT PRIMARY KEY,seq INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS runtime_inbox(actor TEXT NOT NULL,seq INTEGER NOT NULL,message TEXT NOT NULL UNIQUE,frame TEXT NOT NULL,PRIMARY KEY(actor,seq));
+CREATE INDEX IF NOT EXISTS runtime_inbox_reply ON runtime_inbox(actor,json_extract(frame,'$.message.inReplyTo'),seq);
+CREATE INDEX IF NOT EXISTS runtime_inbox_origin ON runtime_inbox(actor,json_extract(frame,'$.message.originMessageId'),seq);
+CREATE INDEX IF NOT EXISTS runtime_inbox_interaction ON runtime_inbox(actor,json_extract(frame,'$.message.interactionId'),seq);
 CREATE TABLE IF NOT EXISTS runtime_operations(seq INTEGER PRIMARY KEY AUTOINCREMENT,actor TEXT NOT NULL,kind TEXT NOT NULL,id TEXT NOT NULL,payload TEXT NOT NULL,fingerprint TEXT NOT NULL,response TEXT,UNIQUE(actor,kind,id));
 CREATE TABLE IF NOT EXISTS runtime_interactions(origin TEXT PRIMARY KEY,id TEXT UNIQUE,actor TEXT NOT NULL,peer TEXT NOT NULL,direction TEXT NOT NULL,name TEXT NOT NULL,revision INTEGER NOT NULL,details TEXT NOT NULL,session TEXT);
 CREATE TABLE IF NOT EXISTS runtime_checkpoints(namespace TEXT NOT NULL,key TEXT NOT NULL,value TEXT NOT NULL,PRIMARY KEY(namespace,key));
+CREATE INDEX IF NOT EXISTS runtime_active_checkpoints ON runtime_checkpoints(namespace,key) WHERE json_extract(value,'$.active')=1;
 '''
 
 
@@ -137,6 +141,39 @@ class RuntimeStore:
             for key,value in values.items():
                 conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',(namespace,key,encode(value)))
             for key in remove:conn.execute('DELETE FROM runtime_checkpoints WHERE namespace=? AND key=?',(namespace,key))
+
+    def checkpoint_page(self,namespace,*,after='',limit=32,active_only=False):
+        if type(limit) is not int or not 1<=limit<=64:raise RuntimeFault('invalid_input','Use a bounded checkpoint page')
+        if type(active_only) is not bool:raise RuntimeFault('invalid_input','Use an explicit active checkpoint selector')
+        clause=" AND json_extract(value,'$.active')=1" if active_only else ''
+        with self.lock:
+            return [(row['key'],json.loads(row['value'])) for row in self.db.execute(
+                'SELECT key,value FROM runtime_checkpoints WHERE namespace=? AND key>?'+clause+' ORDER BY key LIMIT ?',
+                (namespace,after,limit)).fetchall()]
+
+    def request_evidence(self,actor,message,interaction=None):
+        """Indexed original request facts; no unbounded inbox materialization."""
+        with self.lock:
+            if not self.db.execute('SELECT 1 FROM runtime_cursors WHERE actor=?',(actor,)).fetchone():
+                raise RuntimeFault('forbidden','Inbox actor is outside this account runtime')
+            reply=self.db.execute("SELECT frame FROM runtime_inbox WHERE actor=? AND json_extract(frame,'$.message.inReplyTo')=? "
+                                  "AND json_extract(frame,'$.message.kind')='message.result' AND json_extract(frame,'$.message.payloadAvailable') IS NOT 0 "
+                                  "ORDER BY seq DESC LIMIT 1",(actor,message)).fetchone()
+            closed=self.db.execute("SELECT 1 FROM runtime_inbox WHERE actor=? AND json_extract(frame,'$.message.originMessageId')=? "
+                                   "AND json_extract(frame,'$.message.kind')='interaction.closed' LIMIT 1",(actor,message)).fetchone()
+            if not closed and interaction:
+                closed=self.db.execute("SELECT 1 FROM runtime_inbox WHERE actor=? AND json_extract(frame,'$.message.interactionId')=? "
+                                       "AND json_extract(frame,'$.message.kind')='interaction.closed' LIMIT 1",(actor,interaction)).fetchone()
+            return {'reply':json.loads(reply['frame'])['message'] if reply else None,'closed':bool(closed)}
+
+    def messages_after(self,actor,after,*,limit=32):
+        if type(limit) is not int or not 1<=limit<=64:raise RuntimeFault('invalid_input','Use a bounded inbox page')
+        with self.lock:
+            if not self.db.execute('SELECT 1 FROM runtime_cursors WHERE actor=?',(actor,)).fetchone():
+                raise RuntimeFault('forbidden','Inbox actor is outside this account runtime')
+            return [json.loads(row['frame']) for row in self.db.execute(
+                'SELECT frame FROM runtime_inbox WHERE actor=? AND seq>? ORDER BY seq LIMIT ?',
+                (actor,after,limit)).fetchall()]
 
     def checkpoint_delete(self,namespace,key):
         with self.transaction() as conn:conn.execute('DELETE FROM runtime_checkpoints WHERE namespace=? AND key=?',(namespace,key))
@@ -307,7 +344,8 @@ class RuntimeStore:
             conn.execute('UPDATE runtime_interactions SET session=?,details=? WHERE id=?',(session,encode(details),interaction_id))
 
     def session_scope(self, actor, interaction, session):
-        binding=self.checkpoint('host-bindings',encode([actor,interaction]))
+        event=self.checkpoint('native-events',encode([actor,interaction]))
+        binding=event['context'] if event else self.checkpoint('host-bindings',encode([actor,interaction]))
         actual=session or (binding.get('sessionId') if binding else None)
         return (binding['hostRef'] if binding else None,actual) if actual else None
 

@@ -17,7 +17,7 @@ from a2c.slots import verify_template,verify_card
 from a2c.errors import A2CError
 from ..adapters import ProtocolStore,SessionTransport,PublicTransport
 from ..adapters import stable
-from ..runtime import RuntimeFault
+from ..runtime import RuntimeFault,encode
 from ..runtime import JobOutcome
 from ..runtime import model_port
 
@@ -77,7 +77,7 @@ class Trading:
             if template['formation']=='proposal':subject=client.draft_request(template,request_id=ref,**common)
             else:subject=client.draft_card(template,card_id=ref,**common).card
             record={'fingerprint':fingerprint,'quoteRef':ref,'taskRef':args['taskRef'],'service':args['service'],'template':template,'subject':subject,
-                    'initial':{name:initial.all(name) for name in ('templates','requests','cards')},'phase':'prepared'}
+                    'initial':{name:initial.all(name) for name in ('templates','requests','cards')},'phase':'prepared','noticeOwner':self.store.checkpoint('native-notice-owners',encode([self.identity.agent_id,operation]))}
             self.store.checkpoint_set(self.namespace,key,record)
         if record.get('result') is not None:return {'status':record['status'],'data':record['result']}
         template=record['template'];ref=record['quoteRef']
@@ -96,6 +96,7 @@ class Trading:
             self.runtime.confirmations.claim(decision['reference'],binding)
             record={**record,'materialApproval':{'reference':decision['reference'],'binding':binding}}
             self.store.checkpoint_set(self.namespace,key,record)
+        record={**record,'nativeNoticeWatch':True};self.store.checkpoint_set(self.namespace,key,record)
         job=self.runtime.scheduler.submit(self.identity.agent_id,ref,'assistant.quote',{'quoteRef':ref},operation_id=ref)
         return {'status':job['status'] if job['status'] in ('completed','rejected','failed','unknown') else 'accepted','data':{'quoteRef':ref,'taskRef':record['taskRef'],'job':job}}
 

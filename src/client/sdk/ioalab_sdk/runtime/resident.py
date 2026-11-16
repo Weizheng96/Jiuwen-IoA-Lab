@@ -24,6 +24,7 @@ class ResidentRuntime:
     def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=(),modules=(),assembly=None,host_registry=None):
         self.config=config
         self.host_registry=host_registry
+        self.native_events=None
         self.installation=current_installation(assembly)
         self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=None
         self.identities=[]
@@ -53,6 +54,10 @@ class ResidentRuntime:
             self.connection=AgentConnection(config.platform,self.account.bearer,actors,self.store,network=self.account.network)
             self.confirmations=Confirmations(self.store)
             job_handlers=dict(jobs or {})
+            if host_registry is not None:
+                from .native_events import NativeEvents
+                self.native_events=NativeEvents(self,host_registry)
+                job_handlers.update(self.native_events.handlers())
             for module in self.modules:
                 registration=module.bind(self)
                 registered=registration.get('operations',{})
@@ -95,7 +100,7 @@ class ResidentRuntime:
             return all(module.ready(profile) for module in self.modules
                        if hasattr(module,'ready') and ((getattr(module,'identity',None) and module.identity.profile==profile)
                            or profile in getattr(module,'identities',{})))
-        return {'runtimeId':self.store.runtime_id,'bootId':self.ipc.boot_id,'pid':os.getpid(),
+        result={'runtimeId':self.store.runtime_id,'bootId':self.ipc.boot_id,'pid':os.getpid(),
                 'configurationDigest':self.config.public_summary()['configurationDigest'],
                 'installation':self.installation,
                 'ipcReady':bool(self.ipc.thread and self.ipc.thread.is_alive()),
@@ -106,6 +111,8 @@ class ResidentRuntime:
                 'host':host,'scheduler':scheduler,'delivery':self.store.summary(),
                 'roleErrors':[module.error for module in self.modules if getattr(module,'error',None)],
                 'stopping':self.stop_requested.is_set()}
+        if self.native_events is not None:result['nativeEvents']=self.native_events.status()
+        return result
 
     def _delivery_operation(self,args):
         if set(args)!={'reference'} or not isinstance(args['reference'],dict):

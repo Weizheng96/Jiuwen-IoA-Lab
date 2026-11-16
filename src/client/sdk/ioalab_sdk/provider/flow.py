@@ -1,5 +1,6 @@
 """Service management composes the original publication and task owners."""
 from ..runtime import FlowJournal, RuntimeFault
+from ..runtime import flow_native_notice
 
 
 class ProviderFlows:
@@ -7,7 +8,7 @@ class ProviderFlows:
 
     def __init__(self, role):
         self.role = role
-        self.journals = {profile: FlowJournal(role.runtime, identity.agent_id, 'provider', self.advance)
+        self.journals = {profile: FlowJournal(role.runtime, identity.agent_id, 'provider', self.advance,on_async_receipt=flow_native_notice)
                          for profile, identity in role.identities.items()}
 
     def call(self, operation, args):
@@ -47,5 +48,6 @@ class ProviderFlows:
         return journal.receipt(r,'completed','business_input',result=result)
 
     def scan(self):
+        if getattr(self.role.runtime,'native_events',None):self.role.runtime.native_events.recover()
         for journal in self.journals.values():
             journal.scan()

@@ -48,6 +48,8 @@ class AssistantRole:
         self.inbound=Inbound(self)
         from .agent_flows import AssistantFlows
         self.flows=AssistantFlows(self)
+        from .native_events import NativeProjections
+        self.native_projections=NativeProjections(self)
         return {'operations':{name:self._operation(name.split('.',1)[1]) for name in handled_by(ASSISTANT)},
                 'jobs':{'assistant.message':JobHandler(self.inbound.process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available'))),
                         'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False),
@@ -173,6 +175,7 @@ class AssistantRole:
                 if self.runtime.connection.connected and self.trading:
                     self.trading.recover();self.contracts.recover();self.fulfillment.recover();self.termination.recover();self.termination.scan();self.cases.scan()
                     self.flows.scan()
+                    self.native_projections.scan()
                 if self.runtime.connection.connected and self.host and self.host.capabilities().get('available'):
                     self.inbound.schedule_received()
             except (RuntimeFault,httpx.HTTPError):pass

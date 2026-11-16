@@ -14,15 +14,29 @@ def flow_key(*parts):
 
 
 class FlowJournal:
-    def __init__(self, runtime, actor, kind, advance):
+    def __init__(self, runtime, actor, kind, advance, *, on_async_receipt=None):
         self.runtime, self.actor, self.kind, self.advance = runtime, actor, kind, advance
         self.store = runtime.store
         self.namespace = 'flow:' + kind + ':' + actor
         self.lock = threading.RLock()
-        self.cursor = 0
+        self.cursor = ''
+        self.notice_cursor = ''
+        self.on_async_receipt=on_async_receipt
 
     def save(self, record):
-        self.store.checkpoint_set(self.namespace, record['flowRef'], record)
+        pending=(self.on_async_receipt and record.get('nativeNoticeWatch')==record.get('operation')
+                 and record.get('receipt') and record.get('nativeNoticeBaseline')!=digest(record['receipt']))
+        # The original receipt and a lightweight recovery pointer commit together.
+        # An inactive business receipt must survive a crash before its projection callback.
+        with self.store.transaction() as conn:
+            conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',
+                         (self.namespace,record['flowRef'],encode(record)))
+            if pending:
+                conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',
+                             (self.namespace+':native-pending',record['flowRef'],encode({'flowRef':record['flowRef']})))
+            else:
+                conn.execute('DELETE FROM runtime_checkpoints WHERE namespace=? AND key=?',
+                             (self.namespace+':native-pending',record['flowRef']))
 
     def call(self, operation, args, actions):
         action = args.get('action', 'observe')
@@ -63,11 +77,31 @@ class FlowJournal:
                               results={}, active=True, stage=0)
             # Invocation binding and its initial state commit together, before effects.
             self.store.checkpoint_update(self.namespace, {record['flowRef']: record, request_key: {'fingerprint': digest(args), 'flowRef': record['flowRef']}})
-            return self.drive(record)
+            return self.drive(record,notify=False)
 
-    def drive(self, record, advance=None):
-        with source_scope(source_context(record.get('nativeSource')) or pending_source()):
-            return self._drive(record,advance)
+    def drive(self, record, advance=None, *, notify=True):
+        try:
+            with source_scope(source_context(record.get('nativeSource')) or pending_source()):
+                result=self._drive(record,advance)
+        except RuntimeFault:
+            result=record.get('receipt')
+            if notify and result and result['status']=='rejected' and not record.get('active'):
+                self._notify(record,result)
+            raise
+        if not notify:
+            record['nativeNoticeBaseline']=digest(result)
+            record['nativeNoticeWatch']=record['operation'] if record.get('active') else None
+        else:self._notify(record,result)
+        self.save(record)
+        return result
+
+    def _notify(self,record,result):
+        baseline=digest(result)
+        if (record.get('nativeNoticeWatch')==record.get('operation') and
+            record.get('nativeNoticeBaseline')!=baseline and self.on_async_receipt):
+            self.on_async_receipt(self,record,result)
+            record['nativeNoticeBaseline']=baseline
+            self.save(record)
 
     def _drive(self, record, advance=None):
         if not record['active'] and record.get('receipt'):
@@ -111,6 +145,13 @@ class FlowJournal:
             self.save(record)
         elif entry['args'] != args:
             raise RuntimeFault('id_conflict', 'Original flow step changed')
+        if record.get('nativeSource'):
+            owner={'kind':'flow','namespace':self.namespace,'flowRef':record['flowRef'],'operation':record['operation']}
+            owner_key=encode([self.actor,child])
+            with self.store.transaction() as conn:
+                row=conn.execute('SELECT value FROM runtime_checkpoints WHERE namespace=? AND key=?',('native-notice-owners',owner_key)).fetchone()
+                if row and row['value']!=encode(owner):raise RuntimeFault('identity_conflict','The original notice event owner changed')
+                conn.execute('INSERT OR IGNORE INTO runtime_checkpoints VALUES(?,?,?)',('native-notice-owners',owner_key,encode(owner)))
         result = entry.get('result')
         if not result or result['status'] not in ('completed', 'rejected', 'failed', 'unknown'):
             with source_scope(source_context(record.get("nativeSource")) or pending_source()):
@@ -164,21 +205,20 @@ class FlowJournal:
 
     def scan(self):
         with self.lock:
-            records = [(key,record) for key,record in self.store.checkpoints(self.namespace).items()
-                       if not key.startswith(('request:','delivery:')) and record.get('active')]
-            if not records:
-                return
-            selected = (records + records)[self.cursor:self.cursor + min(32,len(records))]
-            self.cursor = (self.cursor + 32) % len(records)
-            for key, record in selected:
-                if key.startswith('request:') or not record.get('active'):
-                    continue
-                if key.startswith('delivery:'):
-                    continue
-                try:
-                    self.drive(record)
-                except RuntimeFault:
-                    continue
+            page=self.store.checkpoint_page(self.namespace,after=self.cursor,active_only=True)
+            if not page:page=self.store.checkpoint_page(self.namespace,active_only=True)
+            if page:self.cursor=page[-1][0]
+            pending=self.store.checkpoint_page(self.namespace+':native-pending',after=self.notice_cursor)
+            if not pending:pending=self.store.checkpoint_page(self.namespace+':native-pending')
+            if pending:self.notice_cursor=pending[-1][0]
+            selected=dict(page)
+            for key,_ in pending:
+                record=self.store.checkpoint(self.namespace,key)
+                if record:selected[key]=record
+            for key,record in selected.items():
+                if key.startswith(('request:','delivery:')):continue
+                try:self.drive(record)
+                except RuntimeFault:continue
 
 
 class FlowWait(Exception):

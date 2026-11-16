@@ -187,6 +187,7 @@ class AgentConnection:
                     if self.on_delivery:self.on_delivery()
                 elif frame.get('type')=='operation.result':
                     self.store.complete(frame)
+                    if self.on_delivery:self.on_delivery()
                     if not frame['ok'] and frame['error']['code']=='stale_generation':
                         self._error_frame({'type':'connection.error','error':frame['error']})
                 elif frame.get('type')=='connection.pong':
