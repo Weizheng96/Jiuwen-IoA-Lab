@@ -74,7 +74,7 @@ def test_conflicting_role_preserves_user_files_and_prepares_other_role(tmp_path,
     assert not result['installed']
     assert result['skills'][0]['status'] == 'manual_required'
     assert result['skills'][0]['instructions']
-    assert result['skills'][1]['installed']
+    assert result['skills'][1]['installed'], result['skills'][1]
     assert original.read_bytes() == b'user-owned'
 
 
@@ -186,6 +186,29 @@ def test_external_account_config_does_not_change_reported_client_location(tmp_pa
     assert result['clientDirectory'] == str(root)
     assert result['programDirectory'] == str(root/'env')
     assert result['configurationFile'] == str((tmp_path/'private/settings.json').resolve())
+
+
+def test_handoff_separates_calling_registration_default_and_secret_options(tmp_path, monkeypatch):
+    from ioalab_client.native_skills import install
+    from ioalab_client.onboarding import summary
+    from ioalab_sdk.runtime import private_json
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    config=tmp_path/'client/settings.local.json'
+    private_json(config, {'username':'same-account','password':'private-handoff-secret',
+                         'data_dir':str(tmp_path/'data'),
+                         'identities':[{'key':'personal','role':'assistant','name':'Assistant'}],
+                         'host':{'default':'primary','registrations':{
+                             'primary':{'type':'codex','command':['codex'],'model':'private-model-option'},
+                             'secondary':{'type':'claude_code','command':['claude']}}}})
+    assert install('claude_code',host_ref='secondary',config=config,source=SOURCE)['installed']
+    result=summary('claude_code',host_ref='secondary',config=config)
+    data=result['data']
+    assert data['callingHostRef']=='secondary'
+    assert (data['executionHost'],data['executionHostRef'])==('codex','primary')
+    assert all(item['installed'] and item['entry'].startswith('/') for item in data['skills'])
+    assert not data['authenticated'] and not data['platformConnected'] and not data['connected']
+    assert 'private-handoff-secret' not in json.dumps(result)
+    assert 'private-model-option' not in json.dumps(result)
 
 
 def test_same_role_markdown_and_references_are_identical_across_three_host_exports(tmp_path):

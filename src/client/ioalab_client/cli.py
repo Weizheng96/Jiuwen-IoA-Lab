@@ -37,7 +37,7 @@ def main(argv=None):
                 result = {'status': 'completed' if data['installed'] else 'waiting', 'data': data, 'error': None}
             else:
                 from .onboarding import summary
-                result = summary(args.host, config=args.config, python=result['data']['python'])
+                result = summary(args.host, config=args.config, python=result['data']['python'], host_ref=args.host_ref)
         except (OSError, ValueError, RuntimeError) as error:
             result = {'status': 'rejected', 'data': None, 'error': {'code': 'onboarding_failed', 'message': str(error)}}
     if args.format == 'markdown' and args.command == 'onboarding' and (result.get('data') or {}).get('format') == 'ioalab.onboarding/1':

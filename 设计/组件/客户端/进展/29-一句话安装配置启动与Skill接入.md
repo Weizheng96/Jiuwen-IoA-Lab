@@ -2,7 +2,7 @@
 
 **目标行为：** Windows三宿主从同一句话自动取得客户端、保存配置、启动，再优先自动安装两Skill；后续不重复注册或询问有效配置。
 **阻塞于：** 27、28
-**状态：** ready（待前置票；已有基础见下，本票新增差距未实施、目标未实机验收）
+**状态：** claimed（owner：ticket29；待27/28前置接缝，设计192本机实现与定向已验证；尚未发布、目标原生实机未验收）
 **范围：** bootstrap、共用运行时接入交付、三个宿主装配；[专题](../../../工程/专题/一句话接入与三宿主全流程.md)与[技术方案](../../../工程/专题/一句话接入与三宿主全流程/技术方案.md)。
 **定向测试：** package_installation、client_onboarding、account_setup、configuration_boundary。复用现有runner；新增覆盖通过公开接缝验证，本机替身不算原生实测。
 
@@ -25,7 +25,19 @@
 - [ ] Windows三入口干净接入，新旧账号均覆盖
 - [ ] 重复接入和后装其他宿主不覆盖有效账号、不改变默认、不产生第二写入实例
 - [ ] 同名Skill冲突保留原件；手动指导只针对当前宿主；真实新会话加载有证据
-- [ ] 先落实本票涉及的不变量到唯一归属接口页并按实际变化升版；本专题不是现行规范，不为正确规范下的bug升版。
+- [x] 先落实本票涉及的不变量到唯一归属接口页并按实际变化升版；本专题不是现行规范，不为正确规范下的bug升版。
 - [ ] 更新本票、关联旧票及工程进展；实现／提交／发布／实机验收分别登记；全部满足后才收票。
 
 遇到未确定产品取舍或26未通过的必需能力，记录证据并向用户逐项提问；不自行降低目标。只提交本票及必要索引到develop，不碰其他会话WIP、运行数据或服务器。
+
+## 192 本地实现检查点（2026-11-16）
+
+Windows最小引导已实现固定官方MinGit/uv ZIP与SHA256、用户私有环境及process RemoteSigned；bootstrap保正式GitCode tag并支持GitHub develop实际README commit，构建新wheel避免同版本旧缓存，Python改为≥3.11。后装宿主在原环境补extra，原SDK同home/client.lock排除活跃实例，保留账号/default/业务状态；补装失败不更新成功host集合。宿主登记、账号本机页与唯一start仍由既有入口编排，不新增启动器。多登记摘要消费宿主entry、区分认证/连接/身份，不泄露秘密。
+
+定向五组84通过（安装、onboarding、package、account、配置），新增多登记脱敏摘要单项通过。首次定向74通过1失败：原生Skill冲突测试第二角色偶发未安装，仅加诊断后单点和扩大定向均通过，原因未确立，保留事实；最终fast该node再次通过。当前wheel实际client/SDK/三host全部Python源码逐文件摘要吻合工作区；实际模块均来自隔离site-packages，产物版本仍186，不用同版本旧wheel证明新源码。
+
+已实现/本机定向与尚未发布/原生验收分别记录。缺Git/Python的真实新用户完整安装、组织策略阻断、三宿主原生新会话及首次/追加全程仍待实测；PS真实执行目前只验RemoteSigned进入preflight并正确拒无效来源，AST通过不代表完整接入。≥3.11解释器依赖不兼容时保留日志与环境、指导明确选择私有已验证3.12，不对任意网络错误自动重试。
+
+最终192源补充：--reuse-installed自动区分新README引导与原客户端固定来源，原公开导出核sourceBinding/2、原RECORD/direct_url后仅取原官方commit补extra；旧能力明确explicit_upgrade_required，安全升级未完成。pip仅明确Requires-Python拒绝分类unsupported_python，PS给显式ManagedPython/未占用目录恢复命令，不对网络失败换解释器。ACP936实测普通-I子进程stdout=gbk，已统一-X utf8（含原锁内pip），中文路径与stdout/stderr成功/失败均覆盖。
+
+最终受影响四组89通过，离仓wheel1通过，均由唯一runner串行且light全0。最终wheel SHA256为4d78820150027cb35864ce56d6a49ee95c4fb62b7eb7edabe5c2dc2b4ff6be1e；五包实际__file__/全部.py指纹及包内bootstrap指纹吻合最终源码。此前无UTF8/无reuse收口的wheel证据仅作历史，不替代本次最终输入。最终快速层1865通过、41跳过、518未选、14子测试通过，真实退出0（428.23秒）；原间歇冲突node本轮通过，未推断其偶发原因已修复。源码本地v0.0.192.1交付，未push/发布，原生新用户接入仍未验。

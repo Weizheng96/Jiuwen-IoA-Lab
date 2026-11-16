@@ -76,7 +76,7 @@ def main(argv=None):
             if set(values)!={'host'} or values['host'] not in ('jiuwen','codex','claude_code'):
                 raise RuntimeError('Use only host: jiuwen, codex or claude_code')
             from .onboarding import summary
-            emit(summary(values['host'],config=config,python=python));return 0
+            emit(summary(values['host'],config=config,python=python,host_ref=args.host_ref));return 0
         elif args.operation in ('account.setup','account.setup.status'):
             arguments=['-m','ioalab_sdk.access','account-setup' if args.operation=='account.setup' else 'account-setup-status','--config',str(config)]
             if args.operation=='account.setup':arguments+=['--role',role,'--both-roles']
