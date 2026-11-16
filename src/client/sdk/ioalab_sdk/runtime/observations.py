@@ -13,6 +13,10 @@ SCHEMA={'type':'object','properties':{'observation':{}},'required':['observation
 
 
 def model_port(runtime,host,identity,interaction):
+    from .host_registry import HostRegistry
+    if isinstance(host,HostRegistry):
+        binding=host._bind(identity.agent_id,interaction)
+        host=host.hosts[binding['hostRef']]
     def run(request,files,job):
         runtime.require_execution()
         if host is None or not host.capabilities().get('available'):raise RuntimeFault('not_ready','Configure the owner observation model through the host')

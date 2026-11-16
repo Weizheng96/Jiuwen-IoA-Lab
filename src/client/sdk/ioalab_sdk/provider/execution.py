@@ -1,4 +1,5 @@
 """Service ingress and per-interaction original Providers on the shared runtime."""
+from ..runtime import HostRegistry,for_interaction
 import threading
 import time
 import httpx
@@ -48,8 +49,8 @@ class ProviderExecution:
                         'provider.arbitration':JobHandler(self.rulings.run,'provider-arbitration-v1',False,control=True),
                         'provider.production':JobHandler(self.production.run,'provider-production-v1',True,self.model_available)},'profiles':list(self.configs)}
 
-    def business_tools(self,profile,expected=None):
-        available=self.role.tools_by_profile.get(profile,{})
+    def business_tools(self,profile,expected=None,*,interaction=None,actor=None):
+        available=self.host.tools_for(actor,interaction,profile) if interaction and isinstance(self.host,HostRegistry) else self.role.tools_by_profile.get(profile,{})
         if expected is None:return dict(available)
         selected={}
         for policy in expected:
@@ -233,7 +234,7 @@ class ProviderExecution:
             if config is None:
                 if identity.profile not in self.configs:raise RuntimeFault('not_ready','Restore the original local service configuration')
                 config={key:self.configs[identity.profile].get(key,[] if key=='skills' else {} if key in ('resources','native_tools') else '') for key in ('instructions','skills','resources','native_tools')}
-                config['businessTools']=[tool.policy() for tool in self.business_tools(identity.profile).values()];store.put('context','config',config)
+                config['businessTools']=[tool.policy() for tool in self.business_tools(identity.profile,interaction=relation['id'],actor=identity.agent_id).values()];store.put('context','config',config)
             transport=SessionTransport(self.runtime,identity,relation['id'],aid,relation['peer'],public=self.public)
             keys=Directory(fetch=transport.jwks)
             payment=AP2Payment(transport,psp=self.runtime.account.config['pay'],payer=identity.payment,

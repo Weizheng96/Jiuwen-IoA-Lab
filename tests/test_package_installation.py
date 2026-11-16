@@ -19,6 +19,46 @@ DEPENDENCY_SITES = list(dict.fromkeys([sysconfig.get_paths()["purelib"], str(imp
 DEPENDENCY_PATHS = "\n".join(DEPENDENCY_SITES)+"\n"
 
 
+def test_independent_host_wheels_assemble_without_product_distribution(tmp_path,platform):
+    """Native/official application entry points depend on SDK, never the unified product."""
+    from test_resident_runtime import configuration
+    wheels=tmp_path/'wheels'
+    projects=[ROOT/'src/client/sdk',*(ROOT/'src/client/hosts'/name for name in ('jiuwen','codex','claude_code'))]
+    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),*[str(item) for item in projects]],tmp_path)
+    environment=tmp_path/'independent';venv.EnvBuilder(with_pip=True).create(environment)
+    python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+    built=sorted(wheels.glob('*.whl'))
+    run([str(python),'-I','-m','pip','install','--no-index','--no-deps',*[str(item) for item in built]],tmp_path)
+    purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
+    Path(purelib,'zz-third-party.pth').write_text(DEPENDENCY_PATHS,encoding='utf-8')
+    cases=[]
+    for kind,module,identity in [('jiuwen','ioalab_jiuwen','ioalab-jiuwen'),('codex','ioalab_codex','ioalab-codex'),('claude','ioalab_claude_code','ioalab-claude-code')]:
+        directory=tmp_path/kind;directory.mkdir()
+        path,_=configuration(platform,directory,service=False)
+        document=json.loads(path.read_text())
+        document['host']={'command':[str(python)],'model':'test-model'}
+        if kind=='jiuwen':document['host']['data_dir']=str(directory/'swarm')
+        path.write_text(json.dumps(document),encoding='utf-8')
+        cases.append([module,str(path),identity])
+    script='''import importlib,importlib.util,json,sys
+from importlib import metadata
+assert importlib.util.find_spec('ioalab_client') is None
+try:metadata.distribution('ioalab-client')
+except metadata.PackageNotFoundError:pass
+else:raise AssertionError('Product distribution unexpectedly present')
+results=[]
+for module,path,identity in json.loads(sys.argv[1]):
+    owner=importlib.import_module(module)
+    with owner.assembled(path) as assembly:
+        status=assembly.runtime.status()
+        assert status['installation']['assembly']==identity
+        assert len(assembly.runtime.identities)==1
+        results.append([module,identity])
+print(json.dumps(results))
+'''
+    assert json.loads(run([str(python),'-I','-c',script,json.dumps(cases)],tmp_path))==[[item[0],item[2]] for item in cases]
+
+
 def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
     from tools.build_client import build
     wheel=build(tmp_path/'wheels')

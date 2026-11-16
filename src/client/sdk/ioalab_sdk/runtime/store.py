@@ -23,6 +23,49 @@ CREATE TABLE IF NOT EXISTS runtime_checkpoints(namespace TEXT NOT NULL,key TEXT 
 
 
 class RuntimeStore:
+    @staticmethod
+    def migrate_host(path, host_ref, *, platform, username):
+        """Called only under the original runtime lease, before replacing old settings.
+
+        Bind first: if settings replacement fails, retry retains the original host.
+        No business operation is executed and no new runtime identity is allocated.
+        """
+        path=Path(path)
+        if not path.exists():return
+        account_path=path.parent/'account.sqlite'
+        if not account_path.is_file():
+            raise RuntimeFault('identity_conflict','Restore the original account binding before migrating host sessions')
+        with sqlite3.connect(account_path.as_uri()+'?mode=ro',uri=True) as account:
+            row=account.execute("SELECT v FROM documents WHERE tbl='meta' AND k='binding'").fetchone()
+            owner=account.execute("SELECT v FROM documents WHERE tbl='meta' AND k='owner_id'").fetchone()
+        if not row or json.loads(row[0])!={'platform':platform.rstrip('/'),'username':username} or not owner:
+            raise RuntimeFault('identity_conflict','Host migration requires the original local account binding')
+        with sqlite3.connect(path) as conn:
+            existing=conn.execute("SELECT value FROM runtime_meta WHERE key='binding'").fetchone()
+            if not existing or json.loads(existing[0])!={'platform':platform.rstrip('/'),'owner':json.loads(owner[0])}:
+                raise RuntimeFault('identity_conflict','Runtime sessions belong to another platform or account')
+            for actor, interaction, session in conn.execute('SELECT actor,id,session FROM runtime_interactions'):
+                key=encode([actor,interaction])
+                row=conn.execute('SELECT value FROM runtime_checkpoints WHERE namespace=? AND key=?',('host-bindings',key)).fetchone()
+                if row:
+                    value=json.loads(row[0])
+                    if value['hostRef']!=host_ref or value['sessionId']!=session:
+                        raise RuntimeFault('identity_conflict','Original host migration conflicts with its saved session')
+                    continue
+                conn.execute('INSERT INTO runtime_checkpoints VALUES(?,?,?)',('host-bindings',key,encode(
+                    {'hostRef':host_ref,'sessionId':session,'workspace':None,'source':'external'})))
+            for actor,payload in conn.execute("SELECT actor,payload FROM runtime_operations WHERE kind='message.send'"):
+                message=json.loads(payload)
+                origin=message.get('messageId')
+                if message.get('kind') not in ('message.request','delegation.intent') or not origin:continue
+                if conn.execute('SELECT 1 FROM runtime_interactions WHERE actor=? AND origin=?',(actor,origin)).fetchone():continue
+                key=encode([actor,origin])
+                old=conn.execute('SELECT value FROM runtime_checkpoints WHERE namespace=? AND key=?',('host-origins',key)).fetchone()
+                if old and json.loads(old[0])['hostRef']!=host_ref:
+                    raise RuntimeFault('identity_conflict','Original outbound business belongs to another host')
+                conn.execute('INSERT OR IGNORE INTO runtime_checkpoints VALUES(?,?,?)',('host-origins',key,encode(
+                    {'hostRef':host_ref,'sessionId':None,'workspace':None,'source':'external'})))
+
     def __init__(self, path, platform_url, actors, *, owner_id):
         self.path = Path(path)
         self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -209,6 +252,7 @@ class RuntimeStore:
             name,revision=body['interfaceName'],body['revision']
         conn.execute('INSERT INTO runtime_interactions VALUES(?,?,?,?,?,?,?,?,NULL)',
                      (origin,message['interactionId'],actor,message['sender'],'outbound',name,revision,encode(message['body'])))
+        self._bind_host_origin(conn,actor,origin,message['interactionId'])
 
     def prepare_open(self, actor, origin, *, deadline=None, max_requests=8):
         """Create the receiver UUID and its original outbox operation in one transaction."""
@@ -261,6 +305,35 @@ class RuntimeStore:
                 raise RuntimeFault('identity_conflict','Interaction changed its host session or definition')
             details['definitionDigest']=definition_digest
             conn.execute('UPDATE runtime_interactions SET session=?,details=? WHERE id=?',(session,encode(details),interaction_id))
+
+    def session_scope(self, actor, interaction, session):
+        binding=self.checkpoint('host-bindings',encode([actor,interaction]))
+        actual=session or (binding.get('sessionId') if binding else None)
+        return (binding['hostRef'] if binding else None,actual) if actual else None
+
+    def record_host_origin(self,actor,origin,value):
+        if not isinstance(origin,str) or not origin:raise RuntimeFault('invalid_input','Use the original outbound message identifier')
+        key=encode([actor,origin])
+        with self.transaction() as conn:
+            if not conn.execute('SELECT 1 FROM runtime_cursors WHERE actor=?',(actor,)).fetchone():
+                raise RuntimeFault('forbidden','Source identity is outside this account runtime')
+            old=conn.execute('SELECT value FROM runtime_checkpoints WHERE namespace=? AND key=?',('host-origins',key)).fetchone()
+            if old and old['value']!=encode(value):
+                raise RuntimeFault('identity_conflict','The original operation cannot change its native source')
+            if not old:
+                sent=conn.execute("SELECT payload FROM runtime_operations WHERE actor=? AND kind='message.send'",(actor,)).fetchall()
+                if any(json.loads(row['payload']).get('messageId')==origin for row in sent):
+                    raise RuntimeFault('identity_conflict','Record the verified source before the original message enters the outbox')
+            conn.execute('INSERT OR IGNORE INTO runtime_checkpoints VALUES(?,?,?)',('host-origins',key,encode(value)))
+
+    def _bind_host_origin(self,conn,actor,origin,interaction):
+        saved=conn.execute('SELECT value FROM runtime_checkpoints WHERE namespace=? AND key=?',('host-origins',encode([actor,origin]))).fetchone()
+        if not saved:return
+        key=encode([actor,interaction])
+        old=conn.execute('SELECT value FROM runtime_checkpoints WHERE namespace=? AND key=?',('host-bindings',key)).fetchone()
+        if old and old['value']!=saved['value']:
+            raise RuntimeFault('identity_conflict','The established interaction changed its original host source')
+        conn.execute('INSERT OR IGNORE INTO runtime_checkpoints VALUES(?,?,?)',('host-bindings',key,saved['value']))
 
     def recover_link(self, actor, relation):
         if relation.get('interactionId'):

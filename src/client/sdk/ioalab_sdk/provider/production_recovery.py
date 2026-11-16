@@ -141,7 +141,7 @@ class ProductionRecovery:
             definition_hash = definition_digest(definition)
             if relation['details'].get('definitionDigest') != definition_hash:
                 raise RuntimeFault('identity_conflict', 'Restore the original production agent definition')
-            business = self.execution.business_tools(identity.profile, endpoint.provider.policy.config.get('businessTools', []))
+            business = self.execution.business_tools(identity.profile, endpoint.provider.policy.config.get('businessTools', []),interaction=relation['id'],actor=identity.agent_id)
             effects = []
             original_calls = {}
             for key, call in sorted(endpoint.store.all('production_calls').items()):

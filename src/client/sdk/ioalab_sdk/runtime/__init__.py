@@ -10,6 +10,7 @@ from .network import Network
 from .files import prepare_home, private_json, private_text, read_arguments, read_json, restrict, windows_sid
 from .files_api import PrivateFiles
 from .host import AgentDefinition, AgentHost, BusinessTools, HostResult, HostTurn, ToolBinding, validate_output
+from .host_registry import HostRegistry, HostContext, DeliveryReceipt, for_interaction
 from .installation import SAFE_CALLS, current, require_matching
 from .ipc import LocalClient, public_error
 from .lease import Lease
@@ -24,6 +25,7 @@ from .trusted_user import TrustedUserPort, TrustedUserServer
 from ..templates import TEMPLATE_LIFETIME, TEMPLATE_RENEW_BEFORE, draft_from_terms, template_from_definition
 
 __all__ = [
+    'HostRegistry', 'HostContext', 'DeliveryReceipt', 'for_interaction',
     'FrozenSkills', 'documents',
     'FlowJournal', 'flow_key',
     'AGENT', 'ASSISTANT', 'CATALOG', 'INTERNAL', 'OPERATIONS', 'PROVIDER', 'RUNTIME', 'SCRIPT', 'Operation', 'fields',

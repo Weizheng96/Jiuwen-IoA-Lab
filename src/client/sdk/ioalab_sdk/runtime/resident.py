@@ -21,7 +21,7 @@ from .installation import current as current_installation
 
 
 class ResidentRuntime:
-    def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=(),modules=(),assembly=None):
+    def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=(),modules=(),assembly=None,host_registry=None):
         self.config=config
         self.installation=current_installation(assembly)
         self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=None
@@ -48,6 +48,7 @@ class ResidentRuntime:
             self.identities=[load_identity(self.account,config.home,profile) for profile in config.identities]
             actors=[p.agent_id for p in self.identities]
             self.store=RuntimeStore(config.home/'runtime.sqlite',config.platform,actors,owner_id=self.account.account['id'])
+            if host_registry is not None:host_registry.bind(self.store)
             self.connection=AgentConnection(config.platform,self.account.bearer,actors,self.store,network=self.account.network)
             self.confirmations=Confirmations(self.store)
             job_handlers=dict(jobs or {})

@@ -111,11 +111,12 @@ class Scheduler:
     def bind_session(self,job,session):
         if not isinstance(session,str) or not session:raise RuntimeFault('protocol_error','A real host session is required')
         with self.store.transaction() as conn:
-            row=conn.execute('SELECT session,state,interaction,handler FROM runtime_jobs WHERE id=?',(job,)).fetchone()
+            row=conn.execute('SELECT actor,session,state,interaction,handler FROM runtime_jobs WHERE id=?',(job,)).fetchone()
             if not row or row['state']!='running':raise RuntimeFault('not_ready','Job is not currently executing')
             if self.handlers[row['handler']].control:raise RuntimeFault('forbidden','A protocol control handler cannot bind or execute a host session')
             if row['session'] and row['session']!=session:raise RuntimeFault('identity_conflict','Host session changed')
-            conflicts=conn.execute("SELECT handler,interaction FROM runtime_jobs WHERE id!=? AND session=? AND state IN ('running','waiting','unknown')",(job,session)).fetchall()
+            scope=self.store.session_scope(row['actor'],row['interaction'],session)
+            conflicts=[other for other in conn.execute("SELECT actor,session,handler,interaction FROM runtime_jobs WHERE id!=? AND state IN ('running','waiting','unknown')",(job,)).fetchall() if self.store.session_scope(other['actor'],other['interaction'],other['session'])==scope]
             if any(other['interaction']!=row['interaction'] or other['handler'] not in self.handlers or not self.handlers[other['handler']].control for other in conflicts):
                 raise RuntimeFault('not_ready','Another unresolved job owns this host session')
             conn.execute('UPDATE runtime_jobs SET session=? WHERE id=?',(session,job))
@@ -303,7 +304,7 @@ class Scheduler:
 
     def _next(self):
         with self.store.transaction() as conn:
-            held=conn.execute("SELECT id,interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')").fetchall()
+            held=conn.execute("SELECT id,actor,interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')").fetchall()
             models=sum(self.handlers[r['handler']].uses_model for r in held
                        if r['state']=='running' and not r['model_waiting'] and r['handler'] in self.handlers)
             business_threads=sum(not self.handlers[r['handler']].control for r in held if r['id'] in self._active and r['handler'] in self.handlers)
@@ -315,7 +316,8 @@ class Scheduler:
                 if not handler or row['revision']!=handler.revision or handler.ready and not handler.ready():continue
                 blocked=False
                 for other in held:
-                    if other['interaction']!=row['interaction'] and not (row['session'] and row['session']==other['session']):continue
+                    scope=self.store.session_scope(row['actor'],row['interaction'],row['session'])
+                    if other['interaction']!=row['interaction'] and not (scope and scope==self.store.session_scope(other['actor'],other['interaction'],other['session'])):continue
                     prior=self.handlers.get(other['handler'])
                     # Only installed non-model controls for this same interaction
                     # may receive facts while its business execution is unresolved.

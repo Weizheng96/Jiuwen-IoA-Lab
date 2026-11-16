@@ -217,42 +217,32 @@ def test_resident_meeting_conflict_retry_same_uuid_session_and_real_smtp_capture
 
 @pytest.mark.parametrize('available',[True,False])
 def test_resident_assembly_probes_before_tools_and_closes_runtime_first(monkeypatch,tmp_path,available):
-    """serve and the trial share this one assembly; order is fixed here."""
+    """Every explicit application/product caller uses the SDK assembly resource lifecycle."""
     from types import SimpleNamespace
-    from ioalab_jiuwen import assembly as module
+    import ioalab_sdk.access as module
     events=[]
-    config=SimpleNamespace(host={'command':['original'],'data_dir':str(tmp_path/'swarm'),'business_tools':['spec']},home=tmp_path/'sdk',
-                           identities=[{'key':'personal','role':'assistant'},{'key':'svc','role':'service'}])
+    config=SimpleNamespace(identities=[{'key':'personal','role':'assistant'},{'key':'svc','role':'service'}])
     class Tools:
         by_profile={'svc':{}}
-        def __init__(self,specs,identities,*,home,base_dir):events.append(('tools',specs,base_dir))
         def for_profile(self,key):events.append(('profile',key));return {}
         def status(self):return {}
         def start(self):events.append('tools.start')
         def close(self):events.append('tools.close')
     class Host:
-        data_dir=tmp_path/'swarm'
-        def capabilities(self):return {}
+        def capabilities(self):return {'available':available}
         def probe(self):events.append('probe');return {'available':available}
     class Runtime:
-        def __init__(self,config,*,modules,host_status,assembly):events.append(('runtime',len(modules),assembly))
+        def __init__(self,config,*,modules,host_status,assembly,host_registry):events.append(('runtime',len(modules),assembly))
         def run(self):events.append('runtime.run')
         def close(self):events.append('runtime.close')
-    monkeypatch.setattr(module,'RuntimeConfig',SimpleNamespace(load=lambda path:config))
-    monkeypatch.setattr(module,'ConfiguredTools',Tools)
-    monkeypatch.setattr('ioalab_jiuwen.configuration.ProcessHost',SimpleNamespace(from_config=lambda host,base_dir:events.append(('host',host)) or Host()))
-    monkeypatch.setattr(module,'AssistantRole',lambda host,tools:'assistant')
-    monkeypatch.setattr(module,'ProviderRole',lambda host,tools:'provider')
-    monkeypatch.setattr(module,'ResidentRuntime',Runtime)
-    path=tmp_path/'config.json'
-    with module.assembled(path) as assembly:
+    monkeypatch.setattr('ioalab_sdk.runtime.ResidentRuntime',Runtime)
+    tools=Tools()
+    with module.assembled(config,Host(),tools=tools,resources={'explicit':tools},assembly='ioalab-jiuwen') as assembly:
         assert assembly.config is config
         if available:assembly.run()
         else:
             with pytest.raises(RuntimeFault,match='probe') as caught:assembly.run()
             assert caught.value.code=='not_ready'
-    assert events[0]==('host',{'command':['original'],'data_dir':str(tmp_path/'swarm')})
-    assert events[1]==('tools',['spec'],path.resolve().parent)
     assert ('profile','personal') in events and ('runtime',2,'ioalab-jiuwen') in events
     tail=events[events.index('probe'):]
     assert tail==(['probe','tools.start','runtime.run','runtime.close','tools.close'] if available else ['probe','runtime.close','tools.close'])

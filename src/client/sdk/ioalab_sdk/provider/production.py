@@ -1,4 +1,5 @@
 """Task-scoped production tools on the original host/session and A2C Provider."""
+from ..runtime import for_interaction
 import base64
 from pathlib import Path
 import time
@@ -98,7 +99,7 @@ class Production:
         definition_hash=definition_digest(definition)
         if relation['details'].get('definitionDigest')!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original production agent definition')
         self.execution.tasks.production.require_continuation(identity,job)
-        business=self.execution.business_tools(identity.profile,provider.policy.config.get('businessTools',[]))
+        business=self.execution.business_tools(identity.profile,provider.policy.config.get('businessTools',[]),interaction=relation['id'],actor=identity.agent_id)
         state={'outcome':None,'toolError':None}
         def session(value):
             self.runtime.store.bind_session(relation['id'],value,definition_hash);self.runtime.scheduler.bind_session(job['id'],value)
@@ -171,7 +172,7 @@ class Production:
                        'instruction':'按合同和已配置业务能力生产。需要用户批准的环节先调用provider.task.request_step并结束本轮；交付前可selftest，deliver取得回执后结束本轮。不得把文字当交付或自行批准环节。'})
         round_record=self.execution.tasks.production.begin(identity,job,relation,definition_hash)
         self.execution.active.add(job['id'])
-        try:result=self.execution.host.run(HostTurn(job['id'],identity.agent_id,relation['id'],definition,prompt,str(workspace),300,relation['session'],session,lambda value:native_answer(self.runtime,identity.agent_id,job['id'],value,self.execution.stop),invoke,allow_native_tools=True))
+        try:result=for_interaction(self.execution.host,identity.agent_id,relation['id']).run(HostTurn(job['id'],identity.agent_id,relation['id'],definition,prompt,str(workspace),300,relation['session'],session,lambda value:native_answer(self.runtime,identity.agent_id,job['id'],value,self.execution.stop),invoke,allow_native_tools=True))
         finally:self.execution.active.discard(job['id'])
         self.execution.tasks.production.finish(identity,job,round_record,result)
         if state['toolError']:

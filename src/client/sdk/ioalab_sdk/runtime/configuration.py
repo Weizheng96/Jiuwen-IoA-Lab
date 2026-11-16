@@ -87,5 +87,11 @@ def configure(path,arguments,*,service_fields=(),validate=None,host_update=None,
             raise RuntimeFault('configuration_changed','Configuration changed; inspect it before applying new fields','runtime.configuration')
         if changed:
             original.require_current()
+            if document.get('host') and 'registrations' not in document['host'] and 'registrations' in candidate.get('host',{}):
+                from .store import RuntimeStore
+                old=document['host'].get('type') or values['changes'].get('host',{}).get('migrate_from')
+                if not old or candidate['host']['registrations'].get(old)!={**document['host'],'type':old}:
+                    raise RuntimeFault('identity_conflict','Migrate the original host unchanged before editing its options')
+                RuntimeStore.migrate_host(original.home/'runtime.sqlite',old,platform=original.platform,username=original.username)
             private_json(path,candidate)
         return {**_public(checked,host_fields),'changed':changed}
