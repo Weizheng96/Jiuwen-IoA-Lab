@@ -6,28 +6,28 @@
 
 ```text
 python "<skill_directory>/scripts/ioalab.py" runtime.install.status
-python "<skill_directory>/scripts/ioalab.py" runtime.start --config "<外置配置文件>"
-python "<skill_directory>/scripts/ioalab.py" runtime.status --config "<外置配置文件>"
-python "<skill_directory>/scripts/ioalab.py" identity.status --config "<外置配置文件>"
+python "<skill_directory>/scripts/ioalab.py" runtime.start
+python "<skill_directory>/scripts/ioalab.py" runtime.status
+python "<skill_directory>/scripts/ioalab.py" identity.status
 ```
 
 上述python只用于运行薄调用脚本，脚本会转交bootstrap导出时绑定的客户端Python3.11；不把九问环境当作客户端环境。安装完成不代表已上线；首次先完成account-setup.md，再按host-setup.md启动。SDK启动返回waiting时只查询同一配置，不重复启动，不轮询数分钟占用前台。
 
 configuration_changed或installation_changed时按原配置正常停止并核锁释放，再启动；不换data_dir或私钥。unknown保留原参数和operationId，查询原业务，不重做签约、付款或通知。status分别核身份bound、platformConnected、宿主available与角色执行能力；未发布服务不能报告可接单。
 
-账号恢复：`python "<skill_directory>/scripts/ioalab.py" account.login --config "<外置配置文件>"`。此命令不需要args-file，由SDK持同一实例锁，只恢复账号会话，不启动九问、模型或业务。有效凭据复用不赠币；明确失效时才新登录。原登录未知时恢复同一标识，结果仍未知或输入已变则保留现场，不改密码/操作标识后反复请求。已明确拒绝后可修正本机配置并再次显式登录；newLogin只表示本次是否建立新的登录操作，不能据历史credited推定再次到账。普通重启不暗中重登。
+账号恢复：`python "<skill_directory>/scripts/ioalab.py" account.login`。此命令不需要args-file，由SDK持同一实例锁，只恢复账号会话，不启动九问、模型或业务。有效凭据复用不赠币；明确失效时才新登录。原登录未知时恢复同一标识，结果仍未知或输入已变则保留现场，不改密码/操作标识后反复请求。已明确拒绝后可修正本机配置并再次显式登录；newLogin只表示本次是否建立新的登录操作，不能据历史credited推定再次到账。普通重启不暗中重登。
 
 有效凭据可在当前SDK上用独立{}参数文件调用account.refresh；不赠币，失败不自动密码登录。先按实际状态区分认证、连接和宿主能力，不能通过登录重试修复模型或发布错误。
 
-两个角色默认共用~/.ioalab/settings.local.json，也可用同一个--config指定其他外置文件。配置不要放在技能目录或data_dir中；原生覆盖导入会替换技能目录。data_dir保管稳定身份、原Session和业务，依赖缓存是另一个目录，不得删除运行数据来修复安装。
+两个角色默认共用~/.ioalab/client/settings.local.json，非默认配置在安装/导出时由程序绑定，调用时不传--config。配置不要放在技能目录或data_dir中；原生覆盖导入会替换技能目录。data_dir保管稳定身份、原Session和业务，依赖缓存是另一个目录，不得删除运行数据来修复安装。
 
-需要宿主辅助增加角色、业务能力或调整并发时，先runtime.install.status核安装完成，再调用runtime.configuration --config "<外置配置文件>"取得configurationDigest、身份和可修改字段；不要读取设置正文。生成独立UTF-8 JSON文件，例如：
+需要宿主辅助增加角色、业务能力或调整并发时，先runtime.install.status核安装完成，再调用runtime.configuration取得configurationDigest、身份和可修改字段；不要读取设置正文。生成独立UTF-8 JSON文件，例如：
 
 ```json
 {"expectedDigest":"<实际configurationDigest>","changes":{"max_model_runs":2,"identities":[{"key":"coding","role":"service","name":"我的编程服务"}],"provider":{"services":{"coding":{"instructions":"用户明确的业务处理规则","skills":[],"max_active_delegations":2}}}}}
 ```
 
-用runtime.configure --config "<外置配置文件>" --args-file "<修改参数文件>"提交。身份按key新增/更新，服务按字段合并，原角色、其他服务和凭据保留；不提供账号、密码、SDK数据目录、resources或host.business_tools修改。host的command/data_dir/model/skill_directories可由本机用户明确提供后配置，按host-setup.md指向实际所选宿主，不改九问文件、模型设置或权限。返回changed只表示配置已保存；继续runtime.start并核实际能力，不能宣称已发布或接单。若实例持锁，先沿原配置runtime.stop并等实际释放再修改；不自动停服务、换身份或删状态。异摘要重新查询，同值重试只返回当前事实，不当作旧业务回执。runtime.validate仅做结构校验，不运行九问或业务工具。
+用runtime.configure --args-file "<修改参数文件>"提交。身份按key新增/更新，服务按字段合并，原角色、其他服务和凭据保留；不提供账号、密码、SDK数据目录、resources或host.business_tools修改。host的command/data_dir/model/skill_directories可由本机用户明确提供后配置，按host-setup.md指向实际所选宿主，不改九问文件、模型设置或权限。返回changed只表示配置已保存；继续runtime.start并核实际能力，不能宣称已发布或接单。若实例持锁，先沿原配置runtime.stop并等实际释放再修改；不自动停服务、换身份或删状态。异摘要重新查询，同值重试只返回当前事实，不当作旧业务回执。runtime.validate仅做结构校验，不运行九问或业务工具。
 
 首次账号认证后先按host-setup.md明确host.type，再补齐对应宿主的公开字段；Codex及Claude Code只需command/model，九问需command/data_dir。已有完整选择时复用并启动。可靠来源是用户明确给出的值、当前九问公开启动信息及其JIUWENSWARM_DATA_DIR；不能确定就只询问缺少的命令或目录。不要猜jiuwenswarm-cli，不把HOME、SDK的dataDir或本次聊天工作目录当作九问数据目录，也不把SDK桥接模块当作九问入口。配置被拒绝后按已声明格式修正；入口或目录不明时结束本轮等待用户，不通过读取SDK源码、另调内部模块或反复试命令寻找执行链。
 

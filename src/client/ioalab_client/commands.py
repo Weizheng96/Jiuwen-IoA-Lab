@@ -57,10 +57,23 @@ def main(argv=None):
         if args.operation == 'runtime.install.status' or prepared['status']!='completed':
             emit(prepared);return 0 if prepared['status'] in ('completed','waiting') else 1
         python=Path(prepared['data']['python'])
-        config=(args.config or Path.home()/'.ioalab/settings.local.json').expanduser().resolve()
-        if args.operation in ('account.setup','account.setup.status'):
+        from .layout import configuration_path
+        config=configuration_path(args.config)
+        if args.operation=='runtime.binding':
+            if args.args_file:raise RuntimeError('runtime.binding does not use args-file')
+            from .layout import locations
+            emit({'status':'completed','data':locations(config,python),'error':None});return 0
+        elif args.operation=='runtime.onboarding':
+            if not args.args_file:raise RuntimeError('Use an args-file containing the calling host')
+            from ioalab_sdk.runtime import RuntimeConfig,read_arguments
+            values=read_arguments(args.args_file,configuration=config,home=RuntimeConfig.load(config).home)
+            if set(values)!={'host'} or values['host'] not in ('jiuwen','codex','claude_code'):
+                raise RuntimeError('Use only host: jiuwen, codex or claude_code')
+            from .onboarding import summary
+            emit(summary(values['host'],config=config,python=python));return 0
+        elif args.operation in ('account.setup','account.setup.status'):
             arguments=['-m','ioalab_sdk.access','account-setup' if args.operation=='account.setup' else 'account-setup-status','--config',str(config)]
-            if args.operation=='account.setup':arguments+=['--role',role]
+            if args.operation=='account.setup':arguments+=['--role',role,'--both-roles']
             if args.args_file:
                 if args.operation.endswith('.status'):raise RuntimeError('Account status uses only --config')
                 arguments+=['--args-file',str(args.args_file.expanduser().resolve())]

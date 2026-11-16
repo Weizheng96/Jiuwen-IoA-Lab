@@ -8,6 +8,8 @@
 
 按仓库根README_AGENT.md，用Git浅克隆已发布tag、稀疏检出src/client，再运行其中bootstrap.py。安装器核官方来源、tag/commit及脚本内容，从固定Git对象生成含受审vendor输入的构建快照；pip本地安装，不再次远端克隆客户端。普通依赖及构建工具沿用户可信包源取得，客户端不必发布到PyPI。
 
-安装完成导出个人助手与服务方两个Skill。九问经文件卡片/菜单导入；Codex和Claude Code读取本机实际解压目录中的Skill。账号在SDK本机页面录入，随后显式选择host.type=jiuwen、codex或claude_code。Codex及Claude Code提供command和model；九问提供command及原data_dir，三者均可显式配置业务技能目录。
+安装完成同时准备绑定同一客户端和配置的两份Skill。Codex与Claude Code安装到各自原生用户级技能目录；九问经文件卡片/菜单导入两包，无法自动时给出实际文件及手动步骤。新安装以持久根目录的env/保存程序，账号配置和数据保存在env/之外。账号在SDK本机页面录入，随后显式选择host.type=jiuwen、codex或claude_code。Codex及Claude Code提供command和model；九问提供command及原data_dir，三者均可显式配置业务技能目录。
 
 按SDK状态分别核账号认证、host.available、platformConnected和身份bound。Codex和Claude Code首版不支持原生生产工具、原生提问回调或自动通知当前桌面聊天，缺失能力不伪装就绪。升级先沿原配置安全停止，保留身份与在途业务。
+
+接入结束按两份Skill共有的references/onboarding.md生成固定交付摘要，列明客户端、账号配置、官网及“我的智能体”、双角色入口和待验项。新会话原生发现与无路径/无密码调用原客户端是独立完成条件；文件安装不代表该条件已验。多框架入口共用客户端，后台执行仍由原host.type决定。

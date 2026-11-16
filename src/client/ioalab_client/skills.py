@@ -1,12 +1,22 @@
 """Export two lightweight native skills bound to the same client interpreter."""
 import io
+import hashlib
+import json
 from pathlib import Path
 import sys
 import zipfile
 
+from .layout import binding, configuration_path
 
-def export_skills(output, *, source=None, python=None):
+
+def skill_manifest(files, bound):
+    return {'format': 'ioalab.skill/1', 'binding': bound,
+            'files': {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}}
+
+
+def export_skills(output, *, source=None, python=None, config=None):
     source = Path(source) if source else Path(__file__).parent/'data/skills'
+    python = Path(python or sys.executable).absolute()
     output = Path(output).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
     products = []
@@ -20,8 +30,11 @@ def export_skills(output, *, source=None, python=None):
             files[key] = path.read_bytes().replace(b'__IOALAB_SKILL_NAME__', name.encode())
         launcher = (source/'_shared/ioalab.py').read_text(encoding='utf-8')
         launcher = launcher.replace('__IOALAB_ROLE__', role)
-        launcher = launcher.replace('__IOALAB_PYTHON__', repr(str(python or sys.executable)))
+        launcher = launcher.replace('__IOALAB_PYTHON__', repr(str(python)))
+        launcher = launcher.replace('__IOALAB_CONFIG__', repr(str(configuration_path(config))))
         files['scripts/ioalab.py'] = launcher.encode('utf-8')
+        files['.ioalab-skill.json'] = json.dumps(skill_manifest(files, binding(config, python)),
+                                                 sort_keys=True, ensure_ascii=True).encode('utf-8')
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
             for key, content in sorted(files.items()):
