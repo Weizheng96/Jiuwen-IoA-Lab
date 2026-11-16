@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "a2c"
+dynamic = ["version"]
+description = "A2C (Agent 2 Contract): a contract layer over A2A, with client, provider and market SDKs."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "Agent Protocol Contributors" },
+]
+keywords = ["agent", "contract", "a2a", "a2c", "sdk"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "cryptography>=44",
+  "rfc8785>=0.1.4",
+  "wasmtime>=49,<50",
+]
+
+[project.optional-dependencies]
+a2a = [
+  "a2a-sdk[http-server]==1.0.0",
+  "httpx>=0.27",
+]
+mcp = [
+  "mcp>=1.28.1,<2.0.0",
+]
+
+[project.scripts]
+a2c-client-mcp = "a2c.integrations.jiuwenswarm.mcp_server:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["a2c*"]
+
+[tool.setuptools.package-data]
+a2c = ["**/*.json", "**/*.md", "**/*.png", "**/*.zip"]
+
+[tool.setuptools]
+license-files = ["NOTICE.md"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

@@ -480,10 +480,6 @@
   "tests/test_service_publication.py": [
    "test_resident_publish_needs_user_channel_and_recovers_lost_reply_after_restart"
   ],
-  "tests/test_sync_a2c.py": [
-   "test_snapshot_uses_committed_lf_not_windows_checkout_and_keeps_commit",
-   "test_wheel_with_a_foreign_module_is_rejected"
-  ],
   "tests/test_sync_gitcode.py": [
    "test_detects_tag_object_movement_even_when_main_and_peeled_commit_stay_same",
    "test_empty_dry_run_atomic_tags_idempotence_and_extra_refs_preserved",

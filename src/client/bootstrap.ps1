@@ -70,7 +70,7 @@ try {
     $gitOptions=@()
     if ($Proxy) {$gitOptions=@('-c','http.proxy='+$Proxy)}
     Invoke-Checked $git ($gitOptions+@('clone','--depth','1','--filter=blob:none','--sparse','--single-branch','--branch',$revision,$repository,$SourceDirectory)) | Out-Null
-    Invoke-Checked $git ($gitOptions+@('-C',$SourceDirectory,'sparse-checkout','set','src/client')) | Out-Null
+    Invoke-Checked $git ($gitOptions+@('-C',$SourceDirectory,'sparse-checkout','set','src/client','src/a2c')) | Out-Null
     $resolved=(Invoke-Checked $git ($gitOptions+@('-C',$SourceDirectory,'rev-parse','HEAD'))).Trim()
     if ($Commit -and $resolved -ne $Commit) {throw 'Development source moved; reread the actual README source and preserve this checkout'}
     $stage='source-verification'

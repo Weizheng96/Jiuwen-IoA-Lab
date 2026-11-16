@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import tempfile
 import tomllib
 import zipfile
 
@@ -15,8 +16,15 @@ import re
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[1]
-PROJECTS = {'ioalab-sdk': ROOT/'sdk', 'ioalab-jiuwen': ROOT/'hosts/jiuwen',
+PROJECTS = {'a2c': REPO/'src/a2c', 'ioalab-sdk': ROOT/'sdk', 'ioalab-jiuwen': ROOT/'hosts/jiuwen',
             'ioalab-codex': ROOT/'hosts/codex', 'ioalab-claude-code': ROOT/'hosts/claude_code'}
+# A2C has one maintained source root. Copy an isolated build input inside this
+# project so setuptools never publishes an absolute or out-of-project path.
+(ROOT/'build').mkdir(exist_ok=True)
+a2c_snapshot = tempfile.TemporaryDirectory(prefix='a2c-source-', dir=ROOT/'build')
+a2c_package = Path(a2c_snapshot.name)/'a2c'
+shutil.copytree(REPO/'src/a2c/a2c', a2c_package,
+                ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'build', '*.egg-info'))
 dependencies = set()
 packages = ['ioalab_client']
 directories = {'ioalab_client': 'ioalab_client'}
@@ -28,11 +36,11 @@ for name, project in PROJECTS.items():
                         if not value.startswith(('ioalab-sdk', 'a2c', 'jiuwenswarm-process-sdk')))
     for package in find_packages(str(project)):
         packages.append(package)
-        directories[package] = (project/Path(*package.split('.'))).relative_to(ROOT).as_posix()
+        directories[package] = ((a2c_package/Path(*package.split('.')[1:])) if name == 'a2c' else (project/Path(*package.split('.')))).relative_to(ROOT).as_posix()
 vendor = json.loads((REPO/'vendor/SOURCES.json').read_text(encoding='utf-8'))
 wheels = []
 for item in vendor['components']:
-    if item['id'] not in ('a2c', 'jiuwenswarm-process-sdk'):
+    if item['id'] != 'jiuwenswarm-process-sdk':
         continue
     info = item['wheelInfo']; path = REPO/'vendor'/info['file']
     if hashlib.sha256(path.read_bytes()).hexdigest() != info['sha256']:
@@ -89,6 +97,9 @@ class BuildClient(build_py):
                             raise ValueError('Unsafe vendored wheel path')
                         destination.parent.mkdir(parents=True, exist_ok=True)
                         destination.write_bytes(archive.read(name))
+        attribution = data/'licenses/a2c/NOTICE.md'
+        attribution.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REPO/'src/a2c/NOTICE.md', attribution)
         shutil.copy2(REPO/'vendor/SOURCES.json', data/'SOURCES.json')
         shutil.copytree(REPO/'vendor/licenses', data/'licenses', dirs_exist_ok=True)
 
@@ -97,5 +108,7 @@ class BuildClient(build_py):
 
 setup(options={'egg_info': {'egg_base': 'build'}}, version=versions['ioalab-client'], install_requires=sorted(base_requirements), extras_require={host: sorted(values) for host,values in host_requirements.items()}, packages=packages,
       package_dir=directories, cmdclass={'build_py': BuildClient},
-      package_data={'ioalab_sdk': ['runtime/web/*.html', 'runtime/trust/*.json', 'runtime/trust/*.pem'],
+      package_data={'a2c': ['**/*.py', '**/*.json', '**/*.md', '**/*.png', '**/*.zip'], 'ioalab_sdk': ['runtime/web/*.html', 'runtime/trust/*.json', 'runtime/trust/*.pem'],
                     'ioalab_jiuwen': ['resources/ioa-notifications/*.py', 'resources/ioa-notifications/*.yaml']})
+
+a2c_snapshot.cleanup()

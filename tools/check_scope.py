@@ -102,7 +102,7 @@ RULES = (
     (('src/client/hosts/',), ('jiuwen_host', 'host_tool_names', 'native_*', 'web_*', 'runtime_delivery')),
     (('src/platform/',), ('core_*', 'arbitration*', 'proposal_expiry', 'quote_*', 'provider_admission')),
     (('src/official/',), ('official_*', 'business_tools', 'appointment_source', 'agentmail_*')),
-    (('vendor/',), ('deployment*', 'vendor_deployment', 'owned_workspace', 'production_release', 'sync_a2c')),
+    (('vendor/',), ('deployment*', 'vendor_deployment', 'owned_workspace', 'production_release')),
     (('tools/media/', 'tools/verification/'), ('demo_artifacts', 'booking_demo', 'appointment_source', 'seed_manifest')),
 )
 CODE = ('.py', '.sh', '.cjs', '.js', '.html', '.toml', '.lock', '.whl', '.json', '.yml', '.yaml', '.example')
@@ -116,13 +116,13 @@ def revision(base, root):
 
 def test_sources(root, ref=None):
     if ref is None:
-        return {p.relative_to(root).as_posix(): p.read_text(encoding='utf-8') for p in (root / 'tests').glob('*.py')}
+        return {p.relative_to(root).as_posix(): p.read_text(encoding='utf-8') for p in (root / 'tests').rglob('*.py')}
     # Committed plans ignore worktree edits/untracked files. Read blobs in one
     # process, without extracting archives or repeatedly spawning git per file.
     data = subprocess.check_output(['git', 'archive', '--format=tar', ref, '--', 'tests'], cwd=root)
     with tarfile.open(fileobj=io.BytesIO(data)) as archive:
         return {entry.name: archive.extractfile(entry).read().decode('utf-8') for entry in archive
-                if entry.isfile() and entry.name.startswith('tests/') and entry.name.count('/') == 1 and entry.name.endswith('.py')}
+                if entry.isfile() and entry.name.startswith('tests/') and entry.name.endswith('.py')}
 
 
 def design_pages(root, ref=None):

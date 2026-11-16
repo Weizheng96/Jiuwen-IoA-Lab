@@ -23,7 +23,7 @@ def test_independent_host_wheels_assemble_without_product_distribution(tmp_path,
     """Native/official application entry points depend on SDK, never the unified product."""
     from test_resident_runtime import configuration
     wheels=tmp_path/'wheels'
-    projects=[ROOT/'src/client/sdk',*(ROOT/'src/client/hosts'/name for name in ('jiuwen','codex','claude_code'))]
+    projects=[ROOT/'src/a2c', ROOT/'src/client/sdk',*(ROOT/'src/client/hosts'/name for name in ('jiuwen','codex','claude_code'))]
     run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),*[str(item) for item in projects]],tmp_path)
     environment=tmp_path/'independent';venv.EnvBuilder(with_pip=True).create(environment)
     python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
@@ -62,6 +62,14 @@ print(json.dumps(results))
 def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
     from tools.build_client import build
     wheel=build(tmp_path/'wheels')
+    from deploy.wheels import build_wheel
+    owned=build_wheel(ROOT/'src/a2c',tmp_path/'owned')
+    with zipfile.ZipFile(owned) as a, zipfile.ZipFile(wheel) as b:
+        original={name:a.read(name) for name in a.namelist() if name.startswith('a2c/') and not name.endswith('/')}
+        embedded={name:b.read(name) for name in b.namelist() if name.startswith('a2c/') and not name.endswith('/')}
+        assert original.keys()==embedded.keys()
+        assert all(original[name]==embedded[name] for name in original)
+        assert b.read('ioalab_client/data/licenses/a2c/NOTICE.md')==(ROOT/'src/a2c/NOTICE.md').read_bytes()
     with zipfile.ZipFile(wheel) as archive:
         names=archive.namelist()
         assert 'ioalab_sdk/runtime/web/account.html' in names
@@ -111,6 +119,8 @@ def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
 def test_pip_installs_client_from_git_tag_and_records_its_commit(tmp_path):
     repository=tmp_path/'repository'
     shutil.copytree(ROOT/'src/client',repository/'src/client',
+                    ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
+    shutil.copytree(ROOT/'src/a2c',repository/'src/a2c',
                     ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
     vendor=repository/'vendor';vendor.mkdir()
     manifest=json.loads((ROOT/'vendor/SOURCES.json').read_text(encoding='utf-8'))

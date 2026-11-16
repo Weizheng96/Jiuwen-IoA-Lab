@@ -19,3 +19,7 @@ vendor/sources/** binary
 # These are actual bundled bytes, never remote LFS references.
 vendor/wheels/** -filter
 vendor/sources/** -filter
+
+# Owned A2C contains a pinned WASI binary and original source attribution.
+src/a2c/a2c/**/*.zip binary -filter
+src/a2c/NOTICE.md -text

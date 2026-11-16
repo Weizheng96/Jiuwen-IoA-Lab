@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "a2c": {
+      "command": "uvx",
+      "args": ["--from", "a2c[a2a,mcp]", "a2c-client-mcp"],
+      "env": {
+        "A2C_HOME": "${A2C_HOME}",
+        "A2C_MARKETS": "${A2C_MARKETS}",
+        "A2C_PAYMENT_PROVIDER": "${A2C_PAYMENT_PROVIDER}",
+        "A2C_PAYMENT_JWKS": "${A2C_PAYMENT_JWKS}",
+        "A2C_PSP": "${A2C_PSP}",
+        "A2C_INSTRUMENT": "${A2C_INSTRUMENT}"
+      },
+      "timeout": 600
+    }
+  }
+}

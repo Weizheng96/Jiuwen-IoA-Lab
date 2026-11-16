@@ -110,14 +110,14 @@ def checkout(ref, repository=REPOSITORY):
 
 def snapshot(root, commit, target):
     manifest = json.loads(run(['git', '-C', str(root), 'show', commit+':vendor/SOURCES.json']))
-    paths = ['src/client', 'vendor/SOURCES.json', 'vendor/licenses']
+    paths = ['src/client', 'src/a2c', 'vendor/SOURCES.json', 'vendor/licenses']
     for item in manifest['components']:
-        if item['id'] in ('a2c', 'jiuwenswarm-process-sdk'):
+        if item['id'] == 'jiuwenswarm-process-sdk':
             path = Path('vendor')/item['wheelInfo']['file']
             if path.is_absolute() or '..' in path.parts:
                 raise RuntimeError('Invalid audited dependency path')
             paths.append(path.as_posix())
-    raw = run(['git', '-C', str(root), 'archive', '--format=tar', commit, *paths], binary=True)
+    raw = run(['git', '-c', 'core.autocrlf=false', '-c', 'core.eol=lf', '-C', str(root), 'archive', '--format=tar', commit, *paths], binary=True)
     with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
         for member in archive.getmembers():
             path = target/member.name

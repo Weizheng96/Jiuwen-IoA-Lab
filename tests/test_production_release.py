@@ -45,6 +45,8 @@ def source(tmp_path):
     pool.mkdir(parents=True)
     for name in sorted(set().union(*UNITS.values())):
         wheel(pool, name, requirements=['ordinary>=1'])
+    (root / 'src/a2c').mkdir(parents=True)
+    (root / 'src/a2c/NOTICE.md').write_text('A2C source attribution', encoding='utf-8')
     (root / 'deploy').mkdir()
     (root / 'deploy/default-seed.json').write_text('{}', encoding='utf-8')
     (root / 'vendor/licenses').mkdir(parents=True)
