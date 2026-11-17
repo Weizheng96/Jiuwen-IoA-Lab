@@ -26,10 +26,11 @@ $gitAsset = @{name='MinGit-2.56.1-64-bit.zip'; directory='git-2.56.1'; executabl
     url='https://github.com/git-for-windows/git/releases/download/v2.56.1.windows.1/MinGit-2.56.1-64-bit.zip';
     mirrors=@('https://registry.npmmirror.com/-/binary/git-for-windows/v2.56.1.windows.1/MinGit-2.56.1-64-bit.zip');
     hash='4a92850b6e917da4fd010669b614b55dccf5b0ec333a534cc4be4700dfefdafd'}
-$uvAsset = @{name='uv-x86_64-pc-windows-msvc.zip'; directory='uv-0.9.21'; executable='uv.exe';
-    url='https://github.com/astral-sh/uv/releases/download/0.9.21/uv-x86_64-pc-windows-msvc.zip';
-    mirrors=@('https://registry.npmmirror.com/-/binary/uv/0.9.21/uv-x86_64-pc-windows-msvc.zip');
-    hash='d27952e73183ef8f6ee8c2a50cf8b3f2e08e01b6a9279a00a85cb261ea8d8337'}
+# The official wheel is a ZIP containing a standalone executable; no pip/Python is needed to extract it.
+$uvAsset = @{name='uv-0.9.21-py3-none-win_amd64.zip'; directory='uv-0.9.21-pypi'; executable='uv-0.9.21.data/scripts/uv.exe';
+    url='https://files.pythonhosted.org/packages/29/6b/da441bf335f5e1c0c100b7dfb9702b6fed367ba703e543037bf1e70bf8c3/uv-0.9.21-py3-none-win_amd64.whl';
+    mirrors=@('https://pypi.tuna.tsinghua.edu.cn/packages/29/6b/da441bf335f5e1c0c100b7dfb9702b6fed367ba703e543037bf1e70bf8c3/uv-0.9.21-py3-none-win_amd64.whl');
+    hash='64a7bb0e4e6a4c2d98c2d55f42aead7c2df0ceb17d5911d1a42b76228cab4525'}
 # uv verifies each interpreter archive against its own pinned checksums whichever mirror serves it.
 $pythonMirrors = @('https://registry.npmmirror.com/-/binary/python-build-standalone/')
 # Fixed ioalab.onboarding/1 six-item handoff; escaped so the launcher itself stays ASCII.
@@ -128,7 +129,7 @@ try {
     if ($published.TrimEnd("`n") -cne $running) {throw 'Running launcher differs from its clone HEAD Git object'}
     $stage='python'
     $python=$null
-    $probe='import sys,json; print(json.dumps({"version":list(sys.version_info[:2]),"base":getattr(sys,"_base_executable",sys.executable)}))'
+    $probe="import sys,json; print(json.dumps({'version':list(sys.version_info[:2]),'base':getattr(sys,'_base_executable',sys.executable)}))"
     foreach ($name in @('python','python3','py')) {
         $candidate=Get-Command $name -ErrorAction SilentlyContinue
         if (!$candidate) {continue}

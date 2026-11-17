@@ -515,7 +515,7 @@ def test_native_phase_authorization_rejects_nonboolean_values(enabled):
     assert error.value.code=='invalid_input'
 
 
-def test_observation_cannot_enable_native_tools_before_any_s01_dispatch(tmp_path):
+def test_observation_native_tools_flag_preserves_readonly_context_requirement(tmp_path):
     from ioalab_sdk.runtime.observations import SCHEMA
     store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
     host=Adapter();registry=HostRegistry({'host':host},'host')
@@ -526,7 +526,7 @@ def test_observation_cannot_enable_native_tools_before_any_s01_dispatch(tmp_path
         authorization={'nativeTools':{},'nativeToolsEnabled':True})
     try:
         with pytest.raises(RuntimeFault) as error:registry.submit('actor','observation','op',HostInput('observe'),execution=execution)
-        assert error.value.code=='forbidden' and not host.calls
+        assert error.value.code=='not_ready' and error.value.recovery=='configure_readonly_context' and not host.calls
     finally:store.close()
 
 

@@ -82,7 +82,7 @@ class ProcessHost(Submission):
         mapping={original:name for name,original in aliases.items() if name!=original}
         instructions=turn.definition.instructions+('\nLocal tool aliases: '+str(mapping) if mapping else '')
         definition={'name':turn.definition.name,'instructions':instructions,
-                    'tools':'*'}
+                    'tools':['*']}
         # '*' inherits the Runtime's configured native tools. Only our SDK
         # callback aliases receive a local grant; native permissions stay owned
         # by the user's existing Runtime configuration in every phase.

@@ -54,3 +54,9 @@ Windows干净用户，三种用户已有登录宿主连接远程平台；README�
 本期实现已落盘：三适配不限制原工具/Skill/权限；公共各阶段允许且nativeTools为空，不下发原定义deny；capabilityReferences保名称；本机材料落盘/原成果出口，九问原生多SDK工具和Process原工具继承。服务skills名称不阻塞ready，uncheckedSkills明确未核实。
 
 资源定向r4四轻量+59通过/1跳过、r5四轻量+5通过/1跳过均exit0（temp/checks/native-route-v205-r4、r5）；原r2的单个scope夹具错误已修但失败报告保留。两显式SDK89项与四轻量通过由主协调保存报告。最终完整回归正在独立运行，本检查点未声称full通过；按用户明确指令，与合main/GitCode及服务器内测并行收集问题。真实宿主四流程、跨机器HostResource映射与原审批桥支持范围仍按未勾选项待验。
+
+
+2026-11-17并行首轮结果：完整回归3250通过/9失败/59跳过，真实exit1，selfcheck未运行；服务器206内测已reset并检查HTTPS/核心模型，但官方/admin真实S01因Process tools传输类型失败，修复与复部署待验。真实宿主旧opt-in接缝迁移及未验范围见[39后续核对](../../../工程/专题/一句话接入与三宿主全流程/39-Claude交接后续核对.md)。当前不勾任何新的原生四流程验收格。
+
+
+206.1检查点：原全量9失败点已逐项定向修复通过，新PS5.1 Python探针/固定uv资产和真实Process AgentSpec边界已过，独立selfcheck全部通过（exit0，37.625秒）；未再次执行整仓full。修复后组件模型、普通/ManagedPython接入与三宿主真实四流程仍待正式来源实测。

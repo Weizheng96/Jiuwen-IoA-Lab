@@ -29,6 +29,7 @@ class Desktop:
         self.script = []           # callables run on each turns/list read
         self.fail = {}
         self.lock = threading.Lock()
+        self.queue_read = threading.Event()
 
     def consume(self, sid, client, turn='turn-1', status='inProgress', completed=None, text=None):
         items = [{'type': 'userMessage', 'id': 'u-'+turn, 'clientId': client, 'content': []}]
@@ -77,7 +78,9 @@ class Server:
 
     def queued(self, sid, *, deadline):
         self._log('thread/queue/list', sid)
-        return list(self.desktop.chats[sid]['queue']), True
+        result = list(self.desktop.chats[sid]['queue'])
+        self.desktop.queue_read.set()
+        return result, True
 
     def close(self):
         self.desktop.calls.append(('close',))
@@ -337,7 +340,8 @@ def test_unrestricted_quote_review_and_observation_are_queued_not_refused(adapte
                                  on_event=Events(), on_tool=lambda c: None)
     assert result.state == 'accepted'
     texts = [c[3] for c in adapter.desktop.calls if c[0] == 'thread/queue/add']
-    assert all('does not authorize native tools' in text and 'recorded as unrestricted' in text for text in texts)
+    assert all('does not authorize native tools' not in text and 'do not use shell' not in text for text in texts)
+    assert all('Protected confirmations happen only on the IoA browser page' in text for text in texts)
 
 
 @pytest.mark.parametrize('changes,phase', [
@@ -381,10 +385,10 @@ def queued_tool_turn(adapter):
         released.set()
     adapter.host.poll = (5., 5.)  # the tool call, not the watcher, establishes the binding here
     thread = threading.Thread(target=run); thread.start()
-    for _ in range(200):
-        if 'thread/queue/add' in methods(desktop):
-            break
-        time.sleep(.01)
+    # queue/add logs before scope publication. The first queue read proves the
+    # watcher saw the accepted empty turn history. Its next read is five seconds
+    # away, so the tool still establishes the exact turn binding in this test.
+    assert desktop.queue_read.wait(10), holder.get('result')
     client = next(c for c in desktop.calls if c[0] == 'thread/queue/add')[2]
     desktop.consume('user-sid', client, turn='turn-9')
     return events, calls, thread, holder
