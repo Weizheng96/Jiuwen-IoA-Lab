@@ -154,3 +154,12 @@ integration3真实exit0，共同61项及4light通过；本票全38项通过，P1
 - [x] `ClaudeCodeHost.check`（D38）：不起claude进程、不跑版本命令、不握手；CLI可执行文件存在、配置目录可读为available，有依据缺失／不可读为unavailable，有S01在执行为busy，5秒界内未完成或异常为unknown
 - [x] `NativeClaudeHost.check`按同一判据：route未绑定为unavailable，S01在途或原生活动为busy，已保存launch上下文时核CLI／项目目录／扩展manifest／entry-binding／配置目录；未完成显式setup报unknown（不作P34暂停依据，待35确认）
 - [ ] 真实闭环R0/R1：清单与脚本见temp/ticket30/202-real（RUNBOOK.md、r0_zero_model.py、collect_evidence.py），未执行
+
+
+## v205主路线接棒（D44—D46）
+
+开发中，与当前设计有偏离：专业能力完全复用用户宿主配置，保原skills名称/业务摘要，移除IoA专业文件冻结门禁；输入材料与成果继续真实文件交接。公共所有阶段nativeToolsEnabled=true，三适配原生及显式SDK均不限制宿主工具，去除禁用prompt/强制空工具/只读审批参数；SDK受保护效果仍核原许可。旧false轮次测试及先读专业文件门禁不再作为本期验收目标，必须同步代码和对应测试，不能只改文字。
+
+- [ ] 新专业能力/真实材料边界定向通过，保旧合同摘要及原引用。
+- [ ] 公共报价/复签/生产/私人/观察和三宿主两类入口均传允许并继承原工具审批，SDK效果无越权。
+- [ ] 最终集成回归与真实宿主验收分别记录。

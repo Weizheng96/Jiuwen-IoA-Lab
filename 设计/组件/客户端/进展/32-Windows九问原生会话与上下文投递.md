@@ -107,3 +107,12 @@ core9已验证计划/实际request修正后的两文件23例。后续新增冻�
 
 - 核实：src中无生产代码传入on_interaction；`questions.native_answer`只被`tests/submission_fixture.py`调用。S01五接口无可信用户答复通道，适配拿不到runtime/actor/job，无法自行接线，归公共层（27/33设计S01中性“等待输入”事件或回调并接native_answer）。
 - 适配侧已修：Process原生ASK不作答（也不代选reject），记`native_interaction_unanswered`/unknown，原请求不重投；此前同情形只报host_unknown。D37后false轮也保留ask级权限，原生ASK出现面随之扩大。原生常驻入口的ASK在用户自己的九问网页中呈现、由用户原生作答，不经SDK；是否如此待原生窗口观察。
+
+
+## v205主路线接棒（D44—D46）
+
+开发中，与当前设计有偏离：专业能力完全复用用户宿主配置，保原skills名称/业务摘要，移除IoA专业文件冻结门禁；输入材料与成果继续真实文件交接。公共所有阶段nativeToolsEnabled=true，三适配原生及显式SDK均不限制宿主工具，去除禁用prompt/强制空工具/只读审批参数；SDK受保护效果仍核原许可。旧false轮次测试及先读专业文件门禁不再作为本期验收目标，必须同步代码和对应测试，不能只改文字。
+
+- [ ] 新专业能力/真实材料边界定向通过，保旧合同摘要及原引用。
+- [ ] 公共报价/复签/生产/私人/观察和三宿主两类入口均传允许并继承原工具审批，SDK效果无越权。
+- [ ] 最终集成回归与真实宿主验收分别记录。
