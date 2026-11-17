@@ -35,6 +35,9 @@ def execution_text(input, execution, *, operation_id, entry=None):
         lines.append(tool_command(python, path, role))
         lines.append('The command prints the SDK tool result. A rejected invalid_input result may be corrected in this turn. '
                      'Do not repeat a tool whose result is unknown; finish after the final SDK reply or delivery tool returns.')
+        lines.append('If this fixed entry returns permission_denied with not_submitted, request access through the host normal '
+                     'sandbox approval mechanism and run the same entry with the unchanged arguments file. '
+                     'Do not change ACLs, bindings or sandbox settings. An unknown result must not be repeated.')
     lines.append('The JSON below supplies this turn only and does not change permanent chat settings.')
     lines.append(_compact({'kind': execution.kind,
                            'definition': {key: value for key, value in asdict(execution.definition).items() if key != 'resources'},

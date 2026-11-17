@@ -547,3 +547,49 @@ def test_tool_relay_requires_hook_and_role_and_reports_refusal(installed):
         code, result = run_entry(installed, rewritten)
     assert code == 1 and result['status'] == 'rejected'
     assert result['error']['code'] == 'identity_conflict' and result['error']['dispatch'] == 'not_submitted'
+
+
+@pytest.mark.parametrize('denied_stage', ['native_binding', 'native_handoff', 'native_descriptor'])
+def test_tool_pre_dispatch_permission_denial_reports_precise_access_recovery(installed, monkeypatch, denied_stage):
+    from ioalab_codex import native_entry
+    args_file(installed, {'name': 'ioa_reply', 'arguments': {'output': {'receipt': 'received'}}})
+    command = installed.command(operation='assistant.native.tool')
+    rewritten = respond(installed.payload(command), installed.config)['hookSpecificOutput']['updatedInput']['command']
+    def denied(*args, **kwargs):
+        raise PermissionError('private-path-must-not-appear')
+    with p10(installed) as seen:
+        if denied_stage == 'native_binding':
+            monkeypatch.setattr(native_entry, 'entry_binding', denied)
+        elif denied_stage == 'native_handoff':
+            monkeypatch.setattr(native_entry.Handoffs, 'claim', denied)
+        else:
+            read = Path.read_text
+            descriptor = Path(installed.binding['profiles']['assistant']['descriptorFile'])
+            def blocked(path, *args, **kwargs):
+                if path == descriptor:
+                    return denied()
+                return read(path, *args, **kwargs)
+            monkeypatch.setattr(Path, 'read_text', blocked)
+        code, result = run_entry(installed, rewritten)
+    assert code == 1 and result['status'] == 'rejected'
+    assert result['error']['code'] == 'permission_denied'
+    assert result['error']['phase'] == denied_stage
+    assert result['error']['dispatch'] == 'not_submitted'
+    assert result['error']['recovery'] == 'request_native_entry_access'
+    assert 'private-path-must-not-appear' not in json.dumps(result)
+    assert seen == [] and not installed.calls.exists()
+
+
+def test_tool_permission_error_after_dispatch_keeps_unknown(installed, monkeypatch):
+    from ioalab_codex import native_entry
+    args_file(installed, {'name': 'ioa_reply', 'arguments': {'output': {'receipt': 'received'}}})
+    command = installed.command(operation='assistant.native.tool')
+    rewritten = respond(installed.payload(command), installed.config)['hookSpecificOutput']['updatedInput']['command']
+    def dispatched_but_lost(*args, **kwargs):
+        raise PermissionError('result became unreadable after dispatch')
+    with p10(installed):
+        monkeypatch.setattr(native_entry, '_post', dispatched_but_lost)
+        code, result = run_entry(installed, rewritten)
+    assert code == 1 and result['status'] == 'unknown'
+    assert result['error']['dispatch'] == 'unknown'
+    assert result['error']['code'] == 'unknown_result'

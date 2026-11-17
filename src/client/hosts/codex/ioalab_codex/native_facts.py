@@ -5,6 +5,7 @@ completedAt is a machine terminal. interrupted/failed without proof, a vanished
 queue item, the latest turn or an ordinal never substitute for this chain.
 """
 import hashlib
+from html import escape
 import json
 
 
@@ -14,7 +15,8 @@ class IdentityConflict(ValueError):
 
 def delegation_digest(source_sid, text):
     """Hash the complete official machine delegation wrapper, never parse embedded XML."""
-    wrapper = '<codex_delegation>\n  <source_thread_id>'+source_sid+'</source_thread_id>\n  <input>'+text+'</input>\n</codex_delegation>'
+    wrapper = ('<codex_delegation>\n  <source_thread_id>'+escape(source_sid, quote=False)+
+               '</source_thread_id>\n  <input>'+escape(text, quote=False)+'</input>\n</codex_delegation>')
     return hashlib.sha256(wrapper.encode('utf-8')).hexdigest()
 
 

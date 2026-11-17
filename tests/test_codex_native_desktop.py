@@ -47,7 +47,9 @@ class Server:
         return {'threadId': sid, 'hostId': 'local'}
     def send(self, sid, text, *, deadline):
         self._log('send_message_to_thread', sid, text)
-        wrapper = '<codex_delegation>\n  <source_thread_id>'+self.context['threadId']+'</source_thread_id>\n  <input>'+text+'</input>\n</codex_delegation>'
+        # Independent external protocol fixture: XML text escaping, quotes preserved.
+        escaped = lambda value: value.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        wrapper = '<codex_delegation>\n  <source_thread_id>'+escaped(self.context['threadId'])+'</source_thread_id>\n  <input>'+escaped(text)+'</input>\n</codex_delegation>'
         item = self.desktop.echo_mutation({'type': 'functionCallOutput', 'id': 'fco-1',
                 'name': 'send_message_to_thread', 'namespace': 'codex_app',
                 'output': {'text': wrapper, 'truncated': False}})
