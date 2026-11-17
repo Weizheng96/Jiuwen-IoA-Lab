@@ -62,9 +62,16 @@ def pending_job(provider,crash_gap=False):
     return next((item for item in items if item['status']==('unknown' if crash_gap else 'waiting') and item['phase'] in ('quote','decision')),None)
 
 
-def wait_pending_job(provider,crash_gap=False):
+def observed(host,count):
+    return lambda:len(dict.fromkeys(value[0] for value in host.observations))>=count
+
+
+def wait_pending_job(provider,crash_gap=False,ready=lambda:True):
+    # Store contention may first park the job before its host child (A2C guard
+    # contract); read the job only after the expected host children were entered.
     snapshot=[]
     def observe():
+        if not ready():return False
         value=pending_job(provider,crash_gap)
         if value is not None:snapshot.append(value)
         return value is not None
@@ -83,8 +90,9 @@ def test_real_material_pre_review_restarts_same_task_and_ordinal_without_repeati
             agent_host=host,verifier_source=SOURCE,verifier_kind='skill',template_terms=terms(platform,formation),models=1) as (provider,assistant,_,template,task):
         caller=LocalClient(assistant.config.home);request_op=uid()
         if crash_gap:
+            # Interrupt only the host-refused second child's pending, not a contention recovery.
             with provider.store.transaction() as conn:
-                conn.execute("CREATE TEMP TRIGGER interrupt_material_wait BEFORE UPDATE OF state ON runtime_jobs WHEN NEW.state='waiting' AND json_extract(NEW.result,'$.reason')='material_not_submitted' BEGIN SELECT RAISE(ABORT,'fixture interruption after persisted material pending'); END")
+                conn.execute("CREATE TEMP TRIGGER interrupt_material_wait BEFORE UPDATE OF state ON runtime_jobs WHEN NEW.state='waiting' AND json_extract(NEW.result,'$.reason')='material_not_submitted' AND json_extract(NEW.result,'$.materialObservation.proof')='not_submitted' BEGIN SELECT RAISE(ABORT,'fixture interruption after persisted material pending'); END")
         arguments={'taskRef':task,'service':provider.identities[0].agent_id,'templateDigest':template['templateDigest'],
             'spec':{'result':{}},'materials':{'original':{'text':'actual original material','spec':{}}}}
         result=caller.call('assistant.delegation.request',arguments,operation_id=request_op)
@@ -98,7 +106,7 @@ def test_real_material_pre_review_restarts_same_task_and_ordinal_without_repeati
             assert result['status']=='completed',result
             accepted,_,_=confirm(assistant,result['data'])
             reference=accepted['data']['contractRef']
-        original=wait_pending_job(provider,crash_gap)
+        original=wait_pending_job(provider,crash_gap,observed(host,2))
         original_ids=list(dict.fromkeys(value[0] for value in host.observations))
         assert len(original_ids)==2 and original_ids[0]!=original_ids[1]
         assert host.observations[0][2]['request']==host.observations[1][2]['request']
@@ -156,7 +164,7 @@ def test_accepted_unknown_first_material_child_blocks_scope_and_does_not_replay_
         user_decision(assistant,pending['data']['confirmationRef'])
         started=rpc.call('assistant.delegation.request',args,operation_id=op)
         assert started['status']=='accepted'
-        original=wait_pending_job(provider,True)
+        original=wait_pending_job(provider,True,observed(host,1))
         assert len(host.observations)==1
         first=host.observations[0][:2]
         provider.close()
@@ -213,7 +221,7 @@ def test_original_material_receipt_late_machine_end_and_data_resume_without_resu
         user_decision(assistant,initial['data']['confirmationRef'])
         started=rpc.call('assistant.delegation.request',args,operation_id=operation)
         assert started['status']=='accepted'
-        original=wait_pending_job(provider,True)
+        original=wait_pending_job(provider,True,observed(host,1))
         assert len(host.observations)==1
         first=host.observations[0][:2]
         host.ready=True
@@ -302,9 +310,12 @@ def test_claim_evidence_store_contention_preserves_listener_and_resumes_the_same
         def release(self):return self.original.release()
         def __enter__(self):self.acquire();return self
         def __exit__(self,*_):self.release()
+    from ioalab_sdk.runtime.scheduling import CURRENT_JOB
     def qualified_prepare(self,task_id,*,guard):
         reply=prepare(self,task_id,guard=guard)
-        if enabled.is_set():
+        # Hold the Store only for the listener's claim qualification; the original
+        # job's own finish would block on it instead of qualifying the claim.
+        if enabled.is_set() and CURRENT_JOB.get() is None:
             enabled.clear()
             def hold_store():
                 with holder[0].store.lock:
@@ -327,7 +338,7 @@ def test_claim_evidence_store_contention_preserves_listener_and_resumes_the_same
         user_decision(assistant,initial['data']['confirmationRef'])
         started=rpc.call('assistant.delegation.request',args,operation_id=operation)
         assert started['status']=='accepted'
-        original=wait_pending_job(provider);first=host.observations[0][:2]
+        original=wait_pending_job(provider,ready=observed(host,2));first=host.observations[0][:2]
         try:
             enabled.set()
             assert busy.wait(5),'Real claim qualification must observe contention after the public A2C guard returned'
@@ -345,4 +356,46 @@ def test_claim_evidence_store_contention_preserves_listener_and_resumes_the_same
         assert current['taskRef']==original['taskRef'] and current['interactionId']==original['interactionId'] and current['status']=='completed'
         assert host.observations[0][:2]==first and sum(value[0]==first[0] for value in host.observations)==1
         assert len(set(value[0] for value in host.observations))==2
+        assert len(platform.db.rows("SELECT * FROM transfers WHERE purpose='proposal-fee' AND payee_id=?",provider.account.account['id']))==1
+
+
+def test_store_contention_while_recording_pending_material_keeps_the_same_job_recoverable(platform,tmp_path,monkeypatch):
+    import sys
+    from ioalab_sdk.runtime import MaterialObservations,MaterialObservationBlocked
+    monkeypatch.setenv('A2C_CACHE_DIR',str(tmp_path/'verifier-cache'))
+    def arbitration_only(*args,**kwargs):pytest.fail('Material review must not call the arbitration model')
+    monkeypatch.setitem(platform.market.market.models,'test-observation-model',arbitration_only)
+    original_eligible=MaterialObservations.eligible;injected=[]
+    def contended(self,owner):
+        caller=sys._getframe(1).f_code
+        # The endpoint's direct qualification after a proven undispatched child.
+        if not injected and caller.co_name=='finish' and caller.co_filename.endswith('endpoint.py'):
+            injected.append(owner['jobId'])
+            raise MaterialObservationBlocked('Original SDK material evidence is busy',reason='evidence_busy')
+        return original_eligible(self,owner)
+    monkeypatch.setattr(MaterialObservations,'eligible',contended)
+    host=MaterialHost()
+    with participants(platform,tmp_path,formation='proposal',fee=1,agent_host=host,verifier_source=SOURCE,
+            verifier_kind='skill',template_terms=terms(platform,'proposal'),models=1) as (provider,assistant,_,template,task):
+        rpc=LocalClient(assistant.config.home);operation=uid()
+        args={'taskRef':task,'service':provider.identities[0].agent_id,'templateDigest':template['templateDigest'],
+            'spec':{'result':{}},'materials':{'original':{'text':'actual original material','spec':{}}}}
+        initial=rpc.call('assistant.delegation.request',args,operation_id=operation)
+        assert initial['status']=='waiting'
+        user_decision(assistant,initial['data']['confirmationRef'])
+        started=rpc.call('assistant.delegation.request',args,operation_id=operation)
+        assert started['status']=='accepted'
+        original=wait_pending_job(provider,ready=observed(host,2))
+        ids=list(dict.fromkeys(value[0] for value in host.observations))
+        assert injected==[original['taskRef']]
+        reference=original['result']['materialObservation']
+        assert reference['proof']=='not_submitted' and reference['child']['operation']==ids[1]
+        host.allowed=True
+        wait_for(lambda:terminal(assistant,started['data']['quoteRef']))
+        finished=terminal(assistant,started['data']['quoteRef'])
+        assert finished['status']=='completed' and finished['data']['card']['signatures']['2'] and finished['data']['card']['signatures']['3']
+        current=LocalClient(provider.config.home).call('provider.tasks.get',{'profile':'service','taskRef':original['taskRef']})['data']['items'][0]
+        assert current['taskRef']==original['taskRef'] and current['interactionId']==original['interactionId'] and current['status']=='completed'
+        assert sum(value[0]==ids[0] for value in host.observations)==1
+        assert list(dict.fromkeys(value[0] for value in host.observations))==ids
         assert len(platform.db.rows("SELECT * FROM transfers WHERE purpose='proposal-fee' AND payee_id=?",provider.account.account['id']))==1

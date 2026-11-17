@@ -113,8 +113,15 @@ class EndpointSession:
                 if (pending.issuer is not self.runtime.host_registry or reference.get('owner')!=material_owner
                     or not task or task.state!='working' or reference.get('child',{}).get('actor')!=self.identity.agent_id):
                     raise RuntimeFault('unknown_result','Restore the original material observation proof') from None
-                self.material_review.eligible(material_owner)
-                if not self.material_review.retry(reference):
+                try:
+                    self.material_review.eligible(material_owner)
+                    retryable=self.material_review.retry(reference)
+                except MaterialObservationBlocked as blocked:
+                    # Contention here is still the original uncertain material scope.
+                    self.store.put('calls',mid,{'fingerprint':digest(message['body']),'state':'unknown_material',
+                        'materialOwner':material_owner,'materialReason':blocked.reason,'taskId':reply.task_id})
+                    raise
+                if not retryable:
                     raise RuntimeFault('unknown_result','Original material child is not proven undispatched') from None
                 self.deferred[mid]=reply
                 self.store.put('calls',mid,{'fingerprint':digest(message['body']),'state':'pending_material',
