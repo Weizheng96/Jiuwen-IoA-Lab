@@ -1,17 +1,24 @@
 """S01/S02 boundary for the explicit SDK Process application."""
-import asyncio
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import hashlib
 from importlib import metadata
+import os
 from pathlib import Path
+import shutil
+import threading
 import uuid
 
 from ioalab_sdk.runtime import (AgentDefinition, BindingAck, HostExecution, HostInput,
     HostRegistration, HostToolCall, HostToolResult, MachineTerminal, RuntimeFault,
-    SubmissionError, SubmissionEvent, SubmissionResult, ToolBinding, encode, private_json)
+    SubmissionError, SubmissionEvent, SubmissionResult, ToolBinding, encode, private_json,
+    proposal_tool_declared)
 from .process_values import _Round
 from .process_files import ProcessFiles
+
+# S02 self-check bound: filesystem metadata only. A hung network drive is
+# unknown, never a reason to start the original Process.
+CHECK_SECONDS=5
 
 
 def _registration():
@@ -24,14 +31,35 @@ class Submission:
     registration=_registration()
 
     def check(self):
+        """P34/S02 for a per-call Process: can it be started? No process, handshake or model."""
         with self._lock:
             if self._running:return {'state':'busy','basis':'Original Process request still active'}
-        async def query():return await self._client().query('protocol.capabilities',deadline_seconds=12)
+        found=[]
+        def inspect():
+            try:found.append(self._startable())
+            except Exception as exc:found.append({'state':'unknown','basis':'Start prerequisites unreadable','errorType':type(exc).__name__})
+        probe=threading.Thread(target=inspect,name='ioalab-jiuwen-check',daemon=True)
+        probe.start();probe.join(CHECK_SECONDS)
+        if not found:return {'state':'unknown','basis':'Start prerequisite self-check did not finish in time'}
+        return found[0]
+
+    def _startable(self):
+        # Evidence-based missing/unreadable is unavailable; other OS errors stay unknown.
+        executable=self.command[0]
+        if Path(executable).is_absolute():
+            located=Path(executable) if Path(executable).is_file() and os.access(executable,os.X_OK) else None
+        else:
+            located=shutil.which(executable,path=self.environment.get('PATH'))
+        if located is None:return {'state':'unavailable','basis':'Configured Jiuwen Process command is not an executable file'}
+        if not self.data_dir.is_dir():return {'state':'unavailable','basis':'Configured Jiuwen data directory is missing'}
+        config=self.data_dir/'config'/'config.yaml'
+        if not config.is_file():return {'state':'unavailable','basis':'Jiuwen model configuration file is missing'}
         try:
-            value=asyncio.run(query())
-            return {'state':'available' if value.get('status')=='completed' else 'unavailable',
-                    'basis':'Read-only protocol query; model execution unverified'}
-        except Exception as exc:return {'state':'unknown','basis':'Protocol unavailable','errorType':type(exc).__name__}
+            # Opening proves readability; the content (credentials) is never read.
+            with open(config,'rb'):pass
+            with os.scandir(self.data_dir) as entries:next(entries,None)
+        except PermissionError:return {'state':'unavailable','basis':'Jiuwen data directory or model configuration is not readable'}
+        return {'state':'available','basis':'Process command, data directory and model configuration present; model execution unverified'}
 
     def submit(self,operation_id,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
         if not isinstance(operation_id,str) or not operation_id or not isinstance(input,HostInput) or input.attempt is None or not isinstance(execution,HostExecution):
@@ -47,8 +75,10 @@ class Submission:
             return reject('invalid_input','workspace','Original absolute SDK workspace required')
         if (input.resources or execution.definition.resources) and not callable(self.resource_factory):
             return reject('not_ready','resources','Bind the original SDK per-submission resource factory')
-        if execution.proposal_schema is not None:
-            return reject('not_ready','proposal','Process proposal mapping is not implemented')
+        if execution.proposal_schema is not None and not proposal_tool_declared(execution):
+            # No structured output channel: only a same-effect SDK tool lets this
+            # round proceed; the proposal then stays empty (D35).
+            return reject('not_ready','proposal','No structured proposal channel and no same-effect SDK tool')
         if execution.tools and (not callable(on_tool) or not callable(on_event)):
             return reject('not_ready','binding','SDK tool effects require binding acknowledgement and original callback')
         timeout=None
@@ -117,7 +147,7 @@ class Submission:
             native_tools=tuple(execution.authorization.get('nativeTools',{}).items()))
         round=_Round(operation_id,execution.actor,execution.interaction_id,definition,input.text,str(workspace),request,
                      timeout_seconds=timeout,session_id=session_id,on_session=bind,on_tool=tool,
-                     allow_native_tools=execution.authorization.get('nativeToolsEnabled') is True and execution.kind!='observation',
+                     native_tools_enabled=execution.authorization.get('nativeToolsEnabled') is True,
                      definition_digest=execution.definition.digest)
         try:
             if callable(self.resource_factory):

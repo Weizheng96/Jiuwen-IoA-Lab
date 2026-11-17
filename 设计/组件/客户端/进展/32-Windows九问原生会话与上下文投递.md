@@ -2,7 +2,7 @@
 
 **阻塞于：** 27、28、33公共基础切片
 
-**状态：** claimed（2026-11-17；199最小原请求业务切片已过定向检查，原生实机、文件/提案/只读/网页可见与整票验收未完成）。
+**状态：** claimed（2026-11-17；199最小原请求业务切片与202 D35/D37/D38适配侧已过定向检查、未提交，原生实机、文件/只读/网页可见、ASK公共接线与整票验收未完成）。
 
 ## 最终目标与边界
 
@@ -65,7 +65,7 @@ core9已验证计划/实际request修正后的两文件23例。后续新增冻�
 - 非空deadline按原值映射：无时区/已过期提交前not_submitted；运行中在model/tool hook边界结束，SDK回调等待ACK也受此期限，不加固定cap。
 - preflight零派发后，SDK新attempt复用已报告创建的SID；journal指纹只含原operation范围不含nonce；已受理/未知/终态换nonce准确id_conflict；创建未报告即报unknown不允许重建。
 - 回调带文件时保实际value与原效果回执，报`callback_resources`收集错误至终态，不重跑回调。
-- 最小链：IoAEntryRail传prepare_turn，worker声明request_turn；send前公开prepare_session/get_live_session_instance取实际per-SID Agent，仅collision核与预留并挂本请求IoAExecutionRail；原lane before_invoke精确核SID/request/Agent后装冻结section/工具，再核owner；安装失败首个model hook force_finish（accepted/unknown，非未提交）；false时普通工具改到自有拒绝LocalFunction，SDK回调须P28 bindingAck为True且带原call ID；tripwire防在无guard Agent上运行。
+- 最小链：IoAEntryRail传prepare_turn，worker声明request_turn；send前公开prepare_session/get_live_session_instance取实际per-SID Agent，仅collision核与预留并挂本请求IoAExecutionRail；原lane before_invoke精确核SID/request/Agent后装冻结section/工具，再核owner；安装失败首个model hook force_finish（accepted/unknown，非未提交）；false时普通工具改到自有拒绝LocalFunction（202按D37已去除），SDK回调须P28 bindingAck为True且带原call ID；tripwire防在无guard Agent上运行。
 - 原生扩展加载器（0.2.8 RailManager）实例化rail.py中首个`class *Rail(AgentRail)`：IoAEntryRail须在IoAExecutionRail之前，已加静态对照。
 - 新增/改写：turn边界11例、原生S01/传输6例（含原request→P28→SDK echo→机器终态与守卫清理的整链替身）。
 - 原生窗口实证：方案及开窗清单见`temp/ticket32/199-native/NATIVE-PROOF-PLAN.md`，用户已批准预算（预计6～7次LLM，硬上限13）。P0证据日志（仅阶段名/ID/时间戳/布尔，标记文件开启，默认关闭）与P1驱动`temp/ticket32/199-native/proof/`已实现，定向检查`temp/checks/t32-199-r8`退出0（98passed/1skip）；SDK侧干跑仅起本机IoA IPC，自有PID已退出。窗口未开，待27收口与联合回归后另定。
@@ -78,7 +78,7 @@ core9已验证计划/实际request修正后的两文件23例。后续新增冻�
 - 进行中的模型调用不被deadline打断；SDK回调经15秒native-control HTTP，长受保护确认会超时。
 - P26文件、proposals、readonly观察、原生Web可见/用户继续及S05均未接。
 
-建议原生窗口：新建明确测试实例与会话，安装本资源，以domain-free echo执行一条HostExecution（false与true各一），记录实际Agent身份、section/工具出现与清理、P28前回调等待、机器终态；按D37本版不验证原生工具限制，false轮只核照常提交、记录nativeToolsRestricted=false、原生工具不被改道或拒绝；不复用或停止用户九问进程。
+建议原生窗口（202版方案`temp/ticket32/202-native/NATIVE-PROOF-PLAN.md`，未执行）：新建明确测试实例与会话，安装本资源，以domain-free echo执行一条HostExecution（false与true各一），记录实际Agent身份、section/工具出现与清理、P28前回调等待、机器终态；按D37本版不验证原生工具限制，false轮只核照常提交、记录nativeToolsRestricted=false、原生工具不被改道或拒绝；不复用或停止用户九问进程。
 
 ## 验收与交接
 
@@ -87,16 +87,21 @@ core9已验证计划/实际request修正后的两文件23例。后续新增冻�
 - [ ] 自动化、真实原生证据和未验项分开；历史结果不冒充本轮复测
 - [ ] 本地提交、发布与实机验收分别登记；全部条件满足后才收票
 
-## 设计v0.0.200/v0.0.201待实施（D33/D35/D37）
+## 设计v0.0.200/v0.0.201（D33/D35/D37）
 
-以下均未实施，静态登记尚无`native_tool_restriction`字段（由27提供）。现有false时普通工具改到自有拒绝LocalFunction（见199最小原请求业务切片及[实现](../宿主适配/实现.md)）属本版未声明的限制，与当前设计有偏离；修复为false轮次照常保留原生工具，限制能力待后续版本由本适配自行保证后再声明。
+202工作区已改、未提交；定向检查`temp/checks/t32-202-r06`真实退出0（4light全0，114passed/1原模型opt-in skipped；九问Process/原生Runtime为边界替身，未起九问进程、未调模型）。
 
-- [ ] 本版不提供工具限制选项，静态登记不声明`native_tool_restriction`；nativeToolsEnabled=false的报价、复签审查与观察照常提交、不限制原生工具，执行事实与观察依据记录nativeToolsRestricted=false
-- [ ] proposal_schema按[S01执行、引用与结果](../共用运行时/接口/宿主提交.md#s01执行引用与结果)作可选通道：无结构化提案通道而本轮含同效果SDK工具时照常提交
+- [x] 不声明`native_tool_restriction`（Process与原生两登记均为默认false）；false轮照常提交、不限制：原生turn.py去除模型窗口过滤与ToolCallInputs改到自有拒绝LocalFunction（原偏离已修），ProcessHost不再把false/observation轮的nativeTools改为deny，按原配置级别下发；冻结布尔仍严格解析并写私有记录与证据。nativeToolsRestricted由公共层按登记记录，本适配不写。
+- [x] proposal_schema可选（D35）：Process与原生入口在无结构化提案通道时，仅当公共`proposal_tool_declared(execution)`为真（本轮SDK工具input_schema等于proposal_schema）才提交、proposal为空；否则提交前not_submitted。同键只生效一次归27/33公共层，适配不重复实现。依赖27/33工作区未提交的该公共函数。
+- [ ] 真实原生窗口：false轮照常提交、原生工具不被改道或拒绝（方案`temp/ticket32/202-native/NATIVE-PROOF-PLAN.md`，未执行）。
 
-## 设计v0.0.202待实施（D38）
+## 设计v0.0.202（D38）
 
-以下未实施。`ProcessHost.check`现每次新开九问进程做协议查询，协议能力未完成即报unavailable，与当前设计有偏离；修复为按次启动判据。
+- [x] `ProcessHost.check`：不起九问进程、不推理；command可执行、data_dir可列、`config/config.yaml`可打开（不读内容）为available，有依据缺失/无权限为unavailable，本适配有S01执行为busy，5秒自检未完或其他OS错误为unknown（同上检查）。
+- [x] 原生check按worker心跳窗口（10秒，主协调者2026-11-17裁定归类）：窗内有已绑定worker为available；传输未开始、启动宽限、已绑定worker超窗、仅有未绑定worker轮询、整窗无心跳（插件未加载、重载后未再调用入口）均为unknown且不累计；unavailable只用于确证九问宿主未运行，当前传输无此依据，故本版原生check不报unavailable。代码依据：worker只在原生会话调用IoA入口后创建，Rail uninit关闭且重载后不自动重建，SDK侧无法区分重载与宿主停止；若报unavailable，九问重启后用户长时间未调用入口会使客户端持续暂停乃至排空退出。
+- [ ] 原生窗口实测：插件未加载/重载中保持unknown、绑定后available；确证宿主未运行的无模型依据（如可核的宿主进程标识）待后续另定。
 
-- [ ] `ProcessHost.check`：不起九问进程、不推理；command可执行、data_dir与模型配置可读为available，有依据缺失为unavailable，本适配有S01在执行为busy，自检有界未完成为unknown；规则见[S02运行期健康](../共用运行时/接口/宿主提交.md#s02运行期健康)与[宿主适配](../宿主适配/接口.md#agenthost-实现)
-- [ ] 原生入口按插件worker心跳窗口判断（常驻形态）；实测确定插件未加载、重载中归unavailable还是unknown
+## 原生ASK接线（34准备者发现，202核实）
+
+- 核实：src中无生产代码传入on_interaction；`questions.native_answer`只被`tests/submission_fixture.py`调用。S01五接口无可信用户答复通道，适配拿不到runtime/actor/job，无法自行接线，归公共层（27/33设计S01中性“等待输入”事件或回调并接native_answer）。
+- 适配侧已修：Process原生ASK不作答（也不代选reject），记`native_interaction_unanswered`/unknown，原请求不重投；此前同情形只报host_unknown。D37后false轮也保留ask级权限，原生ASK出现面随之扩大。原生常驻入口的ASK在用户自己的九问网页中呈现、由用户原生作答，不经SDK；是否如此待原生窗口观察。

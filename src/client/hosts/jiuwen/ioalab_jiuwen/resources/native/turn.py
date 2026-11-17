@@ -19,7 +19,6 @@ current=ContextVar('ioa_native_current_turn',default=None)
 # never an accepted identity; accepted identity is the original snapshot.
 PENDING={}
 SECTION='ioa_original_definition'
-DENY='ioa_sdk_denied'
 TOKEN='_ioa_turn_token'
 
 # Proof evidence is off unless an operator placed the marker beside this
@@ -67,10 +66,11 @@ class PreparedTurn:
         self.session_id=session_id;self.request_id=request_id;self.execution=execution
         self.section_factory=section_factory;self.tool_factory=tool_factory;self.callback=callback
         self.tool_name=tools[0]['name'];self.declaration=tools[0]
-        # Frozen trusted boolean. Missing or observation never opens native tools.
+        # Frozen trusted boolean, recorded only. This adapter declares no native
+        # tool restriction (D37): native tools stay as the user configured them.
         self.native_tools_enabled=authorization.get('nativeToolsEnabled') is True
         self.deadline=deadline_of(execution);self.clock=clock or (lambda:datetime.now(timezone.utc))
-        self.owner=None;self.agent=None;self.section=None;self.tool=None;self.denial=None
+        self.owner=None;self.agent=None;self.section=None;self.tool=None
         self.installed=False;self.closed=False;self.failed=None;self.release=None
         self.binding=asyncio.Event();self.ack=False;self._owners=set()
 
@@ -79,8 +79,7 @@ class PreparedTurn:
 
     def _collision(self,agent):
         manager=agent.ability_manager
-        if (agent.prompt_builder.get_section(SECTION) is not None or manager.get(self.tool_name) is not None or
-                manager.get(DENY) is not None):
+        if agent.prompt_builder.get_section(SECTION) is not None or manager.get(self.tool_name) is not None:
             raise ValueError('native_definition_or_tool_collision')
 
     def reserve(self,owner,agent):
@@ -100,17 +99,14 @@ class PreparedTurn:
         agent.prompt_builder.add_section(self.section)
         try:
             self.tool=self.tool_factory(self.declaration,self.invoke)
-            self.denial=self.tool_factory({'name':DENY,'description':'IoA denied tool','input_schema':{'type':'object'}},self.denied)
             agent.ability_manager.add_ability(self.tool.card,self.tool.ability)
-            agent.ability_manager.add_ability(self.denial.card,self.denial.ability)
             self.installed=True
         except BaseException:self._remove();raise
 
     def check(self,agent,route,*,owner_task=False):
         valid=(self.installed and not self.closed and self.failed is None and self.agent is agent and route==self.key and
             agent.prompt_builder.get_section(SECTION) is self.section and
-            agent.ability_manager.get(self.tool_name) is self.tool.card and
-            agent.ability_manager.get(DENY) is self.denial.card)
+            agent.ability_manager.get(self.tool_name) is self.tool.card)
         if not valid:raise ValueError(self.failed or 'native_definition_ownership_lost')
         # Only the invocation task owns cleanup; parallel tool tasks end early.
         task=asyncio.current_task() if owner_task else None
@@ -149,13 +145,14 @@ class PreparedTurn:
             ctx.request_force_finish({'output':'','error':{'code':self.failed}})
             evidence('model_blocked:'+self.failed,self,agent=id(ctx.agent),force_finish=True)
             return
-        tools=ctx.inputs.tools or []
-        allowed=[t for t in tools if _name(t)!=DENY and (self.native_tools_enabled or _name(t)==self.tool_name)]
-        if not any(_name(t)==self.tool_name for t in allowed):allowed.append(self.tool.info)
-        ctx.inputs.tools=allowed
+        # The user's native tools stay in the window in every phase; only the
+        # one SDK tool is ensured.
+        tools=list(ctx.inputs.tools or [])
+        if not any(_name(t)==self.tool_name for t in tools):tools.append(self.tool.info)
+        ctx.inputs.tools=tools
         evidence('model_window',self,agent=id(ctx.agent),section=self.agent.prompt_builder.get_section(SECTION) is self.section,
-            sdk_tool=any(_name(t)==self.tool_name for t in allowed),
-            native_tools=any(_name(t)!=self.tool_name for t in allowed),deny_tool=any(_name(t)==DENY for t in allowed))
+            sdk_tool=any(_name(t)==self.tool_name for t in tools),
+            native_tools=any(_name(t)!=self.tool_name for t in tools),native_tools_enabled=self.native_tools_enabled)
 
     def on_tool(self,ctx,route):
         if route!=self.key:return
@@ -173,8 +170,8 @@ class PreparedTurn:
             setattr(ctx,TOKEN,current.set((self,str(call) if call else None)))
             evidence('tool_sdk',self,agent=id(ctx.agent),call_id=bool(call))
             return
-        rewritten=self.tool_inputs(inputs)
-        evidence('tool_native',self,agent=id(ctx.agent),rewritten=rewritten)
+        # Ordinary native tool: never rerouted or denied by IoA (D37).
+        evidence('tool_native',self,agent=id(ctx.agent),native_tools_enabled=self.native_tools_enabled)
 
     def after_tool(self,ctx):
         token=getattr(ctx,TOKEN,None)
@@ -211,23 +208,11 @@ class PreparedTurn:
         if not valid:return {'error':{'code':'native_callback_receipt_invalid'}}
         return result['value'] if result.get('error') is None else {'value':result.get('value'),'error':result['error']}
 
-    @staticmethod
-    async def denied(**_):return {'error':{'code':'native_tool_not_authorized'}}
-
-    def tool_inputs(self,inputs):
-        # Public ToolCallInputs rewrite is consumed by the actual ability manager
-        # after BEFORE_TOOL_CALL. Never request_force_finish for one denial.
-        if inputs.tool_name not in (self.tool_name,DENY) and self.native_tools_enabled is not True:
-            inputs.tool_name=DENY;inputs.tool_args={}
-            return True
-        return False
-
     def _remove(self):
         if self.agent is None:return
         builder=self.agent.prompt_builder;manager=self.agent.ability_manager
         if self.section is not None and builder.get_section(SECTION) is self.section:builder.remove_section(SECTION)
-        for tool in (self.tool,self.denial):
-            if tool is not None and manager.get(tool.card.name) is tool.card:manager.remove_ability(tool.card.name)
+        if self.tool is not None and manager.get(self.tool.card.name) is self.tool.card:manager.remove_ability(self.tool.card.name)
         self.installed=False
 
     def close(self):

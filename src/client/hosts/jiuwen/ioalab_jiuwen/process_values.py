@@ -16,7 +16,9 @@ class _Round:
     on_interaction: object=None
     on_tool: object=None
     on_event: object=None
-    allow_native_tools: bool=False
+    # Frozen SDK phase fact, recorded only: this adapter declares no native
+    # tool restriction, so permissions keep their configured levels (D37).
+    native_tools_enabled: bool=False
     definition_digest: str|None=None
 
 @dataclass

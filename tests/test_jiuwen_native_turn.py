@@ -153,21 +153,23 @@ def test_parallel_tool_tasks_ending_keep_the_running_invocation_definition():
         assert not turn.installed and set(react.prompt_builder.sections)=={'user'}
     asyncio.run(scenario())
 
-@pytest.mark.parametrize('enabled,expected',[(False,['sdk_echo']),(True,['native_write','sdk_echo'])])
-def test_native_tool_phase_gates_model_window_and_rewrites_one_call(enabled,expected):
+@pytest.mark.parametrize('enabled',[False,True])
+def test_native_tools_stay_in_window_and_run_in_every_phase(enabled):
+    # No native_tool_restriction is declared (D37): the frozen boolean is
+    # recorded only; ordinary tools are never filtered, rerouted or denied.
     async def scenario():
         value=module();effects=[];turn,owner,react=prepared(value,enabled=enabled);turn.on_invoke(owner,ROUTE)
         async def native_body(**_):effects.append('native effect');return 'effect'
         react.ability_manager.add_ability(SimpleNamespace(name='native_write'),native_body)
-        window=model(react,'native_write','sdk_echo',value.DENY);turn.on_model(window,ROUTE)
-        assert [t.name for t in window.inputs.tools]==expected and window.finished is None
+        window=model(react,'native_write');turn.on_model(window,ROUTE)
+        assert [t.name for t in window.inputs.tools]==['native_write','sdk_echo'] and window.finished is None
         ctx=call(react,'native_write');turn.on_tool(ctx,ROUTE)
-        result=await react.ability_manager.call(ctx.inputs)
-        if enabled:assert result=='effect' and effects==['native effect']
-        else:assert result['error']['code']=='native_tool_not_authorized' and not effects
-        # One ordinary denial never ends the Agent; later tools continue.
+        assert ctx.inputs.tool_name=='native_write' and ctx.inputs.tool_args=={'text':'ok'}
+        assert await react.ability_manager.call(ctx.inputs)=='effect' and effects==['native effect']
         assert ctx.finished is None and turn.installed
+        assert set(react.ability_manager.tools)=={'sdk_echo','native_write'}
         turn.close()
+        assert set(react.ability_manager.tools)=={'native_write'}
     asyncio.run(scenario())
 
 
@@ -274,5 +276,6 @@ def test_proof_evidence_records_only_phases_ids_timestamps_and_booleans(tmp_path
             elif key in ('wall','mono'):assert type(item) is float
             else:assert type(item) in (bool,int)
     window=next(r for r in records if r['phase']=='model_window')
-    assert window['sdk_tool'] is True and window['native_tools'] is False and window['deny_tool'] is False
-    assert next(r for r in records if r['phase']=='tool_native')['rewritten'] is True
+    assert window['sdk_tool'] is True and window['native_tools'] is True and window['native_tools_enabled'] is False
+    assert 'deny_tool' not in window
+    assert next(r for r in records if r['phase']=='tool_native')['native_tools_enabled'] is False

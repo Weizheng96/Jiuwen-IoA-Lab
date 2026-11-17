@@ -86,7 +86,7 @@ class ProcessHost(Submission):
         instructions=turn.definition.instructions+('\nLocal tool aliases: '+str(mapping) if mapping else '')
         definition={'name':turn.definition.name,'instructions':instructions,
                     'tools':names+list(native)+(['ask_user'] if turn.on_interaction else [])}
-        permissions={**{name:'allow' for name in names},**{name:level if turn.allow_native_tools else 'deny' for name,level in native.items()}}
+        permissions={**{name:'allow' for name in names},**native}
         request={'mode':'agent.work.normal','request_id':request_id,'input':turn.input,'agent':definition,
                  'model':self.model,'host_tools':declarations,
                  'permissions':{'tools':permissions},
@@ -96,11 +96,12 @@ class ProcessHost(Submission):
         path=workspace/'runs'/(request_id+'.json')
         record={'operationId':turn.operation_id,'plannedRequestId':request_id,'requestId':None,'sessionId':turn.session_id,'state':'prepared',
                 'definitionDigest':turn.definition_digest,
-                'nativeToolsEnabled':turn.allow_native_tools,
+                'nativeToolsEnabled':turn.native_tools_enabled,
                 'createdAt':datetime.now(timezone.utc).isoformat()}
         private_json(path,record)
         observed_session=[turn.session_id]
         observed_request=[None]
+        unanswered=[False]
 
         async def execute():
             loop=asyncio.get_running_loop();cancel=asyncio.Event()
@@ -133,7 +134,11 @@ class ProcessHost(Submission):
                 return await asyncio.to_thread(turn.on_tool,aliases[payload['name']],arguments,payload['call_id'])
             async def interaction(record):
                 await session(record)
-                if turn.on_interaction is None:raise RuntimeFault('not_ready','Real user interaction is required','wait_for_user')
+                if turn.on_interaction is None:
+                    # S01 carries no trusted user-answer channel: never answer a
+                    # native ASK (not even a rejection) on the user's behalf.
+                    unanswered[0]=True
+                    raise RuntimeFault('not_ready','Real user interaction is required','wait_for_user')
                 aborted=threading.Event()
                 try:return await asyncio.to_thread(turn.on_interaction,{**record,'_cancelled':aborted.is_set})
                 finally:aborted.set()
@@ -158,7 +163,8 @@ class ProcessHost(Submission):
                 # not erase that fact; the S01 journal records it independently.
                 return outcome
             private_json(path,{**record,'state':'unknown','sessionId':observed_session[0],'requestId':observed_request[0],'errorType':type(exc).__name__})
-            return _Result('unknown',observed_session[0],{}, {'code':'host_unknown','type':type(exc).__name__},request_id)
+            code='native_interaction_unanswered' if unanswered[0] else 'host_unknown'
+            return _Result('unknown',observed_session[0],{}, {'code':code,'type':type(exc).__name__},request_id)
 
     def _cancel_operation(self,operation_id):
         with self._lock:running=list(self._running.get(operation_id,()))

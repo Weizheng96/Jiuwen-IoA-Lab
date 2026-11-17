@@ -232,6 +232,48 @@ def test_native_same_session_wrong_request_is_not_binding_and_unknown_never_requ
         assert handler(poll)['command'] is None
 
 
+def test_native_check_is_worker_heartbeat_window_only(tmp_path,monkeypatch):
+    from ioalab_jiuwen import native_transport
+    clock=[1000.0]
+    with native(tmp_path) as (bundle,resource,sources,reference,poll,handler,_):
+        # Boundary clock only for the synchronous window arithmetic below.
+        monkeypatch.setattr(native_transport.time,'monotonic',lambda:clock[0])
+        host=bundle['host']
+        resource.close();assert host.check()['state']=='unknown'
+        resource.start()
+        assert host.check()['state']=='unknown'          # no heartbeat yet since start
+        clock[0]+=native_transport.HEARTBEAT_SECONDS*60
+        assert host.check()['state']=='unknown'          # plugin not loaded / not re-entered: never counted as down
+        assert handler(poll)['bound'] is False           # polling without entry binding
+        assert host.check()['state']=='unknown'
+        bind(sources,reference,handler,poll)
+        value=host.check();assert value['state']=='available' and value['basis']
+        clock[0]+=native_transport.HEARTBEAT_SECONDS*60
+        assert host.check()['state']=='unknown'          # aged out, host stop unconfirmed
+        handler(poll);assert host.check()['state']=='available'
+
+
+def test_native_proposal_round_needs_same_effect_sdk_tool(tmp_path):
+    from ioalab_sdk.runtime import HostToolDeclaration
+    schema={'type':'object','properties':{'reply':{'type':'string'}}}
+    with native(tmp_path) as (bundle,_,sources,reference,poll,handler,_):
+        poll={**poll,'features':['request_turn']};bind(sources,reference,handler,poll)
+        base=business(tmp_path)
+        unrelated=replace(base,proposal_schema=schema)
+        result=bundle['host'].submit('proposal',HostInput('input',attempt=SubmissionAttempt('n','s','actor','assistant')),
+            execution=unrelated,on_event=acked,on_tool=lambda call:None)
+        assert result.error.phase=='native_definition' and result.error.dispatch=='not_submitted'
+        assert handler(poll)['command'] is None
+        same=replace(base,proposal_schema=schema,tools=(HostToolDeclaration('ioa_reply','Reply once',schema),))
+        input=HostInput('input',attempt=SubmissionAttempt('m','s','actor','assistant'))
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future=pool.submit(bundle['host'].submit,'proposal-tool',input,execution=same,on_event=acked,on_tool=lambda call:None)
+            command=command_from(handler,poll)
+            assert command['execution']['proposal_schema']==schema
+            report(handler,command,{'stage':'preflight_error'})
+            assert future.result(timeout=2).error.dispatch=='not_submitted'
+
+
 def test_native_professional_definition_is_rejected_before_any_native_command(tmp_path):
     with native(tmp_path) as (bundle,_,sources,reference,poll,handler,_):
         bind(sources,reference,handler,poll)
@@ -320,7 +362,7 @@ def test_native_original_request_missing_receipt_restores_unknown_without_dispat
         try:
             assert restored['host'].get_request(result.request_id) is None
             assert restored['host'].get_request('not-an-actual-request') is None
-            assert restored['host'].check()['state']=='unavailable'
+            assert restored['host'].check()['state']=='unknown'
         finally:restored['native_resources']['host'].close()
 
 
@@ -354,7 +396,7 @@ def test_native_restored_request_index_conflicts_remain_unknown(tmp_path,fault):
         restored['native_resources']['host'].start()
         try:
             assert restored['host'].get_request(result.request_id) is None
-            assert restored['host'].check()['state']=='unavailable'
+            assert restored['host'].check()['state']=='unknown'
         finally:restored['native_resources']['host'].close()
 
 
@@ -621,7 +663,8 @@ def test_native_original_request_installs_frozen_definition_and_echoes_after_p28
             finally:
                 await asyncio.sleep(0.05);worker.close()
         result=asyncio.run(scenario())
-    assert seen[0]==(['sdk_echo'],'frozen professional rules')
+    # nativeToolsEnabled=false is recorded only (D37): the user's tool stays.
+    assert seen[0]==(['native_write','sdk_echo'],'frozen professional rules')
     assert seen[1]=={'echo':'domain-free'}
     assert [(c.session_id,c.request_id,c.call_id,c.name) for c in calls]==[('business-sid',result.request_id,'native-call','sdk_echo')]
     assert result.terminal.state=='completed' and result.session_id=='business-sid'

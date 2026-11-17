@@ -150,17 +150,70 @@ def test_same_session_with_different_request_echo_cannot_establish_binding(tmp_p
     assert result.state=='unknown' and result.request_id is None and result.terminal is None
 
 
-@pytest.mark.parametrize('kind,enabled,permission',[
-    ('business',False,'deny'),('business',True,'allow'),
-    ('business',None,'deny'),('observation',True,'deny')])
-def test_native_tool_phase_uses_frozen_boolean_not_execution_kind(tmp_path,monkeypatch,kind,enabled,permission):
+@pytest.mark.parametrize('kind,enabled',[('business',False),('business',True),('business',None),('observation',False)])
+def test_native_tool_phase_is_recorded_but_never_restricts_configured_tools(tmp_path,monkeypatch,kind,enabled):
+    # No native_tool_restriction is declared (D37): every phase keeps the
+    # owner-configured levels; the frozen boolean is only recorded.
+    from ioalab_jiuwen.submission import Submission
+    assert Submission.registration.native_tool_restriction is False
     class Process:
         async def run(self,request,**callbacks):
-            assert request['permissions']['tools']['write_file']==permission
+            assert request['permissions']['tools']=={'write_file':'allow','read_file':'ask'}
             return {'type':'result','request_id':request['request_id'],'session_id':'sid','status':'completed','exit_code':0}
     host=ProcessHost(['process'],tmp_path)
     monkeypatch.setattr(host,'_client',lambda **_:Process())
-    authorization={'nativeTools':{'write_file':'allow'}}
+    authorization={'nativeTools':{'write_file':'allow','read_file':'ask'}}
     if enabled is not None:authorization['nativeToolsEnabled']=enabled
     result=host.submit('op',payload(),execution=scope(tmp_path/'work',kind=kind,authorization=authorization),on_event=ack)
-    assert result.state=='completed' and result.terminal is not None
+    assert result.state=='completed' and result.terminal is not None and result.error is None
+    record=next(path for path in (tmp_path/'work'/'runs').glob('ioa-*.json'))
+    assert json.loads(record.read_text())['nativeToolsEnabled'] is (enabled is True)
+
+
+PROPOSAL={'type':'object','properties':{'reply':{'type':'string'}},'required':['reply']}
+
+
+def test_proposal_round_without_channel_submits_through_same_effect_sdk_tool(tmp_path,monkeypatch):
+    calls=[]
+    class Process:
+        async def run(self,request,**callbacks):
+            assert [tool['name'] for tool in request['host_tools']]==['ioa_reply']
+            await callbacks['on_event']({'type':'event','request_id':request['request_id'],'session_id':'sid'})
+            await callbacks['on_tool_call']({'request_id':request['request_id'],'session_id':'sid',
+                'payload':{'name':'ioa_reply','arguments':{'reply':'hello'},'call_id':'call'}})
+            return {'type':'result','request_id':request['request_id'],'session_id':'sid','status':'completed','exit_code':0}
+    host=ProcessHost(['process'],tmp_path)
+    monkeypatch.setattr(host,'_client',lambda **_:Process())
+    def tool(call):calls.append((call.name,call.arguments));return HostToolResult({'accepted':True})
+    execution=scope(tmp_path/'work',proposal_schema=PROPOSAL,tools=(HostToolDeclaration('ioa_reply','Reply once',PROPOSAL),))
+    result=host.submit('op',payload(),execution=execution,on_event=ack,on_tool=tool)
+    assert result.state=='completed' and result.terminal is not None and result.proposal is None
+    assert calls==[('ioa_reply',{'reply':'hello'})]
+
+
+def test_proposal_round_without_channel_or_same_effect_tool_is_not_submitted(tmp_path,monkeypatch):
+    host=ProcessHost(['process'],tmp_path)
+    monkeypatch.setattr(host,'_client',lambda **_:pytest.fail('Unsupported proposal round started a Process'))
+    other=HostToolDeclaration('lookup','Read only',{'type':'object'})
+    for tools in ((),(other,)):
+        result=host.submit('op-'+str(len(tools)),payload(),execution=scope(tmp_path/'work',proposal_schema=PROPOSAL,tools=tools),
+                           on_event=ack,on_tool=lambda _:pytest.fail('No SDK effect'))
+        assert result.error.code=='not_ready' and result.error.phase=='proposal' and result.error.dispatch=='not_submitted'
+        assert result.request_id is None
+
+
+def test_native_ask_without_trusted_answer_channel_is_never_answered(tmp_path,monkeypatch):
+    answered=[]
+    class Process:
+        async def run(self,request,**callbacks):
+            assert 'ask_user' not in request['agent']['tools']
+            await callbacks['on_event']({'type':'event','request_id':request['request_id'],'session_id':'sid'})
+            record={'request_id':request['request_id'],'session_id':'sid','event_type':'interaction.requested',
+                    'payload':{'interaction_id':'ask','interaction':{'source':'permission_interrupt','questions':[]}}}
+            answered.append(await callbacks['on_interaction'](record))
+            return {'type':'result','request_id':request['request_id'],'session_id':'sid','status':'completed','exit_code':0}
+    host=ProcessHost(['process'],tmp_path)
+    monkeypatch.setattr(host,'_client',lambda **_:Process())
+    result=host.submit('op',payload(),execution=scope(tmp_path/'work'),on_event=ack)
+    assert not answered and result.terminal is None and result.state=='unknown'
+    assert result.error.code=='native_interaction_unanswered' and result.error.dispatch=='unknown'

@@ -16,6 +16,8 @@ SOURCE_FIELDS={'sessionId','requestId','userId','channelId','workspace',
                'projectId','projectDir','mode','workMode'}
 SCOPE_FIELDS={'hostRef','adapterId','actor','profile','installationRef','accountBindingRef','bootId'}
 BINDING_FORMAT='ioalab.jiuwen-binding/1'
+# Worker heartbeat window (polls every 0.5 s); also the dispatch liveness bound.
+HEARTBEAT_SECONDS=10
 PLAN_FORMAT='ioalab.jiuwen-setup-obligation/1'
 
 
@@ -26,7 +28,7 @@ class NativeTransport:
     def __init__(self,host_ref,root):
         self.host_ref=host_ref;self.root=Path(root)
         self._lock=threading.RLock();self._changed=threading.Condition(self._lock)
-        self._started=False;self._control=None;self._binding=None;self._setup_plan=None
+        self._started=False;self._started_at=None;self._control=None;self._binding=None;self._setup_plan=None
         self._workers={};self._states={};self._requests={};self._routes={}
 
     def bind_entry_control(self,control):
@@ -54,7 +56,7 @@ class NativeTransport:
                     ('scope','targetDigest','savedReceiptRef')):
                 raise RuntimeFault('identity_conflict','Restore matching original binding and setup receipts')
             self._binding=binding;self._setup_plan=obligation
-            self._started=True
+            self._started=True;self._started_at=time.monotonic()
 
     def drain(self,timeout):
         end=time.monotonic()+max(0,timeout)
@@ -183,7 +185,7 @@ class NativeTransport:
             if not bound:return {'bound':False,'command':None}
             route=(scope['actor'],scope['profile'])
             active=self._routes.get(route)
-            if active and active!=worker_id and time.monotonic()-self._workers[active]['seen']<10:
+            if active and active!=worker_id and time.monotonic()-self._workers[active]['seen']<HEARTBEAT_SECONDS:
                 # Fresh captures still issue their own SDK entryRef. They do not
                 # create an unbounded set of idle background pollers or replace
                 # the original worker already owning this profile's requests.
@@ -255,7 +257,7 @@ class NativeTransport:
                 pinned=old.get('createdSessionId')
             workers=[(key,w) for key,w in self._workers.items() if w['bound'] and key in self._routes.values() and
                 (w['scope']['actor'],w['scope']['profile'])==(attempt.actor,attempt.profile) and
-                time.monotonic()-w['seen']<10]
+                time.monotonic()-w['seen']<HEARTBEAT_SECONDS]
             if not self._started or not workers:
                 return replace(initial,error=SubmissionError('not_ready','native_transport','not_submitted',
                     'Connect the explicitly bound native entry before submission'))
@@ -275,7 +277,7 @@ class NativeTransport:
             self._states[operation]=state;self._persist(state)
             while self._started and not state['result'].terminal:
                 if state['phase']=='error' or state['result'].state=='waiting':break
-                if time.monotonic()-self._workers[worker_id]['seen']>=10:
+                if time.monotonic()-self._workers[worker_id]['seen']>=HEARTBEAT_SECONDS:
                     state['result']=replace(state['result'],error=SubmissionError('native_transport_unknown',
                         'native_transport','unknown','Recover the original native request; do not submit again'))
                     self._persist(state);break
@@ -439,6 +441,24 @@ class NativeTransport:
                 return None
 
     def check(self):
+        """P34/S02 for the resident native host: worker heartbeat only, no model or Session probe.
+
+        A worker exists only after an IoA entry call in a native Session and is
+        closed by Rail uninit, so plugin not loaded, reloaded without a new
+        entry call and Jiuwen not running all look like no heartbeat here. None
+        of these proves the host stopped, so they stay unknown (not counted);
+        unavailable needs confirmed host-not-running evidence, which this
+        transport does not hold.
+        """
         with self._lock:
-            live=self._started and any(w['bound'] and time.monotonic()-w['seen']<10 for w in self._workers.values())
-            return {'state':'available' if live else 'unavailable','basis':'Bound passive native transport; no model probe'}
+            if not self._started:return {'state':'unknown','basis':'Native transport not accepting; heartbeat unreadable'}
+            now=time.monotonic()
+            if any(w['bound'] and now-w['seen']<HEARTBEAT_SECONDS for w in self._workers.values()):
+                return {'state':'available','basis':'Bound native worker heartbeat within window; no model probe'}
+            if now-self._started_at<HEARTBEAT_SECONDS:
+                return {'state':'unknown','basis':'No native worker heartbeat yet since transport start'}
+            if any(w['bound'] for w in self._workers.values()):
+                return {'state':'unknown','basis':'Bound native worker heartbeat older than window; host stop unconfirmed'}
+            if any(now-w['seen']<HEARTBEAT_SECONDS for w in self._workers.values()):
+                return {'state':'unknown','basis':'Native worker polling without an established entry binding'}
+            return {'state':'unknown','basis':'No native worker heartbeat; plugin not loaded or not re-entered, host stop unconfirmed'}

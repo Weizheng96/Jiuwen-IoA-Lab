@@ -104,7 +104,7 @@ def test_lost_native_result_preserves_actual_session_and_never_retries(tmp_path,
     assert 'private transport details' not in json.dumps(record)
     assert host.cancel(result.request_id)['ended'] is False
 
-def test_native_tools_have_fixed_definition_but_only_production_permissions(tmp_path, monkeypatch):
+def test_native_tools_keep_configured_permissions_in_every_phase(tmp_path, monkeypatch):
     requests = []
 
     class Process:
@@ -124,7 +124,9 @@ def test_native_tools_have_fixed_definition_but_only_production_permissions(tmp_
         result = _submit(host, 'op-'+str(enabled), 'actor', 'iid', definition, 'data', str(tmp_path / 'work'), session_id='same-original-session', on_tool=lambda *args: {'rejected': 'actual role/user gate still owns this action'}, allow_native_tools=enabled)
         assert result.status == 'completed'
     assert requests[0]['agent'] == requests[1]['agent']
-    assert requests[0]['permissions']['tools']['write_file'] == 'deny'
+    # No native tool restriction is declared (D37): the false phase keeps the
+    # owner-configured level instead of an undeclared deny.
+    assert requests[0]['permissions']['tools']['write_file'] == 'allow'
     assert requests[1]['permissions']['tools']['write_file'] == 'allow'
     assert requests[0]['agent']['tools'] == ['business', 'write_file']
     records = [json.loads(path.read_text()) for path in (tmp_path / 'work/runs').glob('ioa-*.json')]
@@ -143,18 +145,40 @@ def test_invalid_or_unavailable_native_tool_does_not_start_a_process(tmp_path, m
     result = _submit(host, 'op', 'actor', 'iid', definition, 'data', str(tmp_path / 'work'))
     assert result.error['code'] == 'invalid_input'
 
-@pytest.mark.parametrize('response,state',[('completed','available'),('failed','unavailable'),('exception','unknown')])
-def test_check_is_readonly_protocol_query_without_model_or_permission_gate(tmp_path, monkeypatch,response,state):
-    queried=[]
-    class Process:
-        async def query(self,name,**kwargs):
-            queried.append(name)
-            if response=='exception':raise OSError('query failed')
-            return {'status':response,'data':{'features':{}}}
-    host=ProcessHost(['original-process'],tmp_path)
-    monkeypatch.setattr(host,'_client',lambda **kwargs:Process())
-    assert host.check()['state']==state
-    assert queried==['protocol.capabilities']
+def _startable(tmp_path):
+    command=tmp_path/'bin'/'jiuwenswarm-process.exe';command.parent.mkdir();command.write_bytes(b'')
+    data=tmp_path/'swarm';(data/'config').mkdir(parents=True);(data/'config'/'config.yaml').write_text('models: {}',encoding='utf-8')
+    return command,data
+
+
+@pytest.mark.parametrize('broken,state',[(None,'available'),('command','unavailable'),('data','unavailable'),('config','unavailable')])
+def test_check_judges_startability_without_starting_process_or_model(tmp_path,monkeypatch,broken,state):
+    command,data=_startable(tmp_path)
+    if broken=='command':command.unlink()
+    if broken=='config':(data/'config'/'config.yaml').unlink()
+    host=ProcessHost([str(command),'--flag'],tmp_path/'missing' if broken=='data' else data)
+    monkeypatch.setattr(host,'_client',lambda **kwargs:pytest.fail('S02 started the original Process'))
+    value=host.check()
+    assert value['state']==state and value['basis']
+
+
+def test_check_reports_busy_for_own_running_request_and_unknown_for_unfinished_self_check(tmp_path,monkeypatch):
+    import threading
+    from ioalab_jiuwen import submission
+    command,data=_startable(tmp_path)
+    host=ProcessHost([str(command)],data)
+    monkeypatch.setattr(host,'_client',lambda **kwargs:pytest.fail('S02 started the original Process'))
+    host._running['operation']=[object()]
+    assert host.check()['state']=='busy'
+    host._running.clear()
+    release=threading.Event()
+    monkeypatch.setattr(submission,'CHECK_SECONDS',0.05)
+    monkeypatch.setattr(host,'_startable',lambda:release.wait(5) or {'state':'available','basis':'late'})
+    try:assert host.check()['state']=='unknown'
+    finally:release.set()
+    def unreadable():raise OSError('network drive')
+    monkeypatch.setattr(host,'_startable',unreadable)
+    assert host.check()['state']=='unknown'
 
 
 def test_unlisted_native_tool_keeps_actual_runtime_failure_instead_of_claiming_a_catalog(tmp_path, monkeypatch):
