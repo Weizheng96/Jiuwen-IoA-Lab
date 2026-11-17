@@ -15,6 +15,8 @@
 
 **用户最新阶段确认：一句话接入已验收成功。** 下述权限/回执问题归已配置客户端的新会话调用与后续业务测试，不重新打开下载注册接入验收。后续会话直接交付本地已配置客户端、沿原账号测试；修复先最简定向检查及本地复验，通过后再合main，不再先合main再一句话接入。公共修复须同时适配Codex/九问/Claude Code；当前九问/Claude配置由用户接手，未因无模型测试而恢复它们。
 
+本地候选复验：公共修复已提交并推develop `e73c635`（v0.0.208.1），未合main。经唯一bootstrap --upgrade在原 `C:/Users/ROG/.ioalab/client` 原位更新完成、exit0，实际wheel SHA256为 `1bcbb40a868b78d1df2a3b4fae614f799e4469e65c493737d5d005786ec0c47a`；原账号、两角色agentId、配置摘要及runtimeId保持不变。普通沙箱准确返回权限拒绝与恢复分类，获准访问后沿原两角色native状态参数/原operationId均completed且平台在线。原Codex测试聊天已恢复后续原生绑定/业务验证，不重新下载注册；真实九问/Claude模型业务未验。脱敏更新前后基线保存在temp/client-retest-2081。
+
 v208新会话后续阻断：两角色runtime.binding/install.status正常，普通沙箱runtime.status因配置访问权限不足被误报invalid_input／UTF-8 JSON不可读；同一命令获准提升后completed，原账号认证及平台连接正常，排除配置损坏。onboarding捕获该失败后误给未注册账号待办。共用修复已实现：配置权限拒绝单独给明确原因及inspect_configuration_permissions恢复分类；摘要保accountName=null并给agent授权访问步骤，不生成注册待办，不改账号/权限。两轮最简定向8通过及4通过（摘要重验，11个不同case），均exit0；三真实宿主包装共同验证原回执保留、错/缺ID仍unknown。报告为temp/checks/20261117T141449Z-0c0f9888及20261117T141906Z-4461000c。现待原本地客户端候选更新和真实业务复验，不提前合main。
 
 本轮修复已实现：skills-install回执附现有onboarding/1摘要与actor/verify步骤，区分当前智能体动作和用户动作，支持Markdown展示；登记给实际host/ref、type-only参数及configurationDigest来源，保已有默认；原生安装/setup给当前入口说明。Codex信任要求改未知null，移除固定“去设置审阅信任”指引。首轮118通过/2资源装配失败（exit1），仅修测试资源装配后两新增用例重跑2通过（exit0，74.43秒），合计覆盖120项；失败报告保留。本轮未解决账号页无响应观察差异，也未完成修复版正式来源接入。用户明确要求跳过剩余发布前检查直接同步：未执行本轮full、自检及实际打包验证，不以定向结果代替。
