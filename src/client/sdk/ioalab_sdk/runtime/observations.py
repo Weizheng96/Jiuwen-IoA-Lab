@@ -118,6 +118,9 @@ def model_port(runtime,host,identity,interaction):
                 if value.result.session_id:bind(value.result.session_id)
             result=host.submit(identity.agent_id,reference,reference,HostInput(payload),execution=snapshot,on_event=event,
                 on_tool=lambda call:output(call.name,call.arguments,call.call_id))
+            # Observation basis records the claimed fact; an unrestricted round still observes.
+            restricted=host.native_tools_restricted(identity.agent_id,reference)
+            if restricted is not None:save({'nativeToolsRestricted':restricted})
             if material and result.error and result.error.dispatch=='not_submitted':journal.pending(owner,reference)
             if result.output is not None:
                 try:value=observation_output(result.output)
@@ -137,7 +140,8 @@ def model_port(runtime,host,identity,interaction):
                 if proof[1]!='completed':raise RuntimeFault('unknown_result','Original observation is not ended and drained')
             return answers[0]
         except Exception:
-            save({'state':'unknown','sessionId':session[0]})
+            restricted=host.native_tools_restricted(identity.agent_id,reference)
+            save({'state':'unknown','sessionId':session[0],**({'nativeToolsRestricted':restricted} if restricted is not None else {})})
             if material:
                 # Error text is not a no-dispatch proof.
                 proof=next(value for value in journal.eligible(owner) if value[0]==reference)

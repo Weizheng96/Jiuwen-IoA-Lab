@@ -6,7 +6,8 @@ import pytest
 
 from ioalab_sdk.runtime import (HostRegistry,RuntimeStore,RuntimeFault,HostRegistration,
     HostInput,HostExecution,HostDefinition,HostToolDeclaration,HostToolCall,HostToolResult,
-    BindingAck,SubmissionResult,SubmissionEvent,SubmissionError,MachineTerminal,encode,submission_succeeded)
+    BindingAck,SubmissionResult,SubmissionEvent,SubmissionError,MachineTerminal,encode,submission_succeeded,
+    native_tools_restricted,proposal_tool_declared)
 
 
 class Adapter:
@@ -460,6 +461,50 @@ def test_static_readonly_modes_do_not_reinterpret_existing_registration_argument
     for mode in ('isolated_session','business_session'):
         assert HostRegistration('fixture','1',readonly_context=mode).readonly_context==mode
     with pytest.raises(RuntimeFault):HostRegistration('fixture','1',readonly_context='infer_from_last_chat')
+
+
+def test_native_tool_restriction_is_an_optional_static_boolean_declaration():
+    assert HostRegistration('fixture','1').native_tool_restriction is False
+    assert HostRegistration('fixture','1',native_tool_restriction=True).native_tool_restriction is True
+    for value in (None,1,'true'):
+        with pytest.raises(RuntimeFault) as error:HostRegistration('fixture','1',native_tool_restriction=value)
+        assert error.value.code=='invalid_input'
+
+
+@pytest.mark.parametrize('declared',[False,True])
+@pytest.mark.parametrize('enabled',[False,True,None])
+def test_p20_records_native_tool_restriction_and_never_gates_or_reroutes_the_round(tmp_path,declared,enabled):
+    class Declared(Adapter):
+        registration=HostRegistration('fixture','1',native_tool_restriction=declared)
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
+    adapter=Declared();registry=HostRegistry({'host':adapter},'host')
+    registry.bind(store,identities=[SimpleNamespace(agent_id='actor',profile='assistant')])
+    authorization={'nativeTools':{'write_file':'allow'},**({} if enabled is None else {'nativeToolsEnabled':enabled})}
+    execution=HostExecution('actor','assistant','business','interaction','job',HostDefinition('quote','1','digest','frozen'),authorization=authorization)
+    expected=declared and enabled is not True
+    try:
+        assert registry.native_tools_restricted('actor','operation') is None
+        result=registry.submit('actor','interaction','operation',HostInput('review'),execution=execution)
+        # Restricted or not, the round is submitted once on the original host, unchanged.
+        assert submission_succeeded(result) and len(adapter.calls)==1
+        assert adapter.calls[0][3].authorization==authorization and adapter.calls[0][2] is None
+        assert native_tools_restricted(adapter.registration,execution) is expected
+        assert registry.native_tools_restricted('actor','operation') is expected
+        assert registry.submit('actor','interaction','operation',HostInput('review'),execution=execution)==result
+        notice=registry.submit('actor','interaction','notice',HostInput('notice'))
+        assert notice.error is None and registry.native_tools_restricted('actor','notice') is False
+        assert len(adapter.calls)==2
+    finally:store.close()
+
+
+def test_proposal_channel_is_optional_only_when_a_same_schema_sdk_tool_carries_the_effect():
+    schema={'type':'object','properties':{'output':{}},'required':['output'],'additionalProperties':False}
+    base=HostExecution('actor','assistant','business','interaction','job',HostDefinition('rule','1','digest','frozen'),
+        tools=(HostToolDeclaration('ioa_reply','Reply',schema),))
+    assert proposal_tool_declared(replace(base,proposal_schema=schema)) is True
+    assert proposal_tool_declared(base) is False
+    assert proposal_tool_declared(replace(base,proposal_schema={'type':'object'})) is False
+    assert proposal_tool_declared(replace(base,tools=(),proposal_schema=schema)) is False
 
 
 @pytest.mark.parametrize('enabled',[None,1,'true',[],{}])

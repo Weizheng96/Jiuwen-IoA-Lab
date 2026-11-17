@@ -1,7 +1,7 @@
 """A successful real publication clears only its superseded profile error."""
 from ioalab_sdk.provider import ProviderRole
 from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.resident import ResidentRuntime
+from submission_fixture import bound_runtime
 from ioalab_sdk.runtime.files import read_json,private_json
 from ioalab_sdk.runtime.ipc import LocalClient
 from test_resident_runtime import configuration
@@ -17,8 +17,9 @@ def test_unpublished_error_clears_after_publish_without_losing_original_request_
     value['identities']=[value['identities'][1]]
     value['provider']={'services':{'service':{'instructions':'Use configured business tools.','skills':[],'max_active_delegations':2}}}
     private_json(config,value)
-    host=QuoteHost();role=ProviderRole(host)
-    runtime=ResidentRuntime(RuntimeConfig.load(config),modules=(role,),host_status=host.capabilities).start()
+    host=QuoteHost();roles=[]
+    runtime=bound_runtime(RuntimeConfig.load(config),host,lambda selected:roles.append(ProviderRole(selected)) or roles[0]).start()
+    role=roles[0]
     try:
         wait_for(lambda:runtime.connection.connected and 'profile:service' in role.execution.errors)
         role.execution.errors['original-unknown-request']={'code':'unknown_result'}

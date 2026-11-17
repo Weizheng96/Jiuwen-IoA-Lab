@@ -279,6 +279,9 @@ class ResidentRuntime:
             if not self.callback_pool.drain(.1):raise RuntimeFault('not_ready','Keep SDK resources until original callbacks end')
         for resource in self.native_resources.values():
             if not resource.drain(.1):raise RuntimeFault('not_ready','Keep native control until original executions end')
+        # P34's bounded S02 unit belongs to this lifecycle and stops with P13 drain.
+        if self.health is not None and not self.health.close():
+            raise RuntimeFault('not_ready','Keep host resources until the bounded health sample ends')
         if self.scheduler:self.scheduler.close()
         for module in self.modules:module.close()
         if self.host_registry is not None and not self.host_registry._close_resource_controls():

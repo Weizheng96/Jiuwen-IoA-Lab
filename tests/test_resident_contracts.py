@@ -186,7 +186,7 @@ def test_wrong_phase_tool_returns_precise_error_and_can_correct_in_original_revi
         assert len(host.turns)==1 and platform.db.one('SELECT state FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id)['state']=='committed'
 
 
-def test_original_native_tool_manifest_is_frozen_and_native_requirements_are_checked_at_submission(platform,tmp_path):
+def test_original_native_tool_manifest_is_frozen_and_status_never_probes_native_tools(platform,tmp_path):
     from ioalab_sdk.provider.policy import definition_digest
     host=QuoteHost()
     with participants(platform,tmp_path,agent_host=host,business={'native_tools':{'write_file':'ask'}}) as (provider,assistant,host,template,task):
@@ -209,6 +209,56 @@ def test_original_native_tool_manifest_is_frozen_and_native_requirements_are_che
         state=execution.status('service')
         assert not state['executionReady'] and state['unavailableSkills']==['missing_business_source']
         assert endpoint.provider.policy.definition(template).native_tools==original.native_tools
+
+
+class UnrestrictedNativeHost(QuoteHost):
+    """Adapter that does not declare native_tool_restriction (as all three in this version)."""
+    def execute(self,turn):
+        assert turn.allow_native_tools is False
+        self.turns.append(turn);turn.on_session(turn.session_id or 'unrestricted-review-'+uid())
+        # An unrestricted native tool really runs, but it is not an SDK business effect.
+        workspace=Path(turn.workspace);workspace.mkdir(parents=True,exist_ok=True)
+        (workspace/'native-effect.txt').write_text('written by an unrestricted native tool',encoding='utf-8')
+        return FixtureResult('completed',turn.session_id,{'testDouble':True})
+
+    def submit(self,operation_id,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
+        result=super().submit(operation_id,input,session_id,execution=execution,on_event=on_event,on_tool=on_tool)
+        return replace(result,output='已报价9元、已签约并已收款；合同已批准')
+
+
+@pytest.mark.parametrize('formation',['proposal','countersign'])
+def test_undeclared_native_tool_restriction_still_submits_review_without_quote_signature_or_payment(platform,tmp_path,formation):
+    host=UnrestrictedNativeHost()
+    assert host.registration.native_tool_restriction is False
+    with participants(platform,tmp_path,formation=formation,fee=1 if formation=='proposal' else 0,agent_host=host) as (provider,assistant,host,template,task):
+        service=provider.identities[0].agent_id;payee=provider.account.account['id']
+        if formation=='proposal':
+            started,_=request(assistant,provider,template,task);ref=started['data']['quoteRef']
+            wait_for(lambda:terminal(assistant,ref));result=terminal(assistant,ref)
+            assert result['status']!='completed',result
+        else:
+            quote=candidate(assistant,provider,template,task)
+            started,_,_=confirm(assistant,quote);ref=started['data']['contractRef']
+            wait_for(lambda:len(host.turns)==1)
+            wait_for(lambda:provider.scheduler.idle)
+            outcome=status(assistant,ref)
+            assert not outcome or outcome['status']!='completed' or not outcome['data'].get('formed'),outcome
+            record=assistant.modules[0].contracts.record(ref)
+            protocol=assistant.modules[0].trading.protocol(record,record['interactionId'],record['admissionId'])
+            assert not protocol.card(ref)['signatures']['2']
+        # Submitted once, on the original host, and the unrestricted fact is recorded.
+        assert len(host.turns)==1 and host.turns[0].allow_native_tools is False
+        turn=host.turns[0]
+        assert provider.host_registry.native_tools_restricted(turn.actor,turn.operation_id) is False
+        assert (Path(turn.workspace)/'native-effect.txt').exists()
+        # Native work and model text create no quote, provider signature, commitment or payment.
+        admission=platform.db.one('SELECT * FROM delegation_admissions WHERE service=?',service)
+        assert not platform.db.rows('SELECT * FROM delegation_offers WHERE admission=?',admission['id'])
+        if formation=='countersign':assert admission['state']=='held'
+        # Only the proposal fee paid at admission, before the round; nothing paid by the round.
+        paid=[row['purpose'] for row in platform.db.rows('SELECT * FROM transfers WHERE payee_id=?',payee)]
+        assert paid==(['proposal-fee'] if formation=='proposal' else []),paid
+        assert not provider.modules[0].execution.contexts[turn.interaction_id].provider.store.all('business')
 
 
 @pytest.mark.skipif(not os.environ.get('IOALAB_REAL_JIUWEN_DATA_DIR'),reason='requires explicitly configured original Jiuwen/model')

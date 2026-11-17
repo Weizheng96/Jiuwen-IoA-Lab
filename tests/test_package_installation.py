@@ -229,7 +229,7 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
     stale = source/'build/lib/ioalab/psp/obsolete.py'
     stale.parent.mkdir(parents=True)
     stale.write_text("raise RuntimeError('obsolete module must never ship')\n",encoding='utf-8')
-    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(source),str(ROOT/'src/client/sdk'),str(ROOT/'src/client/hosts/jiuwen')], tmp_path)
+    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(ROOT/'src/a2c'),str(source),str(ROOT/'src/client/sdk'),str(ROOT/'src/client/hosts/jiuwen')], tmp_path)
     shutil.copy2(official_snapshot[1],wheels/official_snapshot[1].name)
     with zipfile.ZipFile(next(wheels.glob('ioalab-*.whl'))) as archive:
         assert not any(name.startswith('ioalab/psp/') for name in archive.namelist())

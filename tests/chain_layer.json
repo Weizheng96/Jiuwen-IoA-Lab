@@ -338,10 +338,17 @@
    "test_task_file_grants_rollback_together_with_reply_and_message"
   ],
   "tests/test_provider_admission.py": [
+   "test_automatic_resume_revision_race_never_rebases_over_user_change",
    "test_concurrent_same_control_has_one_policy_effect_and_conflicting_revision_is_not_rebased",
+   "test_health_pause_and_early_recovery_require_actual_readiness_fence",
+   "test_health_recovery_preserves_manual_pause_and_later_revision",
+   "test_lost_system_pause_response_recovers_original_receipt_before_resuming",
    "test_old_resume_receipt_restart_and_capacity_change_do_not_override_pause",
    "test_pause_preserves_preexisting_held_fee_commit_but_rejects_a_new_reservation",
    "test_pause_rejects_new_intent_before_fee_or_model_execution",
+   "test_product_health_sampling_pauses_and_resumes_only_through_the_recovery_fence",
+   "test_publication_expiring_during_system_pause_is_reread_before_automatic_resume",
+   "test_system_pause_survives_restart_and_only_resumes_original_policy",
    "test_unknown_policy_change_recovers_one_original_write_after_restart",
    "test_unpublished_service_can_pause_but_cannot_resume_without_business_readiness"
   ],
@@ -399,9 +406,10 @@
    "test_contract_user_rejection_or_expiry_does_not_sign_or_reserve_counter",
    "test_full_value_rejection_never_creates_slot_one",
    "test_lost_signed_result_recovers_original_user_signature_without_repeating_review",
-   "test_original_native_tool_manifest_is_frozen_and_native_requirements_are_checked_at_submission",
+   "test_original_native_tool_manifest_is_frozen_and_status_never_probes_native_tools",
    "test_real_original_jiuwen_and_trusted_user_form_one_contract",
    "test_two_concurrent_user_choices_cannot_sign_two_cards_in_one_scope",
+   "test_undeclared_native_tool_restriction_still_submits_review_without_quote_signature_or_payment",
    "test_wrong_phase_tool_returns_precise_error_and_can_correct_in_original_review"
   ],
   "tests/test_resident_delegation.py": [

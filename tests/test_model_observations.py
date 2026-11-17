@@ -87,6 +87,19 @@ def test_declared_mode_uses_original_host_and_p28_binds_actual_business_before_o
         assert 'definitionDigest' not in original
 
 
+@pytest.mark.parametrize('declared',[False,True])
+def test_observation_basis_records_native_tool_restriction_and_unrestricted_still_observes(observe,declared):
+    adapter=ObservationAdapter('isolated_session',callbacks=({'observation':1},))
+    adapter.registration=replace(adapter.registration,native_tool_restriction=declared)
+    result,registry=observe(adapter)
+    assert result['status']=='completed' and result['data']=={'observation':1} and len(adapter.calls)==1
+    reference=adapter.calls[0][0]
+    assert adapter.calls[0][3].authorization['nativeToolsEnabled'] is False
+    assert registry.native_tools_restricted('actor',reference) is declared
+    basis=registry.store.checkpoint('model-observations:actor',reference)
+    assert basis['state']=='completed' and basis['nativeToolsRestricted'] is declared
+
+
 @pytest.mark.parametrize('parent,mode',[(True,'unavailable'),(False,'isolated_session')])
 def test_missing_parent_or_static_readonly_support_refuses_without_a_model_submission(observe,parent,mode):
     adapter=ObservationAdapter(mode,output={'observation':True})

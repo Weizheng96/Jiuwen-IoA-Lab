@@ -70,6 +70,25 @@ class ProviderExecution:
     def ready(self,profile):
         return bool(profile in self.configs and not self.skill_errors(profile) and self.published.get(profile,0)>time.time() and self.model_available() and self.thread and self.thread.is_alive())
 
+    def recovery_ready(self,profile):
+        """P35 resume fence composed only of existing checks; per-contract unknowns stay with their owners."""
+        missing=[]
+        if isinstance(self.host,HostRegistry) and not self.host.status_snapshot()['available']:missing.append('default_host')
+        if not self.ready(profile):
+            missing.append('service')
+            if profile in self.configs and self.published.get(profile,0)<=time.time():
+                # A long pause can outlive the recorded validity; re-read the platform
+                # templates on the existing scan thread (renewal is not seen otherwise).
+                with self.lock:self.refresh.add(profile)
+                self.wake()
+        if self.errors.get('profile:'+profile):missing.append('profile_error')
+        try:
+            resource=self.host.tools.get(self.host.default) if isinstance(self.host,HostRegistry) else None
+            tools=resource.for_profile(profile) if resource is not None else self.role.tools_by_profile.get(profile,{})
+            for tool in tools.values():tool.policy()
+        except Exception:missing.append('business_tools')
+        return {'ready':not missing,'missing':missing}
+
     def tool_errors(self,profile):
         # Native permission feasibility is an actual S01 constraint, not a startup probe.
         return []

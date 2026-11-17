@@ -129,15 +129,15 @@ RETIRED_CHAIN = {
         'fails': 'deadline exceeded, terminal claimed, or session lost'},
     # Ticket 27 S01 slice: design 196 removed host capabilities/probe, so provider status can no
     # longer learn a host deny policy. The resident function was renamed (same frozen-manifest
-    # body, still chain); the status-time deny block retired to each adapter's submission check.
+    # body, still chain). Design 201 (D37): restricting native tools is the adapter's own static
+    # declaration; the public layer records nativeToolsRestricted and never refuses or reroutes.
     'tests/test_resident_contracts.py::test_original_native_tool_manifest_is_frozen_and_denied_tools_block_new_service': {
-        'targets': ['tests/test_resident_contracts.py::test_original_native_tool_manifest_is_frozen_and_native_requirements_are_checked_at_submission',
-                    'tests/test_codex_host.py::test_sdk_native_permissions_reject_before_any_native_submission',
-                    'tests/test_claude_code_host.py::test_unsupported_native_permission_is_honestly_not_dispatched',
-                    'tests/test_jiuwen_host.py::test_invalid_or_unavailable_native_tool_does_not_start_a_process'],
-        'rule': 'The original native tool manifest is frozen per business; status never probes the host and reports unconfirmed tools as unchecked; a native requirement the adapter cannot honor fails before any native dispatch',
-        'fails': 'a later config changes the frozen manifest or digest, status probes or blocks on a host policy, or an unfulfillable native requirement reaches a native process',
-        'gap': 'no resident end-to-end case yet shows a provider business submission with an adapter-unfulfillable native tool ending not_submitted without quote/effect; adapter unit cases cover the S01 rejection (tickets 27/33, 30-32)'},
+        'targets': ['tests/test_resident_contracts.py::test_original_native_tool_manifest_is_frozen_and_status_never_probes_native_tools',
+                    'tests/test_resident_contracts.py::test_undeclared_native_tool_restriction_still_submits_review_without_quote_signature_or_payment',
+                    'tests/test_host_submission.py::test_p20_records_native_tool_restriction_and_never_gates_or_reroutes_the_round',
+                    'tests/test_model_observations.py::test_observation_basis_records_native_tool_restriction_and_unrestricted_still_observes'],
+        'rule': 'The original native tool manifest is frozen per business; status never probes the host and reports unconfirmed tools as unchecked; a nativeToolsEnabled=false quote/countersign review or observation is submitted once whether or not the adapter declares native_tool_restriction, with nativeToolsRestricted recorded, and native effects or model text never create a quote, signature or payment',
+        'fails': 'a later config changes the frozen manifest or digest, status probes or blocks on a host policy, the public layer refuses/reroutes/marks not_submitted for restriction, the fact is not recorded, or native work/text yields a business effect'},
 }
 
 
@@ -156,6 +156,10 @@ _WEB_GUARDS = [_FE + 'test_actual_login_cookie_logout_and_admin_permissions',
                _FE + 'test_public_pages_and_server_side_workbench_gates',
                _FE + 'test_login_return_target_rejects_foreign_and_unrecognized_routes',
                _FE + 'test_all_html_assets_are_stamped_and_stale_changes_fail']
+# Ticket 35 S1: P35 AdmissionPolicy guards on a real store with a platform ledger double.
+_PA = 'tests/test_provider_admission.py::'
+_APH = 'tests/test_admission_policy_health.py::'
+_RH = 'tests/test_runtime_health.py::'
 
 MOVED_TO_CHAIN = {
     _RM + 'test_acceptance_survives_a_socket_drop_during_the_acceptance_notice': {
@@ -211,6 +215,28 @@ MOVED_TO_CHAIN = {
         'owner': 'Web', 'seam': 'home navigation rendering', 'guards': _WEB_GUARDS},
     _WB + 'test_ordinary_account_cannot_open_the_admin_page_or_its_data': {
         'owner': 'Web', 'seam': 'an ordinary account gets 403 on admin', 'guards': _WEB_GUARDS},
+    _PA + 'test_health_pause_and_early_recovery_require_actual_readiness_fence': {
+        'owner': '35', 'seam': 'a confirmed unavailable pauses once (revision+1); resume only after the readiness fence by original-revision CAS',
+        'guards': [_APH + 'test_confirmed_unavailability_pauses_once_and_fence_gates_cas_resume',
+                   _APH + 'test_sampling_without_possible_change_sends_no_policy_request',
+                   _RH + 'test_threshold_recheck_still_unavailable_requests_drain_before_next_interval']},
+    _PA + 'test_health_recovery_preserves_manual_pause_and_later_revision': {
+        'owner': '35', 'seam': 'a manual pause before or after the automatic cycle is never resumed over',
+        'guards': [_APH + 'test_manual_pause_before_or_after_is_never_resumed_over',
+                   _APH + 'test_user_resume_supersedes_cycle_and_replay_does_not']},
+    _PA + 'test_system_pause_survives_restart_and_only_resumes_original_policy': {
+        'owner': '35', 'seam': 'the same store reopened under the same runtimeId resumes only the original automatic cycle',
+        'guards': [_APH + 'test_restart_reopens_same_store_and_resumes_only_original_cycle',
+                   _APH + 'test_cycle_owned_by_another_instance_is_identity_conflict']},
+    _PA + 'test_lost_system_pause_response_recovers_original_receipt_before_resuming': {
+        'owner': '35', 'seam': 'a lost pause receipt stays unknown and is recovered from the original operation; exactly two writes',
+        'guards': [_APH + 'test_lost_pause_response_is_unknown_then_recovered_without_rewrite',
+                   _APH + 'test_missing_operation_query_keeps_unknown_pending_and_original_policy',
+                   _APH + 'test_platform_commit_with_failed_local_completion_continues_from_pausing']},
+    _PA + 'test_automatic_resume_revision_race_never_rebases_over_user_change': {
+        'owner': '35', 'seam': 'a competing revision rejects the automatic write, which is never rebased',
+        'guards': [_APH + 'test_resume_revision_race_never_rebases_over_user_change',
+                   _APH + 'test_pause_revision_race_is_not_rebased_and_rejected_cycle_finishes']},
 }
 
 

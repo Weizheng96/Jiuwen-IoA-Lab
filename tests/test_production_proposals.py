@@ -5,7 +5,7 @@ import json
 import pytest
 
 from conftest import wait_for
-from ioalab_sdk.runtime import SubmissionError
+from ioalab_sdk.runtime import SubmissionError,proposal_tool_declared
 from submission_fixture import FixtureResult
 from test_resident_contracts import candidate,confirm,status
 from test_resident_delegation import QuoteHost,participants
@@ -28,7 +28,7 @@ class DeliveryHost(QuoteHost):
         if json.loads(turn.input)['phase']!='production':return super().execute(turn)
         assert turn.allow_native_tools is True
         self.turns.append(turn);self.production.append(turn);turn.on_session(turn.session_id)
-        if self.mode in ('tool','tool_conflict','tool_error'):
+        if self.mode in ('tool','tool_only','tool_conflict','tool_error'):
             assert turn.on_tool('provider.task.deliver',{'files':ORIGINAL},'original-delivery-call')['status']=='delivered'
         return FixtureResult('unknown' if self.mode=='unknown' else 'completed',turn.session_id,{})
 
@@ -36,6 +36,10 @@ class DeliveryHost(QuoteHost):
         result=super().submit(op,input,session_id,execution=execution,on_event=on_event,on_tool=on_tool)
         if json.loads(input.text)['phase']!='production':return result
         self.schemas.append(execution.proposal_schema)
+        # D35: an adapter without a proposal channel submits anyway; the same-key tool delivers once.
+        if self.mode=='tool_only':
+            assert proposal_tool_declared(execution)
+            return result
         if self.mode=='ordinary':return replace(result,output='我已经完成交付')
         proposal={'files':{}} if self.mode=='invalid' else {'files':CHANGED if self.mode=='tool_conflict' else ORIGINAL}
         error=SubmissionError('resource_unavailable','output','accepted','Original native output cannot be collected') if self.mode in ('error','tool_error') else None
@@ -53,7 +57,7 @@ def settled(provider):
     return rows and rows[0][0] in ('completed','unknown','failed','rejected') and provider.scheduler.status()['active']==0
 
 
-@pytest.mark.parametrize('mode',['proposal','tool','tool_conflict','invalid','error','tool_error','unknown','ordinary'])
+@pytest.mark.parametrize('mode',['proposal','tool','tool_only','tool_conflict','invalid','error','tool_error','unknown','ordinary'])
 def test_delivery_tool_and_proposal_share_one_period_effect(platform,tmp_path,mode):
     host=DeliveryHost(mode)
     with participants(platform,tmp_path,agent_host=host) as (provider,assistant,_,template,task):
@@ -67,14 +71,14 @@ def test_delivery_tool_and_proposal_share_one_period_effect(platform,tmp_path,mo
         endpoint=endpoints[0]
         deliveries=[value for value in endpoint.store.all('production_calls').values() if value['name']=='provider.task.deliver']
         card=next(iter(endpoint.store.all('cards').values()))['card']
-        delivered=mode in ('proposal','tool','tool_conflict','tool_error')
+        delivered=mode in ('proposal','tool','tool_only','tool_conflict','tool_error')
         assert len(host.production)==1 and host.schemas==[SCHEMA]
         assert len(deliveries)==(1 if delivered else 0) and len(card['signatures']['4'])==(1 if delivered else 0)
         assert not card['signatures']['7']
         if delivered:
             assert deliveries[0]['args']=={'files':ORIGINAL}
             wait_for(lambda:status(assistant,ref)['data']['availablePeriods']==1)
-        if mode in ('proposal','tool'):
+        if mode in ('proposal','tool','tool_only'):
             assert state=='completed'
             return
         assert state=='unknown'

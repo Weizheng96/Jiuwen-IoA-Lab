@@ -4,7 +4,7 @@ from dataclasses import replace
 import pytest
 
 from conftest import wait_for
-from ioalab_sdk.runtime import SubmissionError,RuntimeFault
+from ioalab_sdk.runtime import SubmissionError,RuntimeFault,proposal_tool_declared
 from ioalab_sdk.runtime.host import ToolBinding
 from submission_fixture import FixtureResult,ScriptedSubmission
 from test_assistant_role import INPUT,OUTPUT,publish,runtime_at,send_and_read
@@ -17,13 +17,17 @@ class ProposalHost(ScriptedSubmission):
         self.turns.append(turn)
         assert turn.allow_native_tools is True
         turn.on_session(turn.session_id or 'original-proposal-session')
-        if self.mode in ('tool','conflict','tool_error'):
+        if self.mode in ('tool','tool_only','conflict','tool_error'):
             self.receipts.append(turn.on_tool('ioa_reply',{'output':{'status':'recorded'}},'original-tool-call'))
         return FixtureResult('unknown' if self.mode=='unknown' else 'completed',turn.session_id or 'original-proposal-session',{})
 
     def submit(self,op,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
         self.schemas.append(execution.proposal_schema)
         result=super().submit(op,input,session_id,execution=execution,on_event=on_event,on_tool=on_tool)
+        # D35: an adapter without a proposal channel submits anyway; the same-key tool carries the reply.
+        if self.mode=='tool_only':
+            assert proposal_tool_declared(execution)
+            return result
         proposal={'output':{'status':'conflict' if self.mode=='conflict' else 'recorded'}}
         if self.mode=='invalid':proposal={'output':{'status':12}}
         if self.mode=='ordinary':return replace(result,output='I replied successfully')
@@ -31,7 +35,7 @@ class ProposalHost(ScriptedSubmission):
         return replace(result,proposal=proposal,error=error)
 
 
-@pytest.mark.parametrize('mode',['proposal','tool'])
+@pytest.mark.parametrize('mode',['proposal','tool','tool_only'])
 def test_reply_proposal_and_tool_share_original_message_receipt(platform,tmp_path,mode):
     host=ProposalHost(mode)
     tool=ToolBinding('reserve_slot','Unused authorized business tool',INPUT,lambda *_:pytest.fail('Unexpected business tool'),output_schema=OUTPUT)

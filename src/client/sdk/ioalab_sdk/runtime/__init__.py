@@ -27,7 +27,7 @@ from ..templates import TEMPLATE_LIFETIME, TEMPLATE_RENEW_BEFORE, draft_from_ter
 
 __all__ = [
     'HostAdapter','HostRegistration','HostResource','HostDefinition','HostExecution',
-    'HostInput','HostToolDeclaration','HostToolCall','HostToolResult','BindingAck','execution_snapshot','submission_succeeded','native_source_descriptor','freeze_definition','read_definition_resource','ExecutionResources','ResourceGrant','SubmissionResourcePort','ProfessionalExecution','MaterialObservations','MaterialObservationPending','MaterialObservationBlocked',
+    'HostInput','HostToolDeclaration','HostToolCall','HostToolResult','BindingAck','execution_snapshot','submission_succeeded','native_tools_restricted','proposal_tool_declared','native_source_descriptor','freeze_definition','read_definition_resource','ExecutionResources','ResourceGrant','SubmissionResourcePort','ProfessionalExecution','MaterialObservations','MaterialObservationPending','MaterialObservationBlocked',
     'SubmissionAttempt','SubmissionError','SubmissionResult','SubmissionEvent','MachineTerminal','NativeSubmissionPending',
     'ConfirmationDeadline','NATIVE_ENTRY_BIND_OPERATION',
     'NativeEventTarget','NativeEvents','flow_native_notice',
@@ -56,4 +56,5 @@ from .material_observations import MaterialObservations,MaterialObservationPendi
 from .host_submission import (HostAdapter, HostRegistration, HostResource, HostDefinition,
     HostExecution, HostInput, HostToolDeclaration, HostToolCall, HostToolResult,
     BindingAck, SubmissionAttempt, SubmissionError, SubmissionResult,
-    SubmissionEvent, MachineTerminal, execution_snapshot, submission_succeeded, NativeSubmissionPending)
+    SubmissionEvent, MachineTerminal, execution_snapshot, submission_succeeded, NativeSubmissionPending,
+    native_tools_restricted, proposal_tool_declared)

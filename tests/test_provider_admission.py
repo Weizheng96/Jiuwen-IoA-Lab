@@ -266,3 +266,56 @@ def test_automatic_resume_revision_race_never_rebases_over_user_change(platform,
         health_policy(provider,'available',ready=lambda profile:{'ready':True})
         assert len(competing)==1
         assert control(provider,'status')['data']['admissionPolicy']==competing[0]
+
+
+def test_product_health_sampling_pauses_and_resumes_only_through_the_recovery_fence(platform,tmp_path):
+    """Resident P34 sampling -> ProviderRole -> P35 with the product recovery_ready; S02 is a boundary double."""
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        role=provider.modules[0];health=provider.health;wait_for(lambda:role.ready('service'))
+        health.interval=0;evidence={'state':'unavailable','basis':'Controlled host command is missing'}
+        host.check=lambda:dict(evidence)
+        def sample():
+            health.poll();wait_for(lambda:not health.sampling);return health.poll()
+        before=control(provider,'status')['data']
+        assert before['systemHealthPause'] is None and before['admissionPolicy']['accepting']
+        assert sample()['state']=='unavailable'
+        paused=control(provider,'status')['data']
+        assert paused['systemHealthPause']=={'state':'paused','reason':'default_host_unavailable'}
+        assert not paused['admissionPolicy']['accepting'] and paused['admissionPolicy']['revision']==before['admissionPolicy']['revision']+1
+        evidence.update(state='available',basis='Controlled host command is present')
+        role.execution.errors['profile:service']={'code':'not_ready','type':'ControlledProfileFault'}
+        assert role.execution.recovery_ready('service')=={'ready':False,'missing':['default_host','profile_error']}
+        sample()
+        assert role.execution.recovery_ready('service')=={'ready':False,'missing':['profile_error']}
+        waiting=control(provider,'status')['data']
+        assert waiting['systemHealthPause']=={'state':'paused','reason':'restore_original_definition_and_resources'}
+        assert waiting['admissionPolicy']==paused['admissionPolicy']
+        role.execution.errors.pop('profile:service')
+        assert role.execution.recovery_ready('service')=={'ready':True,'missing':[]}
+        sample()
+        resumed=control(provider,'status')['data']
+        assert resumed['systemHealthPause'] is None and resumed['admissionPolicy']['accepting']
+        assert resumed['admissionPolicy']['revision']==paused['admissionPolicy']['revision']+1
+        assert 'health:service' not in role.execution.errors
+
+
+def test_publication_expiring_during_system_pause_is_reread_before_automatic_resume(platform,tmp_path):
+    """A long pause outlives the locally recorded validity; the renewed platform templates are re-read, then resumed."""
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        role=provider.modules[0];health=provider.health;wait_for(lambda:role.ready('service'))
+        health.interval=0;evidence={'state':'unavailable','basis':'Controlled host command is missing'}
+        host.check=lambda:dict(evidence)
+        def sample():
+            health.poll();wait_for(lambda:not health.sampling);return health.poll()
+        sample();paused=control(provider,'status')['data']['admissionPolicy']
+        assert not paused['accepting']
+        # The recorded validity has passed; the platform holds a currently valid (renewed) publication.
+        role.execution.published['service']=0
+        evidence.update(state='available',basis='Controlled host command is present')
+        sample()
+        assert control(provider,'status')['data']['systemHealthPause']=={'state':'paused','reason':'restore_original_definition_and_resources'}
+        wait_for(lambda:role.ready('service'),timeout=5)
+        sample()
+        resumed=control(provider,'status')['data']
+        assert resumed['systemHealthPause'] is None and resumed['admissionPolicy']['accepting']
+        assert resumed['admissionPolicy']['revision']==paused['revision']+1

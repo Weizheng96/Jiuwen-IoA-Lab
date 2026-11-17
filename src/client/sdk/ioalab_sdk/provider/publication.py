@@ -56,9 +56,10 @@ class ProviderRole:
         for identity in self.identities.values():
             try:
                 self.execution.admission_policy.system_health(identity,host_ref,state,
-                    recovery_ready=getattr(self.execution,'recovery_ready',None))
+                    recovery_ready=self.execution.recovery_ready)
             except RuntimeFault as exc:
                 self.execution.errors['health:'+identity.profile]={'code':exc.code,'recovery':exc.recovery}
+            else:self.execution.errors.pop('health:'+identity.profile,None)
 
     def _identity(self, profile):
         identity = self.identities.get(profile) if isinstance(profile, str) else None
@@ -103,7 +104,8 @@ class ProviderRole:
                         runtime.account,self.execution.public,identity.protocol_id)}}
                 if name == 'status':
                     identity = self._identity(args['profile'])
-                    return {'status': 'completed', 'data': {**self.status(identity),'localExecution':self.execution.status(identity.profile),'admissionPolicy':self.execution.admission_policy.read(identity)}}
+                    return {'status': 'completed', 'data': {**self.status(identity),'localExecution':self.execution.status(identity.profile),'admissionPolicy':self.execution.admission_policy.read(identity),
+                                                            'systemHealthPause':self.execution.admission_policy.system_pause(identity)}}
                 if name == 'preview':
                     return self.prepare_preview(operation,args['service'])
                 return self.publish(operation, args)

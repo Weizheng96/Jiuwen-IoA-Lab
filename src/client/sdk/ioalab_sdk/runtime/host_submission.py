@@ -43,6 +43,9 @@ class HostRegistration:
     optional_methods: tuple[str,...]=()
     resources: tuple[HostResource,...]=()
     readonly_context: str='unavailable'
+    # Static adapter promise to restrict native tools in nativeToolsEnabled=false
+    # rounds. The adapter alone guarantees it; the public layer only records it.
+    native_tool_restriction: bool=False
 
     def __post_init__(self):
         _reference(self.adapter_id,'adapter ID');_reference(self.version,'adapter version')
@@ -52,6 +55,8 @@ class HostRegistration:
             raise RuntimeFault('invalid_input','Use static packaged resource references')
         if self.readonly_context not in ('unavailable','isolated_session','business_session'):
             raise RuntimeFault('invalid_input','Declare a supported static read-only context mode')
+        if type(self.native_tool_restriction) is not bool:
+            raise RuntimeFault('invalid_input','Declare native tool restriction as a static boolean')
 
 
 @dataclass(frozen=True)
@@ -104,6 +109,26 @@ class HostExecution:
         if not isinstance(self.authorization,dict) or ('nativeToolsEnabled' in self.authorization and type(self.authorization['nativeToolsEnabled']) is not bool):
             raise RuntimeFault('invalid_input','The SDK native-tool phase authorization must be a boolean')
         encode({'authorization':self.authorization,'proposal_schema':self.proposal_schema})
+
+
+def native_tools_restricted(registration,execution):
+    """Recorded fact only: a declared adapter received nativeToolsEnabled=false.
+
+    Never a gate: the public layer neither verifies the restriction nor refuses,
+    reroutes or marks not_submitted because of it.
+    """
+    return bool(isinstance(registration,HostRegistration) and registration.native_tool_restriction
+                and isinstance(execution,HostExecution) and execution.authorization.get('nativeToolsEnabled',False) is False)
+
+
+def proposal_tool_declared(execution):
+    """True when an SDK tool of this round accepts the exact proposal schema.
+
+    An adapter without a structured output channel still submits such a round:
+    the proposal stays empty and the same-key SDK tool alone carries the effect.
+    """
+    return bool(isinstance(execution,HostExecution) and execution.proposal_schema is not None
+                and any(tool.input_schema==execution.proposal_schema for tool in execution.tools))
 
 
 def execution_snapshot(identity,interaction,job,definition,*,definition_digest,version,deadline=None,workspace=None,kind='business',business_ref=None,host_definition=None,native_tools_enabled=False):

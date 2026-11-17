@@ -43,7 +43,7 @@ import time
 from .host_submission import (HostRegistration, HostInput, HostExecution, SubmissionAttempt,
     SubmissionResult, SubmissionEvent, SubmissionError, MachineTerminal, HostResource,
     BindingAck, HostToolCall)
-from .host_submission import HostToolResult,NativeSubmissionPending
+from .host_submission import HostToolResult,NativeSubmissionPending,native_tools_restricted
 from .sdk_tool_callbacks import SdkToolCallbacks
 from contextvars import copy_context
 
@@ -399,8 +399,10 @@ class HostRegistry:
                     if not nested:raise RuntimeFault('not_ready','The original native execution still owns this model permit; reconcile it before another submission')
             attempt=SubmissionAttempt(str(uuid.uuid4()),hashlib.sha256(encode([target,profile,parameters]).encode()).hexdigest(),actor,profile)
             receipt=SubmissionResult(operation_id,attempt.nonce,'unknown',binding['sessionId'])
+            # Execution fact from the static declaration only (D37); never a gate.
             record={'format':2,'target':target,'parameters':parameters,'attempt':asdict(attempt),'receipt':asdict(receipt),
-                    'jobId':job_id,'bootId':self._boot_id,'released':False,'kind':execution.kind if execution else 'notice'}
+                    'jobId':job_id,'bootId':self._boot_id,'released':False,'kind':execution.kind if execution else 'notice',
+                    'nativeToolsRestricted':native_tools_restricted(registration,execution)}
             conn.execute('INSERT OR REPLACE INTO runtime_checkpoints VALUES(?,?,?)',('host-deliveries',key,encode(record)))
             if execution and execution.kind=='observation':
                 namespace='model-observations:'+actor
@@ -638,6 +640,12 @@ class HostRegistry:
         if receipt.session_id and receipt.session_id!=binding['sessionId']:
             raise RuntimeFault('identity_conflict','Restore the original session binding')
         return record,binding,receipt
+
+    def native_tools_restricted(self,actor,operation_id):
+        """Recorded per-claim fact; None before any claim, False for pre-D37 records."""
+        record=self._store().checkpoint('host-deliveries',encode([actor,operation_id]))
+        if not record or record.get('format')!=2:return None
+        return record.get('nativeToolsRestricted') is True
 
     def original_execution_ended(self,actor,interaction,operation_id,job_id):
         """Local proof for an owner-authorized next native child, never a retry grant."""

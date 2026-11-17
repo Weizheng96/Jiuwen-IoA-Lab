@@ -108,7 +108,7 @@ class TrustedUserServer:
                 self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
         self.server=ThreadingHTTPServer(('127.0.0.1',listen_port),Handler)
         self.server.daemon_threads=True
-        self.thread=threading.Thread(target=self.server.serve_forever,daemon=True)
+        self.thread=threading.Thread(target=self.server.serve_forever,kwargs={'poll_interval':0.05},daemon=True)
 
     @property
     def address(self):return 'http://127.0.0.1:'+str(self.server.server_port)+'/confirmations'

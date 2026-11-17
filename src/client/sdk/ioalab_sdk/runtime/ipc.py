@@ -134,7 +134,8 @@ class IpcServer:
 
     def start(self):
         if self.thread:raise RuntimeError('Local RPC already started')
-        self.thread=threading.Thread(target=self.server.serve_forever,name='ioa-ipc',daemon=True)
+        # A short poll only shortens shutdown latency; request handling is unchanged.
+        self.thread=threading.Thread(target=self.server.serve_forever,kwargs={'poll_interval':0.05},name='ioa-ipc',daemon=True)
         self.thread.start()
         private_json(self.home/'runtime.json',self.descriptor)
         return self
