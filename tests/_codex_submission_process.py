@@ -19,6 +19,7 @@ turn='test-turn'
 tools=[]
 mode='normal'
 if '--mode' in sys.argv:mode=sys.argv[sys.argv.index('--mode')+1]
+assert '--disable' not in sys.argv and '-c' not in sys.argv
 for line in sys.stdin:
     request=json.loads(line)
     method=request.get('method');params=request.get('params',{})
@@ -33,14 +34,12 @@ for line in sys.stdin:
     elif method in ('thread/start','thread/resume'):
         tools=params.get('dynamicTools') or json.loads((Path(params['cwd'])/'fake-tools.json').read_text())
         (Path(params['cwd'])/'fake-tools.json').write_text(json.dumps(tools))
-        assert params['sandbox']=='read-only'
-        assert params['approvalPolicy']=='never'
-        assert params['config']['mcp_servers']['external.with.dot']['enabled'] is False
-        assert 'tool_timeout_sec' not in params['config']['mcp_servers']['external.with.dot']
+        assert not {'sandbox','approvalPolicy','config'} & params.keys()
         if method=='thread/resume':assert params['threadId']==thread
-        send({'id':request['id'],'result':{'thread':{'id':thread},'model':'test-model','modelProvider':'test','sandbox':{'type':'readOnly'}}})
+        send({'id':request['id'],'result':{'thread':{'id':thread},'model':'test-model','modelProvider':'test','sandbox':{'type':'workspaceWrite'}}})
         if mode=='stall-input':time.sleep(3);sys.exit(0)
     elif method=='turn/start':
+        assert 'approvalPolicy' not in params
         if mode.startswith('early-'):
             early_turn='foreign-turn'if mode=='early-wrong'else turn
             send({'method':'turn/started','params':{'threadId':thread,'turn':{'id':early_turn,'status':'inProgress'}}})
@@ -53,6 +52,9 @@ for line in sys.stdin:
             send({'method':'turn/started','params':{'threadId':thread,'turn':{'id':'foreign-turn','status':'inProgress'}}})
             continue
         send({'method':'turn/started','params':{'threadId':thread,'turn':{'id':turn,'status':'inProgress'}}})
+        if mode=='native-approval':
+            send({'id':'native-approval','method':'item/commandExecution/requestApproval','params':{'threadId':thread,'turnId':turn,'itemId':'command'}})
+            continue
         if mode=='wait':continue
         if mode=='exit':sys.exit(9)
         if mode=='bad-tool':
@@ -79,3 +81,5 @@ for line in sys.stdin:
         assert json.loads(request['result']['contentItems'][0]['text'])=={'receipt':'hello'}
         send({'method':'thread/tokenUsage/updated','params':{'threadId':thread,'tokenUsage':{'total':{'totalTokens':17}}}})
         send({'method':'turn/completed','params':{'threadId':thread,'turn':{'id':turn,'status':'completed'}}})
+    elif method is None and request.get('id')=='native-approval':
+        (Path(params.get('cwd','.'))/'unexpected-native-approval-response').write_text(json.dumps(request))

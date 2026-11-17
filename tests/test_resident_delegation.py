@@ -37,7 +37,7 @@ class QuoteHost(ScriptedSubmission):
         if self.wait:self.wait.set()
         return True
     def execute(self,turn):
-        assert turn.allow_native_tools is False
+        assert turn.allow_native_tools is True
         self.turns.append(turn);turn.on_session(turn.session_id or 'isolated-provider-'+uid())
         if self.wait:assert self.wait.wait(15),'test host was not released'
         if json.loads(turn.input)['phase']=='quote':

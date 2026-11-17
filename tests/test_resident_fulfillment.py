@@ -479,7 +479,7 @@ def test_real_original_jiuwen_produces_native_file_and_completes_original_contra
         calls=[value['payload'].get('tool',{}) for value in events if value.get('event_type')=='chat.tool_call']
         assert any(call.get('name')=='write_file' for call in calls),calls
         assert all(turn.definition.native_tools==(('write_file','allow'),) for turn in turns)
-        assert not turns[0].allow_native_tools and all(turn.allow_native_tools for turn in production)
+        assert turns[0].allow_native_tools and all(turn.allow_native_tools for turn in production)
         assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',actual['admissionId'])['state']=='released'
         assert platform.market.reputation(provider.identities[0].protocol_id)['completed']==1
         account=assistant.account.account;owner=provider.account.account

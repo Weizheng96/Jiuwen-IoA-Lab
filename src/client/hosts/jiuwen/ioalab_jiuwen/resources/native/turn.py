@@ -58,19 +58,21 @@ def _name(tool):return tool.get('name') if isinstance(tool,dict) else getattr(to
 class PreparedTurn:
     def __init__(self,session_id,request_id,execution,section_factory,tool_factory,callback,*,clock=None):
         tools=execution.get('tools') or []
-        if execution.get('kind')!='business' or len(tools)!=1 or not isinstance(tools[0].get('name'),str):
+        if (execution.get('kind')!='business' or not tools or
+            any(not isinstance(item,dict) or not isinstance(item.get('name'),str) or not item['name'] for item in tools) or
+            len({item['name'] for item in tools})!=len(tools)):
             raise ValueError('native_definition_unsupported')
         authorization=execution.get('authorization') or {}
         if 'nativeToolsEnabled' in authorization and type(authorization['nativeToolsEnabled']) is not bool:
             raise ValueError('native_tool_phase_invalid')
         self.session_id=session_id;self.request_id=request_id;self.execution=execution
         self.section_factory=section_factory;self.tool_factory=tool_factory;self.callback=callback
-        self.tool_name=tools[0]['name'];self.declaration=tools[0]
+        self.declarations={item['name']:item for item in tools};self.tools={}
         # Frozen trusted boolean, recorded only. This adapter declares no native
         # tool restriction (D37): native tools stay as the user configured them.
         self.native_tools_enabled=authorization.get('nativeToolsEnabled') is True
         self.deadline=deadline_of(execution);self.clock=clock or (lambda:datetime.now(timezone.utc))
-        self.owner=None;self.agent=None;self.section=None;self.tool=None
+        self.owner=None;self.agent=None;self.section=None
         self.installed=False;self.closed=False;self.failed=None;self.release=None
         self.binding=asyncio.Event();self.ack=False;self._owners=set()
 
@@ -79,7 +81,7 @@ class PreparedTurn:
 
     def _collision(self,agent):
         manager=agent.ability_manager
-        if agent.prompt_builder.get_section(SECTION) is not None or manager.get(self.tool_name) is not None:
+        if agent.prompt_builder.get_section(SECTION) is not None or any(manager.get(name) is not None for name in self.declarations):
             raise ValueError('native_definition_or_tool_collision')
 
     def reserve(self,owner,agent):
@@ -92,21 +94,28 @@ class PreparedTurn:
         PENDING[self.key]=self
         evidence('reserve',self,owner=id(owner),agent=id(agent),native_tools_enabled=self.native_tools_enabled)
 
+    def callback_for(self,name):
+        async def invoke(**arguments):return await self.invoke(name,arguments)
+        return invoke
+
     def install(self):
         if self.closed or self.agent is None or self.installed:raise ValueError('native_agent_preparation_ambiguous')
         if not self.ack and self.binding.is_set():raise ValueError('native_binding_unacknowledged')
         agent=self.agent;self._collision(agent)
         agent.prompt_builder.add_section(self.section)
         try:
-            self.tool=self.tool_factory(self.declaration,self.invoke)
-            agent.ability_manager.add_ability(self.tool.card,self.tool.ability)
+            for name,declaration in self.declarations.items():
+                tool=self.tool_factory(declaration,self.callback_for(name))
+                self.tools[name]=tool
+                agent.ability_manager.add_ability(tool.card,tool.ability)
             self.installed=True
         except BaseException:self._remove();raise
 
     def check(self,agent,route,*,owner_task=False):
         valid=(self.installed and not self.closed and self.failed is None and self.agent is agent and route==self.key and
             agent.prompt_builder.get_section(SECTION) is self.section and
-            agent.ability_manager.get(self.tool_name) is self.tool.card)
+            all(agent.ability_manager.get(name) is tool.card for name,tool in self.tools.items()) and
+            set(self.tools)==set(self.declarations))
         if not valid:raise ValueError(self.failed or 'native_definition_ownership_lost')
         # Only the invocation task owns cleanup; parallel tool tasks end early.
         task=asyncio.current_task() if owner_task else None
@@ -146,13 +155,14 @@ class PreparedTurn:
             evidence('model_blocked:'+self.failed,self,agent=id(ctx.agent),force_finish=True)
             return
         # The user's native tools stay in the window in every phase; only the
-        # one SDK tool is ensured.
+        # frozen SDK tools are ensured.
         tools=list(ctx.inputs.tools or [])
-        if not any(_name(t)==self.tool_name for t in tools):tools.append(self.tool.info)
+        for name,tool in self.tools.items():
+            if not any(_name(t)==name for t in tools):tools.append(tool.info)
         ctx.inputs.tools=tools
         evidence('model_window',self,agent=id(ctx.agent),section=self.agent.prompt_builder.get_section(SECTION) is self.section,
-            sdk_tool=any(_name(t)==self.tool_name for t in tools),
-            native_tools=any(_name(t)!=self.tool_name for t in tools),native_tools_enabled=self.native_tools_enabled)
+            sdk_tool=all(any(_name(t)==name for t in tools) for name in self.declarations),
+            native_tools=any(_name(t) not in self.declarations for t in tools),native_tools_enabled=self.native_tools_enabled)
 
     def on_tool(self,ctx,route):
         if route!=self.key:return
@@ -165,9 +175,9 @@ class PreparedTurn:
             ctx.request_force_finish({'output':'','error':{'code':self.failed}})
             evidence('tool_blocked:'+self.failed,self,agent=id(ctx.agent),force_finish=True)
             return
-        if inputs.tool_name==self.tool_name:
+        if inputs.tool_name in self.declarations:
             call=getattr(inputs.tool_call,'id',None)
-            setattr(ctx,TOKEN,current.set((self,str(call) if call else None)))
+            setattr(ctx,TOKEN,current.set((self,str(call) if call else None,inputs.tool_name)))
             evidence('tool_sdk',self,agent=id(ctx.agent),call_id=bool(call))
             return
         # Ordinary native tool: never rerouted or denied by IoA (D37).
@@ -188,9 +198,9 @@ class PreparedTurn:
         self.binding.set()
         evidence('binding_ack',self,ack=self.ack)
 
-    async def invoke(self,**arguments):
+    async def invoke(self,name,arguments):
         route=current.get()
-        if route is None or route[0] is not self or not route[1]:
+        if route is None or route[0] is not self or not route[1] or route[2]!=name:
             evidence('callback_unbound',self);return {'error':{'code':'native_request_unbound'}}
         evidence('binding_wait_start',self,ack=self.ack,waiting=not self.binding.is_set())
         try:
@@ -202,7 +212,7 @@ class PreparedTurn:
         evidence('binding_wait_end',self,ack=self.ack,closed=self.closed)
         if not self.ack or self.closed:return {'error':{'code':'native_binding_unacknowledged'}}
         evidence('callback_sent',self)
-        result=await self.callback(route[1],self.tool_name,arguments)
+        result=await self.callback(route[1],name,arguments)
         valid=isinstance(result,dict)
         evidence('callback_done',self,receipt=valid,error=valid and result.get('error') is not None)
         if not valid:return {'error':{'code':'native_callback_receipt_invalid'}}
@@ -212,7 +222,9 @@ class PreparedTurn:
         if self.agent is None:return
         builder=self.agent.prompt_builder;manager=self.agent.ability_manager
         if self.section is not None and builder.get_section(SECTION) is self.section:builder.remove_section(SECTION)
-        if self.tool is not None and manager.get(self.tool.card.name) is self.tool.card:manager.remove_ability(self.tool.card.name)
+        for name,tool in self.tools.items():
+            if manager.get(name) is tool.card:manager.remove_ability(name)
+        self.tools.clear()
         self.installed=False
 
     def close(self):

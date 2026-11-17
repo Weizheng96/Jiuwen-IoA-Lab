@@ -207,14 +207,15 @@ def test_original_native_tool_manifest_is_frozen_and_status_never_probes_native_
         assert state['executionReady'] and state['unavailableNativeTools']==[] and state['uncheckedNativeTools']==['blocked_tool']
         execution.configs['service']['native_tools']={};execution.configs['service']['skills']=['missing_business_source']
         state=execution.status('service')
-        assert not state['executionReady'] and state['unavailableSkills']==['missing_business_source']
+        assert state['executionReady'] and state['unavailableSkills']==[]
+        assert state['uncheckedSkills']==['missing_business_source']
         assert endpoint.provider.policy.definition(template).native_tools==original.native_tools
 
 
 class UnrestrictedNativeHost(QuoteHost):
     """Adapter that does not declare native_tool_restriction (as all three in this version)."""
     def execute(self,turn):
-        assert turn.allow_native_tools is False
+        assert turn.allow_native_tools is True
         self.turns.append(turn);turn.on_session(turn.session_id or 'unrestricted-review-'+uid())
         # An unrestricted native tool really runs, but it is not an SDK business effect.
         workspace=Path(turn.workspace);workspace.mkdir(parents=True,exist_ok=True)
@@ -247,7 +248,7 @@ def test_undeclared_native_tool_restriction_still_submits_review_without_quote_s
             protocol=assistant.modules[0].trading.protocol(record,record['interactionId'],record['admissionId'])
             assert not protocol.card(ref)['signatures']['2']
         # Submitted once, on the original host, and the unrestricted fact is recorded.
-        assert len(host.turns)==1 and host.turns[0].allow_native_tools is False
+        assert len(host.turns)==1 and host.turns[0].allow_native_tools is True
         turn=host.turns[0]
         assert provider.host_registry.native_tools_restricted(turn.actor,turn.operation_id) is False
         assert (Path(turn.workspace)/'native-effect.txt').exists()

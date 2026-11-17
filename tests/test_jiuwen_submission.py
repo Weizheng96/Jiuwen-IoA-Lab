@@ -158,7 +158,8 @@ def test_native_tool_phase_is_recorded_but_never_restricts_configured_tools(tmp_
     assert Submission.registration.native_tool_restriction is False
     class Process:
         async def run(self,request,**callbacks):
-            assert request['permissions']['tools']=={'write_file':'allow','read_file':'ask'}
+            assert request['permissions']['tools']=={}
+            assert request['agent']['tools']=='*'
             return {'type':'result','request_id':request['request_id'],'session_id':'sid','status':'completed','exit_code':0}
     host=ProcessHost(['process'],tmp_path)
     monkeypatch.setattr(host,'_client',lambda **_:Process())
@@ -206,7 +207,7 @@ def test_native_ask_without_trusted_answer_channel_is_never_answered(tmp_path,mo
     answered=[]
     class Process:
         async def run(self,request,**callbacks):
-            assert 'ask_user' not in request['agent']['tools']
+            assert request['agent']['tools']=='*'
             await callbacks['on_event']({'type':'event','request_id':request['request_id'],'session_id':'sid'})
             record={'request_id':request['request_id'],'session_id':'sid','event_type':'interaction.requested',
                     'payload':{'interaction_id':'ask','interaction':{'source':'permission_interrupt','questions':[]}}}

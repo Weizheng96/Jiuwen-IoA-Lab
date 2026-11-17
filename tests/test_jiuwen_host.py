@@ -42,7 +42,7 @@ def test_local_tool_alias_is_scoped_and_actual_session_saved_before_dispatch(tmp
         async def run(self, request, **callbacks):
             requests.append(request)
             name = request['host_tools'][0]['name']
-            assert name == request['agent']['tools'][0] and '.' not in name
+            assert request['agent']['tools'] == '*' and '.' not in name
             assert 'call_goal' in request['host_tools'][0]['input_schema']['properties']
             await callbacks['on_event']({'session_id': 'real-public-session', 'request_id': request['request_id']})
             result = await callbacks['on_tool_call']({'session_id': 'real-public-session', 'payload': {'name': name, 'arguments': {'text': 'hello', 'call_goal': 'native display-only intent'}, 'call_id': 'native-call'}, 'request_id': request['request_id']})
@@ -124,17 +124,17 @@ def test_native_tools_keep_configured_permissions_in_every_phase(tmp_path, monke
         result = _submit(host, 'op-'+str(enabled), 'actor', 'iid', definition, 'data', str(tmp_path / 'work'), session_id='same-original-session', on_tool=lambda *args: {'rejected': 'actual role/user gate still owns this action'}, allow_native_tools=enabled)
         assert result.status == 'completed'
     assert requests[0]['agent'] == requests[1]['agent']
-    # No native tool restriction is declared (D37): the false phase keeps the
-    # owner-configured level instead of an undeclared deny.
-    assert requests[0]['permissions']['tools']['write_file'] == 'allow'
-    assert requests[1]['permissions']['tools']['write_file'] == 'allow'
-    assert requests[0]['agent']['tools'] == ['business', 'write_file']
+    # The adapter never overwrites the Runtime's native permissions.
+    assert requests[0]['permissions']['tools'] == {'business': 'allow'}
+    assert requests[1]['permissions']['tools'] == {'business': 'allow'}
+    assert requests[0]['agent']['tools'] == '*'
     records = [json.loads(path.read_text()) for path in (tmp_path / 'work/runs').glob('ioa-*.json')]
     assert len({value['definitionDigest'] for value in records}) == 1
     host._policy['write_file'] = 'deny'
-    result = _submit(host, 'op-new', 'actor', 'iid', definition, 'data', str(tmp_path / 'work'))
-    assert result.error['code'] == 'not_ready'
-    assert len(requests) == 2
+    result = _submit(host, 'op-new', 'actor', 'iid', definition, 'data', str(tmp_path / 'work'),
+                     on_tool=lambda *args: {'rejected': 'SDK business authorization still applies'})
+    assert result.status == 'completed'
+    assert len(requests) == 3 and 'write_file' not in requests[-1]['permissions']['tools']
 
 @pytest.mark.parametrize('native', [(('*', 'allow'),), (('ask_user', 'allow'),), (('business', 'allow'),), (('write_file', 'allow'), ('write_file', 'ask')), (('skill_tool', 'allow'),)])
 def test_invalid_or_unavailable_native_tool_does_not_start_a_process(tmp_path, monkeypatch, native):
@@ -194,4 +194,5 @@ def test_unlisted_native_tool_keeps_actual_runtime_failure_instead_of_claiming_a
     monkeypatch.setattr(host, '_client', lambda **kwargs: Process())
     result = _submit(host, 'op', 'actor', 'iid', AgentDefinition('business', 'Use owner-configured tool', (), native_tools=(('custom_business_tool', 'allow'),)), 'data', str(tmp_path / 'work'), allow_native_tools=True)
     assert result.status == 'unknown' and result.error['code'] == 'TOOL_NOT_FOUND'
-    assert len(requests) == 1 and requests[0]['permissions']['tools']['custom_business_tool'] == 'allow'
+    assert len(requests) == 1 and requests[0]['permissions']['tools'] == {}
+    assert requests[0]['agent']['tools'] == '*'

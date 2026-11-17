@@ -18,6 +18,7 @@ from ..runtime import RuntimeFault,encode
 from ..adapters import stable
 from ..adapters import report
 from .policy import definition_digest
+from .material_files import material_files, artifact_directory
 
 
 FILE={'type':'object','properties':{'mediaType':{'type':'string'},'text':{'type':'string'},'bytesBase64':{'type':'string'},'artifactPath':{'type':'string'}},'required':['mediaType'],'oneOf':[{'required':[key]} for key in ('text','bytesBase64','artifactPath')],'additionalProperties':False}
@@ -200,7 +201,7 @@ class Production:
             with endpoint.lock:
                 saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
             return result
-        prompt=encode({'phase':'production','card':card,'period':job['payload']['period'],'artifactDirectory':str(workspace/'artifacts'),'materials':{name:base64.b64encode(data).decode() for name,data in provider.materials(cd).items()},'steps':provider.store.get('cards',cd).get('steps',[]),
+        prompt=encode({'phase':'production','card':card,'period':job['payload']['period'],'artifactDirectory':str(artifact_directory(workspace)),'materials':material_files(workspace,{'cardDigest':cd,'period':period},provider.materials(cd)),'capabilityReferences':list(definition.skills),'steps':provider.store.get('cards',cd).get('steps',[]),
                        'instruction':'按合同和已配置业务能力生产。需要用户批准的环节先调用provider.task.request_step并结束本轮；交付前可selftest，deliver取得回执后结束本轮。不得把文字当交付或自行批准环节。'})
         native_operation=self.execution.tasks.production.native_operation(identity,job,relation)
         round_record=self.execution.tasks.production.begin(identity,job,relation,definition_hash,native_operation=native_operation)

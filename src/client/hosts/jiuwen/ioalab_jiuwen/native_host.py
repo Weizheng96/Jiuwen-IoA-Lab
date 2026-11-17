@@ -33,17 +33,17 @@ class NativeJiuwenHost:
             raise RuntimeFault('invalid_input','Use the actual original native Session or None')
         supported=(isinstance(execution,HostExecution) and execution.kind=='business' and
             (execution.actor,execution.profile)==(input.attempt.actor,input.attempt.profile) and
-            len(execution.tools)==1 and not execution.definition.resources and
+            bool(execution.tools) and len({tool.name for tool in execution.tools})==len(execution.tools) and not execution.definition.resources and
             # No structured proposal channel: a same-effect SDK tool carries the
             # effect and the proposal stays empty (D35).
             (execution.proposal_schema is None or proposal_tool_declared(execution)) and callable(on_tool))
         if input.resources or execution is not None and not supported:
             # send_session_message inherits the native Agent; the per-request
-            # guard installs only one frozen definition and SDK tool. Never
+            # guard installs only this frozen definition and its SDK tools. Never
             # dispatch and then discover an unsupported execution contract.
             return SubmissionResult(operation_id,input.attempt.nonce,'unknown',session_id,
                 error=SubmissionError('not_ready','native_definition','not_submitted',
-                    'Native slice requires one SDK tool, original instructions, no resources, and no proposal without its same-effect tool'))
+                    'Native slice requires frozen SDK tools, original instructions, no unmapped resources, and no proposal without its same-effect tool'))
         if execution is not None and execution.deadline is not None:
             # The original deadline is enforced at native hook boundaries; no
             # fixed cap and no silent ignoring.

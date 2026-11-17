@@ -317,7 +317,7 @@ class HostRegistry:
         if execution and execution.kind=='observation':
             from .observations import SCHEMA
             if (len(execution.tools)!=1 or execution.tools[0].name!='verifier.observe' or execution.tools[0].input_schema!=SCHEMA
-                or execution.authorization.get('nativeTools',{})!={} or execution.authorization.get('nativeToolsEnabled',False) is not False
+                or execution.authorization.get('nativeTools',{})!={} or type(execution.authorization.get('nativeToolsEnabled',True)) is not bool
                 or set(execution.authorization)-{'nativeTools','nativeToolsEnabled'} or execution.proposal_schema is not None):
                 raise RuntimeFault('forbidden','Observations expose only the frozen SDK read-only result channel')
             parent=self.context(actor,execution.business_ref)

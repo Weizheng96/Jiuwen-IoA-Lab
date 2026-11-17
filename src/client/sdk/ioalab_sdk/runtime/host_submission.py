@@ -131,16 +131,14 @@ def proposal_tool_declared(execution):
                 and any(tool.input_schema==execution.proposal_schema for tool in execution.tools))
 
 
-def execution_snapshot(identity,interaction,job,definition,*,definition_digest,version,deadline=None,workspace=None,kind='business',business_ref=None,host_definition=None,native_tools_enabled=False):
+def execution_snapshot(identity,interaction,job,definition,*,definition_digest,version,deadline=None,workspace=None,kind='business',business_ref=None,host_definition=None,native_tools_enabled=True):
     """Encode the role-selected original snapshot, without host discovery or effects."""
     if host_definition is not None and (not isinstance(host_definition,HostDefinition) or host_definition.instructions!=definition.instructions):
         raise RuntimeFault('identity_conflict','The frozen host definition changed the original role instructions')
-    if definition.skills and host_definition is None:
-        raise RuntimeFault('not_ready','Resolve the original professional resource references before submitting','freeze_definition_resources')
     return HostExecution(identity.agent_id,identity.profile,business_ref or interaction,interaction,job,
         host_definition or HostDefinition(definition.name,str(version),definition_digest,definition.instructions),
         kind=kind,tools=tuple(HostToolDeclaration(item.name,item.description,item.input_schema,item.output_schema) for item in definition.tools),
-        authorization={'nativeTools':dict(definition.native_tools),'nativeToolsEnabled':native_tools_enabled},deadline=deadline,workspace=workspace)
+        authorization={'nativeTools':{},'nativeToolsEnabled':native_tools_enabled},deadline=deadline,workspace=workspace)
 
 
 @dataclass(frozen=True)

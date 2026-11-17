@@ -14,6 +14,7 @@ from ..runtime import AgentDefinition,ToolBinding
 from ..runtime import RuntimeFault,encode
 from ..adapters import stable
 from .verifiers import TASK_SCHEMA
+from .material_files import material_files
 
 
 REF={'type':'object','properties':{key:{'type':'string'} for key in ('id','uri','digest')},'required':['id','uri','digest'],'additionalProperties':False}
@@ -128,15 +129,10 @@ class HostPolicy(DefaultPolicy):
             if not old:store.put('business',key,{'decision':args,'session':state['session'],'hostCall':call})
             state['decision']=args
             return {'status':'recorded','notice':'业务决定已保存；签署和平台回执由SDK处理'}
-        content=[]
-        for name,data in materials.items():
-            try:text=data.decode('utf-8')[:12000]
-            except UnicodeDecodeError:text=None
-            content.append({'name':name,'size':len(data),'text':text})
+        workspace=self.runtime.config.home/'roles'/self.identity.profile/'sessions'/relation['id']
         prompt={'phase':phase,'requiredAction':{'tool':'provider.task.'+phase,'inputSchema':schema if phase=='quote' else DECISION,
                        'instruction':'提交本单报价或拒绝原因' if phase=='quote' else '审查此张已确认合同，只提交approved及可选reason；不得重新报价'},
-                       'template':template,'object':subject,'materials':content}
-        workspace=self.runtime.config.home/'roles'/self.identity.profile/'sessions'/relation['id']
+                       'template':template,'object':subject,'materials':[],'capabilityReferences':list(definition.skills)}
         # Actual original protocol deadlines include queueing and model execution.
         request_signature=subject['signature'] if phase=='quote' else subject['signatures']['1']
         respond=parse_time(header_of(request_signature)['a2c-ts'])+parse_duration(template['deadlines']['respondWithin'])
@@ -146,6 +142,8 @@ class HostPolicy(DefaultPolicy):
         if phase=='quote':prompt['preparedVerifiers']=self.execution.role.verifiers.prepared(self.identity,self.job['id'])
         remaining=deadline-time.time()
         if remaining<=0:raise A2CError(OUT_OF_ORDER,'Template expired while preparing the original verifier')
+        prompt['materials']=material_files(workspace,{'phase':phase,'subject':digest(subject)},materials)
+        if deadline<=time.time():raise A2CError(OUT_OF_ORDER,'Template expired while preparing the original materials')
         prompt=encode(prompt)
         native_operation=self.execution.tasks.native_operation(self.identity,self.job)
         self.execution.tasks.clear(self.identity,self.job['id'])
@@ -156,7 +154,7 @@ class HostPolicy(DefaultPolicy):
             if actual and bound[0]!=actual:on_session(actual);bound[0]=actual
         try:
             execution=execution_snapshot(self.identity,relation['id'],self.job['id'],definition,definition_digest=definition_hash,
-                version=relation['revision'],deadline=stamp(deadline),workspace=str(workspace),native_tools_enabled=False)
+                version=relation['revision'],deadline=stamp(deadline),workspace=str(workspace),native_tools_enabled=True)
             result=self.execution.host.submit(self.identity.agent_id,relation['id'],native_operation,HostInput(prompt),execution=execution,
                 on_event=event,on_tool=lambda call:on_tool(call.name,call.arguments,call.transport_reference))
         finally:self.execution.active.discard(self.job['id'])

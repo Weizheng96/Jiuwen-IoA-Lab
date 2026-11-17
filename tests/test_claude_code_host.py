@@ -57,7 +57,7 @@ def boundary(monkeypatch):
                 for call,args in attempts:
                     decision=await hook({'session_id':sid,'tool_name':name,'tool_use_id':call,'tool_input':args},call,{})
                     state.calls.append(decision)
-                    if decision['hookSpecificOutput']['permissionDecision']=='allow':
+                    if decision.get('hookSpecificOutput',{}).get('permissionDecision')=='allow':
                         try:state.results.append(await tool.handler(args))
                         except Exception:
                             if state.mode!='swallow':raise
@@ -97,8 +97,10 @@ def test_submit_has_static_registration_no_probe_gate_and_no_legacy_methods(boun
     assert not any(hasattr(h,name) for name in ('run','probe','capabilities','model_catalog'))
     assert result.output=='I delivered it (content only)' and result.proposal is None
     options=boundary.options[-1]
-    assert options.tools==[] and options.skills==[] and options.setting_sources==[] and options.plugins==[]
-    assert options.strict_mcp_config and options.fallback_model is None and options.permission_mode=='dontAsk'
+    assert options.tools is None and options.skills is None and options.setting_sources is None
+    assert not options.strict_mcp_config and options.fallback_model is None and options.permission_mode is None
+    assert options.can_use_tool is None
+    assert options.hooks['PreToolUse'][0].matcher=='^mcp__ioa_sdk__'
     assert options.extra_args=={'replay-user-messages':None}
 
 def test_binding_ack_before_callback_and_same_session_resume(boundary,tmp_path):
@@ -334,16 +336,16 @@ def test_tool_unknown_and_proposal_error_are_recorded_separately(boundary,tmp_pa
     assert saved['proposalError']=='proposal_missing'
 
 @pytest.mark.parametrize('level',['allow','ask','unknown'])
-def test_unsupported_native_permission_is_honestly_not_dispatched(boundary,tmp_path,level):
+def test_native_requirements_leave_original_host_permissions(boundary,tmp_path,level):
     ex=replace(execution(tmp_path),authorization={'nativeTools':{'Bash':level}})
     result=host().submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
-    assert result.error.code=='constraint_unsupported' and result.error.dispatch=='not_submitted' and not boundary.queries
+    assert result.state=='completed' and result.terminal and len(boundary.queries)==1
 
-def test_native_deny_is_enforced_in_sdk_scope(boundary,tmp_path):
+def test_non_sdk_tools_are_not_approved_or_denied_by_adapter(boundary,tmp_path):
     boundary.mode='foreign';calls=[]
     ex=replace(execution(tmp_path),authorization={'nativeTools':{'Bash':'deny'}})
     result=host().submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:calls.append(c) or HostToolResult(1))
-    assert result.terminal and not calls and boundary.calls[-1]['hookSpecificOutput']['permissionDecision']=='deny'
+    assert result.terminal and not calls and boundary.calls[-1]=={}
 
 
 def test_check_reports_evidenced_missing_executable_or_config_without_starting_cli(boundary,tmp_path,monkeypatch):

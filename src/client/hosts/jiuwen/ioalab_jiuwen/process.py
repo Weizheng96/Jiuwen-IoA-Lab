@@ -56,9 +56,6 @@ class ProcessHost(Submission):
         native=dict(turn.definition.native_tools)
         if len(native)!=len(turn.definition.native_tools) or len(native)>64 or any(not isinstance(name,str) or not re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name) or name in originals or name in ('ask_user','skill_tool','search_skill','install_skill','uninstall_skill') or level not in ('allow','ask','deny') for name,level in native.items()):
             raise RuntimeFault('invalid_input','Native tools require distinct exact owner-configured names and permissions')
-        policy=self._policy
-        if any(level!='deny' and policy.get(name)=='deny' for name,level in native.items()):
-            raise RuntimeFault('not_ready','Restore the originally configured native production tools and host permissions','configure_host')
         aliases={};declarations=[];metadata=set()
         reserved=set(originals)|set(native)|{'ask_user'}
         for tool in turn.definition.tools:
@@ -85,8 +82,11 @@ class ProcessHost(Submission):
         mapping={original:name for name,original in aliases.items() if name!=original}
         instructions=turn.definition.instructions+('\nLocal tool aliases: '+str(mapping) if mapping else '')
         definition={'name':turn.definition.name,'instructions':instructions,
-                    'tools':names+list(native)+(['ask_user'] if turn.on_interaction else [])}
-        permissions={**{name:'allow' for name in names},**native}
+                    'tools':'*'}
+        # '*' inherits the Runtime's configured native tools. Only our SDK
+        # callback aliases receive a local grant; native permissions stay owned
+        # by the user's existing Runtime configuration in every phase.
+        permissions={name:'allow' for name in names}
         request={'mode':'agent.work.normal','request_id':request_id,'input':turn.input,'agent':definition,
                  'model':self.model,'host_tools':declarations,
                  'permissions':{'tools':permissions},

@@ -83,9 +83,18 @@ def test_cancel_ack_does_not_replace_actual_terminal(tmp_path):
     assert not worker.is_alive()and result[0].state=='cancelled'and result[0].terminal.state=='cancelled'
     assert host.cancel('missing')['state']=='unknown'
 
-def test_sdk_native_permissions_reject_before_any_native_submission(tmp_path):
+def test_sdk_native_requirements_do_not_override_host_permissions(tmp_path):
     result=submit(configured(),tmp_path,definition=execution(tmp_path,authorization={'nativeTools':{'Bash':'allow'}}))
-    assert result.error.dispatch=='not_submitted'and not(tmp_path/'codex-submissions').exists()
+    assert result.state=='completed' and result.terminal
+
+
+def test_native_approval_is_not_answered_and_original_request_is_retained(tmp_path):
+    calls=[]
+    result=submit(configured('native-approval'),tmp_path,tool=lambda call:calls.append(call))
+    assert result.state=='unknown' and result.session_id=='test-real-thread' and result.request_id=='test-turn'
+    assert result.error.phase=='native_approval' and result.error.action=='continue_original_native_entry'
+    assert not calls and not (tmp_path/'unexpected-native-approval-response').exists()
+    assert submit(configured('native-approval'),tmp_path)==result
 
 def test_unbound_namespace_never_enters_sdk_callback(tmp_path):
     calls=[];result=submit(configured('bad-tool'),tmp_path,tool=lambda c:calls.append(c))
@@ -183,11 +192,10 @@ def test_model_wait_uses_original_deadline_without_extra_five_minute_cap(tmp_pat
     assert configured().registration.readonly_context=='isolated_session'
 
 @pytest.mark.parametrize('kind',['business','observation'])
-def test_true_native_phase_is_not_ignored_with_empty_native_requirements(tmp_path,kind):
+def test_native_phase_uses_original_host_settings(tmp_path,kind):
     result=submit(configured(),tmp_path,definition=execution(tmp_path,kind=kind,
         authorization={'nativeToolsEnabled':True,'nativeTools':{}}))
-    assert result.error.phase=='native_permissions'and result.error.dispatch=='not_submitted'
-    assert not(tmp_path/'codex-submissions').exists()
+    assert result.state=='completed' and result.terminal
 
 @pytest.mark.parametrize('flag',[1,0,None,'false',{},[]])
 def test_mutated_non_boolean_native_phase_is_rejected_before_dispatch(tmp_path,flag):
@@ -197,6 +205,6 @@ def test_mutated_non_boolean_native_phase_is_rejected_before_dispatch(tmp_path,f
     assert result.error.code=='invalid_input'and result.error.dispatch=='not_submitted'
     assert not(tmp_path/'codex-submissions').exists()
 
-def test_false_native_phase_remains_restricted_sdk_execution(tmp_path):
+def test_false_native_phase_does_not_restrict_this_adapter(tmp_path):
     result=submit(configured(),tmp_path,definition=execution(tmp_path,authorization={'nativeToolsEnabled':False,'nativeTools':{}}))
     assert result.state=='completed'and result.terminal.state=='completed'

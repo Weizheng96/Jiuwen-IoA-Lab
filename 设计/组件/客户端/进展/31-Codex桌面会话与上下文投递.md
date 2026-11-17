@@ -121,3 +121,10 @@ esources\codex.exe（2个进程），旧AppData\Local\OpenAI\Codexin路径已�
 - [ ] 新专业能力/真实材料边界定向通过，保旧合同摘要及原引用。
 - [ ] 公共报价/复签/生产/私人/观察和三宿主两类入口均传允许并继承原工具审批，SDK效果无越权。
 - [ ] 最终集成回归与真实宿主验收分别记录。
+
+
+### v205实施检查点（2026-11-17）
+
+本期实现已落盘：三适配不限制原工具/Skill/权限；公共各阶段允许且nativeTools为空，不下发原定义deny；capabilityReferences保名称；本机材料落盘/原成果出口，九问原生多SDK工具和Process原工具继承。服务skills名称不阻塞ready，uncheckedSkills明确未核实。
+
+资源定向r4四轻量+59通过/1跳过、r5四轻量+5通过/1跳过均exit0（temp/checks/native-route-v205-r4、r5）；原r2的单个scope夹具错误已修但失败报告保留。两显式SDK89项与四轻量通过由主协调保存报告。最终完整回归正在独立运行，本检查点未声称full通过；按用户明确指令，与合main/GitCode及服务器内测并行收集问题。真实宿主四流程、跨机器HostResource映射与原审批桥支持范围仍按未勾选项待验。

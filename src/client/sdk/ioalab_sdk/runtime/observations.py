@@ -112,7 +112,7 @@ def model_port(runtime,host,identity,interaction):
                 inherited=frozen.get('deadline')
                 if inherited and (deadline is None or instant(inherited)<instant(deadline)):deadline=inherited
             snapshot=execution_snapshot(identity,reference,job,definition,definition_digest=digest({'instructions':definition.instructions,'tools':[item.policy() for item in definition.tools]}),
-                version='1',deadline=deadline,workspace=str(workspace),kind='observation',business_ref=interaction,native_tools_enabled=False)
+                version='1',deadline=deadline,workspace=str(workspace),kind='observation',business_ref=interaction,native_tools_enabled=True)
             if material:snapshot=journal.execution(reference,snapshot)
             def event(value):
                 if value.result.session_id:bind(value.result.session_id)

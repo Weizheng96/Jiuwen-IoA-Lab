@@ -19,7 +19,7 @@ class ObservationAdapter:
 
     def submit(self,operation_id,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
         self.calls.append((operation_id,input,session_id,execution))
-        assert execution.authorization.get('nativeToolsEnabled',False) is False
+        assert execution.authorization.get('nativeToolsEnabled') is True
         sid=session_id or ('real-business-created' if self.registration.readonly_context=='business_session' else 'real-isolated-observer')
         receipt=SubmissionResult(operation_id,input.attempt.nonce,'running',sid,'actual-'+operation_id,'accepted')
         if not self.skip_ack:
@@ -94,10 +94,10 @@ def test_observation_basis_records_native_tool_restriction_and_unrestricted_stil
     result,registry=observe(adapter)
     assert result['status']=='completed' and result['data']=={'observation':1} and len(adapter.calls)==1
     reference=adapter.calls[0][0]
-    assert adapter.calls[0][3].authorization['nativeToolsEnabled'] is False
-    assert registry.native_tools_restricted('actor',reference) is declared
+    assert adapter.calls[0][3].authorization['nativeToolsEnabled'] is True
+    assert registry.native_tools_restricted('actor',reference) is False
     basis=registry.store.checkpoint('model-observations:actor',reference)
-    assert basis['state']=='completed' and basis['nativeToolsRestricted'] is declared
+    assert basis['state']=='completed' and basis['nativeToolsRestricted'] is False
 
 
 @pytest.mark.parametrize('parent,mode',[(True,'unavailable'),(False,'isolated_session')])

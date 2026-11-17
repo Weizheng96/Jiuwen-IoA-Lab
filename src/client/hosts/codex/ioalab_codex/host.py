@@ -1,4 +1,4 @@
-"""Explicit restricted SDK execution through the single S01 submission contract."""
+"""Explicit SDK execution through S01, inheriting native user permissions."""
 from dataclasses import asdict,replace
 from datetime import datetime,timezone
 import hashlib,json,threading,time,re
@@ -9,13 +9,6 @@ from ioalab_sdk.runtime import (HostRegistration,HostInput,HostExecution,HostRes
  RuntimeFault,private_json,read_json)
 # Formal move imports the existing adapter-owned transport.
 from ioalab_codex.transport import Stdio,WireError
-
-DISABLED=('shell_tool','shell_snapshot','apps','plugins','hooks','multi_agent','multi_agent_v2',
-          'browser_use','browser_use_external','in_app_browser','computer_use','image_generation',
-          'view_image','skill_search','skill_mcp_dependency_install','code_mode')
-CONFIG={'web_search':'disabled','project_doc_max_bytes':0,'skills.include_instructions':False,
-        'skills.bundled.enabled':False,'memories.use_memories':False,'memories.generate_memories':False,
-        'features.skip_host_skill_discovery':True,'features.code_mode_host':True}
 
 class CodexHost:
     registration=HostRegistration('codex','0.0.178',('get_request','cancel'),readonly_context='isolated_session')
@@ -60,11 +53,6 @@ class CodexHost:
         native_enabled=execution.authorization.get('nativeToolsEnabled',False)
         if type(native_enabled)is not bool:
             return SubmissionResult(operation_id,attempt,'failed',session_id,error=SubmissionError('invalid_input','native_permissions','not_submitted','SDK native-tool authorization must be a strict boolean'))
-        if native_enabled:
-            # This explicit SDK driver only offers its original restricted
-            # dynamic-tool execution. An empty requirements map does not mean
-            # that a true native-capability authorization can be ignored.
-            return SubmissionResult(operation_id,attempt,'failed',session_id,error=SubmissionError('not_ready','native_permissions','not_submitted','This explicit SDK driver cannot honor nativeToolsEnabled=true'))
         if not isinstance(execution.workspace,str)or not Path(execution.workspace).is_absolute():
             raise RuntimeFault('invalid_input','Use the original absolute SDK workspace')
         if execution.proposal_schema is not None:
@@ -74,8 +62,6 @@ class CodexHost:
         # File/resource behavior cannot be silently dropped. P26 is the only reader.
         if (input.resources or execution.definition.resources)and self._read_definition is None:
             return SubmissionResult(operation_id,attempt,'failed',session_id,error=SubmissionError('not_ready','resource_mapping','not_submitted','Inject the original SDK P26 frozen resource reader'))
-        if any(v!='deny'for v in execution.authorization.get('nativeTools',{}).values()):
-            return SubmissionResult(operation_id,attempt,'failed',session_id,error=SubmissionError('not_ready','native_permissions','not_submitted','Restricted explicit SDK native permissions are not supported'))
         if input.resources or execution.definition.resources:
             return SubmissionResult(operation_id,attempt,'failed',session_id,error=SubmissionError('not_ready','resource_mapping','not_submitted','Await final SDK P26 frozen reader/sink contract'))
         definition=asdict(execution);fingerprint=hashlib.sha256(json.dumps({'text':input.text,'resources':[asdict(x)for x in input.resources],'execution':definition},sort_keys=True).encode()).hexdigest()
@@ -140,7 +126,10 @@ class CodexHost:
                     if returned.resources:raise WireError('SDK tool output resources require the P26 output mapper')
                     value=returned.value if returned.error is None else {'status':'rejected','error':asdict(returned.error)}
                 wire.send({'id':message['id'],'result':{'success':True,'contentItems':[{'type':'inputText','text':json.dumps(value,ensure_ascii=False)}]}})
-            elif 'id'in message:wire.send({'id':message['id'],'error':{'code':-32601,'message':'This explicit restricted SDK execution has no native approval transport'}})
+            elif 'id'in message:
+                # This driver has no interactive approval bridge. Preserve the
+                # original request rather than granting or denying native tools.
+                raise RuntimeFault('not_ready','Original host approval requires an interactive native entry','continue_original_native_entry')
         def acknowledge_request():
             nonlocal bound
             if bound:return
@@ -148,25 +137,18 @@ class CodexHost:
             publish('session',SubmissionResult(operation_id,attempt,'accepted',sid,request))
             bound=True
         try:
-            # Explicit SDK's existing restricted capabilities remain explicit.
+            # No tool, Skill, sandbox or approval overrides: user settings own them.
             argv=[*self.command,'app-server','--listen','stdio://']
-            for name in DISABLED:argv+=['--disable',name]
-            for key,value in CONFIG.items():argv+=['-c',key+'='+json.dumps(value)]
             wire=Stdio(argv,cwd=str(workspace));wire.initialize(handshake_deadline())
-            if any(v!='deny'for v in execution.authorization.get('nativeTools',{}).values()):raise RuntimeFault('not_ready','Restricted explicit SDK native permissions are not supported')
             if input.resources or execution.definition.resources:raise RuntimeFault('not_ready','P26 mapping requires the final reader/sink seam before native dispatch')
-            current=wire.request('config/read',{'includeLayers':False,'cwd':str(workspace)},handshake_deadline()).get('config',{})
-            overrides={**CONFIG,**{'features.'+name:False for name in DISABLED}}
-            overrides['mcp_servers']={name:{**{k:v for k,v in settings.items()if v is not None},'enabled':False}for name,settings in current.get('mcp_servers',{}).items()}
-            # Retain explicit SDK isolation; this is never the product native factory.
-            params={'model':self.model,'cwd':str(workspace),'sandbox':'read-only','approvalPolicy':'never','baseInstructions':execution.definition.instructions,'config':overrides}
+            params={'model':self.model,'cwd':str(workspace),'baseInstructions':execution.definition.instructions}
             if session_id:created=wire.request('thread/resume',{**params,'threadId':session_id,'excludeTurns':True},handshake_deadline())
             else:created=wire.request('thread/start',{**params,'dynamicTools':[{'type':'namespace','name':'ioa_sdk','description':'Original controlled SDK tools','tools':[{'type':'function','name':alias,'description':t.description,'inputSchema':t.input_schema,'deferLoading':False}for alias,t in aliases.items()]}]},handshake_deadline())
             actual_sid=created['thread'].get('id')
             if not isinstance(actual_sid,str)or not 1<=len(actual_sid)<=8192:raise WireError('Codex did not return an actual native session')
             sid=actual_sid
             if session_id and sid!=session_id:raise WireError('Original SID changed')
-            if created.get('model')!=self.model or created.get('sandbox',{}).get('type')!='readOnly':raise WireError('Explicit SDK model or sandbox changed')
+            if created.get('model')!=self.model:raise WireError('Explicit SDK model changed')
             if created['thread'].get('status',{}).get('type')=='active':raise WireError('Original explicit SDK thread is already active')
             publish('session',SubmissionResult(operation_id,attempt,'accepted',sid))
             if on_event is None:raise RuntimeFault('not_ready','SDK P28 binding acknowledgement is required')
@@ -176,7 +158,7 @@ class CodexHost:
                 early_bytes+=len(json.dumps(message).encode())
                 if len(early)>=128 or early_bytes>1024*1024:raise WireError('Codex early event buffer exceeds its bound')
                 early.append(message)
-            started=wire.request('turn/start',{'threadId':sid,'input':[{'type':'text','text':input.text}],'model':self.model,'approvalPolicy':'never'},handshake_deadline(),buffer)
+            started=wire.request('turn/start',{'threadId':sid,'input':[{'type':'text','text':input.text}],'model':self.model},handshake_deadline(),buffer)
             actual_request=started.get('turn',{}).get('id')
             if not isinstance(actual_request,str)or not 1<=len(actual_request)<=8192:raise WireError('Codex did not return an actual native request')
             request=actual_request
@@ -204,7 +186,10 @@ class CodexHost:
                 machine=MachineTerminal(operation_id,attempt,sid,request,state,'codex-event:'+hashlib.sha256(json.dumps(terminal,sort_keys=True).encode()).hexdigest())
                 result=SubmissionResult(operation_id,attempt,state,sid,request,'handled','\n'.join(output),terminal=machine,usage=usage)
                 saved['nativeTerminal']=terminal
-            error=SubmissionError('host_event_error'if result.terminal else 'host_unknown','event_callback'if result.terminal else 'native_protocol','accepted'if result.terminal else 'unknown',type(exc).__name__)
+            if isinstance(exc,RuntimeFault) and exc.recovery=='continue_original_native_entry':
+                error=SubmissionError(exc.code,'native_approval','unknown',str(exc),exc.recovery)
+            else:
+                error=SubmissionError('host_event_error'if result.terminal else 'host_unknown','event_callback'if result.terminal else 'native_protocol','accepted'if result.terminal else 'unknown',type(exc).__name__)
             result=replace(result,error=error)if result.terminal else SubmissionResult(operation_id,attempt,'unknown',sid,request,error=error)
             saved['result']=asdict(result);saved['notificationError']=asdict(error);private_json(path,saved)
             with self._lock:

@@ -1,6 +1,6 @@
 """Service ingress and per-interaction original Providers on the shared runtime."""
 from ..runtime import MaterialObservationPending,MaterialObservationBlocked
-from ..runtime import HostRegistry,HostResource,NativeSubmissionPending
+from ..runtime import HostRegistry,NativeSubmissionPending
 import threading
 import time
 import httpx
@@ -68,7 +68,7 @@ class ProviderExecution:
     def wake(self):self.changed.set()
 
     def ready(self,profile):
-        return bool(profile in self.configs and not self.skill_errors(profile) and self.published.get(profile,0)>time.time() and self.model_available() and self.thread and self.thread.is_alive())
+        return bool(profile in self.configs and self.published.get(profile,0)>time.time() and self.model_available() and self.thread and self.thread.is_alive())
 
     def recovery_ready(self,profile):
         """P35 resume fence composed only of existing checks; per-contract unknowns stay with their owners."""
@@ -93,15 +93,13 @@ class ProviderExecution:
         # Native permission feasibility is an actual S01 constraint, not a startup probe.
         return []
 
-    def skill_errors(self,profile):
-        return [name for name in self.configs.get(profile,{}).get('skills',[]) if not isinstance(name,HostResource)]
-
     def status(self,profile):
         return {'configured':profile in self.configs,'hostAvailable':bool(self.host and self.host.status_snapshot()['available']),
                 'executionReady':self.ready(profile),'publicationValidUntil':self.published.get(profile),
                 'unavailableNativeTools':self.tool_errors(profile),
                 'uncheckedNativeTools':[name for name,level in self.configs.get(profile,{}).get('native_tools',{}).items() if level!='deny'],
-                'unavailableSkills':self.skill_errors(profile),
+                'unavailableSkills':[],
+                'uncheckedSkills':list(self.configs.get(profile,{}).get('skills',[])),
                 'errors':self.errors.get('profile:'+profile),'blockedRequests':len(self.errors)}
 
     def quiesce(self):
