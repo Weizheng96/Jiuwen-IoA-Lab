@@ -5,7 +5,7 @@ import uuid
 import pytest
 
 from conftest import wait_for
-from ioalab_sdk.runtime import LocalClient, ToolBinding, HostResult
+from ioalab_sdk.runtime import LocalClient, ToolBinding
 from test_assistant_role import user_decision, runtime_at, ScriptedHost, INPUT, OUTPUT
 from test_resident_delegation import participants
 from test_resident_fulfillment import ProductionHost, VERIFIER, configure_template
@@ -103,9 +103,18 @@ def test_delegation_flow_push_fetch_preview_and_notification_without_acceptance(
         wait_for(lambda:settled(rpc,'assistant.delegation.flow',ref))
         # No user utterance, status RPC, or model polling discovers this delivery.
         if not notification_available:
-            wait_for(lambda:observe(rpc,'assistant.delegation.flow',ref)['data'].get('deliveryWait',{}).get('report'))
-            assert not effects
+            # owner.notify is optional: its absence never blocks the delivery record.
+            wait_for(lambda:observe(rpc,'assistant.delegation.flow',ref)['data'].get('deliveries',{}).get('1'))
+            evidence = observe(rpc,'assistant.delegation.flow',ref)['data']['deliveries']['1']
+            assert evidence['notification']=={'status':'unavailable'} and evidence['report']['status']=='pass'
+            assert evidence['reason']=='user_acceptance' and not effects
             assistant.modules[0].tools['owner.notify'] = notification
+            for _ in range(3):
+                assistant.modules[0].flows.scan()
+            assert not effects  # a converged record does not later send a second reminder
+            facts = rpc.call('assistant.delegation.status',{'contractRef':contract})['data']
+            assert facts['card']['signatures']['7']==[]
+            return
         try:
             wait_for(lambda:effects)
         except AssertionError:

@@ -15,6 +15,7 @@ from test_resident_delegation import participants,request,terminal
 from test_delegation_admission import online,offer,intent,opened,fee_body
 from test_service_publication import service,draft
 from test_assistant_role import user_decision
+from submission_fixture import bound_runtime
 
 
 def uid():return str(uuid.uuid4())
@@ -77,7 +78,8 @@ def test_old_resume_receipt_restart_and_capacity_change_do_not_override_pause(pl
         provider.close();path=tmp_path/'provider/config.json'
         settings=read_json(path);settings['provider']['services']['service']['max_active_delegations']=3
         private_json(path,settings);role=ProviderRole(host)
-        restarted=ResidentRuntime(RuntimeConfig.load(path),modules=(role,),host_status=host.capabilities).start()
+        restarted=bound_runtime(RuntimeConfig.load(path),host,lambda selected:ProviderRole(selected)).start()
+        role=restarted.modules[0]
         try:
             wait_for(lambda:role.ready('service'))
             current=control(restarted,'status')['data']['admissionPolicy']
@@ -93,14 +95,16 @@ def test_old_resume_receipt_restart_and_capacity_change_do_not_override_pause(pl
 def test_unknown_policy_change_recovers_one_original_write_after_restart(platform,tmp_path,monkeypatch,failure):
     with participants(platform,tmp_path) as (provider,assistant,host,template,task):
         before=control(provider,'status')['data']['admissionPolicy'];operation=uid()
-        original=provider.connection.call;update=provider.store.checkpoint_update
+        complete=provider.store.complete;update=provider.store.checkpoint_update
         with monkeypatch.context() as patch:
             if failure=='lost_response':
-                def lost(actor,kind,payload,**kwargs):
-                    result=original(actor,kind,payload,**kwargs)
-                    if kind=='admission.configure':raise RuntimeFault('unknown_result','Test lost committed policy reply')
-                    return result
-                patch.setattr(provider.connection,'call',lost)
+                def lost(frame):
+                    # Lose the real incoming WS receipt before local storage,
+                    # including read-back receipts while the link is impaired.
+                    # Raising after call() would leave success already cached.
+                    if frame.get('operation') in ('admission.configure','operation.get'):return
+                    return complete(frame)
+                patch.setattr(provider.store,'complete',lost)
             else:
                 def lost_commit(namespace,values,**kwargs):
                     if namespace.startswith('provider-policy:') and 'configuration' in values:raise OSError('Test crash before atomic local completion')
@@ -110,14 +114,26 @@ def test_unknown_policy_change_recovers_one_original_write_after_restart(platfor
                 with pytest.raises(RuntimeFault) as error:control(provider,'pause',operation)
                 assert error.value.code=='unknown_result'
             else:
-                assert control(provider,'pause',operation)['status']=='unknown'
-                assert control(provider,'resume')['status']=='unknown'
+                # Server reconciliation waits up to 10s for the lost WS reply.
+                # Give this fault case a longer outer RPC budget so its typed
+                # role unknown response arrives before the transport times out.
+                rpc=LocalClient(provider.config.home,timeout=30)
+                unknown=rpc.call('provider.pause',{'profile':'service'},operation_id=operation)
+                assert unknown['status']=='unknown' and unknown['operationId']==operation
+                assert unknown['error']['code']=='unknown_result'
+                assert unknown['error']['recovery']=='resume_original'
+                resume_operation=uid()
+                blocked=rpc.call('provider.resume',{'profile':'service'},operation_id=resume_operation)
+                assert blocked['status']=='unknown' and blocked['operationId']==resume_operation
+                assert blocked['error']['code']=='unknown_result'
+                assert blocked['error']['recovery']=='resume_original'
             identity=provider.identities[0]
             with platform.db.lock:actual=platform.admissions.policy(platform.db.conn,identity.agent_id)
             assert not actual['accepting'] and actual['revision']==before['revision']+1
             assert provider.store.checkpoint('provider-policy:'+identity.agent_id,'pending')
         provider.close();role=ProviderRole(host)
-        restarted=ResidentRuntime(RuntimeConfig.load(tmp_path/'provider/config.json'),modules=(role,),host_status=host.capabilities).start()
+        restarted=bound_runtime(RuntimeConfig.load(tmp_path/'provider/config.json'),host,lambda selected:ProviderRole(selected)).start()
+        role=restarted.modules[0]
         try:
             wait_for(lambda:role.ready('service'))
             result=control(restarted,'pause',operation)
@@ -134,14 +150,16 @@ def test_concurrent_same_control_has_one_policy_effect_and_conflicting_revision_
         assert all(result['status']=='completed' for result in results)
         assert all(result['data']['policyReceipt']==results[0]['data']['policyReceipt'] for result in results)
         assert results[0]['data']['policyReceipt']['revision']==before['revision']+1
-        original=provider.connection.call;competing=[]
-        def race(actor,kind,payload,**kwargs):
+        original=provider.connection.call;prepare=provider.store.prepare_checkpointed;competing=[]
+        def race(actor,kind,payload,operation,namespace,values):
             if kind=='admission.configure':
                 competing.append(original(actor,kind,{**payload,'maxActiveDelegations':3},operation_id=uid()))
-            return original(actor,kind,payload,**kwargs)
+            return prepare(actor,kind,payload,operation,namespace,values)
         operation=uid()
         with monkeypatch.context() as patch:
-            patch.setattr(provider.connection,'call',race)
+            # The freeze/prepare seam precedes original outbox visibility;
+            # injecting at call() is too late once atomic preparation exists.
+            patch.setattr(provider.store,'prepare_checkpointed',race)
             result=control(provider,'resume',operation)
         assert result['status']=='rejected' and result['error']['code']=='revision_conflict'
         assert control(provider,'resume',operation)['error']['code']=='revision_conflict'
@@ -163,3 +181,141 @@ def test_pause_preserves_preexisting_held_fee_commit_but_rejects_a_new_reservati
         assert receiver.call('admission.status',{'admissionId':held['admissionId']})['state']=='committed'
         assert receiver.call('admission.status',{})['accepting'] is False
         assert len(platform.db.rows('SELECT * FROM transfers WHERE ref=?',value['body']['bindingDigest']))==1
+
+
+def health_policy(runtime,state,*,ready=None):
+    return runtime.modules[0].execution.admission_policy.system_health(
+        runtime.identities[0],runtime.host_registry.default,state,recovery_ready=ready)
+
+
+def test_health_pause_and_early_recovery_require_actual_readiness_fence(platform,tmp_path):
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        before=control(provider,'status')['data']['admissionPolicy']
+        assert health_policy(provider,'unavailable')['status']=='paused'
+        paused=control(provider,'status')['data']['admissionPolicy']
+        assert paused['revision']==before['revision']+1 and paused['accepting'] is False
+        assert health_policy(provider,'available')['status']=='waiting'
+        assert control(provider,'status')['data']['admissionPolicy']==paused
+        assert health_policy(provider,'available',ready=lambda profile:{'ready':True})['status']=='resumed'
+        restored=control(provider,'status')['data']['admissionPolicy']
+        assert restored['accepting'] and restored['revision']==paused['revision']+1
+        health_policy(provider,'available',ready=lambda profile:{'ready':True})
+        assert control(provider,'status')['data']['admissionPolicy']==restored
+
+
+@pytest.mark.parametrize('manual_when',['before','after'])
+def test_health_recovery_preserves_manual_pause_and_later_revision(platform,tmp_path,manual_when):
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        if manual_when=='before':control(provider,'pause')
+        health_policy(provider,'unavailable')
+        if manual_when=='after':control(provider,'pause')
+        manual=control(provider,'status')['data']['admissionPolicy']
+        health_policy(provider,'available',ready=lambda profile:{'ready':True})
+        assert control(provider,'status')['data']['admissionPolicy']==manual
+        assert manual['accepting'] is False
+
+
+def test_system_pause_survives_restart_and_only_resumes_original_policy(platform,tmp_path):
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        health_policy(provider,'unavailable')
+        paused=control(provider,'status')['data']['admissionPolicy']
+        original_runtime=provider.store.runtime_id
+        provider.close()
+        restarted=bound_runtime(RuntimeConfig.load(tmp_path/'provider/config.json'),host,lambda selected:ProviderRole(selected)).start()
+        try:
+            wait_for(lambda:restarted.modules[0].ready('service'))
+            assert restarted.store.runtime_id==original_runtime
+            assert health_policy(restarted,'available',ready=lambda profile:{'ready':True})['status']=='resumed'
+            current=control(restarted,'status')['data']['admissionPolicy']
+            assert current['accepting'] and current['revision']==paused['revision']+1
+        finally:restarted.close()
+
+
+def test_lost_system_pause_response_recovers_original_receipt_before_resuming(platform,tmp_path,monkeypatch):
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        original=provider.connection.call;writes=[];lost=[False]
+        def boundary(actor,kind,payload,**kwargs):
+            result=original(actor,kind,payload,**kwargs)
+            if kind=='admission.configure':
+                writes.append((kwargs['operation_id'],payload['accepting']))
+                if not lost[0]:
+                    lost[0]=True
+                    raise RuntimeFault('unknown_result','Lost original committed pause response')
+            return result
+        with monkeypatch.context() as patch:
+            patch.setattr(provider.connection,'call',boundary)
+            with pytest.raises(RuntimeFault,match='original admission policy operation'):
+                health_policy(provider,'unavailable')
+            assert health_policy(provider,'available',ready=lambda profile:{'ready':True})['status']=='resumed'
+        assert len(writes)==2 and [item[1] for item in writes]==[False,True]
+
+
+def test_automatic_resume_revision_race_never_rebases_over_user_change(platform,tmp_path,monkeypatch):
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        health_policy(provider,'unavailable')
+        original=provider.connection.call;prepare=provider.store.prepare_checkpointed;competing=[]
+        def boundary(actor,kind,payload,operation,namespace,values):
+            if kind=='admission.configure' and payload['accepting']:
+                competing.append(original(actor,kind,{**payload,'accepting':False,'maxActiveDelegations':3},operation_id=uid()))
+            return prepare(actor,kind,payload,operation,namespace,values)
+        with monkeypatch.context() as patch:
+            patch.setattr(provider.store,'prepare_checkpointed',boundary)
+            with pytest.raises(RuntimeFault) as error:
+                health_policy(provider,'available',ready=lambda profile:{'ready':True})
+            assert error.value.code=='revision_conflict'
+        health_policy(provider,'available',ready=lambda profile:{'ready':True})
+        assert len(competing)==1
+        assert control(provider,'status')['data']['admissionPolicy']==competing[0]
+
+
+def test_product_health_sampling_pauses_and_resumes_only_through_the_recovery_fence(platform,tmp_path):
+    """Resident P34 sampling -> ProviderRole -> P35 with the product recovery_ready; S02 is a boundary double."""
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        role=provider.modules[0];health=provider.health;wait_for(lambda:role.ready('service'))
+        health.interval=0;evidence={'state':'unavailable','basis':'Controlled host command is missing'}
+        host.check=lambda:dict(evidence)
+        def sample():
+            health.poll();wait_for(lambda:not health.sampling);return health.poll()
+        before=control(provider,'status')['data']
+        assert before['systemHealthPause'] is None and before['admissionPolicy']['accepting']
+        assert sample()['state']=='unavailable'
+        paused=control(provider,'status')['data']
+        assert paused['systemHealthPause']=={'state':'paused','reason':'default_host_unavailable'}
+        assert not paused['admissionPolicy']['accepting'] and paused['admissionPolicy']['revision']==before['admissionPolicy']['revision']+1
+        evidence.update(state='available',basis='Controlled host command is present')
+        role.execution.errors['profile:service']={'code':'not_ready','type':'ControlledProfileFault'}
+        assert role.execution.recovery_ready('service')=={'ready':False,'missing':['default_host','profile_error']}
+        sample()
+        assert role.execution.recovery_ready('service')=={'ready':False,'missing':['profile_error']}
+        waiting=control(provider,'status')['data']
+        assert waiting['systemHealthPause']=={'state':'paused','reason':'restore_original_definition_and_resources'}
+        assert waiting['admissionPolicy']==paused['admissionPolicy']
+        role.execution.errors.pop('profile:service')
+        assert role.execution.recovery_ready('service')=={'ready':True,'missing':[]}
+        sample()
+        resumed=control(provider,'status')['data']
+        assert resumed['systemHealthPause'] is None and resumed['admissionPolicy']['accepting']
+        assert resumed['admissionPolicy']['revision']==paused['admissionPolicy']['revision']+1
+        assert 'health:service' not in role.execution.errors
+
+
+def test_publication_expiring_during_system_pause_is_reread_before_automatic_resume(platform,tmp_path):
+    """A long pause outlives the locally recorded validity; the renewed platform templates are re-read, then resumed."""
+    with participants(platform,tmp_path) as (provider,assistant,host,template,task):
+        role=provider.modules[0];health=provider.health;wait_for(lambda:role.ready('service'))
+        health.interval=0;evidence={'state':'unavailable','basis':'Controlled host command is missing'}
+        host.check=lambda:dict(evidence)
+        def sample():
+            health.poll();wait_for(lambda:not health.sampling);return health.poll()
+        sample();paused=control(provider,'status')['data']['admissionPolicy']
+        assert not paused['accepting']
+        # The recorded validity has passed; the platform holds a currently valid (renewed) publication.
+        role.execution.published['service']=0
+        evidence.update(state='available',basis='Controlled host command is present')
+        sample()
+        assert control(provider,'status')['data']['systemHealthPause']=={'state':'paused','reason':'restore_original_definition_and_resources'}
+        wait_for(lambda:role.ready('service'),timeout=5)
+        sample()
+        resumed=control(provider,'status')['data']
+        assert resumed['systemHealthPause'] is None and resumed['admissionPolicy']['accepting']
+        assert resumed['admissionPolicy']['revision']==paused['revision']+1

@@ -14,3 +14,13 @@ version = {file = "VERSION"}
 
 [tool.setuptools.packages.find]
 include = ["ioalab_claude_code*"]
+
+[tool.setuptools.package-data]
+ioalab_claude_code = [
+  "resources/native/.claude-plugin/plugin.json",
+  "resources/native/hooks/hooks.json",
+  "resources/native/hooks/entry.mjs",
+  "resources/native/hooks/causality.mjs",
+  "resources/native/wrapper.mjs",
+  "resources/native/README.md",
+]

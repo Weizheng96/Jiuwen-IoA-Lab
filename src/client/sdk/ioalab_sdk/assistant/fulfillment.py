@@ -12,13 +12,14 @@ from a2c.errors import A2CError
 from a2c.slots import verify_card,period_manifest
 from a2c.jws import header_of
 from a2c.payment import PaymentRejected,verify_voucher
-from ..runtime import RuntimeFault
+from ..runtime import RuntimeFault,ConfirmationDeadline
 from ..runtime import JobOutcome
 from ..runtime import public_error
 from ..adapters import stable
 from ..adapters import report
 from .delivery_files import save_delivery
 from .arbitration import GUARDED
+from .business_deadlines import fulfillment_deadline,ensure_original
 
 
 class Fulfillment:
@@ -89,7 +90,45 @@ class Fulfillment:
         binding={'actor':self.identity.agent_id,'operationId':operation,'subject':record['args'],'stage':'delegation.'+name,'action':name,'preview':record['preview']}
         question=[{'question':'是否授权本次合同环节？','allow_custom_input':False,
                    'options':[{'value':'allow','label':'同意'},{'value':'deny','label':'拒绝'}]}]
-        return binding,self.runtime.confirmations.ensure(binding,kind='question' if name=='answer_step' else 'approval',questions=question if name=='answer_step' else None)
+        saved=record.get('confirmationDeadline')
+        if saved:
+            deadline=ConfirmationDeadline(saved['expiresAt'],saved['responseDueAt'],object_bound=saved.get('objectBound',False))
+            recover=False
+        else:
+            client,contract=self.client(record['args']['contractRef'])
+            deadline=fulfillment_deadline(client,record)
+            recover=self.confirmation_live(operation,record,client,contract)
+        result=ensure_original(self.runtime.confirmations,binding,deadline,
+            kind='question' if name=='answer_step' else 'approval',questions=question if name=='answer_step' else None,recover=recover)
+        if 'responseDueAt' in result and not saved:
+            record['confirmationDeadline']=deadline.value()
+            self.store.checkpoint_set(self.namespace,operation,record)
+        return binding,result
+
+    def confirmation_live(self,operation,record,client,contract):
+        if record.get('phase')!='prepared' or record.get('result') is not None or record.get('approval'):
+            return False
+        try:
+            job=self.runtime.scheduler.get(self.runtime.scheduler.reference(self.identity.agent_id,self.handler(record),operation))
+        except RuntimeFault:job=None
+        if job and job['status'] not in ('waiting','pending'):return False
+        ref=record['args']['contractRef']
+        try:
+            self.role.cases.require_open(client,contract,ref)
+            client.poll(ref)
+            original=client.store.get('cards',ref);card=original['card']
+            if card['fulfillment'].get('termination'):return False
+            if record['name']=='answer_step':
+                pending=[item for item in original.get('steps',[]) if item['answer'] is None]
+                return bool(pending and objects.object_digest(pending[-1]['request'])==record['args']['stepRequestDigest'])
+            if record['name']=='terminate':
+                return card==record['preview']['card'] and original.get('depositVoucher')==record['preview']['depositVoucher']
+            period=record['args']['period']
+            if record['name']=='accept':
+                return len(card['signatures']['6'])==period and len(card['signatures']['7'])<period
+            return (len(card['signatures']['7'])>=period and not any(
+                value.get('purpose')=='installment' and value.get('period')==period for value in original.get('vouchers',[])))
+        except (RuntimeFault,A2CError):return False
 
     def schedule(self,operation,record,contract):
         job=self.runtime.scheduler.submit(self.identity.agent_id,contract['interactionId'],self.handler(record),{'operationId':operation},operation_id=operation,admitted=True)
@@ -171,6 +210,10 @@ class Fulfillment:
         if record['phase']=='executing':raise RuntimeFault('unknown_result','Reconcile original effects before continuing')
         if record.get('approval'):
             if record['name']=='answer_step':
+                client.poll(ref)
+                pending=[item for item in client.store.get('cards',ref).get('steps',[]) if item['answer'] is None]
+                if not pending or objects.object_digest(pending[-1]['request'])!=record['args']['stepRequestDigest']:
+                    return self.finish(operation,record,{'reason':'original_step_changed'},state='rejected')
                 actual=self.runtime.confirmations.native_answer(record['approval'])
                 if not actual or (actual[0]['selected_options']==['allow'])!=record['granted']:raise RuntimeFault('forbidden','The original user answer is unavailable')
             else:self.runtime.confirmations.claim(record['approval'],record['binding'])

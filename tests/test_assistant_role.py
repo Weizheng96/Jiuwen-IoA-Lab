@@ -13,7 +13,8 @@ import pytest
 from conftest import wait_for
 from ioalab_sdk.assistant.role import AssistantRole
 from ioalab_sdk.runtime.config import RuntimeConfig
-from ioalab_sdk.runtime.host import HostResult,ToolBinding
+from ioalab_sdk.runtime.host import ToolBinding
+from submission_fixture import FixtureResult,ScriptedSubmission,bound_runtime
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from ioalab_sdk.runtime.protocol import RuntimeFault
@@ -27,16 +28,15 @@ INPUT={'type':'object','properties':{'slot':{'type':'string'}},'required':['slot
 OUTPUT={'type':'object','properties':{'status':{'type':'string'},'suggested':{'type':'string'}},'required':['status'],'additionalProperties':False}
 
 
-class ScriptedHost:
+class ScriptedHost(ScriptedSubmission):
     """Not model evidence: exercise the exact host callback boundary deterministically."""
     def __init__(self,*,question=False):
         self.turns=[];self.cancelled=[];self.question=question
 
-    def capabilities(self):return {'available':True,'testDouble':True}
-
     def cancel(self,operation):self.cancelled.append(operation);return True
 
-    def run(self,turn):
+    def execute(self,turn):
+        assert turn.allow_native_tools is True
         self.turns.append(turn)
         sid=turn.session_id or 'isolated-session-'+uid()
         turn.on_session(sid)
@@ -50,16 +50,16 @@ class ScriptedHost:
             result=turn.on_tool('reserve_slot',incoming,'isolated-call')
             turn.on_tool('ioa_reply',{'output':result},'isolated-reply')
         except Exception:
-            return HostResult('unknown',sid,{}, {'code':'test_tool_unknown'})
-        return HostResult('completed',sid,{'testDouble':True})
+            return FixtureResult('unknown',sid,{}, {'code':'test_tool_unknown'})
+        return FixtureResult('completed',sid,{'testDouble':True})
 
 
 @contextmanager
 def runtime_at(platform,path,host=None,tools=()):
     path.mkdir()
     config,user=configuration(platform,path,service=False)
-    module=AssistantRole(host,{tool.name:tool for tool in tools})
-    runtime=ResidentRuntime(RuntimeConfig.load(config),modules=(module,),host_status=host.capabilities if host else None)
+    runtime=bound_runtime(RuntimeConfig.load(config),host,lambda selected:AssistantRole(selected,{tool.name:tool for tool in tools}))
+    module=runtime.modules[0]
     runtime.start()
     try:
         wait_for(lambda:runtime.connection.connected)
@@ -133,12 +133,30 @@ def test_two_requests_share_receiver_uuid_and_real_host_session_and_do_not_repea
             assert effects[0][1]['interactionId']==effects[1][1]['interactionId']==first['interactionRef']
             wait_for(lambda:receiver.scheduler.status()['states'].get('completed')==2)
             assert receiver.status()['identities'][0]['executionReady']
+            assert receiver.status()['host']['configured'] and receiver.status()['host']['state']=='unknown'
+            assert not receiver.status()['host']['available']
             closed=client.call('assistant.messaging.close',{'interactionRef':first['interactionRef']})
             assert closed['status']=='accepted'
             wait_for(lambda:client.call('assistant.messaging.status',{'messageRef':sent['data']['messageRef']})['data']['closed'])
             third=client.call('assistant.messaging.send',{'interactionRef':first['interactionRef'],'input':{'slot':'third'}})
             assert third['status']=='rejected' and third['error']['code']=='closed' and len(effects)==2
             assert not sender.scheduler.status()['states']  # Results never become new inbound requests.
+
+
+def test_status_separates_configured_call_readiness_from_unknown_health_and_runtime_blockers(platform,tmp_path):
+    host=ScriptedHost()
+    with runtime_at(platform,tmp_path/'configured',host) as (runtime,rpc,_,_):
+        status=rpc.call('runtime.status')['data']
+        assert status['identities'][0]['executionReady']
+        assert status['host']['configured'] and status['host']['state']=='unknown' and not status['host']['available']
+        runtime.scheduler.error={'code':'not_ready','recovery':'inspect_scheduler'}
+        assert not rpc.call('runtime.status')['data']['identities'][0]['executionReady']
+        runtime.scheduler.error=None
+        runtime.connection.close()
+        wait_for(lambda:not rpc.call('runtime.status')['data']['platformConnected'])
+        assert not rpc.call('runtime.status')['data']['identities'][0]['executionReady']
+    with runtime_at(platform,tmp_path/'unconfigured') as (_,rpc,_,_):
+        assert not rpc.call('runtime.status')['data']['identities'][0]['executionReady']
 
 
 def test_message_status_keeps_each_round_result_and_rejects_interaction_references(platform,tmp_path):

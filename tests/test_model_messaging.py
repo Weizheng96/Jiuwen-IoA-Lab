@@ -9,13 +9,15 @@ from zoneinfo import ZoneInfo
 import pytest
 from ioalab_jiuwen.tools import ConfiguredTools
 from ioalab_sdk.runtime.files import private_json
-from ioalab_sdk.runtime.host import AgentDefinition,HostTurn,ToolBinding
+from ioalab_sdk.runtime import AgentDefinition,ToolBinding
 from ioalab_sdk.runtime.ipc import LocalClient
 from test_assistant import appointment
 from test_assistant_role import runtime_at
 from test_business_tools import schedule,options,Capture
 from model_rule_authoring import configure_with_original_model
 from conftest import wait_for
+from submission_fixture import RecordingSubmission
+from tools.verification.s01_driver import ExplicitSubmission
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -24,15 +26,10 @@ ROOT=Path(__file__).resolve().parents[1]
 @pytest.mark.skipif(not os.environ.get('IOALAB_REAL_BUSINESS_DATA_DIR'),reason='Opt-in original sender and receiver models')
 def test_original_sender_discovers_interface_and_reschedules_without_scripted_second_input(platform,tmp_path):
     from ioalab_jiuwen.process import ProcessHost
+    # Real adapters only through S01: the receiver via its SDK role, sender/author via the explicit SDK driver; no probe gate.
     def original():
-        host=ProcessHost(json.loads(os.environ['IOALAB_REAL_BUSINESS_COMMAND']),os.environ['IOALAB_REAL_BUSINESS_DATA_DIR'],model=os.environ.get('IOALAB_REAL_BUSINESS_MODEL'))
-        assert host.probe()['available'],host.capabilities()
-        return host
-    sender_host=original();receiver_host=original();author_host=original();receiver_turns=[];run_receiver=receiver_host.run
-    def receive(turn):
-        receiver_turns.append(turn)
-        return run_receiver(turn)
-    receiver_host.run=receive
+        return ProcessHost(json.loads(os.environ['IOALAB_REAL_BUSINESS_COMMAND']),os.environ['IOALAB_REAL_BUSINESS_DATA_DIR'],model=os.environ.get('IOALAB_REAL_BUSINESS_MODEL'))
+    sender_host=original();author_host=original();receiver_host=RecordingSubmission(original());receiver_turns=receiver_host.turns
     calendar=schedule(tmp_path/'calendar');initial=appointment()
     version=calendar.show();document=version['document']
     document['events']=[{'id':'busy','title':'PRIVATE-CALENDAR-TITLE','start':initial['start'],'end':initial['end']}]
@@ -67,9 +64,11 @@ def test_original_sender_discovers_interface_and_reschedules_without_scripted_se
                 local_start=datetime.fromisoformat(initial['start']).astimezone(ZoneInfo('Asia/Shanghai'))
                 day=local_start.strftime('%Y-%m-%d')
                 request=f'请向王经理的平台账号{target["username"]}预约“{initial["title"]}”，优先北京时间{day} 10:00到10:30；如果冲突，可以按对方建议在当天09:00到12:00之间改约一次，保持30分钟，取得实际预约结果后告诉我。'
-                result=sender_host.run(HostTurn(workflow,sender.identities[0].agent_id,workflow,definition,request,
-                    str(tmp_path/'sender-model'),timeout_seconds=300,on_session=lambda sid:sessions.append(sid),on_tool=call))
-                assert result.status=='completed',result
+                driver=ExplicitSubmission(sender_host,tmp_path/'sender-driver',actor=sender.identities[0].agent_id)
+                try:result=driver.submit(workflow,definition,request,workspace=tmp_path/'sender-model',timeout=330,
+                    on_event=lambda event:event.result.session_id and sessions.append(event.result.session_id),on_tool=call)
+                finally:driver.close()
+                assert result.state=='completed' and result.terminal,result
                 sends={item['result']['data']['messageRef']:item for item in trace if item['name']=='assistant.messaging.send' and item['result']['status']=='accepted'}
                 assert len(sends)==2,trace
                 ids=list(sends);queries=[item['result']['data'] for item in trace if item['name']=='assistant.messaging.status' and item['result']['status']=='completed']
@@ -86,7 +85,7 @@ def test_original_sender_discovers_interface_and_reschedules_without_scripted_se
                 assert end-start==timedelta(minutes=30) and proposed['title']==initial['title']
                 assert len(set(sessions))==1 and len({turn.session_id for turn in receiver_turns if turn.session_id})==1
                 assert authoring['sessionId'] not in set(sessions)|{turn.session_id for turn in receiver_turns}
-                assert len({turn.operation_id for turn in receiver_turns})==2
+                assert len({turn.job_id for turn in receiver_turns})==2
                 wait_for(lambda:len(capture.messages)==1)
                 assert 'PRIVATE-CALENDAR-TITLE' not in json.dumps([first,second])
                 records=module.tools['calendar.book'].invoke.__self__.records()
@@ -97,7 +96,7 @@ def test_original_sender_discovers_interface_and_reschedules_without_scripted_se
                 second_send=next(i for i,item in enumerate(trace) if item is sends[ids[1]])
                 assert first_read<second_send
                 report={'scope':'Original owner-authoring, sender and receiver Process models; actual product workflows, published rules, autonomous rescheduling over resident HTTP/WS; local SMTP only',
-                    'model':sender_host.capabilities()['model'],'interactionId':first['interactionRef'],'messageRefs':ids,
+                    'model':sender_host.model,'interactionId':first['interactionRef'],'messageRefs':ids,
                     'senderSessionId':sessions[0],'receiverSessionId':next(turn.session_id for turn in receiver_turns if turn.session_id),
                     'first':first['result']['output'],'second':second['result']['output'],'smtpMessages':1,
                     'senderToolCalls':[item['name'] for item in trace],'secondBusinessInputWrittenBy':'original sender model',

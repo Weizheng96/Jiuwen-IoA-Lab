@@ -8,19 +8,25 @@ import secrets
 import subprocess
 import threading
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit,parse_qs
 import uuid
 import webbrowser
 
 from .protocol import RuntimeFault
 from .confirmation_view import present
+from .user_pending import UserPending
 
 
 class UserUi:
     page_name='user.html'
 
-    def snapshot(self):
-        return {'confirmations':[present(item) for item in self.confirmations.list()]}
+    def snapshot(self,*,view='pending',cursor=None,reference=None):
+        if reference is not None:
+            if not isinstance(reference,str) or not 1<=len(reference)<=256:
+                raise RuntimeFault('invalid_input','Original confirmation reference required')
+            return {'confirmation':present(self.confirmations.get(reference,detail=True))}
+        result=self.confirmations.page(view=view,cursor=cursor)
+        return {**result,'confirmations':[present(item) for item in result['confirmations']]}
 
     def decision(self,body,session):
         if set(body)-{'reference','bindingDigest','decision','answers'}:raise RuntimeFault('invalid_input','Unknown user decision fields')
@@ -32,6 +38,8 @@ class UserUi:
         self._authority=confirmations.user_channel() if confirmations is not None else None
         self._entries={};self._sessions={};self._lock=threading.RLock()
         self.origin=None
+        # The sole background reminder; the assembly starts it after IPC listens.
+        self.reminders=UserPending(confirmations,lambda:self.open()) if confirmations is not None else None
 
     def entry_url(self):
         if not self.origin:raise RuntimeFault('not_ready','Local user page is not listening')
@@ -44,17 +52,19 @@ class UserUi:
 
     def open(self):
         url=self.entry_url()
+        # Manual opens are not rate-limited; rows already on the page are not re-reminded.
+        latest=self.reminders.marker() if self.reminders else None
         try:
             if self.browser:
                 subprocess.Popen([self.browser,url],shell=False,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,close_fds=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-                return True
-            if not webbrowser.open(url):
+            elif not webbrowser.open(url):
                 raise RuntimeFault('not_ready','The local user browser could not be opened','configure_browser')
-            return True
         except (OSError,webbrowser.Error):
             # OS errors can contain the one-time URL; never return them over RPC.
             raise RuntimeFault('not_ready','The local user browser could not be opened','configure_browser') from None
+        if self.reminders:self.reminders.covered(latest)
+        return True
 
     def _cookie_name(self):
         # Browser cookies do not isolate ports; this origin comes from our listener.
@@ -90,7 +100,7 @@ class UserUi:
         if not path.path.startswith('/user'):return False
         try:
             origin=self.origin
-            if request.headers.get('Host')!=urlsplit(origin).netloc or path.query:
+            if request.headers.get('Host')!=urlsplit(origin).netloc or (path.query and not (request.command=='GET' and path.path=='/user/api')):
                 raise RuntimeFault('forbidden','User page Host must match the local listener')
             supplied=request.headers.get('Origin')
             if supplied is not None and supplied!=origin:raise RuntimeFault('forbidden','User actions must come from the local page')
@@ -119,7 +129,13 @@ class UserUi:
                 return True
             session=self._session(request)
             if request.command=='GET' and path.path=='/user/api':
-                request.reply(200,{'csrf':session['csrf'],**self.snapshot()})
+                try:
+                    query=parse_qs(path.query,strict_parsing=True,max_num_fields=3,keep_blank_values=True)
+                    if (set(query)-{'view','cursor','reference'} or any(len(v)!=1 or not v[0] for v in query.values())
+                        or ('reference' in query and len(query)!=1)):raise ValueError()
+                except ValueError:
+                    raise RuntimeFault('invalid_input','Invalid confirmation page query') from None
+                request.reply(200,{'csrf':session['csrf'],**self.snapshot(**{key:value[0] for key,value in query.items()})})
                 return True
             if request.command=='POST' and path.path=='/user/decision':
                 if supplied!=origin or not hmac.compare_digest(request.headers.get('X-Ioa-Csrf','').encode(),session['csrf'].encode()):

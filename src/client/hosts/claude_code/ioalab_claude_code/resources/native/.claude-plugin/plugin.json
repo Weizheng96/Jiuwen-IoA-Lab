@@ -1,0 +1,6 @@
+{
+  "name": "ioa-native-client",
+  "version": "0.0.1",
+  "description": "Trusted IoA client entry and native submission transport. Retains native settings and permissions.",
+  "author": {"name": "IoA Lab"}
+}

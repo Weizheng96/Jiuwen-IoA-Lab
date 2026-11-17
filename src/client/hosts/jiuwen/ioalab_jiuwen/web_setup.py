@@ -22,6 +22,11 @@ def prepare_extension(config_path, arguments_path, role):
     if role not in ('assistant','service') or profile not in {item['key'] for item in config.identities if item['role']==role}:
         raise RuntimeFault('invalid_input', 'Select an owned local identity profile of this role','correct_input')
     host_config = dict(config.host)
+    if 'registrations' in host_config:
+        host_config=dict(host_config['registrations'][host_config['default']])
+        if host_config.get('type')!='jiuwen':
+            raise RuntimeFault('not_ready','Select the intended Jiuwen registration for extension preparation')
+    host_config.pop('type',None)
     specs = host_config.pop('business_tools', [])
     if not isinstance(specs, list): raise RuntimeFault('invalid_input', 'Configure local business factories')
     selected = [item for item in specs if isinstance(item, dict) and item.get('factory') == 'jiuwen-web' and item.get('profile') == profile]

@@ -40,13 +40,17 @@ def test_bootstrap_only_forwards_user_paths_without_opening_them(tmp_path,monkey
     config=tmp_path/'not-opened-settings.json';args=tmp_path/'not-opened-arguments.json'
     assert module.main([operation,'--config',str(config),'--args-file',str(args)])==0
     result=json.loads(capsys.readouterr().out);assert result['status']=='completed'
-    assert len(calls)==1 and str(config.resolve()) in calls[0] and str(args.resolve()) in calls[0]
-    assert '--home' not in calls[0] and not config.exists() and not args.exists()
-    if operation=='runtime.web-extension':assert calls[0][-2:]==['--role',role]
-    if operation=='runtime.configure':assert calls[0]==['-m','ioalab_client.runtime','configure','--config',str(config.resolve()),'--args-file',str(args.resolve())]
+    business=operation.startswith(('assistant.','provider.'))
+    assert len(calls)==(2 if business else 1)
+    if business:assert calls[0]==['-m','ioalab_client.runtime','start','--config',str(config.resolve())]
+    call=calls[-1]
+    assert str(config.resolve()) in call and str(args.resolve()) in call
+    assert '--home' not in call and not config.exists() and not args.exists()
+    if operation=='runtime.web-extension':assert call[-2:]==['--role',role]
+    if operation=='runtime.configure':assert call==['-m','ioalab_client.runtime','configure','--config',str(config.resolve()),'--args-file',str(args.resolve())]
 
 
-def test_bom_configuration_and_arguments_cross_actual_product_cli_and_ipc(platform,tmp_path,monkeypatch,capsys):
+def test_bom_configuration_and_arguments_cross_sdk_cli_and_ipc(platform,tmp_path,monkeypatch,capsys):
     from ioalab_sdk.assistant.role import AssistantRole
     monkeypatch.setenv('PYTHONIOENCODING','ascii');monkeypatch.setenv('PYTHONUTF8','0')
     path,_=configuration(platform,tmp_path)
@@ -56,15 +60,14 @@ def test_bom_configuration_and_arguments_cross_actual_product_cli_and_ipc(platfo
     runtime=ResidentRuntime(config,modules=(ProviderRole(),assistant)).start()
     try:
         wait_for(lambda:runtime.connection.connected)
-        module=product(tmp_path,monkeypatch,'service')
         payload={'profile':'service','terms':terms()}
         args=tmp_path/'起草参数.json';args.write_text(json.dumps(payload,ensure_ascii=False),encoding='utf-8-sig')
         assert original.startswith(b'\xef\xbb\xbf') and args.read_bytes().startswith(b'\xef\xbb\xbf')
-        command=['provider.template.draft','--config',str(path),'--args-file',str(args)]
-        assert module.main(command)==0
+        command=['call','provider.template.draft','--config',str(path),'--args-file',str(args)]
+        assert main(command)==0
         one=json.loads(capsys.readouterr().out)
         assert one['status']=='completed' and one['data']['template']['kind']=='template'
-        assert module.main(command)==0
+        assert main(command)==0
         two=json.loads(capsys.readouterr().out)
         assert one==two and read_json(args)['operationId']==one['operationId']
         assert {key:read_json(args)[key] for key in payload}==payload
@@ -73,16 +76,15 @@ def test_bom_configuration_and_arguments_cross_actual_product_cli_and_ipc(platfo
         arguments=tmp_path/'中文参数.json';values={'purpose':purpose,'budget':50,'proposalFeeLimit':0}
         arguments.write_text(json.dumps(values,ensure_ascii=False),encoding='utf-8-sig')
         assert arguments.read_bytes().startswith(b'\xef\xbb\xbf')
-        personal=product(tmp_path/'personal-product',monkeypatch,'assistant')
-        prepare=['assistant.delegation.prepare','--config',str(path),'--args-file',str(arguments)]
-        assert personal.main(prepare)==0
+        prepare=['call','assistant.delegation.prepare','--config',str(path),'--args-file',str(arguments)]
+        assert main(prepare)==0
         prepared=json.loads(capsys.readouterr().out)
         assert prepared['status']=='completed' and not prepared['data']['authorized']
         context=assistant.delegation.task(prepared['data']['taskRef'])['context']
         assert context['purpose']==purpose and context['proposalFeeLimit']=='0.00'
         saved=read_json(arguments)
         assert {key:saved[key] for key in values}==values and saved['operationId']==prepared['operationId']
-        assert personal.main(prepare)==0 and json.loads(capsys.readouterr().out)==prepared
+        assert main(prepare)==0 and json.loads(capsys.readouterr().out)==prepared
         assert runtime.confirmations.list()==[]
         assert not platform.db.rows('SELECT * FROM delegation_scopes WHERE actor=?',assistant.identity.agent_id)
         assert not platform.db.rows('SELECT * FROM transfers WHERE payer_id=?',runtime.account.account['id'])

@@ -20,16 +20,16 @@ def host_requirement(req):
 
 def constraints(*,root=ROOT,previous=None,work=None,index='https://pypi.tuna.tsinghua.edu.cn/simple',resolver='uv'):
  root=Path(root).resolve();local={};vendor={}
- for folder in [root/'src/client/sdk',*(root/'src/client/hosts'/h for h in HOSTS)]:
+ for folder in [root/'src/a2c',root/'src/client/sdk',*(root/'src/client/hosts'/h for h in HOSTS)]:
   p=tomllib.loads((folder/'pyproject.toml').read_text(encoding='utf-8'))['project'];local[canonicalize_name(p['name'])]=(p,(folder/'VERSION').read_text().strip().removeprefix('v'))
  for item in json.loads((root/'vendor/SOURCES.json').read_text())['components']:
-  if item['id'] not in ('a2c','jiuwenswarm-process-sdk'):continue
+  if item['id']!='jiuwenswarm-process-sdk':continue
   info=item['wheelInfo']
   with zipfile.ZipFile(root/'vendor'/info['file']) as z:meta=BytesParser().parsebytes(z.read(next(n for n in z.namelist() if n.endswith('.dist-info/METADATA'))))
   vendor[canonicalize_name(info['package'])]=(info['version'],meta.get_all('Requires-Dist',[]))
  excluded=set(local)|set(vendor)|{'ioalab-official'}
  def external(values):return [v for v in values if canonicalize_name(Requirement(v).name) not in excluded and 'extra ==' not in v]
- base=external(local['ioalab-sdk'][0]['dependencies'])+external(vendor['a2c'][1]);groups={'core':base}
+ base=external(local['ioalab-sdk'][0]['dependencies'])+external(local['a2c'][0]['dependencies']);groups={'core':base}
  for host,name in HOSTS.items():
   groups[host]=base+external(local[name][0]['dependencies'])
   if host=='jiuwen':groups[host]+=external(vendor['jiuwenswarm-process-sdk'][1])
@@ -47,7 +47,7 @@ def constraints(*,root=ROOT,previous=None,work=None,index='https://pypi.tuna.tsi
    return lines(target)
   compile_group('union',[v for values in groups.values() for v in values],folder/'previous.txt')
   core=compile_group('core',base,folder/'union.txt');core_keys={str(r) for r in core};output=[str(r) for r in core]
-  output+=['ioalab-sdk=='+local['ioalab-sdk'][1],'a2c=='+vendor['a2c'][0]]
+  output+=['ioalab-sdk=='+local['ioalab-sdk'][1],'a2c=='+local['a2c'][1]]
   for host,name in HOSTS.items():
    requirements=[r for r in compile_group(host,groups[host],folder/'union.txt') if str(r) not in core_keys];requirements.append(Requirement(name+'=='+local[name][1]))
    if host=='jiuwen':requirements.append(Requirement('jiuwenswarm-process-sdk=='+vendor['jiuwenswarm-process-sdk'][0]))

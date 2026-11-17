@@ -9,7 +9,7 @@ import uuid
 import pytest
 from conftest import wait_for
 from ioalab_sdk.provider import ProviderRole
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult,bound_runtime
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.resident import ResidentRuntime
@@ -28,24 +28,26 @@ class InterruptedProductionHost(QuoteHost):
         self.production_turns = []
         self.failed_reports = []
 
-    def run(self, turn):
+    def execute(self, turn):
         if json.loads(turn.input)['phase'] != 'production':
-            return super().run(turn)
+            return super().execute(turn)
         self.turns.append(turn)
         self.production_turns.append(turn)
         turn.on_session(turn.session_id)
         failing = len(self.production_turns) <= self.failed_rounds
         content = 'candidate needing correction' if failing else 'actual file bytes'
         files = {'result.json': {'text': json.dumps({'delivered': content}), 'mediaType': 'application/json'}}
-        result = turn.on_tool('provider.task.selftest', {'files': files}, 'selftest-' + str(len(self.production_turns)))
+        # Native call IDs are scoped by their real request, not globally unique
+        # across authorized production rounds on the same SDK job.
+        result = turn.on_tool('provider.task.selftest', {'files': files}, 'same-native-selftest-call')
         if failing:
             assert result['status'] == 'fail', result
             self.failed_reports.append(copy.deepcopy(result))
-            return HostResult(self.host_status, turn.session_id, {}, {'code': 'explicit_test_host_failure'},
+            return FixtureResult(self.host_status, turn.session_id, {}, {'code': 'explicit_test_host_failure'},
                               request_id='known-production-round-' + str(len(self.production_turns)))
         assert result['status'] == 'pass', result
         assert turn.on_tool('provider.task.deliver', {'files': files}, 'deliver')['status'] == 'delivered'
-        return HostResult('completed', turn.session_id, {'explicitProductionHostDouble': True},
+        return FixtureResult('completed', turn.session_id, {'explicitProductionHostDouble': True},
                           request_id='known-production-round-' + str(len(self.production_turns)))
 
 
@@ -110,8 +112,7 @@ def test_verified_production_resumes_same_contract_session_and_completes_payment
         if restart:
             config = provider.config
             provider.close()
-            role = ProviderRole(host=host)
-            fresh = ResidentRuntime(config, modules=(role,), host_status=host.capabilities).start()
+            fresh = bound_runtime(config,host,lambda selected:ProviderRole(selected)).start()
             provider = fresh
             wait_for(lambda: provider.connection.connected)
             assert snapshot(provider, original['taskRef'])['recoveryMode'] == 'runtime_verified'
@@ -124,6 +125,8 @@ def test_verified_production_resumes_same_contract_session_and_completes_payment
             assert current['status'] == 'completed' and current['sessionId'] == original['sessionId']
             assert all(turn.session_id == original['sessionId'] for turn in host.production_turns)
             assert len(host.production_turns) == 2 and host.failed_reports == failed
+            assert host.production_turns[0].operation_id==original['taskRef']
+            assert host.production_turns[1].operation_id!=original['taskRef']
             state = contract_state(assistant, contract)
             assert state['interactionId'] == original['interactionId']
             for slot in ('1', '2', '3'):

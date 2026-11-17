@@ -1,6 +1,6 @@
 """Owned resources install independently; configuration never performs provider work."""
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 
 import pytest
@@ -47,6 +47,18 @@ def test_all_owned_definitions_prepare_unsigned_templates_and_sample_free_execut
         assert not {'provider', 'templateDigest', 'signatures'} & template.keys()
         assert template['samples'] == []
         assert template['pricing']['paymentProviders'] == [PAYMENT]
+        name = definition['deliverable']['name']
+        deadlines = template['deadlines']
+        resources = value['execution']['resources']
+        assert deadlines['respondWithin'] == 'PT24H'
+        assert deadlines['startWithin'] == 'PT30M'
+        assert deadlines['deliverWithin'] == {name: 'PT30M'}
+        assert resources['acceptWithin'] == {name: 'PT24H'}
+        if template['formation'] != 'proposal':
+            assert deadlines['acceptWithin'] == resources['acceptWithin']
+        if definition.get('steps'):
+            assert deadlines['authorizeWithin'] == 'PT24H'
+            assert resources['requiredAuthorizations'] == definition['steps']
         assert value['service']['categoryId'] == definition['category']
         assert not {'sample', 'sample_spec', 'sample_inputs', 'source'} & value['execution']['resources'].keys()
         assert json.dumps(definition['sample'], ensure_ascii=False) not in json.dumps(value['execution'], ensure_ascii=False)
@@ -54,6 +66,56 @@ def test_all_owned_definitions_prepare_unsigned_templates_and_sample_free_execut
         value['execution']['resources']['pricing']['price'] = 'changed'
     assert seed_manifest() == before
     assert next(item for item in definitions() if item['id'] == 'wechat-posts')['pricing']['price'] == '6'
+
+
+@pytest.mark.parametrize('configured', [None, 'PT2H'])
+def test_official_defaults_and_explicit_overrides_keep_template_resources_consistent(monkeypatch, configured):
+    from ioalab_services import profiles
+    definition = next(d for d in definitions() if d['id'] == 'ppt-outline')
+    for key in ('respondWithin', 'acceptWithin', 'authorizeWithin'):
+        if configured is None:
+            definition['deadlines'].pop(key, None)
+        else:
+            definition['deadlines'][key] = configured
+    original = deepcopy(definition)
+    monkeypatch.setattr(profiles, 'definitions', lambda: [definition])
+    ref = {'id': definition['verifier']['id'], 'uri': 'urn:owned', 'digest': 'sha256:' + 'a' * 64}
+    value = prepare_service(definition['id'], profile='test', verifier_ref=ref, payment_provider=PAYMENT)
+    dl = value['service']['templates'][0]['deadlines']
+    expected = configured or 'PT24H'
+    assert dl['respondWithin'] == dl['authorizeWithin'] == expected
+    assert dl['acceptWithin'] == value['execution']['resources']['acceptWithin'] == {definition['deliverable']['name']: expected}
+    assert definition == original
+
+
+def test_official_windows_use_original_protocol_anchors_and_capped_pause():
+    from a2c.slots import Chain
+    from a2c.timing import StepWindow, accept_deadline, deliver_deadline, status
+    definition = next(d for d in definitions() if d['id'] == 'ppt-outline')
+    ref = {'id': definition['verifier']['id'], 'uri': 'urn:owned', 'digest': 'sha256:' + 'a' * 64}
+    at = datetime(2030, 1, 1, tzinfo=timezone.utc)
+    template = prepare_service(definition['id'], profile='test', verifier_ref=ref,
+                               payment_provider=PAYMENT, now=at)['service']['templates'][0]
+    card = {'fulfillment': {}}
+    step = StepWindow(1, at + timedelta(minutes=1), None)
+    chain = Chain(effective=at, receipt=at)
+    due = at + timedelta(minutes=30, hours=24)
+    assert deliver_deadline(template, chain, 1, [step], at + timedelta(days=2)) == due
+    before = status(template, card, chain, step.requested + timedelta(hours=24), [step])
+    after = status(template, card, chain, step.requested + timedelta(hours=24, seconds=1), [step])
+    assert not before.provider_grounds
+    assert any('authorizeWithin' in g for g in after.provider_grounds)
+    chain.periods[5] = [at + timedelta(minutes=5)]
+    deadline = chain.periods[5][0] + timedelta(hours=24)
+    saved = json.loads(json.dumps(template))
+    renewed = {**deepcopy(saved), 'validUntil': '2030-04-01T00:00:00Z'}
+    for original in (template, saved, renewed):
+        assert accept_deadline(original, card, chain, 1) == deadline
+        assert not status(original, card, chain, deadline).provider_grounds
+        assert any('acceptWithin' in g for g in status(original, card, chain, deadline + timedelta(seconds=1)).provider_grounds)
+    legacy = deepcopy(saved)
+    legacy['deadlines']['acceptWithin'] = {definition['deliverable']['name']: 'PT15M'}
+    assert accept_deadline(legacy, card, chain, 1) == chain.periods[5][0] + timedelta(minutes=15)
 
 
 def test_prepare_requires_published_owned_reference_and_does_not_mutate_inputs():

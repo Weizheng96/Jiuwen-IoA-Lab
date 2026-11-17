@@ -16,7 +16,7 @@ from .vendor import validate
 from .wheels import build_wheel
 
 ROOT = Path(__file__).resolve().parents[1]
-PROJECTS = ('src/platform', 'vendor/A2X-registry', 'src/client/sdk', 'src/client/hosts/jiuwen', 'src/official')
+PROJECTS = ('src/a2c', 'src/platform', 'vendor/A2X-registry', 'src/client/sdk', 'src/client/hosts/jiuwen', 'src/official')
 
 
 def build_wheels(root, output):
@@ -74,6 +74,7 @@ def assemble(root, folder, target, locks, wheels, skills):
     assets = {}
     sources = [('seed', root / 'deploy/default-seed.json', 'seed.json'),
                ('sources', root / 'vendor/SOURCES.json', 'attribution/SOURCES.json')]
+    sources.append(('a2cNotice', root / 'src/a2c/NOTICE.md', 'attribution/licenses/a2c/NOTICE.md'))
     for role in ('assistant', 'provider'):
         original = Path(skills) / ('ioalab-' + role + '-skill.zip')
         sources.append((role + 'Skill', original, 'skills/' + original.name))

@@ -288,27 +288,6 @@
       ]
     },
     {
-      "id": "a2c",
-      "repository": "https://github.com/Weizheng96/AgentContractProtocol",
-      "commit": "0f6665b4af72be39f23252f6ca342896269fed8e",
-      "subdirectory": "src",
-      "license": "Apache-2.0",
-      "delivery": "existing-wheel",
-      "wheel": "wheels/a2c-0.0.23-py3-none-any.whl",
-      "licenseFiles": {
-        "licenses/a2c/NOTICE.md": "cf8ae69f0859b0debe37d4322c8ca268bcdd4e8865108d1d62b16edf87fb119f"
-      },
-      "archive": "sources/a2c-0f6665b4af72.tar.gz",
-      "archiveSha256": "1ade87889ac64b20b0509a57891ef3795762ac343d47d6a2faebf10e02f11970",
-      "sourceTarSha256": "6679d5ecbe49ac9651bcba04ad85e7ba2606fa2da5d48cb85407b6fd7fb47f1e",
-      "wheelInfo": {
-        "file": "wheels/a2c-0.0.23-py3-none-any.whl",
-        "sha256": "bdeaf7399fdf441d99ea51b8babbc8a393e77821f7cb1a1727daa2096b8dbe95",
-        "package": "a2c",
-        "version": "0.0.23"
-      }
-    },
-    {
       "id": "workswarm",
       "repository": "https://github.com/openJiuwen-ai/jiuwenswarm.git",
       "commit": "b465f45c8cb059117ffd64c92178493239b613d1",

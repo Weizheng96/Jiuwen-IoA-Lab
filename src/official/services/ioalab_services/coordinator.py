@@ -44,8 +44,8 @@ def tick(deployment,*,launch=True,clock=time.time,stop_event=None):
             expected={p['profile']:(p['agentId'],p['protocolId']) for p in entry['identities']}
             if actual!=expected:raise RuntimeFault('identity_conflict','Runtime identities differ from original official preparation')
             row.update(connected=live['platformConnected'],hostAvailable=bool(live['host'].get('available')))
-            if not row['connected'] or not row['hostAvailable'] or live['stopping']:
-                raise RuntimeFault('not_ready','Restore the original host and platform connection')
+            if not row['connected'] or live['stopping']:
+                raise RuntimeFault('not_ready','Restore the original platform connection')
         except RuntimeFault as exc:row['error']=public_error(exc);continue
         for identity in entry['identities']:
             if stop_event is not None and stop_event.is_set():return {'status':'waiting','stopping':True,'accounts':accounts,'allServicesReady':False}

@@ -12,9 +12,13 @@ class WireError(Exception):
     pass
 
 
+class WireRejected(WireError):
+    """The server answered with a JSON-RPC error: the request was not accepted."""
+
+
 class Stdio:
-    def __init__(self, command, *, cwd):
-        self.process=subprocess.Popen(command,cwd=cwd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
+    def __init__(self, command, *, cwd, env=None):
+        self.process=subprocess.Popen(command,cwd=cwd,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,bufsize=0,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
         self._output=io.BufferedReader(self.process.stdout)
         self._messages=queue.Queue(maxsize=256)
@@ -78,8 +82,8 @@ class Stdio:
         return key
 
     def receive(self,deadline):
-        remaining=deadline-time.monotonic()
-        if remaining<=0:raise WireError('Codex deadline exceeded')
+        remaining=None if deadline is None else deadline-time.monotonic()
+        if remaining is not None and remaining<=0:raise WireError('Codex deadline exceeded')
         try:value=self._messages.get(timeout=remaining)
         except queue.Empty:raise WireError('Codex deadline exceeded') from None
         if isinstance(value,Exception):raise value
@@ -90,7 +94,7 @@ class Stdio:
         while True:
             message=self.receive(deadline)
             if message.get('id')==key and 'method' not in message:
-                if 'error' in message:raise WireError('Codex rejected '+method)
+                if 'error' in message:raise WireRejected('Codex rejected '+method)
                 return message['result']
             if handle:handle(message)
             elif 'method' in message and 'id' in message:

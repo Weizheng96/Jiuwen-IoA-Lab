@@ -5,6 +5,7 @@ operations only when the table names that role as handler. Script operations are
 product script or the SDK/host CLI and never reach the resident runtime.
 """
 from dataclasses import dataclass
+from .native_entry_bindings import NATIVE_ENTRY_BIND_OPERATION
 
 # Exposure: AGENT operations are documented in the product skills; INTERNAL ones are callable but not taught.
 AGENT, INTERNAL = 'agent', 'internal'
@@ -55,6 +56,7 @@ PERIOD = (shape(('contractRef', 'period'), CONTRACT_STEP),)
 OPERATIONS = (
     # Resident runtime fixed operations.
     Operation('runtime.status', RUNTIME, NONE, READ, False, LOCAL_READ, AGENT),
+    Operation(NATIVE_ENTRY_BIND_OPERATION, RUNTIME, NONE, LOCAL, False, SETUP, AGENT),
     Operation('runtime.stop', RUNTIME, (shape(('bootId',)),), CONTROL, False, ('completed', 'waiting', 'rejected'), AGENT),
     Operation('runtime.open_ui', RUNTIME, NONE, LOCAL, False, LOCAL_READ, AGENT),
     Operation('identity.status', RUNTIME, NONE, READ, False, LOCAL_READ, AGENT),

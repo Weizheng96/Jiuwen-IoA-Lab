@@ -145,9 +145,9 @@ def test_endpoint_does_not_apply_a_different_original_request_rejection(original
 
 
 class UnsupportedModelHost(QuoteHost):
-    def run(self,turn):
+    def execute(self,turn):
         self.verifier={**self.verifier,'disputeModels':['unsupported-market-rejection-test-model']}
-        return super().run(turn)
+        return super().execute(turn)
 
 
 @pytest.mark.parametrize('existing_unknown',[False,True])

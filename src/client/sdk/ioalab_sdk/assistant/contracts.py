@@ -9,10 +9,11 @@ from a2c.errors import A2CError
 from a2c.jws import sign
 from a2c.slots import verify_card
 from a2c.template import acceptance_of,accept_within
-from ..runtime import RuntimeFault
+from ..runtime import RuntimeFault,encode
 from ..runtime import JobOutcome
 from ..adapters import stable
 from .candidates import checked_candidate
+from .business_deadlines import candidate_deadline,ensure_original
 
 
 class Contracts:
@@ -54,14 +55,21 @@ class Contracts:
                         if any(item['name']==name and item.get('reviewBeforeSigning') for item in quote['template'].get('inputs',[]))},
                         'materials':{name:{**value,'sendAt':'before-signing' if any(item['name']==name and item.get('reviewBeforeSigning') for item in quote['template'].get('inputs',[])) else 'work.start'} for name,value in card['inputs'].items()},
                         'notice':'本次确认允许签署本合同及按所示阶段发送这些材料；实名环节和验收另行确认'}}
-            record={'quoteRef':args['quoteRef'],'taskRef':quote['taskRef'],'service':quote['service'],'template':quote['template'],'subject':copy.deepcopy(card),
-                    'initial':quote['initial'],'binding':binding,'ttl':min(900,until-time.time()),'phase':'prepared','jobInteraction':quote['result'].get('interactionId',ref),
+            record={'noticeOwner':self.store.checkpoint('native-notice-owners',encode([self.identity.agent_id,operation])),'quoteRef':args['quoteRef'],'taskRef':quote['taskRef'],'service':quote['service'],'template':quote['template'],'subject':copy.deepcopy(card),
+                    'initial':quote['initial'],'binding':binding,'confirmationDeadline':{'expiresAt':until,'responseDueAt':None},'phase':'prepared','jobInteraction':quote['result'].get('interactionId',ref),
                     **{key:quote['result'][key] for key in ('interactionId','admissionId') if key in quote['result']}}
             self.store.checkpoint_set(self.namespace,ref,record)
         if record.get('result') is not None:return {'status':record['status'],'data':record['result']}
         if record['phase']=='approved':return self.schedule(ref,record)
         if record['phase']!='prepared':return self.status(ref)
-        decision=self.runtime.confirmations.ensure(record['binding'],ttl=record['ttl'])
+        verified=checked_candidate(self.trading,quote)
+        deadline=candidate_deadline(verified)
+        if record.get('confirmationDeadline') and record['confirmationDeadline']!=deadline.value():
+            raise RuntimeFault('id_conflict','Original candidate deadline changed')
+        recover=bool(self.role.delegation.status(record['taskRef'])['data']['authorized'])
+        decision=ensure_original(self.runtime.confirmations,record['binding'],deadline,recover=recover)
+        if 'responseDueAt' in decision and 'confirmationDeadline' not in record:
+            record=self.save(ref,record,confirmationDeadline=deadline.value())
         if args.get('confirmationRef',decision['reference'])!=decision['reference']:raise RuntimeFault('id_conflict','Use this exact contract confirmation')
         if decision['status']!='approved':return {'status':'waiting' if decision['status']=='pending' else 'rejected','data':{'contractRef':ref,'quoteRef':record['quoteRef'],'confirmationRef':decision['reference']}}
         self.runtime.confirmations.claim(decision['reference'],record['binding'])
@@ -69,6 +77,7 @@ class Contracts:
         return self.schedule(ref,record)
 
     def schedule(self,reference,record):
+        record={**record,'nativeNoticeWatch':True};self.store.checkpoint_set(self.namespace,reference,record)
         job=self.runtime.scheduler.submit(self.identity.agent_id,record['jobInteraction'],'assistant.contract',{'contractRef':reference},operation_id=reference)
         return {'status':job['status'] if job['status'] in ('completed','rejected','failed','unknown') else 'accepted','data':{'contractRef':reference,'quoteRef':record['quoteRef'],'job':job}}
 

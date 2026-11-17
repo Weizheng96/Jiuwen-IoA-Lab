@@ -1,5 +1,6 @@
 """Narrow role guards; real WS/AP2 and signature evidence live in integration tests."""
 from contextlib import nullcontext
+from datetime import datetime,timezone
 import copy
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -8,6 +9,7 @@ import httpx
 import pytest
 from a2c.payment import PaymentRejected
 from ioalab_sdk.assistant import fulfillment as module
+from ioalab_sdk.assistant import business_deadlines
 from ioalab_sdk.assistant.fulfillment import Fulfillment
 from ioalab_sdk.runtime.protocol import RuntimeFault
 
@@ -33,8 +35,9 @@ def guard(monkeypatch):
     transport=SimpleNamespace(operation=lambda *_:nullcontext(),payment_recovery=Mock(side_effect=lambda *_:copy.deepcopy(evidence)),
                               received=Mock(return_value=None),control_receipt=Mock(return_value=None))
     client=SimpleNamespace(store=SimpleNamespace(get=lambda *_:copy.deepcopy(source)),card=lambda *_:copy.deepcopy(card),
+                           template=lambda *_:{'deadlines':{'respondWithin':'PT2H'}},
                            transport=transport,pay=Mock(return_value=VOUCHER),keys=object())
-    confirmations=SimpleNamespace(ensure=Mock(return_value={'reference':'approval','status':'pending'}),claim=Mock())
+    confirmations=SimpleNamespace(find=Mock(return_value=None),ensure=Mock(return_value={'reference':'approval','status':'pending'}),claim=Mock())
     scheduler=SimpleNamespace(submit=Mock(return_value={'status':'queued','reference':'receipt'}),
         reference=Mock(return_value='original-job'),get=Mock(return_value={'status':'unknown','interactionId':'interaction'}),
         resolve=Mock(),resume=Mock(),reject_wait=Mock())
@@ -44,7 +47,9 @@ def guard(monkeypatch):
                          fields=lambda *_:None)
     owner=Fulfillment(role)
     monkeypatch.setattr(owner,'client',lambda *_:(client,{'interactionId':'interaction','template':{}}))
-    monkeypatch.setattr(module,'verify_card',lambda *_:SimpleNamespace(accepted=1))
+    chain=SimpleNamespace(accepted=1,period_ts=lambda *_:datetime(2026,1,1,tzinfo=timezone.utc))
+    monkeypatch.setattr(module,'verify_card',lambda *_:chain)
+    monkeypatch.setattr(business_deadlines,'verify_card',lambda *_:chain)
     return SimpleNamespace(owner=owner,client=client,store=store,runtime=runtime,source=source,
                            card=card,evidence=evidence,transport=transport,scheduler=scheduler,confirmations=confirmations)
 

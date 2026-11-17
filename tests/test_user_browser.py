@@ -71,13 +71,15 @@ def test_real_ipc_opens_only_configured_browser_and_preserves_pending_confirmati
         binding={'actor':identity.agent_id,'operationId':'real-original-operation','subject':{'digest':'sha256:'+'a'*64},
             'stage':'rules.publish','action':'interface.publish','preview':{'title':'真实待确认对象','tools':[]}}
         pending=runtime.confirmations.ensure(binding)
+        # The background reminder opens the same configured browser once, without a model call.
+        wait_for(lambda:len(launched)==1)
         client=LocalClient(runtime.config.home)
         denied=client.call('runtime.open_ui',{'browser':'untrusted.exe','url':'https://untrusted.invalid'})
-        assert denied['status']=='rejected' and denied['error']['code']=='invalid_input' and not launched
+        assert denied['status']=='rejected' and denied['error']['code']=='invalid_input' and len(launched)==1
         opened=client.call('runtime.open_ui',{})
-        assert opened['status']=='completed' and opened['data']=={'opened':True} and len(launched)==1
+        assert opened['status']=='completed' and opened['data']=={'opened':True} and len(launched)==2
         assert runtime.confirmations.get(pending['reference'])['status']=='pending'
-        token=urlsplit(launched[0]).fragment
+        token=urlsplit(launched[-1]).fragment
         assert token and token not in json.dumps(opened) and runtime.user_ui._authority not in json.dumps(opened)
         # Explicit isolated browser driver; not a real human/native frontend acceptance claim.
         with httpx.Client(base_url=runtime.user_ui.origin,trust_env=False) as browser:

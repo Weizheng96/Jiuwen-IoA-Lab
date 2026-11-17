@@ -12,7 +12,7 @@ import httpx
 import pytest
 from a2c.codec import utcnow
 from ioalab_sdk.provider import ProviderRole
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult,bound_runtime
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.resident import ResidentRuntime
@@ -39,7 +39,7 @@ class ResumeHost(DynamicVerifierHost):
             result=turn.on_tool('provider.task.quote',{'acceptance':{'result':{'verifiers':{'script':reference},'notCovered':[]}},
                 'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}},'recovered-quote')
             assert result['status']=='recorded',result
-        return HostResult('completed',session,{})
+        return FixtureResult('completed',session,{})
 
 
 @contextmanager
@@ -84,8 +84,8 @@ def test_public_resume_preserves_a2c_task_fee_session_and_completes_payment(plat
         original_tasks=set(endpoint.provider.tasks)
         fresh=None
         if restart:
-            config=provider.config;provider.close();role=ProviderRole(host=host)
-            fresh=ResidentRuntime(config,modules=(role,)).start();provider=fresh
+            config=provider.config;provider.close()
+            fresh=bound_runtime(config,host,lambda selected:ProviderRole(selected)).start();provider=fresh
             wait_for(lambda:provider.connection.connected)
             actual=LocalClient(provider.config.home).call('provider.tasks.get',{'profile':'service','taskRef':snapshot['taskRef']})
             assert actual['data']['items'][0]['canResume'],actual
@@ -93,6 +93,7 @@ def test_public_resume_preserves_a2c_task_fee_session_and_completes_payment(plat
             accepted=resume(provider,snapshot);assert accepted['status']=='accepted',accepted
             quote=recovered_quote(assistant,quote_ref)
             assert quote['interactionId']==original_interaction and len(uploads)<=2 and len(host.turns)==2
+            assert host.turns[0].operation_id==snapshot['taskRef'] and host.turns[1].operation_id!=snapshot['taskRef']
             current=LocalClient(provider.config.home).call('provider.tasks.get',{'profile':'service','taskRef':snapshot['taskRef']})['data']['items'][0]
             assert current['status']=='completed' and current['sessionId']==original_session
             endpoint=next(iter(provider.modules[0].execution.contexts.values()))
@@ -157,7 +158,7 @@ def test_exception_without_a_completed_host_round_never_gets_a_resume_permit(pla
     host=ResumeHost();execute=host.execute
     def lost_result(turn):
         execute(turn);raise RuntimeError('original host outcome unknown')
-    host.run=lost_result
+    host.execute=lost_result
     with stopped(platform,tmp_path,monkeypatch,host=host) as (provider,assistant,host,_,_,reference,snapshot,_):
         assert not snapshot['canResume'] and snapshot['resumeReason']=='original_model_result_unknown'
         assert resume(provider,snapshot)['status']=='unknown'

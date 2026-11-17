@@ -15,7 +15,6 @@ from a2c.slots import verify_card
 from ioalab_sdk.assistant.role import AssistantRole
 from ioalab_sdk.assistant.fulfillment import Fulfillment
 from ioalab_sdk.provider import ProviderRole
-from ioalab_sdk.runtime.host import HostResult
 from ioalab_sdk.runtime.files import private_json
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.files_api import PrivateFiles
@@ -23,6 +22,7 @@ from ioalab_sdk.adapters.transport import SessionTransport
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from conftest import wait_for
+from submission_fixture import FixtureResult,RecordingSubmission,ScriptedSubmission,bound_runtime
 from test_assistant_role import user_decision
 from test_resident_contracts import confirm
 from test_resident_delegation import participants,terminal,uid
@@ -55,13 +55,9 @@ def terms(formation,reference):
     return value
 
 
-class TwoPeriodHost:
+class TwoPeriodHost(ScriptedSubmission):
     def __init__(self):self.turns=[];self.verifier=None;self.failure=None
-    def capabilities(self):return {'available':True,'explicitTwoPeriodHostDouble':True}
     def cancel(self,operation):return True
-    def run(self,turn):
-        try:return self.execute(turn)
-        except Exception as exc:self.failure={'type':type(exc).__name__,'message':str(exc)};raise
     def execute(self,turn):
         self.turns.append(turn);sid=turn.session_id or 'two-period-'+uid();turn.on_session(sid)
         data=json.loads(turn.input)
@@ -86,7 +82,7 @@ class TwoPeriodHost:
                 assert tested['status']=='pass',tested
                 result=turn.on_tool('provider.task.deliver',{'files':files},'delivery-'+str(period))
                 assert result['status']=='delivered',result
-        return HostResult('completed',sid,{'explicitTwoPeriodHostDouble':True})
+        return FixtureResult('completed',sid,{'explicitTwoPeriodHostDouble':True})
 
 
 def await_operation(assistant,reference,key):
@@ -182,7 +178,7 @@ def run_two_periods(platform,tmp_path,monkeypatch,formation,scenario,*,host=None
         if scenario=='restart':
             wait_for(lambda:provider.scheduler.status()['active']==0 and assistant.scheduler.status()['active']==0)
             pconfig,aconfig=provider.config,assistant.config;provider.close();assistant.close()
-            provider=ResidentRuntime(pconfig,modules=(ProviderRole(host),),host_status=host.capabilities).start();fresh.append(provider)
+            provider=bound_runtime(pconfig,host,lambda selected:ProviderRole(selected)).start();fresh.append(provider)
             assistant=ResidentRuntime(aconfig,modules=(AssistantRole(),)).start();fresh.append(assistant)
             wait_for(lambda:provider.connection.connected and assistant.connection.connected)
         try:
@@ -272,15 +268,12 @@ def test_two_periods_keep_original_context_each_user_gate_files_and_actual_payme
 @pytest.mark.skipif(not os.environ.get('IOALAB_REAL_JIUWEN_COMMAND'),reason='Opt-in original Jiuwen model invocation')
 def test_original_jiuwen_completes_two_periods_in_the_same_session(platform,tmp_path,monkeypatch):
     from ioalab_jiuwen.process import ProcessHost
-    host=ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'))
-    assert host.probe()['available'],host.capabilities()
-    host.turns=[];native_run=host.run
-    def recorded(turn):host.turns.append(turn);return native_run(turn)
-    host.run=recorded
+    # Opt-in real adapter only through S01; no startup probe gate.
+    host=RecordingSubmission(ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL')))
     business={'instructions':'本业务按两期交付draft、release。quote使用业务资源outputVerifier作为两期真实script引用，验收各PT10M，lineItems分别为draft=3、release=6。'
         '每期production先检查本期period的release_permission授权；缺少本期答复则调用request_step并结束，不复用其他期次的同意。仅本期答复granted=true后才生产。'
         '每期交付文件名为delivery.json，JSON对象有part和value两项。首期完整内容为{"part":"draft","value":"contents for draft"}；第二期为{"part":"release","value":"contents for release"}。'
         'selftest通过后以files的text交付实际JSON字节。当前信息完整，不需要外部工具或补充提问。用户授权由SDK真实环节处理，不自行同意。'}
     result=run_two_periods(platform,tmp_path,monkeypatch,'proposal','normal',host=host,business=business,timeout=180)
-    result.update(model=host.capabilities()['model'],scope='Original Jiuwen public Process completes two sequential A2C periods, each real user gate/WASM/AP2 in one UUID/task/Session')
+    result.update(model=host.host.model,scope='Original Jiuwen public Process completes two sequential A2C periods, each real user gate/WASM/AP2 in one UUID/task/Session')
     if os.environ.get('IOALAB_REAL_MULTIPERIOD_REPORT'):private_json(Path(os.environ['IOALAB_REAL_MULTIPERIOD_REPORT']),result)

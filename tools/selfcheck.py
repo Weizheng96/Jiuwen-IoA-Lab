@@ -1,6 +1,5 @@
 """Architecture, content and real-process protocol checks; no model calls."""
 import ast
-import hashlib
 import json
 import os
 import shutil
@@ -29,9 +28,6 @@ def main():
         result=subprocess.run(command,cwd=ROOT,env=ENV,capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=300)
         ok(label,result.returncode==0)
         if result.returncode: print(result.stdout[-3000:]+result.stderr[-3000:])
-    source=json.loads((ROOT/'vendor/wheels/SOURCE.json').read_text(encoding='utf-8'))
-    wheel=ROOT/'vendor/wheels'/source['wheel']
-    ok('A2C wheel digest unchanged',hashlib.sha256(wheel.read_bytes()).hexdigest()==source['sha256'])
     imports=[]
     for path in (ROOT/'src/platform/ioalab').rglob('*.py'):
         tree=ast.parse(path.read_text(encoding='utf-8'))

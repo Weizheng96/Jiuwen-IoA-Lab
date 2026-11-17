@@ -23,12 +23,14 @@ def public_error(exc):
 
 
 class IpcServer:
-    def __init__(self,home,runtime_id,dispatch,*,user_ui=None):
+    def __init__(self,home,runtime_id,dispatch,*,user_ui=None,native_sources=None,native_handlers=None):
         self.home,self.dispatch=Path(home),dispatch
         self.token=secrets.token_urlsafe(32)
         self.boot_id=str(uuid.uuid4())
         self.runtime_id=runtime_id
         self.user_ui=user_ui
+        self.native_sources=native_sources
+        self.native_handlers=dict(native_handlers or {})
         self.server=ThreadingHTTPServer(('127.0.0.1',0),self._handler())
         self.server.daemon_threads=False
         self.thread=None
@@ -65,12 +67,17 @@ class IpcServer:
                 consumed=False
                 try:
                     if owner.user_ui and owner.user_ui.handle(self):return
-                    if self.path!='/v1/call' or self.headers.get('Origin') is not None:
+                    source_call=self.path=='/v1/native-source' and owner.native_sources is not None
+                    control_call=self.path=='/v1/native-control' and owner.native_sources is not None
+                    if (self.path!='/v1/call' and not source_call and not control_call) or self.headers.get('Origin') is not None:
                         raise RuntimeFault('forbidden','Local RPC does not accept browser or cross-origin calls')
                     if self.headers.get('Host')!=f'127.0.0.1:{owner.server.server_port}':
                         raise RuntimeFault('forbidden','Local RPC Host does not match its listener')
                     auth=self.headers.get('Authorization','')
-                    if not hmac.compare_digest(auth.encode(),('Bearer '+owner.token).encode()) or self.headers.get('X-Ioa-Instance')!=owner.boot_id:
+                    if self.headers.get('X-Ioa-Instance')!=owner.boot_id:
+                        raise RuntimeFault('authenticate','Local access credentials are unavailable','restart_client')
+                    if source_call or control_call:owner.native_sources.authenticate(auth)
+                    elif not hmac.compare_digest(auth.encode(),('Bearer '+owner.token).encode()):
                         raise RuntimeFault('authenticate','Local access credentials are unavailable','restart_client')
                     if self.headers.get('Transfer-Encoding') or self.headers.get('Content-Type','').split(';')[0]!='application/json':
                         raise RuntimeFault('invalid_input','A length-bounded JSON request is required')
@@ -88,11 +95,18 @@ class IpcServer:
                         consumed=True
                         request=json.loads(body)
                     except (ValueError,RecursionError):raise RuntimeFault('invalid_input','Invalid local JSON request') from None
-                    if not isinstance(request,dict) or set(request)!={'operation','operationId','arguments'}:
+                    if control_call:
+                        self.reply(200,{'status':'completed','data':owner.native_sources.exchange(auth,request,owner.native_handlers)})
+                        return
+                    if source_call:
+                        self.reply(200,{'status':'completed','data':owner.native_sources.register(auth,request)})
+                        return
+                    if not isinstance(request,dict) or not {'operation','operationId','arguments'} <= set(request) or set(request)-{'operation','operationId','arguments','contextRef'}:
                         raise RuntimeFault('invalid_input','Expected operation, operationId and arguments')
                     if not isinstance(request['operation'],str) or not 1<=len(request['operation'])<=100 or not isinstance(request['operationId'],str) or not 1<=len(request['operationId'])<=128 or not isinstance(request['arguments'],dict):
                         raise RuntimeFault('invalid_input','Invalid local operation fields')
-                    result=owner.dispatch(request['operation'],request['operationId'],request['arguments'])
+                    metadata = {'context_ref': request['contextRef']} if 'contextRef' in request else {}
+                    result=owner.dispatch(request['operation'],request['operationId'],request['arguments'],**metadata)
                     self.reply(200,result)
                 except RuntimeFault as exc:
                     if not consumed and not self.headers.get('Transfer-Encoding'):
@@ -120,7 +134,8 @@ class IpcServer:
 
     def start(self):
         if self.thread:raise RuntimeError('Local RPC already started')
-        self.thread=threading.Thread(target=self.server.serve_forever,name='ioa-ipc',daemon=True)
+        # A short poll only shortens shutdown latency; request handling is unchanged.
+        self.thread=threading.Thread(target=self.server.serve_forever,kwargs={'poll_interval':0.05},name='ioa-ipc',daemon=True)
         self.thread.start()
         private_json(self.home/'runtime.json',self.descriptor)
         return self
@@ -140,7 +155,7 @@ class LocalClient:
     def __init__(self,home,*,timeout=10,boot_id=None):
         self.home,self.timeout,self.boot_id=Path(home),timeout,boot_id
 
-    def call(self,operation,arguments=None,*,operation_id=None):
+    def call(self,operation,arguments=None,*,operation_id=None,context_ref=None):
         if arguments is not None and not isinstance(arguments,dict):raise RuntimeFault('invalid_input','Local arguments must be an object')
         operation_id=operation_id or str(uuid.uuid4())
         try:descriptor=read_json(self.home/'runtime.json')
@@ -157,6 +172,7 @@ class LocalClient:
         if self.boot_id is not None and descriptor['bootId']!=self.boot_id:
             raise RuntimeFault('instance_changed','The checked runtime instance changed; inspect it before another business call','runtime.status',operation_id=operation_id)
         payload={'operation':operation,'operationId':operation_id,'arguments':arguments or {}}
+        if context_ref is not None:payload['contextRef']=context_ref
         if len(encode(payload).encode())>LIMIT:raise RuntimeFault('invalid_input','Local request exceeds 128 KiB')
         wait=(arguments or {}).get('waitSeconds',0)
         budget=max(self.timeout,wait+5) if type(wait) in (int,float) and 0<wait<=30 else self.timeout

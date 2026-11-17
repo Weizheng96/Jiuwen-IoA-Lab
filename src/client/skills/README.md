@@ -1,6 +1,6 @@
 # IoA Lab 两个角色Skill
 
-普通用户先按[GitCode引导](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab/blob/main/README_AGENT.md)从已发布tag安装一个ioalab-client，再导出个人助手与服务方两个轻量Skill。原生导入并选择后通过本机账号页接入，密码不经模型或聊天。
+普通用户按根README的一句话让智能体clone官方仓库，并按[接入引导](../../../README_AGENT.md)安装一个ioalab-client，再导出个人助手与服务方两个轻量Skill。原生导入并选择后通过本机账号页接入，密码不经模型或聊天。
 
 assistant/和provider/提供角色说明；_shared/references提供公共流程，_shared/ioalab.py为绑定统一客户端解释器及账号配置路径的薄调用模板。两个Skill不包含wheel或独立安装器，也不自行创建运行环境。实际客户端命令归ioalab_client。
 

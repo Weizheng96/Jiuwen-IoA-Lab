@@ -18,6 +18,7 @@ from ioalab_sdk.runtime.files import private_json, read_json
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from ioalab_tools.schedule import LocalSchedule
+from submission_fixture import ScriptedSubmission,bound_runtime
 from conftest import free_port, wait_for
 
 
@@ -69,7 +70,7 @@ def test_fixed_presets_use_same_sdk_without_running_host_or_business(platform,ma
     from ioalab_jiuwen.process import ProcessHost
     from ioalab_jiuwen.web_notifications import WebNotifications
     monkeypatch.setattr(ResidentRuntime,'start',lambda *_:pytest.fail('No receiver or scheduler during prepare'))
-    monkeypatch.setattr(ProcessHost,'probe',lambda *_:pytest.fail('No model during prepare'))
+    for method in ('check','submit'):monkeypatch.setattr(ProcessHost,method,lambda *_a,**_k:pytest.fail('No model during prepare'))
     monkeypatch.setattr(WebNotifications,'notify',lambda *_:pytest.fail('No notification during prepare'))
     before=(managed.workspace/'config/config.yaml').read_bytes()
     value=preparation.prepare(managed)
@@ -209,17 +210,15 @@ def test_status_is_read_only_and_unregistered_instance_is_refused(managed):
     with pytest.raises(RuntimeFault,match='unregistered administrator'):preparation.prepare(managed)
 
 
-class AvailableHost:
-    def __init__(self,available=True):self.available=available
-    def capabilities(self):return {'available':self.available,'testDouble':True}
-    def cancel(self,operation):return True
-    def run(self,turn):pytest.fail('Status must not run a model')
+class UnusedHost(ScriptedSubmission):
+    def cancel(self,*_):return True
+    def execute(self,*_):pytest.fail('Status must not run a model')
 
 
 def running(managed,host):
     from ioalab_sdk.assistant.role import AssistantRole
-    return ResidentRuntime(RuntimeConfig.load(managed.runtime_path),modules=(AssistantRole(host),),
-                           host_status=host.capabilities,assembly='ioalab-jiuwen').start()
+    return bound_runtime(RuntimeConfig.load(managed.runtime_path),host,lambda selected:AssistantRole(selected),
+                         assembly='ioalab-jiuwen').start()
 
 
 def test_status_reports_not_running_without_login_or_writes(managed,monkeypatch):
@@ -235,12 +234,13 @@ def test_status_reports_not_running_without_login_or_writes(managed,monkeypatch)
 def test_status_reports_actual_readiness_of_the_running_instance(managed):
     preparation.prepare(managed)
     record=managed.record_path.read_bytes()
-    runtime=running(managed,AvailableHost())
+    runtime=running(managed,UnusedHost())
     try:
         wait_for(lambda:preparation.status(managed)['runtime']['state']=='ready')
         value=preparation.status(managed)['runtime']
+        # Readiness is the configured S01 scope; hostAvailable only projects recorded P34 health, none yet.
         assert value=={'state':'ready','bootId':runtime.ipc.boot_id,'executionReady':True,'stopping':False,
-                       'platformConnected':True,'hostAvailable':True}
+                       'platformConnected':True,'hostAvailable':False}
     finally:runtime.close()
     assert preparation.status(managed)['runtime']=={'state':'not_running'}
     assert managed.record_path.read_bytes()==record
@@ -248,7 +248,7 @@ def test_status_reports_actual_readiness_of_the_running_instance(managed):
 
 def test_status_reports_running_instance_without_host_as_not_ready(managed):
     preparation.prepare(managed)
-    runtime=running(managed,AvailableHost(available=False))
+    runtime=running(managed,None)
     try:
         wait_for(lambda:preparation.status(managed)['runtime'].get('platformConnected'))
         value=preparation.status(managed)['runtime']
@@ -273,7 +273,7 @@ def test_status_separates_stale_descriptor_from_a_failed_query(managed):
 
 def test_status_does_not_report_an_instance_with_another_configuration_as_ready(managed):
     preparation.prepare(managed)
-    runtime=running(managed,AvailableHost())
+    runtime=running(managed,UnusedHost())
     try:
         wait_for(lambda:preparation.status(managed)['runtime']['state']=='ready')
         config=read_json(managed.runtime_path);config['max_model_runs']=7;private_json(managed.runtime_path,config)

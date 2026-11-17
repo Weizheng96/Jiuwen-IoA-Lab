@@ -10,7 +10,7 @@ import pytest
 from a2c.verifier.package import load
 from a2c.template import acceptance_of
 from ioalab_sdk.provider import ProviderRole
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.ipc import LocalClient
@@ -214,16 +214,19 @@ class DynamicVerifierHost(ProductionHost):
             assert turn.on_tool('provider.task.quote',args,'quote')['status']=='recorded'
             late=turn.on_tool('provider.task.verifier.publish',{**body(),'verifierId':'late@1.0'},'late')
             assert late['status']=='rejected' and late['error']['code']=='forbidden';self.denied.append('after-decision')
-            return HostResult('completed',turn.session_id,{})
+            return FixtureResult('completed',turn.session_id,{})
+        sid=turn.session_id or 'dynamic-'+str(uuid.uuid4())
+        turn.on_session(sid)
         denied=turn.on_tool('provider.task.verifier.publish',body(),'wrong-phase')
         assert denied['status']=='rejected' and denied['error']['code']=='forbidden',denied
         self.denied.append(data['phase'])
         if data['phase']=='production':
-            self.turns.append(turn);turn.on_session(turn.session_id)
+            self.turns.append(turn)
             files={'result.json':{'text':'{"delivered":"actual file bytes"}','mediaType':'application/json'}}
             assert turn.on_tool('provider.task.selftest',{'files':files},'selftest')['status']=='pass'
             assert turn.on_tool('provider.task.deliver',{'files':files},'deliver')['status']=='delivered'
-            return HostResult('completed',turn.session_id,{})
+            return FixtureResult('completed',sid,{})
+        turn.session_id=sid  # The private script view now has the actual P28 SID.
         return super().execute(turn)
 
 
@@ -331,8 +334,8 @@ def test_unknown_upload_blocks_further_decisions_and_never_restarts_the_host(pla
             assert first['status']=='unknown',first
             attempts.append(turn.on_tool('provider.task.quote',{'reason':'cannot verify the original upload'},'must-not-decide'))
             attempts.append(turn.on_tool('provider.task.verifier.publish',{**host.package,'source':VERIFIER+'\n# changed'},'must-not-replace'))
-            return HostResult('completed','unknown-upload-session',{})
-        monkeypatch.setattr(provider.account,'api',lose);monkeypatch.setattr(host,'run',execute)
+            return FixtureResult('completed','unknown-upload-session',{})
+        monkeypatch.setattr(provider.account,'api',lose);monkeypatch.setattr(host,'execute',execute)
         started,_=request(assistant,provider,template,task);reference=started['data']['quoteRef']
         wait_for(lambda:terminal(assistant,reference))
         assert terminal(assistant,reference)['status']=='unknown' and len(uploaded)==1

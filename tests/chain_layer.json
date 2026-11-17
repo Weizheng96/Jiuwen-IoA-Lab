@@ -148,18 +148,8 @@
   "tests/test_cli_encoding.py": [
    "test_chinese_validation_is_utf8_without_terminal_or_environment_assumptions"
   ],
-  "tests/test_codex_host.py": [
-   "test_bound_tool_round_and_new_host_resume_keep_the_original_session",
-   "test_lost_result_keeps_session_and_never_retries",
-   "test_changed_definition_and_missing_original_binding_are_rejected",
-   "test_cancel_returns_actual_terminal_and_cannot_claim_no_effect",
-   "test_native_tools_and_unprobed_rounds_fail_before_start",
-   "test_selected_skills_are_frozen_and_cannot_be_replaced_on_resume",
-   "test_unbound_namespace_cannot_reach_the_role_callback",
-   "test_unresponsive_child_cannot_block_the_turn_deadline_while_writing"
-  ],
   "tests/test_configuration_boundary.py": [
-   "test_bom_configuration_and_arguments_cross_actual_product_cli_and_ipc",
+   "test_bom_configuration_and_arguments_cross_sdk_cli_and_ipc",
    "test_business_configuration_mismatch_has_no_effect_or_argument_rewrite",
    "test_original_instance_can_be_diagnosed_and_stopped_with_only_its_locator"
   ],
@@ -348,10 +338,17 @@
    "test_task_file_grants_rollback_together_with_reply_and_message"
   ],
   "tests/test_provider_admission.py": [
+   "test_automatic_resume_revision_race_never_rebases_over_user_change",
    "test_concurrent_same_control_has_one_policy_effect_and_conflicting_revision_is_not_rebased",
+   "test_health_pause_and_early_recovery_require_actual_readiness_fence",
+   "test_health_recovery_preserves_manual_pause_and_later_revision",
+   "test_lost_system_pause_response_recovers_original_receipt_before_resuming",
    "test_old_resume_receipt_restart_and_capacity_change_do_not_override_pause",
    "test_pause_preserves_preexisting_held_fee_commit_but_rejects_a_new_reservation",
    "test_pause_rejects_new_intent_before_fee_or_model_execution",
+   "test_product_health_sampling_pauses_and_resumes_only_through_the_recovery_fence",
+   "test_publication_expiring_during_system_pause_is_reread_before_automatic_resume",
+   "test_system_pause_survives_restart_and_only_resumes_original_policy",
    "test_unknown_policy_change_recovers_one_original_write_after_restart",
    "test_unpublished_service_can_pause_but_cannot_resume_without_business_readiness"
   ],
@@ -401,6 +398,7 @@
    "test_sdk_managed_scope_recovers_lost_reply_without_another_signature_or_confirmation"
   ],
   "tests/test_quote_admission_rejection.py": [
+   "test_late_reservation_recovers_original_prepared_quote_once",
    "test_withdrawn_template_rejects_original_quote_without_host_payment_or_replacement"
   ],
   "tests/test_resident_contracts.py": [
@@ -408,9 +406,10 @@
    "test_contract_user_rejection_or_expiry_does_not_sign_or_reserve_counter",
    "test_full_value_rejection_never_creates_slot_one",
    "test_lost_signed_result_recovers_original_user_signature_without_repeating_review",
-   "test_original_native_tool_manifest_is_frozen_and_denied_tools_block_new_service",
+   "test_original_native_tool_manifest_is_frozen_and_status_never_probes_native_tools",
    "test_real_original_jiuwen_and_trusted_user_form_one_contract",
    "test_two_concurrent_user_choices_cannot_sign_two_cards_in_one_scope",
+   "test_undeclared_native_tool_restriction_still_submits_review_without_quote_signature_or_payment",
    "test_wrong_phase_tool_returns_precise_error_and_can_correct_in_original_review"
   ],
   "tests/test_resident_delegation.py": [
@@ -429,6 +428,7 @@
   ],
   "tests/test_resident_fulfillment.py": [
    "test_actual_bad_delivery_fails_wasm_and_never_signs_acceptance_or_pays",
+   "test_early_step_answer_queues_original_job_until_actual_native_terminal_and_drain",
    "test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_reputation",
    "test_real_original_jiuwen_produces_native_file_and_completes_original_contract"
   ],
@@ -479,10 +479,6 @@
   ],
   "tests/test_service_publication.py": [
    "test_resident_publish_needs_user_channel_and_recovers_lost_reply_after_restart"
-  ],
-  "tests/test_sync_a2c.py": [
-   "test_snapshot_uses_committed_lf_not_windows_checkout_and_keeps_commit",
-   "test_wheel_with_a_foreign_module_is_rejected"
   ],
   "tests/test_sync_gitcode.py": [
    "test_detects_tag_object_movement_even_when_main_and_peeled_commit_stay_same",
@@ -552,6 +548,26 @@
    "test_flow_wait_survives_runtime_restart_and_preserves_confirmation",
    "test_two_period_flow_waits_for_independent_acceptance_before_next_delivery",
    "test_messaging_flow_unknown_lookup_recovers_original_message_without_resending"
+  ],
+  "tests/test_recovery_matrix.py": [
+   "test_acceptance_survives_a_socket_drop_during_the_acceptance_notice",
+   "test_contract_choice_waiting_for_the_user_survives_an_assistant_restart"
+  ],
+  "tests/test_host_submission_roles.py": [
+   "test_a2c_not_submitted_preserves_working_task_card_fee_and_original_host_across_restart",
+   "test_accepted_native_request_is_not_retried_and_late_sdk_reply_then_machine_end_converges",
+   "test_real_role_rpc_uses_original_binding_and_frozen_tool_after_default_changes"
+  ],
+  "tests/test_native_event_integration.py": [
+   "test_native_flow_leaf_dedup_and_post_formation_step_result",
+   "test_native_provider_sync_result_and_async_decision_terminal"
+  ],
+  "tests/test_web_browser.py": [
+   "test_admin_opens_every_tab_without_errors",
+   "test_home_language_navigation_and_real_public_stats",
+   "test_ordinary_account_cannot_open_the_admin_page_or_its_data",
+   "test_public_pages_load_without_errors_and_private_pages_ask_for_login",
+   "test_register_validation_login_logout_through_the_real_forms"
   ]
  }
 }

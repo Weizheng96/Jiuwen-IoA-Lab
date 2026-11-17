@@ -1,19 +1,24 @@
 """Owner-selected business document bounds and real original-host read evidence."""
-import asyncio
 from dataclasses import replace
 import json
 import os
 from pathlib import Path
 import subprocess
+import time
+from types import SimpleNamespace
 
 import pytest
-from a2c.codec import digest_bytes
+from a2c.codec import digest,digest_bytes
 from ioalab_jiuwen.process import ProcessHost
-from ioalab_sdk.runtime import FrozenSkills,documents
+from ioalab_sdk.runtime import (FrozenSkills,documents,ExecutionResources,HostInput,HostRegistry,
+    RuntimeStore,SubmissionResourcePort,freeze_definition)
 from ioalab_sdk.runtime.business_skills import MAX_FILE
 from ioalab_sdk.runtime.files import private_text
-from ioalab_sdk.runtime.host import AgentDefinition,HostTurn,ToolBinding
-from ioalab_sdk.runtime.protocol import RuntimeFault
+from ioalab_sdk.runtime.host import AgentDefinition,ToolBinding
+from ioalab_sdk.runtime.host_submission import execution_snapshot
+from ioalab_sdk.runtime.professional_execution import ProfessionalExecution
+from ioalab_sdk.runtime.protocol import RuntimeFault,stamp
+from ioalab_sdk.runtime.sdk_tool_callbacks import CallbackPool
 
 
 def source(root):
@@ -68,53 +73,105 @@ def test_linked_source_references_are_rejected_before_any_document_escape(tmp_pa
 
 def test_host_requires_actual_scoped_read_before_role_actions_and_reuses_original_snapshot(tmp_path,monkeypatch):
     root=source(tmp_path/'source');seen=[];requests=[]
+    expected_main=digest_bytes((root/'SKILL.md').read_bytes())
+    expected_reference=digest_bytes((root/'references/criteria.md').read_bytes())
     class Process:
         async def run(self,request,**callbacks):
-            requests.append(request);await callbacks['on_event']({'session_id':'actual-session'})
+            requests.append(request)
+            await callbacks['on_event']({'type':'event','request_id':request['request_id'],'session_id':'actual-session'})
             assert 'skill_tool' not in request['agent']['tools']
             reader=next(item['name'] for item in request['host_tools'] if item['name'].startswith('ioa_read_business_skill'))
             business=request['host_tools'][0]['name']
-            async def call(name,args):return await callbacks['on_tool_call']({'session_id':'actual-session','payload':{'name':name,'arguments':args,'call_id':'native-call'}})
+            sequence=0
+            async def call(name,args):
+                nonlocal sequence
+                sequence+=1
+                return await callbacks['on_tool_call']({'request_id':request['request_id'],'session_id':'actual-session',
+                    'payload':{'name':name,'arguments':args,'call_id':'native-call-'+str(sequence)}})
             assert (await call(business,{}))['error']['code']=='read_business_skill'
             assert not seen or len(seen)==len(requests)-1
-            with pytest.raises(RuntimeFault):await call(reader,{'skill':'other'})
+            assert (await call(reader,{'skill':'other'}))['error']['code']=='forbidden'
             doc=await call(reader,{'skill':'selected','call_goal':'read actual instructions'})
             assert doc['content'].startswith('# Owner business skill')
-            assert (await call(reader,{'skill':'selected','path':'references/criteria.md'}))['content'].startswith('The result')
+            assert doc['digest']==expected_main
+            criteria=await call(reader,{'skill':'selected','path':'references/criteria.md'})
+            assert criteria['content'].startswith('The result')
+            assert criteria['digest']==expected_reference
             assert await call(business,{})=={'stillRequiresActualUser':True}
-            return {'status':'completed','session_id':'actual-session'}
+            return {'type':'result','status':'completed','request_id':request['request_id'],'session_id':'actual-session','exit_code':0}
     definition=AgentDefinition('business','Use selected documents only',(ToolBinding('business.submit','A role action',{'type':'object'},lambda *_:None),),('selected',))
-    for index in range(2):
-        host=ProcessHost(['original-process'],tmp_path,skill_directories={'selected':root} if not index else {})
-        host._capabilities={'available':True}
-        monkeypatch.setattr(host,'_client',lambda **kwargs:Process())
-        result=host.run(HostTurn('op','actor','iid',definition,'data',str(tmp_path/'work'),session_id='actual-session' if index else None,
-            on_tool=lambda *args:seen.append(args) or {'stillRequiresActualUser':True}))
-        assert result.status=='completed'
-        (root/'SKILL.md').write_text('# changed current source')
+    binding={'actor':'actor','business':'iid','revision':'1'};workspace=tmp_path/'work'
+    identity=SimpleNamespace(agent_id='actor',profile='personal')
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner');pool=CallbackPool(1)
+    snapshot=None
+    try:
+        for index in range(2):
+            snapshot=freeze_definition(workspace,reference='business',version='1',instructions=definition.instructions,
+                skill_names=definition.skills,sources={'selected':root} if not index else {},binding=binding,
+                resume=bool(index),expected_digest=snapshot.digest if snapshot else None)
+            port=SubmissionResourcePort()
+            host=ProcessHost(['original-process'],tmp_path,resource_factory=port.for_host('process'))
+            monkeypatch.setattr(host,'_client',lambda **kwargs:Process())
+            registry=HostRegistry({'process':host},'process');registry.bind(store,identities=[identity]);registry.callback_pool=pool
+            port.bind(registry._resources_for)
+            execution=execution_snapshot(identity,'iid','job-'+str(index),definition,definition_digest=digest({'business':'original'}),
+                version='1',workspace=str(workspace),host_definition=snapshot)
+            resources=ExecutionResources(binding={'actor':'actor','business':'iid','period':index},operation_id='op-'+str(index),
+                output_root=tmp_path/('output-'+str(index)),authorize=lambda *_:None)
+            professional=ProfessionalExecution(definition=snapshot,business_binding=binding,workspace=workspace,tools=execution.tools,
+                authorize_definition=lambda ref:None,period_resources=resources)
+            result=registry.submit('actor','iid','op-'+str(index),HostInput('data'),execution=replace(execution,tools=professional.tools),
+                on_tool=professional.wrap(lambda call:seen.append(call) or {'stillRequiresActualUser':True}),resource_io=professional.resource_io)
+            assert result.state=='completed' and result.terminal is not None,result
+            (root/'SKILL.md').write_text('# changed current source')
+    finally:pool.close();store.close()
     assert len(seen)==2 and requests[0]['agent']==requests[1]['agent']
 
 
 @pytest.mark.skipif(not os.environ.get('IOALAB_REAL_JIUWEN_DATA_DIR'),reason='requires explicitly configured original Jiuwen/model')
-def test_real_original_host_reads_exact_current_skill_documents_through_the_bound_reader(tmp_path):
+def test_real_original_host_reads_exact_current_skill_documents_through_the_bound_reader(tmp_path,monkeypatch):
     root=Path(__file__).resolve().parents[1]/'src/client/skills/assistant'
+    port=SubmissionResourcePort()
     host=ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],
-        model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'),skill_directories={'ioalab-delegate':root})
-    capabilities=host.probe()
-    assert capabilities['available'],capabilities
-    assert capabilities['skillSources']['ioalab-delegate']
+        model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'),resource_factory=port.for_host('process'))
     observed=[];events=[]
     definition=AgentDefinition('skill_read_probe',
         '只读检查：使用本单受限读取工具，实际读取已选技能的SKILL.md与references/delegation.md，再调用proof提交已读文件的两个digest。不得执行技能流程、脚本、配置修改或交易。收到recorded后结束。',
         (ToolBinding('proof','Record actual document digests',{'type':'object','properties':{'digests':{'type':'array','items':{'type':'string'},'minItems':2,'maxItems':2}},'required':['digests'],'additionalProperties':False},lambda *_:None),),('ioalab-delegate',))
     expected=[digest_bytes((root/path).read_bytes()) for path in ('SKILL.md','references/delegation.md')]
-    def record(name,args,call):
-        assert sorted(args['digests'])==sorted(expected)
-        observed.append(args);return {'status':'recorded'}
-    result=host.run(HostTurn('real-read','local-probe','real-read',definition,'仅读取实际主文件和委托流程页，然后记录其digest，不执行任何业务。',str(tmp_path/'work'),timeout_seconds=120,on_tool=record,on_event=events.append))
-    assert result.status=='completed' and observed
+    # Transparent tracing of the real public Process SDK, without replacing its model/transport.
+    original_client=host._client
+    class TracedClient:
+        def __init__(self,client):self.client=client
+        async def run(self,request,**callbacks):
+            original_event=callbacks.get('on_event')
+            async def event(value):
+                events.append(value)
+                if original_event:await original_event(value)
+            return await self.client.run(request,**{**callbacks,'on_event':event})
+    monkeypatch.setattr(host,'_client',lambda **kwargs:TracedClient(original_client(**kwargs)))
+    def record(call):
+        assert sorted(call.arguments['digests'])==sorted(expected)
+        observed.append(call.arguments);return {'status':'recorded'}
+    binding={'actor':'local-probe','business':'real-read','revision':'1'};workspace=tmp_path/'work'
+    snapshot=freeze_definition(workspace,reference='skill-read-probe',version='1',instructions=definition.instructions,
+        skill_names=definition.skills,sources={'ioalab-delegate':root},binding=binding)
+    identity=SimpleNamespace(agent_id='local-probe',profile='personal')
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['local-probe'],owner_id='owner');pool=CallbackPool(1)
+    registry=HostRegistry({'process':host},'process');registry.bind(store,identities=[identity]);registry.callback_pool=pool
+    port.bind(registry._resources_for)
+    execution=execution_snapshot(identity,'real-read','real-read-job',definition,definition_digest=digest({'probe':'readonly'}),
+        version='1',workspace=str(workspace),host_definition=snapshot,deadline=stamp(time.time()+120))
+    resources=ExecutionResources(binding=binding,operation_id='real-read',output_root=tmp_path/'outputs',authorize=lambda *_:None)
+    professional=ProfessionalExecution(definition=snapshot,business_binding=binding,workspace=workspace,tools=execution.tools,
+        authorize_definition=lambda ref:None,period_resources=resources)
+    try:
+        result=registry.submit('local-probe','real-read','real-read',HostInput('仅读取实际主文件和委托流程页，然后记录其digest，不执行任何业务。'),
+            execution=replace(execution,tools=professional.tools),on_tool=professional.wrap(record),resource_io=professional.resource_io)
+        assert result.state=='completed' and result.terminal is not None and observed,result
+    finally:pool.close();store.close()
     reads=[event['payload'] for event in events if event.get('event_type')=='chat.tool_result' and event.get('payload',{}).get('tool_name','').startswith('ioa_read_business_skill')]
     assert len(reads)>=2 and all(item['success'] for item in reads)
     if os.environ.get('IOALAB_REAL_SKILL_REPORT'):
         Path(os.environ['IOALAB_REAL_SKILL_REPORT']).write_text(json.dumps({'scope':'Original Jiuwen public Process SDK, current product skill bytes and bounded host reader; not native web menu or business execution',
-            'model':host.capabilities()['model'],'sessionId':result.session_id,'mainAndFlowRead':True,'documentDigests':expected,'nativeGlobalReaderExposed':False},ensure_ascii=False,indent=2),encoding='utf-8')
+            'model':host.model,'sessionId':result.session_id,'mainAndFlowRead':True,'documentDigests':expected,'nativeGlobalReaderExposed':False},ensure_ascii=False,indent=2),encoding='utf-8')

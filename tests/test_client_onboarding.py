@@ -45,11 +45,19 @@ def test_bound_role_can_request_handoff_through_its_public_operation(tmp_path, m
 
 
 @pytest.mark.parametrize('host,folder', [('codex', '.agents'), ('claude_code', '.claude')])
-def test_both_native_skills_share_config_without_reading_it(tmp_path, monkeypatch, host, folder):
+def test_both_native_skills_share_config_without_exposing_it(tmp_path, monkeypatch, host, folder):
     from ioalab_client.native_skills import install, status
+    from ioalab_sdk.runtime import private_json
     monkeypatch.setattr(Path, 'home', lambda: tmp_path)
     config = tmp_path/'client/settings.local.json'
-    config.parent.mkdir(); config.write_text('not JSON: secret configuration must never be read by installer')
+    config.parent.mkdir(); config.write_text('not JSON: secret configuration must never be exported by installer')
+    # Only the SDK parses configuration; an unreadable one fails before any native write.
+    with pytest.raises(RuntimeError) as refused: install(host, config=config, source=SOURCE)
+    assert 'secret configuration' not in str(refused.value)
+    assert not (tmp_path/folder).exists()
+    private_json(config, {'username': 'installer-account', 'password': 'private-installer-secret',
+                          'data_dir': str(tmp_path/'client/data'),
+                          'identities': [{'key': 'personal', 'role': 'assistant', 'name': 'Assistant'}]})
     result = install(host, config=config, source=SOURCE)
     assert result['installed'] and not result['newSessionVerified']
     for item in result['skills']:
@@ -57,7 +65,8 @@ def test_both_native_skills_share_config_without_reading_it(tmp_path, monkeypatc
         assert item['path'] == str(path)
         launcher = (path/'scripts/ioalab.py').read_text(encoding='utf-8')
         assert repr(str(config.resolve())) in launcher
-        assert 'secret configuration' not in launcher
+        installed = b''.join(file.read_bytes() for file in path.rglob('*') if file.is_file())
+        assert b'private-installer-secret' not in installed and b'installer-account' not in installed
     assert all(item['installed'] for item in status(host, config=config))
     assert install(host, config=config, source=SOURCE)['installed']
     # Another host reuses exactly the same binding without changing the client.
@@ -74,7 +83,7 @@ def test_conflicting_role_preserves_user_files_and_prepares_other_role(tmp_path,
     assert not result['installed']
     assert result['skills'][0]['status'] == 'manual_required'
     assert result['skills'][0]['instructions']
-    assert result['skills'][1]['installed']
+    assert result['skills'][1]['installed'], result['skills'][1]
     assert original.read_bytes() == b'user-owned'
 
 
@@ -186,3 +195,254 @@ def test_external_account_config_does_not_change_reported_client_location(tmp_pa
     assert result['clientDirectory'] == str(root)
     assert result['programDirectory'] == str(root/'env')
     assert result['configurationFile'] == str((tmp_path/'private/settings.json').resolve())
+
+
+def test_handoff_separates_calling_registration_default_and_secret_options(tmp_path, monkeypatch):
+    from ioalab_client.native_skills import install
+    from ioalab_client.onboarding import summary
+    from ioalab_sdk.runtime import private_json
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    config=tmp_path/'client/settings.local.json'
+    private_json(config, {'username':'same-account','password':'private-handoff-secret',
+                         'data_dir':str(tmp_path/'data'),
+                         'identities':[{'key':'personal','role':'assistant','name':'Assistant'}],
+                         'host':{'default':'primary','registrations':{
+                             'primary':{'type':'codex','command':['codex'],'model':'private-model-option'},
+                             'secondary':{'type':'claude_code','command':['claude']}}}})
+    assert install('claude_code',host_ref='secondary',config=config,source=SOURCE)['installed']
+    result=summary('claude_code',host_ref='secondary',config=config)
+    data=result['data']
+    assert data['callingHostRef']=='secondary'
+    assert (data['executionHost'],data['executionHostRef'])==('codex','primary')
+    assert all(item['installed'] and item['entry'].startswith('/') for item in data['skills'])
+    assert not data['authenticated'] and not data['platformConnected'] and not data['connected']
+    assert 'private-handoff-secret' not in json.dumps(result)
+    assert 'private-model-option' not in json.dumps(result)
+
+
+def test_same_role_markdown_and_references_are_identical_across_three_host_exports(tmp_path):
+    from ioalab_client.skills import export_skills
+    snapshots=[]
+    for host in ('codex','claude_code','jiuwen'):
+        files=export_skills(tmp_path/host,source=SOURCE,host=host,host_ref='registered-'+host)
+        roles=[]
+        for path in files:
+            with zipfile.ZipFile(path) as archive:
+                names=archive.namelist()
+                # native/ is the selected adapter's entry, binding and enablement text; host adapter tests own its content.
+                assert any(n.endswith('/native/entry-binding.json') for n in names)
+                public={n:archive.read(n) for n in names if n.endswith('.md') and not n.split('/',1)[1].startswith('native/')}
+                assert any(n.endswith('/SKILL.md') for n in public) and any('/references/' in n for n in public)
+                roles.append(public)
+                launcher=next(archive.read(n).decode() for n in names if n.endswith('/scripts/ioalab.py'))
+                assert 'registered-'+host in launcher
+        snapshots.append(roles)
+    assert snapshots[0]==snapshots[1]==snapshots[2]
+
+
+@pytest.mark.parametrize('package_host,package_ref',[('claude_code','codex'),('codex','other-codex')])
+def test_native_status_refuses_other_host_or_registration_binding(tmp_path,monkeypatch,package_host,package_ref):
+    from ioalab_client.skills import export_skills
+    from ioalab_client.native_skills import status
+    monkeypatch.setattr(Path,'home',lambda:tmp_path)
+    for path in export_skills(tmp_path/'exports',source=SOURCE,host=package_host,host_ref=package_ref):
+        with zipfile.ZipFile(path) as archive:archive.extractall(tmp_path/'.agents/skills')
+    assert not any(item['installed'] for item in status('codex',host_ref='codex'))
+
+
+def test_native_entry_binding_uses_sdk_profiles_and_fixed_launcher_commands(tmp_path):
+    from ioalab_client.skills import native_entry_binding
+    summary={'dataDir':str(tmp_path/'original-data'),'identities':[
+        {'key':'actual-assistant-key','role':'assistant'}, {'key':'actual-service-key','role':'service'}]}
+    result=native_entry_binding(python=sys.executable,config=tmp_path/'original.json',host_ref='original-host',summary=summary)
+    assert result['profiles']['assistant']['profile']=='actual-assistant-key'
+    assert result['profiles']['provider']['profile']=='actual-service-key'
+    assert 'assistant.delegation.flow' in result['sourceOperations']
+    assert 'runtime.stop' not in result['sourceOperations']
+    assert 'runtime.configure' not in result['sourceOperations']
+    assert 'assistant.unknown' not in result['sourceOperations']
+    for slot,role in [('assistant','assistant'),('provider','service')]:
+        item=result['profiles'][slot]
+        assert item['ensureCommand']==[sys.executable,'-I','-X','utf8','-m','ioalab_client.runtime','start','--config',str((tmp_path/'original.json').resolve())]
+        assert item['callerCommand'][-1]=='--native-input'
+        assert item['callerCommand'][item['callerCommand'].index('--role')+1]==role
+        assert 'entryRef' not in item and 'grant' not in item
+        assert Path(item['descriptorFile']).is_relative_to(tmp_path/'original-data')
+
+
+def test_complete_native_resources_are_exported_without_automatic_install(tmp_path,monkeypatch):
+    from types import SimpleNamespace
+    import ioalab_claude_code
+    from ioalab_client.skills import export_skills
+    seen=[]
+    def resource_files(binding):
+        seen.append(binding)
+        return {'entry-binding.json':json.dumps(binding).encode(),'wrapper.mjs':b'fixture-native-wrapper'}
+    monkeypatch.setattr(ioalab_claude_code,'native_skills',SimpleNamespace(resource_files=resource_files))
+    packages=export_skills(tmp_path/'exports',source=SOURCE,host='claude_code',host_ref='original-host',
+                           public_summary={'dataDir':str(tmp_path/'data'),'identities':[{'key':'actual-key','role':'assistant'}]})
+    assert len(seen)==1 and len(packages)==2
+    for package in packages:
+        with zipfile.ZipFile(package) as archive:
+            root=archive.namelist()[0].split('/')[0]
+            assert archive.read(root+'/native/wrapper.mjs')==b'fixture-native-wrapper'
+            binding=json.loads(archive.read(root+'/native/entry-binding.json'))
+            assert binding['profiles']['assistant']['profile']=='actual-key'
+            manifest=json.loads(archive.read(root+'/.ioalab-skill.json'))
+            assert 'native/wrapper.mjs' in manifest['files']
+
+
+def test_native_export_metadata_is_sanitized_by_the_sdk(tmp_path):
+    from ioalab_client.skills import entry_summary,native_entry_binding
+    from ioalab_sdk.runtime import private_json
+    config=tmp_path/'settings.json'
+    private_json(config,{'username':'account-owner','password':'private-not-exported',
+        'data_dir':str(tmp_path/'data'),'identities':[{'key':'original-profile','role':'assistant','name':'Original'}]})
+    summary=entry_summary(config)
+    binding=native_entry_binding(python=sys.executable,config=config,host_ref='original-host',summary=summary)
+    assert binding['profiles']['assistant']['profile']=='original-profile'
+    assert 'private-not-exported' not in json.dumps(binding)
+    assert 'account-owner' not in json.dumps(binding)
+
+
+def test_invalid_native_export_configuration_reports_no_input_content(tmp_path):
+    from ioalab_client.skills import entry_summary
+    from ioalab_sdk.runtime import private_json
+    config=tmp_path/'settings.json'
+    private_json(config,{'unexpected':'private-not-exported'})
+    with pytest.raises(RuntimeError) as error:entry_summary(config)
+    assert 'private-not-exported' not in str(error.value)
+    assert 'SDK native entry metadata is unavailable' in str(error.value)
+
+
+def test_adapter_refusing_entry_binding_returns_structured_export_failure(tmp_path,monkeypatch,capsys):
+    from types import SimpleNamespace
+    import ioalab_claude_code
+    from ioalab_client.cli import main
+    from ioalab_client import installation
+    from ioalab_sdk.runtime import RuntimeFault
+    def refuse(binding):raise RuntimeFault('invalid_input','Adapter refused the entry binding')
+    monkeypatch.setattr(installation,'prepare',lambda:{'status':'completed','data':{'python':sys.executable}})
+    monkeypatch.setattr(ioalab_claude_code,'native_skills',SimpleNamespace(resource_files=refuse))
+    assert main(['skills','--output',str(tmp_path/'exports'),'--host','claude_code','--config',str(tmp_path/'missing.json')])==1
+    result=json.loads(capsys.readouterr().out)
+    assert result['status']=='rejected' and result['error']['code']=='export_failed'
+    assert not any((tmp_path/'exports').glob('*.zip'))
+
+
+def _account(config,data):
+    from ioalab_sdk.runtime import private_json
+    private_json(config,{'username':'reinstall-account','password':'private-reinstall-secret','data_dir':str(data),
+        'identities':[{'key':'own-assistant','role':'assistant','name':'A'},{'key':'own-service','role':'service','name':'S'}]})
+
+
+def test_reinstall_after_account_atomically_replaces_own_unmodified_skills(tmp_path,monkeypatch):
+    from ioalab_client.native_skills import install,status
+    monkeypatch.setattr(Path,'home',lambda:tmp_path)
+    config=tmp_path/'client/settings.local.json'
+    before=install('codex',config=config,source=SOURCE,host_ref='desk')
+    assert before['installed'] and not before['reloadRequired']
+    native=tmp_path/'.agents/skills'
+    assert json.loads((native/'ioalab-delegate/native/entry-binding.json').read_bytes())['profiles']=={}
+    _account(config,tmp_path/'client/data')
+    after=install('codex',config=config,source=SOURCE,host_ref='desk')
+    assert after['installed'] and after['reloadRequired'] and after['exportsReplaced']
+    assert all(item['replaced'] and item['reloadRequired'] for item in after['skills'])
+    profiles=json.loads((native/'ioalab-provider/native/entry-binding.json').read_bytes())['profiles']
+    assert profiles['provider']['profile']=='own-service' and profiles['assistant']['profile']=='own-assistant'
+    assert all(item['installed'] for item in status('codex',config=config,host_ref='desk'))
+    # Neither a retired copy nor staging remains discoverable beside the two skills.
+    assert sorted(path.name for path in native.iterdir())==['ioalab-delegate','ioalab-provider']
+    assert sorted(path.name for path in (config.parent/'role-skills/desk').iterdir())==['ioalab-assistant-skill.zip','ioalab-provider-skill.zip']
+    installed=b''.join(file.read_bytes() for file in native.rglob('*') if file.is_file())
+    assert b'private-reinstall-secret' not in installed
+    again=install('codex',config=config,source=SOURCE,host_ref='desk')
+    assert again['installed'] and not again['reloadRequired'] and not again['exportsReplaced']
+
+
+@pytest.mark.parametrize('change',['modified','other-ref','other-config','foreign-export'])
+def test_reinstall_never_replaces_modified_or_differently_bound_skills(tmp_path,monkeypatch,change):
+    from ioalab_client.native_skills import install
+    monkeypatch.setattr(Path,'home',lambda:tmp_path)
+    config=tmp_path/'client/settings.local.json'
+    first=tmp_path/'elsewhere/settings.local.json' if change=='other-config' else config
+    install('codex',config=first,source=SOURCE,host_ref='other' if change=='other-ref' else 'desk',output=tmp_path/'first-exports' if change in ('other-ref','other-config') else None)
+    native=tmp_path/'.agents/skills/ioalab-delegate'
+    exports=config.parent/'role-skills/desk'
+    if change=='modified':(native/'SKILL.md').write_bytes(b'user-edited skill')
+    if change=='foreign-export':(exports/'ioalab-assistant-skill.zip').write_bytes(b'user file')
+    snapshot={path:path.read_bytes() for path in native.rglob('*') if path.is_file()}
+    _account(config,tmp_path/'client/data')
+    if change=='foreign-export':
+        with pytest.raises(RuntimeError,match='export differs'):install('codex',config=config,source=SOURCE,host_ref='desk')
+        assert (exports/'ioalab-assistant-skill.zip').read_bytes()==b'user file'
+    else:
+        result=install('codex',config=config,source=SOURCE,host_ref='desk')
+        delegate=result['skills'][0]
+        assert delegate['status']=='manual_required' and not delegate['replaced'] and delegate['instructions']
+        assert 'differs' in delegate['reason']
+    assert {path:path.read_bytes() for path in native.rglob('*') if path.is_file()}==snapshot
+
+
+@pytest.mark.parametrize('rollback_fails',[False,True])
+def test_failed_swap_restores_or_preserves_original_skill_directory(tmp_path,monkeypatch,rollback_fails):
+    from ioalab_client.native_skills import install,status
+    monkeypatch.setattr(Path,'home',lambda:tmp_path)
+    config=tmp_path/'client/settings.local.json'
+    install('codex',config=config,source=SOURCE)
+    native=tmp_path/'.agents/skills'
+    snapshot={path.relative_to(native/path.relative_to(native).parts[0]):path.read_bytes()
+              for path in native.rglob('*') if path.is_file() and path.relative_to(native).parts[0]=='ioalab-delegate'}
+    _account(config,tmp_path/'client/data')
+    original=Path.rename
+    def rename(self,target):
+        # Interrupt the swap of a staged directory into its final native place (and optionally its rollback).
+        if Path(target).parent==native and self.parent.parent==native and (rollback_fails or self.name!='retired'):
+            raise PermissionError('swap interrupted')
+        return original(self,target)
+    monkeypatch.setattr(Path,'rename',rename)
+    result=install('codex',config=config,source=SOURCE)
+    assert not result['installed'] and all(item['status']=='manual_required' for item in result['skills'])
+    monkeypatch.setattr(Path,'rename',original)
+    if rollback_fails:
+        # Nothing is deleted: the reason names the nested, undiscoverable preserved copy.
+        kept=Path(result['skills'][0]['reason'].rsplit(' at ',1)[1])
+        assert kept.parent.parent==native and kept.name=='retired' and not (native/'ioalab-delegate').exists()
+        assert {path.relative_to(kept):path.read_bytes() for path in kept.rglob('*') if path.is_file()}==snapshot
+        return
+    assert {path.relative_to(native/'ioalab-delegate'):path.read_bytes()
+            for path in (native/'ioalab-delegate').rglob('*') if path.is_file()}==snapshot
+    assert sorted(path.name for path in native.iterdir())==['ioalab-delegate','ioalab-provider']
+    # The restored own copy remains replaceable once the interruption is gone.
+    assert install('codex',config=config,source=SOURCE)['installed']
+    assert all(item['installed'] for item in status('codex',config=config))
+
+
+def test_pending_steps_are_structured_and_verified_read_only(tmp_path,monkeypatch,capsys):
+    from ioalab_client.cli import main
+    from ioalab_client import installation
+    monkeypatch.setattr(installation,'prepare',lambda:{'status':'completed','data':{'python':sys.executable}})
+    monkeypatch.setattr(Path,'home',lambda:tmp_path)
+    config=tmp_path/'client/settings.local.json'
+    base=['onboarding','--host','jiuwen','--host-ref','desk','--config',str(config)]
+    assert main(base)==0
+    steps=json.loads(capsys.readouterr().out)['data']['pending']
+    assert all(set(item)=={'id','actor','instruction','verify'} and item['actor'] in ('agent','user') for item in steps)
+    account=next(item for item in steps if item['id']=='account')
+    assert account['actor']=='user' and 'account.setup' in account['instruction']
+    assert account['verify'][-2:]==['--verify','account'] and account['verify'][account['verify'].index('--config')+1]==str(config.resolve())
+    # Jiuwen has no native directory: its manual import is a user step naming the real package path.
+    skill=next(item for item in steps if item['id']=='skill:ioalab-delegate')
+    assert skill['actor']=='user' and str(config.resolve().parent/'role-skills/desk/ioalab-assistant-skill.zip') in skill['instruction']
+    assert not any('在线试用' in item['instruction'] or '管理员助手' in item['instruction'] for item in steps)
+    assert main([*base,'--verify','account'])==1
+    assert json.loads(capsys.readouterr().out)['error']['code']=='step_pending'
+    _account(config,tmp_path/'client/data')
+    assert main([*base,'--verify','account'])==0
+    assert json.loads(capsys.readouterr().out)['data']['verified'] is True
+    # New-session discovery is never self-certified by the program.
+    assert main([*base,'--verify','new_session'])==1
+    assert 'password' not in capsys.readouterr().out.lower()
+    assert main([*base,'--format','markdown'])==0
+    text=capsys.readouterr().out
+    assert '[由你完成]' in text and 'private-reinstall-secret' not in text

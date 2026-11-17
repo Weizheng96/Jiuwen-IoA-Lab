@@ -55,10 +55,6 @@ def validate(root=ROOT):
     if 'workswarm' in components:
         runtime=components['workswarm']
         if spec['commit']!=runtime['commit'] or spec['sourceArchiveSha256']!=runtime['sourceTarSha256']:raise ValueError('Jiuwen source pin differs between manifests')
-    if 'a2c' in components:
-        source=json.loads((vendor/'wheels/SOURCE.json').read_text('utf-8'));sdk=components['a2c']
-        if source['source']['commit']!=sdk['commit'] or 'wheels/'+source['wheel']!=sdk['wheelInfo']['file'] or source['sha256']!=sdk['wheelInfo']['sha256']:raise ValueError('A2C source/wheel differs between manifests')
-
     expected={i['wheel'] for i in components.values() if i['delivery']=='build-wheel'};seen=set()
     for line in lock.read_text('utf-8').splitlines():
         if not line.strip() or line.lstrip().startswith('#'):continue

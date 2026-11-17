@@ -9,9 +9,13 @@ import sysconfig
 import venv
 import shutil
 import zipfile
+import glob
+import hashlib
+import tomllib
 import pytest
 from email.parser import BytesParser
 from packaging.requirements import Requirement
+from setuptools import find_packages
 
 ROOT = Path(__file__).resolve().parents[1]
 # A dev venv may itself borrow dependencies via .pth; use their actual installed site.
@@ -19,11 +23,85 @@ DEPENDENCY_SITES = list(dict.fromkeys([sysconfig.get_paths()["purelib"], str(imp
 DEPENDENCY_PATHS = "\n".join(DEPENDENCY_SITES)+"\n"
 
 
+def test_independent_host_wheels_assemble_without_product_distribution(tmp_path,platform):
+    """Native/official application entry points depend on SDK, never the unified product."""
+    from test_resident_runtime import configuration
+    wheels=tmp_path/'wheels'
+    projects=[ROOT/'src/a2c', ROOT/'src/client/sdk',*(ROOT/'src/client/hosts'/name for name in ('jiuwen','codex','claude_code'))]
+    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),*[str(item) for item in projects]],tmp_path)
+    environment=tmp_path/'independent';venv.EnvBuilder(with_pip=True).create(environment)
+    python=environment/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+    built=sorted(wheels.glob('*.whl'))
+    run([str(python),'-I','-m','pip','install','--no-index','--no-deps',*[str(item) for item in built]],tmp_path)
+    purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
+    Path(purelib,'zz-third-party.pth').write_text(DEPENDENCY_PATHS,encoding='utf-8')
+    cases=[]
+    for kind,module,identity in [('jiuwen','ioalab_jiuwen','ioalab-jiuwen'),('codex','ioalab_codex','ioalab-codex'),('claude','ioalab_claude_code','ioalab-claude-code')]:
+        directory=tmp_path/kind;directory.mkdir()
+        path,_=configuration(platform,directory,service=False)
+        document=json.loads(path.read_text())
+        document['host']={'command':[str(python)],'model':'test-model'}
+        if kind=='jiuwen':document['host']['data_dir']=str(directory/'swarm')
+        path.write_text(json.dumps(document),encoding='utf-8')
+        cases.append([module,str(path),identity])
+    script='''import importlib,importlib.util,json,sys
+from importlib import metadata
+assert importlib.util.find_spec('ioalab_client') is None
+try:metadata.distribution('ioalab-client')
+except metadata.PackageNotFoundError:pass
+else:raise AssertionError('Product distribution unexpectedly present')
+results=[]
+for module,path,identity in json.loads(sys.argv[1]):
+    owner=importlib.import_module(module)
+    with owner.assembled(path) as assembly:
+        status=assembly.runtime.status()
+        assert status['installation']['assembly']==identity
+        assert len(assembly.runtime.identities)==1
+        results.append([module,identity])
+print(json.dumps(results))
+'''
+    assert json.loads(run([str(python),'-I','-c',script,json.dumps(cases)],tmp_path))==[[item[0],item[2]] for item in cases]
+
+
 def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
     from tools.build_client import build
     wheel=build(tmp_path/'wheels')
+    from deploy.wheels import build_wheel
+    owned=build_wheel(ROOT/'src/a2c',tmp_path/'owned')
+    # Component declarations are the resource contract; the aggregate must ship
+    # their actual bytes, including explicitly named hidden plugin metadata.
+    resource_digests={}
+    projects=[ROOT/'src/a2c', ROOT/'src/client/sdk',
+              *(ROOT/'src/client/hosts'/name for name in ('jiuwen','codex','claude_code'))]
+    for project in projects:
+        config=tomllib.loads((project/'pyproject.toml').read_text(encoding='utf-8'))
+        for package,patterns in config.get('tool',{}).get('setuptools',{}).get('package-data',{}).items():
+            scoped=find_packages(str(project)) if package in ('','*') else [package]
+            for owned_package in scoped:
+                directory=project/Path(*owned_package.split('.'))
+                for pattern in patterns:
+                    for name in glob.glob(str(directory/pattern),recursive=True):
+                        path=Path(name)
+                        if path.is_file():
+                            resource=owned_package.replace('.','/')+'/'+path.relative_to(directory).as_posix()
+                            resource_digests[resource]=hashlib.sha256(path.read_bytes()).hexdigest()
+    required={'ioalab_claude_code/resources/native/.claude-plugin/plugin.json',
+              'ioalab_claude_code/resources/native/hooks/hooks.json',
+              'ioalab_claude_code/resources/native/wrapper.mjs',
+              'ioalab_jiuwen/resources/native/entry.py',
+              'ioalab_jiuwen/resources/native/rail.py'}
+    assert required<=resource_digests.keys()  # Never pass with an empty contract.
+    with zipfile.ZipFile(owned) as a, zipfile.ZipFile(wheel) as b:
+        original={name:a.read(name) for name in a.namelist() if name.startswith('a2c/') and not name.endswith('/')}
+        embedded={name:b.read(name) for name in b.namelist() if name.startswith('a2c/') and not name.endswith('/')}
+        assert original.keys()==embedded.keys()
+        assert all(original[name]==embedded[name] for name in original)
+        assert b.read('ioalab_client/data/licenses/a2c/NOTICE.md')==(ROOT/'src/a2c/NOTICE.md').read_bytes()
     with zipfile.ZipFile(wheel) as archive:
         names=archive.namelist()
+        assert required<=set(names)
+        assert all(hashlib.sha256(archive.read(name)).hexdigest()==digest
+                   for name,digest in resource_digests.items())
         assert 'ioalab_sdk/runtime/web/account.html' in names
         assert 'ioalab_sdk/runtime/trust/platform-trust.json' in names
         assert 'ioalab_sdk/runtime/trust/ioalab-ca.pem' in names
@@ -46,6 +124,28 @@ def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
     run([str(python),'-I','-m','pip','install','--no-index','--no-deps',str(wheel)],tmp_path)
     purelib=run([str(python),'-I','-c','import sysconfig;print(sysconfig.get_paths()["purelib"])'],tmp_path).strip()
     Path(purelib,'zz-third-party.pth').write_text(DEPENDENCY_PATHS,encoding='utf-8')
+    resource_manifest=tmp_path/'declared-resources.json'
+    resource_manifest.write_text(json.dumps(resource_digests),encoding='utf-8')
+    resources=run([str(python),'-X','utf8','-I','-c','''
+import hashlib,importlib.metadata as m,importlib.resources as r,json,pathlib,sys
+from ioalab_client.installation import prepare
+expected=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'))
+dist=m.distribution('ioalab-client')
+record={str(item).replace('\\\\','/'):item for item in dist.files}
+for name,digest in expected.items():
+    package,relative=name.split('/',1)
+    package_files=r.files(package)
+    assert pathlib.Path(package_files).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve()),package
+    data=package_files.joinpath(relative).read_bytes()
+    assert hashlib.sha256(data).hexdigest()==digest,name
+    item=record[name]
+    assert item.hash is not None and item.hash.mode=='sha256',name
+    path=pathlib.Path(dist.locate_file(item)).resolve()
+    assert path.is_relative_to(pathlib.Path(sys.prefix).resolve()),path
+assert prepare()['status']=='completed'
+print(json.dumps({'resourcesVerified':len(expected)}))
+''',str(resource_manifest)],tmp_path)
+    assert json.loads(resources)['resourcesVerified']==len(resource_digests)
     default=run([str(python),'-I','-c',
         'from ioalab_sdk.runtime.config import DEFAULT_PLATFORM_URL; from ioalab_codex import assembled; print(DEFAULT_PLATFORM_URL)'],tmp_path)
     assert default.strip()=='https://ioalab.openjiuwen.com'
@@ -71,6 +171,8 @@ def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
 def test_pip_installs_client_from_git_tag_and_records_its_commit(tmp_path):
     repository=tmp_path/'repository'
     shutil.copytree(ROOT/'src/client',repository/'src/client',
+                    ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
+    shutil.copytree(ROOT/'src/a2c',repository/'src/a2c',
                     ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
     vendor=repository/'vendor';vendor.mkdir()
     manifest=json.loads((ROOT/'vendor/SOURCES.json').read_text(encoding='utf-8'))
@@ -127,7 +229,7 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
     stale = source/'build/lib/ioalab/psp/obsolete.py'
     stale.parent.mkdir(parents=True)
     stale.write_text("raise RuntimeError('obsolete module must never ship')\n",encoding='utf-8')
-    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(source),str(ROOT/'src/client/sdk'),str(ROOT/'src/client/hosts/jiuwen')], tmp_path)
+    run([sys.executable,str(ROOT/'tools/build_packages.py'),'--out',str(wheels),str(ROOT/'src/a2c'),str(source),str(ROOT/'src/client/sdk'),str(ROOT/'src/client/hosts/jiuwen')], tmp_path)
     shutil.copy2(official_snapshot[1],wheels/official_snapshot[1].name)
     with zipfile.ZipFile(next(wheels.glob('ioalab-*.whl'))) as archive:
         assert not any(name.startswith('ioalab/psp/') for name in archive.namelist())

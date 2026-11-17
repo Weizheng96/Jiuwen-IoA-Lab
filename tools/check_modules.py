@@ -15,6 +15,7 @@ TICKET = re.compile(r"^\d\d-.*\.md$")
 
 # Module name -> code paths (files or directories). The longest matching prefix owns a file.
 MODULES = {
+    "A2C协议": ["src/a2c/a2c"],
     "身份中心": ["src/platform/ioalab/identity"],
     "注册中心": ["src/platform/ioalab/registry"],
     "委托中心": ["src/platform/ioalab/delegation"],
@@ -46,6 +47,7 @@ MODULES = {
 OUTSIDE = {"示例": ["src/client/examples"], "开发工具": ["tools"], "测试": ["tests"]}
 # Import roots for absolute imports.
 PACKAGES = {
+    "a2c": "src/a2c/a2c",
     "ioalab_client": "src/client/ioalab_client",
     "ioalab": "src/platform/ioalab", "ioalab_sdk": "src/client/sdk/ioalab_sdk",
     "ioalab_codex": "src/client/hosts/codex/ioalab_codex",

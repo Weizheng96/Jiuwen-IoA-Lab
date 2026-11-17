@@ -84,7 +84,8 @@ def test_public_termination_requires_own_user_and_automatically_settles_original
 def test_termination_does_not_release_an_original_running_tool_or_hide_its_unknown_effect(platform,tmp_path,monkeypatch,unknown):
     import json
     import threading
-    from ioalab_sdk.runtime.host import HostResult,ToolBinding
+    from ioalab_sdk.runtime import ToolBinding
+    from submission_fixture import FixtureResult
     from ioalab_sdk.runtime.protocol import RuntimeFault
     from test_resident_delegation import QuoteHost
     from test_resident_fulfillment import invoke
@@ -94,14 +95,14 @@ def test_termination_does_not_release_an_original_running_tool_or_hide_its_unkno
         if unknown:raise RuntimeFault('unknown_result','Isolated external effect has no known receipt')
         return {'effect':'actual original receipt'}
     class Host(QuoteHost):
-        def run(self,turn):
+        def execute(self,turn):
             data=json.loads(turn.input)
-            if data['phase']!='production':return super().run(turn)
+            if data['phase']!='production':return super().execute(turn)
             self.turns.append(turn);turn.on_session(turn.session_id)
             try:turn.on_tool('original_effect',{},'effect')
             except RuntimeFault:pass
             denied.append(turn.on_tool('provider.task.request_step',{'step':'not-configured'},'late'))
-            return HostResult('completed',turn.session_id,{})
+            return FixtureResult('completed',turn.session_id,{})
     tool=ToolBinding('original_effect','Isolated original effect',{'type':'object','additionalProperties':False},effect,'reservation')
     with participants(platform,tmp_path,fee=0,agent_host=Host(),provider_tools={'service':{'original_effect':tool}}) as (provider,assistant,host,template,task):
         selected=candidate(assistant,provider,template,task);formed,_,_=confirm(assistant,selected);ref=formed['data']['contractRef']
@@ -177,7 +178,7 @@ def test_lost_termination_ack_resumes_original_signed_notice_and_single_payment(
 @pytest.mark.parametrize('failure',['restart','lost_close'])
 def test_service_settlement_recovers_original_context_and_committed_close(platform,tmp_path,monkeypatch,failure):
     from ioalab_sdk.provider import ProviderRole
-    from ioalab_sdk.runtime.resident import ResidentRuntime
+    from submission_fixture import bound_runtime
     from ioalab_sdk.adapters.transport import SessionTransport
     from ioalab_sdk.runtime.protocol import RuntimeFault
     with participants(platform,tmp_path,fee=0) as (provider,assistant,host,template,task):
@@ -205,7 +206,7 @@ def test_service_settlement_recovers_original_context_and_committed_close(platfo
             if failure=='restart':
                 assert not platform.market.market.store.get('ledger',ref)
                 config=provider.config;provider.close()
-                role=ProviderRole(host);resumed=ResidentRuntime(config,modules=(role,),host_status=host.capabilities).start()
+                resumed=bound_runtime(config,host,lambda selected:ProviderRole(selected)).start()
                 wait_for(lambda:resumed.connection.connected)
                 current=resumed
             else:current=provider

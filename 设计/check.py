@@ -4,14 +4,13 @@
 
 - 设计/VERSION 是本仓版本唯一的一处，格式 vX.Y.Z；变更/README.md 变更表最上一行必须与它一致
 - 各交付目录的 VERSION 记录实际依据的设计版本；检查路径跟随代码迁移
-- 设计/README.md 记依据的 A2C 设计版本（一行「依据的 A2C 设计版本：vX.Y.Z」），必须与 vendor/wheels/SOURCE.json 一致
+- A2C为本仓独立安装单元，实际版本读取src/a2c/VERSION，不再依赖外仓来源清单
 - README、docstring、设计文档里不得再散写「设计版本 vN」——版本只在 VERSION 文件里
 
     python 设计/check.py
 """
 from __future__ import annotations
 
-import json
 import re
 import sys
 from pathlib import Path
@@ -19,8 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FMT = re.compile(r"^v\d+\.\d+\.\d+$")
 STRAY = re.compile(r"设计版本 v\d|随设计 v\d|当前版本：v\d|平台版本 v\d")
-A2C_LINE = re.compile(r"依据的 A2C 设计版本：(v\d+\.\d+\.\d+)")
-ARTIFACTS = ("src/client", "src/platform", "src/client/sdk", "src/client/skills", "src/client/hosts/jiuwen", "src/client/hosts/codex", "src/client/hosts/claude_code", "src/official", "src/client/examples", "src/trial", "tools/verification", "deploy", "tools/media")
+ARTIFACTS = ("src/a2c", "src/client", "src/platform", "src/client/sdk", "src/client/skills", "src/client/hosts/jiuwen", "src/client/hosts/codex", "src/client/hosts/claude_code", "src/official", "src/client/examples", "src/trial", "tools/verification", "deploy", "tools/media")
 
 
 def read_version(path: Path) -> str | None:
@@ -77,17 +75,6 @@ def main() -> int:
         bad.append(f"变更/README.md 变更表最上一行是 {top}，与 设计/VERSION 的 {design} 不一致")
     print(f"本仓版本 {design or '—'}　（变更表最上一行 {top or '—'}）")
 
-    # 依据的 A2C 设计版本：设计/README.md ↔ vendor/wheels/SOURCE.json
-    readme = (ROOT / "设计/README.md").read_text(encoding="utf-8")
-    m = A2C_LINE.search(readme)
-    src = json.loads((ROOT / "vendor/wheels/SOURCE.json").read_text(encoding="utf-8"))
-    a2c_design = src["source"]["design_version"]
-    if not m:
-        bad.append("设计/README.md 缺少「依据的 A2C 设计版本：vX.Y.Z」")
-    elif m.group(1) != a2c_design:
-        bad.append(f"设计/README.md 记的 A2C 设计版本 {m.group(1)} 与 vendor/wheels/SOURCE.json 的 {a2c_design} 不一致")
-    print(f"依据的 A2C 设计版本 {a2c_design}（a2c wheel {src['version']}，来源提交 {src['source']['commit'][:10]}）\n")
-
     print(f"{'产物':<14}{'依据':>8}  状态")
     for name in ARTIFACTS:
         d = ROOT / name
@@ -101,7 +88,7 @@ def main() -> int:
             bad.append(f"{name}/VERSION {v}")
             status = "格式错误"
         elif design and vtuple(v) < vtuple(design):
-            status = f"落后（现行 {design}）"
+            status = "独立SDK版本" if name == "src/a2c" else f"落后（现行 {design}）"
         elif design and vtuple(v) > vtuple(design):
             bad.append(f"{name}/VERSION {v} 高于本仓版本 {design}")
             status = "超前？"
@@ -114,7 +101,7 @@ def main() -> int:
     if bad:
         print("✗ " + "\n✗ ".join(bad))
         return 1
-    print("✓ 版本一致：VERSION 唯一、变更表对得上、产物各有依据、A2C 依据与 wheel 一致、无散落标记")
+    print("✓ 版本一致：VERSION 唯一、变更表对得上、产物各有依据、A2C使用本仓源码、无散落标记")
     return 0
 
 
