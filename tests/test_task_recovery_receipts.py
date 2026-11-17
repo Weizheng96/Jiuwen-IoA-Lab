@@ -60,7 +60,7 @@ def test_known_failed_host_round_can_recover_only_its_unknown_verifier_upload(pl
         if not json.loads(turn.input).get('preparedVerifiers') and json.loads(turn.input)['phase']=='quote':
             return replace(result,status='failed',error={'code':'original_model_tool_name_denied'})
         return result
-    host.run=run
+    host.execute=run
     with stopped(platform,tmp_path,monkeypatch,host=host) as (provider,assistant,host,_,_,reference,snapshot,_):
         assert snapshot['canResume']
         proof=provider.modules[0].execution.tasks.proof(provider.identities[0],snapshot['taskRef'])

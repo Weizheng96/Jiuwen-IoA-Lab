@@ -22,7 +22,8 @@ def test_aliases_are_readable_stable_and_route_to_the_exact_original_name(tmp_pa
             assert names[:2]==['ioa_provider_task_quote','ioa_provider_task_verifier_publish']
             assert names[4]=='ioa_collision_one'
             assert all(re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name) for name in names)
-            assert set(request['agent']['tools'])==set(names)==set(request['permissions']['tools'])
+            assert request['agent']['tools']==['*']
+            assert set(names)==set(request['permissions']['tools'])
             for index,name in enumerate(names):
                 assert await callbacks['on_tool_call']({'request_id':request['request_id'],'session_id':'actual-name-session','payload':{'name':name,'arguments':{'call_goal':'metadata'},'call_id':str(index)}})=={'accepted':originals[index]}
             return {'type':'result','request_id':request['request_id'],'status':'completed','session_id':'actual-name-session','exit_code':0}

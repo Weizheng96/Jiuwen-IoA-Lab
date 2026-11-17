@@ -23,3 +23,28 @@
 ## 主路线判断与边界
 
 以上两项本身不阻塞现有接入与四流程入口，用户授权先提交现有半成品，后续排期完成。该判断不表示完整专题已验收：Codex/Claude原生资源映射、真实宿主四流程及正式来源接入仍按30/31/36分别核实，不由这张票豁免。高可用加固继续归[宿主高可用](../宿主高可用.md)。本票关闭前保持专题开放。
+
+
+## C 真实宿主opt-in测试S01迁移（后续，未验）
+
+2026-11-17检查发现部分真实宿主opt-in测试仍调用已删除的probe/capabilities/run或旧原生事件驱动。普通替身定向通过、部署ready及跳过这些用例均不能代表真实宿主通过。本轮不为测试恢复兼容方法或增加第二执行链；后续按唯一HostRegistry/S01/P28工具桥迁移并在真实环境显式运行。
+
+定位包括test_assistant_role、test_provider_task_recovery、test_resident_contracts、test_resident_fulfillment、test_resident_delegation、test_resident_nail、test_task_verifiers中的真实宿主场景；迁移时逐项区分真实CLI/模型、原生会话可见、工具效果和原SDK批准证据，不因共用文件内其他用例已过而勾选真实场景。
+
+- [ ] 旧probe/capabilities/run与原生事件驱动迁入现行S01接缝，保持原业务断言及真实宿主开关。
+- [ ] 使用正式GitCode来源和新用户/新会话逐宿主核验，结果回写36矩阵。
+
+## 并行检查与服务器问题收口
+
+v205.2完整检查真实退出1：3250通过、9失败、59跳过、14子测试通过；pytest 3399.01秒，runner pytest阶段3402.953秒，selfcheck未执行（temp/checks/20261117T110325Z-16bc5da8）。失败归因与本批最小修复由统一owner处理，不记full通过；原恢复测试run注入须迁实际execute接缝，不增产品兼容链。
+
+服务器ec8cddb内测test-reset/HTTPS/核心检索已有真实结果，但官方/admin真实S01发现Process AgentSpec tools必须为列表['*']，不能把Runtime配置层字符串'*'误用于传输；修复后须重新部署实测。另Windows PS5.1真实bootstrap探针引号与uv备用资产404由本轮统一修复，旧报告保留。P04已澄清为历史安装验证字段语义，不新增部署逻辑或借其声称本次实测完成。三宿主四流程依旧未验，原39 A/B两项不因此收票。
+
+
+### 206.1统一修复与实测边界
+
+P01两份原生资源README已追平；P02 uv备用资产404改为官方PyPI wheel与清华同SHA资产，仍核固定SHA并直接使用包内uv.exe；P03 Python探针以单引号修PS5.1 legacy argv，并有真实PS5探针回归；P05 Process传输改tools=['*']并用manifest核SHA的真实审阅wheel AgentSpec验证；P06恢复故障注入迁实际execute接缝，服务方示例迁唯一HostRegistry/P20链。SDK绑定、拒绝、schema与幂等断言保留，未恢复旧产品兼容链。
+
+原全量9失败已分别定向修复通过：P06/示例4项通过；原生/别名组及provider业务最终2项复测通过；Root组原失败3项最终均通过；bootstrap69项含PS5探针、真实AgentSpec新边界通过。独立selfcheck全部通过，exit0/37.625秒（temp/checks/20261117T122113Z-1306385e）。原全量3250通过/9失败/59跳过报告保留，完整回归未重跑，不记full最新全绿。
+
+修复后正式来源发布、服务器再部署、真实组件模型echo及新版bootstrap普通/ManagedPython仍待本轮继续实测；现有三宿主四流程和真实opt-in矩阵不提前勾选。39 A/B审计/中性化与C真实宿主接缝迁移继续开放；P04已事实澄清，无需新部署逻辑。

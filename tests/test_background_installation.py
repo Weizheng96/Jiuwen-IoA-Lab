@@ -594,6 +594,27 @@ def served(tmp_path):
 
 
 @pytest.mark.skipif(sys.platform!='win32',reason='Windows launcher')
+def test_windows_launcher_probe_reuses_the_real_installed_python(tmp_path):
+    import subprocess
+    harness=tmp_path/'probe.ps1'
+    harness.write_text('''param([string]$Launcher,[string]$Python)
+$ErrorActionPreference='Stop'; $stage='python'
+$ast=[System.Management.Automation.Language.Parser]::ParseFile($Launcher,[ref]$null,[ref]$null)
+foreach ($f in $ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$true)) { . ([scriptblock]::Create($f.Extent.Text)) }
+$assignment=$ast.Find({param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq '$probe'},$true)
+. ([scriptblock]::Create($assignment.Extent.Text))
+Invoke-Checked $Python @('-I','-c',$probe)
+''',encoding='ascii')
+    result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','RemoteSigned','-File',str(harness),
+        '-Launcher',str(ROOT/'src/client/bootstrap.ps1'),'-Python',sys.executable],
+        capture_output=True,text=True,timeout=30)
+    assert result.returncode==0,result.stderr
+    packet=json.loads(result.stdout)
+    assert packet['version']==list(sys.version_info[:2])
+    assert Path(packet['base']).samefile(sys._base_executable)
+
+
+@pytest.mark.skipif(sys.platform!='win32',reason='Windows launcher')
 @pytest.mark.parametrize('mirror',['valid','tampered','unreachable'])
 def test_windows_portable_download_falls_back_to_registered_mirror_under_fixed_sha256(tmp_path,served,mirror):
     import subprocess

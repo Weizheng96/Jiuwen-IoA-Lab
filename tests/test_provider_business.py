@@ -1,6 +1,5 @@
 """Real A2C lifecycle gates business effects; external actions are explicit doubles."""
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
 import uuid
 import json
 import threading
@@ -33,6 +32,13 @@ def test_service_business_action_needs_original_user_step_runs_unlocked_and_neve
         return {'status':'registered','explicitTestDouble':True}
     output={'type':'object','properties':{'status':{'const':'registered'},'explicitTestDouble':{'const':True}},
             'required':['status','explicitTestDouble'],'additionalProperties':False}
+    # This tool intentionally exercises both SDK stage/authorization rejections
+    # and the real external success shape; both must satisfy its declared contract.
+    output={'oneOf':[output,{'type':'object','properties':{
+        'status':{'const':'rejected'},'error':{'type':'object','properties':{
+            'code':{'enum':['forbidden','requires_authorization']},'message':{'type':'string'}},
+            'required':['code','message'],'additionalProperties':False}},
+        'required':['status','error'],'additionalProperties':False}]}
     tool=ToolBinding('professional.register','执行已授权的专业环节',schema,register,'external','1',('real_name',),output_schema=output)
     class Host(ProductionHost):
         def execute(self,turn):
@@ -42,7 +48,11 @@ def test_service_business_action_needs_original_user_step_runs_unlocked_and_neve
                 turn.on_session(session)
                 denied=turn.on_tool(tool.name,{'handle':'shop'},'quote-cannot-register')
                 assert denied['status']=='rejected' and not effects
-                return super().execute(replace(turn,session_id=session))
+                turn.session_id=session
+                return super().execute(turn)
+            # Each new native request needs its own P28 acknowledgement even
+            # when this production round reuses the already known Session.
+            turn.on_session(turn.session_id)
             if not data['steps']:
                 denied=turn.on_tool(tool.name,{'handle':'shop'},'before-user')
                 assert denied['status']=='rejected' and denied['error']['code']=='requires_authorization' and not effects
@@ -52,16 +62,23 @@ def test_service_business_action_needs_original_user_step_runs_unlocked_and_neve
                 result=turn.on_tool(tool.name,{'handle':'shop'},'after-user')
                 assert result['status']=='registered'
                 assert turn.on_tool(tool.name,{'handle':'shop'},'after-user')==result
-                with pytest.raises(RuntimeFault,match='input changed'):turn.on_tool(tool.name,{'handle':'changed'},'after-user')
+                with pytest.raises(RuntimeFault) as changed:
+                    turn.on_tool(tool.name,{'handle':'changed'},'after-user')
+                assert changed.value.code=='id_conflict'
             return super().execute(turn)
     with participants(platform,tmp_path,agent_host=Host(),verifier_source=VERIFIER,provider_tools={'service':{tool.name:tool}}) as (provider,assistant,host,template,task):
         owner['runtime']=provider
         catalog=LocalClient(provider.config.home).call('provider.tools.list',{'profile':'service'})
         assert catalog['status']=='completed' and catalog['data']['tools'][0]['requiresSteps']==['real_name']
-        quote=candidate(assistant,provider,template,task);selected,_,_=confirm(assistant,quote);ref=selected['data']['contractRef']
+        try:quote=candidate(assistant,provider,template,task)
+        except AssertionError as error:
+            raise AssertionError({'hostBoundaryFailure':getattr(host,'failure',None)}) from error
+        selected,_,_=confirm(assistant,quote);ref=selected['data']['contractRef']
         wait_for(lambda:status(assistant,ref));assert status(assistant,ref)['data']['formed']
         key,_=invoke(assistant,ref,'start');wait_for(lambda:operation(assistant,ref,key))
-        wait_for(lambda:status(assistant,ref)['data']['stepRequest'])
+        try:wait_for(lambda:status(assistant,ref)['data']['stepRequest'])
+        except AssertionError as error:
+            raise AssertionError({'hostBoundaryFailure':getattr(host,'failure',None)}) from error
         assert checked==[True] and not effects
         request=status(assistant,ref)['data']['stepRequest']
         key,pending=invoke(assistant,ref,'answer_step',stepRequestDigest=objects.object_digest(request))
