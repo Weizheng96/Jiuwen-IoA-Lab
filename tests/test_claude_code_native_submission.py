@@ -78,21 +78,129 @@ def test_missing_binding_is_specific_not_submitted_and_never_calls_events():
     assert not seen and result.terminal is None
 
 
+def deadline(seconds=.3):
+    from datetime import datetime,timezone,timedelta
+    return (datetime.now(timezone.utc)+timedelta(seconds=seconds)).isoformat()
+
+
+def bound(value):
+    return BindingAck(value.result.session_id,value.result.request_id) if value.kind=='session' else None
+
+
 @pytest.mark.parametrize('authorization',({}, {'nativeToolsEnabled':False}, {'nativeToolsEnabled':'true'}, {'nativeToolsEnabled':1}))
-def test_business_native_phase_permission_never_defaults_to_writable(tmp_path,authorization):
+def test_native_tools_disabled_round_is_submitted_unrestricted_without_declaring_restriction(tmp_path,authorization):
+    # D37: no static native_tool_restriction; false rounds are submitted as usual.
+    assert NativeClaudeHost.registration.native_tool_restriction is False
     transport=ready(tmp_path);events=[]
     def frozen():return HostExecution('assistant-actor','assistant','business','interaction','job',
-        HostDefinition('definition','1','digest','frozen instructions'),authorization=authorization)
+        HostDefinition('definition','1','digest','frozen instructions'),authorization=authorization,deadline=deadline())
     if 'nativeToolsEnabled' in authorization and type(authorization['nativeToolsEnabled']) is not bool:
         with pytest.raises(RuntimeFault):frozen()
         assert not events and not transport.requests
         return
-    execution=frozen()
-    result=NativeClaudeHost(transport=transport).submit('op',payload(),'actual-session',execution=execution,on_event=events.append)
-    assert result.error.phase=='native_permissions' and result.error.dispatch=='not_submitted'
-    with pytest.raises(RuntimeFault):
-        transport.submit('op',payload(),'actual-session',execution=execution,on_event=events.append)
-    assert not events and not transport.requests
+    def event(value):events.append(value);return bound(value)
+    result=NativeClaudeHost(transport=transport).submit('op',payload(),'actual-session',execution=frozen(),on_event=event)
+    # Queued for the original session, not refused at a permission phase.
+    assert result.error.phase=='native_wait' and result.error.dispatch=='not_submitted'
+    assert events[0].kind=='session' and ('op','attempt') in transport.requests
+    assert 'frozen instructions' in transport.requests[('op','attempt')]['payload']['text']
+
+
+SCHEMA={'type':'object','properties':{'output':{'type':'object'}},'required':['output'],'additionalProperties':False}
+
+
+@pytest.mark.parametrize('same_effect_tool',(True,False))
+def test_proposal_schema_is_optional_channel_when_same_effect_sdk_tool_exists(tmp_path,same_effect_tool):
+    # D35: Claude native has no structured proposal channel.
+    transport=ready(tmp_path);events=[]
+    tool=HostToolDeclaration('ioa_reply','Reply for original request',SCHEMA if same_effect_tool else {'type':'object'})
+    execution=HostExecution('assistant-actor','assistant','business','interaction','job',
+        HostDefinition('definition','1','digest','frozen instructions'),tools=(tool,),proposal_schema=SCHEMA,
+        authorization={'nativeToolsEnabled':True},deadline=deadline())
+    def event(value):events.append(value);return bound(value)
+    result=NativeClaudeHost(transport=transport).submit('op',payload(),'actual-session',execution=execution,
+        on_event=event,on_tool=lambda call:HostToolResult(value={'ok':True}))
+    assert result.proposal is None and result.error.dispatch=='not_submitted'
+    if same_effect_tool:
+        assert result.error.phase=='native_wait' and ('op','attempt') in transport.requests
+    else:
+        assert result.error.action=='bind_native_proposal' and not transport.requests and not events
+
+
+def saved_launch(tmp_path):
+    capture=launch_capture(tmp_path);store=NativeLaunchStore(host_ref='claude',home=tmp_path/'runtime')
+    def permission(_scope,packet):
+        if packet['action']=='pending':return {'operationId':'setup-op','intentRef':'intent'}
+        if packet['action']=='claim':return {'operationId':'setup-op','claimRef':'claim','targetDigest':packet['targetDigest']}
+        return {'operationId':'setup-op','state':'completed','phase':'bound'}
+    store.bind_entry_control(permission)
+    store.capture(launch_scope(),entry_ref='source',capture=capture,workspace=capture['projectDirectory'])
+    plugin=Path(capture['extensionDirectory']);(plugin/'.claude-plugin').mkdir(parents=True)
+    (plugin/'.claude-plugin/plugin.json').write_text('{}');(plugin/'entry-binding.json').write_text('{}')
+    return capture,store
+
+
+def test_native_check_uses_launch_criterion_without_starting_process(tmp_path,monkeypatch):
+    monkeypatch.setenv('HOME',str(tmp_path));monkeypatch.setenv('USERPROFILE',str(tmp_path))
+    assert NativeClaudeHost().check()['state']=='unavailable'
+    capture,store=saved_launch(tmp_path)
+    launched=[]
+    transport=NativeTransport(host_ref='claude',receipt_root=tmp_path/'receipts',launch_store=store)
+    processes=NativeProcesses(home=tmp_path,plugin_directory=tmp_path/'unused',launch_store=store,
+        launch=lambda *a,**k:launched.append(a))
+    host=NativeClaudeHost(transport=transport,processes=processes)
+    before=host.check()
+    assert before['state']=='unavailable' and before['basis']  # Control route not yet bound on this resident.
+    transport.start()
+    result=host.check()
+    assert result['state']=='available' and result['configDirectory']=='absent'
+    transport.active['actual-session']=('op','attempt')
+    assert host.check()['state']=='busy'
+    transport.active.clear()
+    binding=Path(capture['extensionDirectory'])/'entry-binding.json'
+    binding.unlink()
+    assert host.check()['state']=='unavailable'
+    binding.write_text('{}')
+    Path(capture['cli']).unlink()
+    missing=host.check()
+    assert missing['state']=='unavailable' and 'executable' in missing['basis'] and not launched
+
+
+def test_native_check_before_explicit_setup_is_unknown_and_changed_receipt_unavailable(tmp_path):
+    store=NativeLaunchStore(host_ref='claude',home=tmp_path/'runtime')
+    transport=NativeTransport(host_ref='claude',launch_store=store);transport.start()
+    host=NativeClaudeHost(transport=transport,processes=NativeProcesses(home=tmp_path,plugin_directory=tmp_path,launch_store=store))
+    assert host.check()['state']=='unknown'  # Not evidence for a P34 pause before setup.
+    store.home.mkdir(parents=True);store.path.write_text('{"changed":true}')
+    assert host.check()['state']=='unavailable'
+
+
+def test_native_check_reports_busy_while_original_s01_waits_for_new_window(tmp_path):
+    transport=ready(tmp_path);created=threading.Event();release=threading.Event();results=[]
+    class Processes:
+        def create(self,**owner):created.set();release.wait(5);return 'never-hello'
+        def launchable(self):return {'state':'available','basis':'fixture'}
+    execution=HostExecution('assistant-actor','assistant','business','interaction','job',
+        HostDefinition('definition','1','digest','frozen instructions'),deadline=deadline(.5))
+    host=NativeClaudeHost(transport=transport,processes=Processes())
+    worker=threading.Thread(target=lambda:results.append(host.submit('op',payload(),execution=execution,on_event=bound)))
+    worker.start()
+    try:
+        assert created.wait(2) and host.check()['state']=='busy'
+    finally:release.set();worker.join(3)
+    assert results and results[0].state=='waiting' and host.check()['state']=='available'
+
+
+def test_plugin_answers_tool_call_only_for_its_own_three_tools():
+    # D34 narrow authorization: no other tool.call, tool.check, tool.run or tool.list hook.
+    import re
+    root=Path(__file__).parents[1]/'src/client/hosts/claude_code/ioalab_claude_code/resources/native/hooks'
+    source=(root/'entry.mjs').read_text(encoding='utf-8')
+    matchers=re.findall(r"on\('tool\.call',\{tool:'([^']+)'(\+profile)?\}",source)
+    assert matchers==[('mcp__ioa-native-client__sdk_tool',''),('mcp__ioa-native-client__client_','+profile')]
+    assert "for(const profile of ['assistant','provider'])" in source
+    assert not re.search(r"on\('(tool\.check|tool\.run|tool\.list|tool\.describe)'",source)
+    assert source.count("on('tool.call'")==2
 
 
 def test_existing_session_queue_persists_ack_then_marks_native_acceptance_only(tmp_path):

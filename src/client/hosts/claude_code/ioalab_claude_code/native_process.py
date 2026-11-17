@@ -10,6 +10,7 @@ import threading
 import uuid
 
 from ioalab_sdk.runtime import RuntimeFault,private_json,restrict
+from .launch_check import config_directory,launch_facts,unavailable
 
 
 def locate_cli():
@@ -78,6 +79,26 @@ class NativeProcesses:
         with self.lock:
             entry=self.children.get(intended)
             return bool(entry and entry[0].poll() is None)
+
+    def launchable(self):
+        """S02 per-launch criterion: the saved prerequisites of _create, without launching."""
+        try:record=self.launch_store.read() if self.launch_store is not None else None
+        except RuntimeFault as exc:return unavailable('Saved native launch receipt is unreadable or changed',action=exc.recovery)
+        if record is None:
+            if self.project_directory is None:
+                # Explicit setup not yet completed: no evidence the host cannot run.
+                return {'state':'unknown','basis':'Native launch context not yet registered by explicit setup'}
+            cli=self.cli or locate_cli()
+            if not cli:return unavailable('Claude executable is missing')
+            project,extension,config=self.project_directory,self.plugin_directory,config_directory(os.environ)
+        else:
+            capture=record['capture']
+            cli,project,extension=capture['cli'],capture['projectDirectory'],Path(capture['extensionDirectory'])
+            config=(Path(capture['configDirectory']) if capture['configDirectoryState']=='set'
+                    else config_directory({key:value for key,value in os.environ.items() if key!='CLAUDE_CONFIG_DIR'}))
+        return launch_facts(cli=cli,config=config,directories=(('Claude project directory',project),),
+            files=(('Native extension manifest',extension/'.claude-plugin/plugin.json'),
+                   ('Native entry binding',extension/'entry-binding.json')))
 
     def close(self):
         # Closing SDK resources must not kill retained native user terminals.

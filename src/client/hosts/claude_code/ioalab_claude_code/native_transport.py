@@ -109,8 +109,7 @@ class NativeTransport:
             if (execution.actor,execution.profile)!=(input.attempt.actor,input.attempt.profile):
                 raise NativeNotSubmitted('identity_conflict','Preserve the SDK-owned native execution target')
             if execution.kind!='business':raise NativeNotSubmitted('not_ready','Bind the restricted native observation engine')
-            if execution.authorization.get('nativeToolsEnabled') is not True:
-                raise NativeNotSubmitted('not_ready','Bind per-turn SDK-only native permissions before this stage')
+            # D37: nativeToolsEnabled=false is submitted unrestricted (no static restriction declared).
             if execution.tools and not callable(on_tool):raise NativeNotSubmitted('not_ready','Bind the original SDK tool callback')
         with self.lock:
             if self.closed or not self.route_bound:
@@ -360,9 +359,13 @@ class NativeTransport:
             raise RuntimeFault('identity_conflict','The operation is not proven to be the original native turn')
 
     def check(self):
+        """Resident control facts only; launch prerequisites are judged by the host."""
         with self.lock:
-            return {'state':'unavailable' if self.closed or not self.route_bound else 'busy' if self.active or self.observations.pending() else 'available',
-                    'reason':'Native control binding only; this does not prove model routing or inference'}
+            if self.closed or not self.route_bound:
+                return {'state':'unavailable','basis':'Native control route is closed or not bound on this resident'}
+            if self.active or self.observations.pending():
+                return {'state':'busy','basis':'An original native submission or observation is executing'}
+            return {'state':'available','basis':'Native control route bound; no model routing or inference implied'}
 
     def close(self):
         with self.lock:

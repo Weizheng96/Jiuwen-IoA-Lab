@@ -147,6 +147,9 @@ export function register(on) {
       return item.value;
     } finally {if(!item.done && downstream.return)await downstream.return();}
   });
+  // D34 narrow authorization: only this plugin's own three tools (sdk_tool,
+  // client_assistant, client_provider) answer at tool.call, which skips the
+  // native permission prompt. No other tool is matched, intercepted or answered.
   on('tool.call',{tool:'mcp__ioa-native-client__sdk_tool'},async($,e)=>{
     const job=current;
     try {

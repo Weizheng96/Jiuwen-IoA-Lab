@@ -72,11 +72,12 @@ def boundary(monkeypatch):
     monkeypatch.setattr(sdk,'ClaudeSDKClient',Client)
     monkeypatch.setattr(sdk,'create_sdk_mcp_server',lambda **kwargs:kwargs)
     original_run=__import__('subprocess').run
-    def version(args,**kwargs):
-        if args==[sys.executable,'--version']:
-            state.version_calls.append(args);return SimpleNamespace(returncode=0,stdout='2.test (Claude Code)')
-        return original_run(args,**kwargs)
-    monkeypatch.setattr('ioalab_claude_code.host.subprocess.run',version)
+    def version(args,*rest,**kwargs):
+        # Any CLI start (version command or handshake) from check is a regression.
+        if isinstance(args,(list,tuple)) and args and args[0]==sys.executable:
+            state.version_calls.append(list(args));return SimpleNamespace(returncode=0,stdout='2.test (Claude Code)')
+        return original_run(args,*rest,**kwargs)
+    monkeypatch.setattr('subprocess.run',version)
     return state
 
 def host():return ClaudeCodeHost([sys.executable],model='test-model')
@@ -153,10 +154,14 @@ def test_actual_interrupt_tracks_original_request(boundary,tmp_path):
     assert not worker.is_alive() and results[0].state=='cancelled' and results[0].terminal
     assert h.get_request(reference[0])==results[0] and not h.cancel('op')
 
-def test_static_configuration_and_check_do_not_submit_model(boundary,tmp_path):
+def test_static_configuration_and_check_do_not_submit_model(boundary,tmp_path,monkeypatch):
+    monkeypatch.setenv('CLAUDE_CONFIG_DIR',str(tmp_path))
     h=host();assert not boundary.clients
-    assert h.check()['state']=='available' and not boundary.queries
-    assert 'SECRET_CONFIG' not in json.dumps(h.check())
+    result=h.check()
+    assert result['state']=='available' and result['configDirectory']=='readable'
+    # D38 per-launch criterion: no CLI process, version command, handshake or model.
+    assert not boundary.clients and not boundary.queries and not boundary.version_calls
+    assert 'SECRET_CONFIG' not in json.dumps(result)
     assert ClaudeCodeHost.from_config({'command':[sys.executable],'model':'test-model'},base_dir=tmp_path).model=='test-model'
 
 @pytest.mark.parametrize('bad',[[],False,'',0])
@@ -339,3 +344,27 @@ def test_native_deny_is_enforced_in_sdk_scope(boundary,tmp_path):
     ex=replace(execution(tmp_path),authorization={'nativeTools':{'Bash':'deny'}})
     result=host().submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:calls.append(c) or HostToolResult(1))
     assert result.terminal and not calls and boundary.calls[-1]['hookSpecificOutput']['permissionDecision']=='deny'
+
+
+def test_check_reports_evidenced_missing_executable_or_config_without_starting_cli(boundary,tmp_path,monkeypatch):
+    exe=tmp_path/'claude.exe';exe.write_bytes(b'not executed')
+    h=ClaudeCodeHost([str(exe)],model='test-model')
+    monkeypatch.setenv('CLAUDE_CONFIG_DIR',str(tmp_path/'absent'))
+    assert h.check()['state']=='available' and h.check()['configDirectory']=='absent'
+    not_directory=tmp_path/'config-file';not_directory.write_text('x')
+    monkeypatch.setenv('CLAUDE_CONFIG_DIR',str(not_directory))
+    assert h.check()['state']=='unavailable' and h.check()['basis']
+    monkeypatch.setenv('CLAUDE_CONFIG_DIR',str(tmp_path))
+    exe.unlink()
+    result=h.check()
+    assert result['state']=='unavailable' and 'executable' in result['basis']
+    assert not boundary.clients and not boundary.version_calls
+
+
+def test_unfinished_launch_check_is_unknown_not_unavailable(boundary,tmp_path,monkeypatch):
+    import ioalab_claude_code.launch_check as launch_check
+    release=threading.Event()
+    monkeypatch.setattr(launch_check,'CHECK_SECONDS',.05)
+    monkeypatch.setattr('ioalab_claude_code.host.launch_facts',lambda **_:release.wait(5) or {'state':'available'})
+    try:assert host().check()['state']=='unknown'
+    finally:release.set()

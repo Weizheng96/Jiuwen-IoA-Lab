@@ -3,7 +3,7 @@
 **阻塞于：** 27、28、33公共基础切片
 
 **目标行为：** 公共层只经S01向Claude Code新建或已有原生会话提交；主动业务沿发起原会话，外部每笔委托／每次私人交互独立新建可见、可继续的原生会话，后续复用原绑定。保留用户已有模型、认证、原生工具与权限，忙碌默认排队。
-**状态：** claimed（198接入保存、实际CLI／扩展定位及最小私人消息S01共38项确定性用例已过；首个真实native proof_echo专项准备中，未启动窗口／模型。完整业务execution、文件交接与原生验收未完成）。
+**状态：** claimed（198接入保存、实际CLI／扩展定位及最小私人消息S01确定性用例已过；202按D34/D35/D37/D38修适配侧偏离，定向通过、未提交。R0/R1真实闭环清单已备未执行；完整业务execution、文件交接与原生验收未完成）。
 **依赖：** 27收敛S01—S05与公共调用／引用／事件；28公共Skill及宿主包装消费；29完整安装资源交付；33公共工具桥、定义快照、文件契约及结果归一。26提供公开能力证据；35消费S02；36负责三宿主四流程与跨宿主统一验收。
 **范围：** [ClaudeCode适配](../ClaudeCode适配/接口.md)、本适配随包原生资源与公开接缝定向测试。公共契约归[共用运行时](../共用运行时/接口/本地执行与恢复.md)，不在本票重复定义业务规则。
 **专题：** [一句话接入与三宿主全流程](../../../工程/专题/一句话接入与三宿主全流程.md)。
@@ -137,21 +137,18 @@
 - NativeProcesses可以从该已保存定位新建可见原生终端，不要求旧接入聊天常驻；已有SID不修改cwd。CLI自然加载现有持久设置，不冻结旧model。一次性认证环境在原进程消失后的继承、原生实际加载／信任、客户端重启的原writer恢复仍未验证。
 - integration2本票31项全过，新增A5覆盖SDK许可→保存→ACK、无intent／错cwd拒绝、裸claim拒绝、跨boot保原receipt、新launch参数及Node setup编排。整体188pass／1fail／1skip、4light通过、1167输入无漂移；35 fixture失败另修，不记共同全绿。历史core11结果不追改。
 - 此后最小private execution已从一律execution_bridge拒绝推进到正式S01：冻结definition／SDK tools仅本轮prompt，None真实hello／P28后交付，同S01等原SDK reply工具及强因果core terminal；reply ACK不当终态。真实terminal先journal、实际callback返回后才drain，丢consumer单列错误保原终态。未poll超时禁原item后续dispatch；已poll则unknown保原引用不重投。新组合／失败／原CLI父链用例与当前输入尚未检查。
-- refs／proposal／false原生阶段仍具体not_submitted；P26 per-submit reader／sink由公共owner提供，本票实际授权bytes映射／回取未完成。A/B代码不等于整票、发布或真实原生验收。
+- refs原生阶段仍具体not_submitted（proposal／false阶段202已改，见下节）；P26 per-submit reader／sink由公共owner提供，本票实际授权bytes映射／回取未完成。A/B代码不等于整票、发布或真实原生验收。
 
 integration3真实exit0，共同61项及4light通过；本票全38项通过，P16正常回归／SDK受信闭包一并过，1169 source／assets前后无漂移。此后只追平文档与准备独立temp实机harness，不以确定性事件fixture当真实原生事件。首个专项限定新隔离账号／本机平台、零业务proof_echo、原S01/P28/强终态，实际启动仍须主集成核具体argv／资产／窗口后授权；旧LINK2及unknown op不重放。
 
-## 设计v0.0.200待实施（D34/D35/D33，201起D37）
+## 设计v0.0.200/v0.0.202 实施（202轮，代码与定向已过，未提交）
 
-以下均未实施；现有遇proposal_schema一律`bind_native_proposal`拒绝即本票与当前设计的偏离；本版不声明原生工具限制（D37），false轮次的`bind_scoped_native_permissions`拒绝同属偏离，修复为照常提交并记录未限制。
+原“遇proposal_schema一律bind_native_proposal”“false轮次bind_scoped_native_permissions拒绝”“check跑版本命令／握手”“原生check只看路由”四处偏离已在适配侧修复。定向r01（本适配两测试文件）99项、模块测试列r02 110项、受影响公共接缝r03 60项均真实exit0（temp/checks/t30-202-r01—r03）；无真实CLI、原生窗口或模型，均未提交。
 
-- [ ] 三自有工具窄授权（D34）：`client_assistant`、`client_provider`、`sdk_tool`在tool.call应答，其他工具仍走原权限；安装、加载、命中与边界分别留证，规则见[原生入口窄授权](../ClaudeCode适配/接口.md#原生入口窄授权)
-- [ ] proposal_schema可选通道（D35）：无结构化提案通道而本轮含同效果SDK工具时照常提交、proposal为空，规则见[S01执行、引用与结果](../共用运行时/接口/宿主提交.md#s01执行引用与结果)
-- [ ] 原生工具限制（D33/D37）：本版不提供工具限制选项，静态登记不声明`native_tool_restriction`；nativeToolsEnabled=false的报价、复签审查与观察照常提交、不限制原生工具，记录`nativeToolsRestricted=false`；后续版本再增加
-
-## 设计v0.0.202待实施（D38）
-
-以下未实施。显式SDK `ClaudeCodeHost.check`现先跑版本命令再做SDK握手，原生`NativeClaudeHost.check`只看已绑定路由、start后恒available，均与当前设计有偏离；修复为按次启动判据。
-
-- [ ] `ClaudeCodeHost.check`：不起claude进程、不握手、不推理；CLI可执行文件存在、配置与数据目录可读为available，有依据缺失为unavailable，本适配有S01在执行为busy，有界做不完为unknown；规则见[S02运行期健康](../共用运行时/接口/宿主提交.md#s02运行期健康)与[ClaudeCode适配](../ClaudeCode适配/接口.md#agenthost实现)
-- [ ] `NativeClaudeHost.check`按同一判据，不以已绑定路由恒报available
+- [x] 三自有工具窄授权（D34）代码边界：`client_assistant`、`client_provider`、`sdk_tool`在tool.call应答，无其他tool.call／check／run／list hook，静态测试守护；规则见[原生入口窄授权](../ClaudeCode适配/接口.md#原生入口窄授权)
+- [ ] D34实机：插件安装、当前会话加载、三工具实际命中无弹窗、Bash等其他工具仍弹原权限，分别留证（R0-B/R1）
+- [x] proposal_schema可选通道（D35）适配侧：本轮有同schema SDK工具（消费公共`proposal_tool_declared`，27在途未提交）时照常提交、proposal为空；否则仍`bind_native_proposal`未提交。同键只生效一次由27/33公共测试证明
+- [x] 原生工具限制（D33/D37）：静态登记不声明`native_tool_restriction`；nativeToolsEnabled=false的业务轮照常提交、不限制原生工具，`nativeToolsRestricted=false`由公共层记录
+- [x] `ClaudeCodeHost.check`（D38）：不起claude进程、不跑版本命令、不握手；CLI可执行文件存在、配置目录可读为available，有依据缺失／不可读为unavailable，有S01在执行为busy，5秒界内未完成或异常为unknown
+- [x] `NativeClaudeHost.check`按同一判据：route未绑定为unavailable，S01在途或原生活动为busy，已保存launch上下文时核CLI／项目目录／扩展manifest／entry-binding／配置目录；未完成显式setup报unknown（不作P34暂停依据，待35确认）
+- [ ] 真实闭环R0/R1：清单与脚本见temp/ticket30/202-real（RUNBOOK.md、r0_zero_model.py、collect_evidence.py），未执行
