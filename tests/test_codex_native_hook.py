@@ -593,3 +593,60 @@ def test_tool_permission_error_after_dispatch_keeps_unknown(installed, monkeypat
     assert code == 1 and result['status'] == 'unknown'
     assert result['error']['dispatch'] == 'unknown'
     assert result['error']['code'] == 'unknown_result'
+
+
+def test_handoff_survives_bounded_approval_delay_and_is_still_single_use(installed):
+    from ioalab_codex.native_hook import Handoffs
+    args = args_file(installed, {'name': 'ioa_reply', 'arguments': {'receipt': 'received'}})
+    command = installed.command(operation='assistant.native.tool', args=str(args))
+    output = respond(installed.payload(command), installed.config, clock=lambda: 100)
+    reference = split_command(output['hookSpecificOutput']['updatedInput']['command'])[-1]
+    handoffs = Handoffs(Path(installed.config).parent, clock=lambda: 100+5*60)
+    record = handoffs.claim(reference)
+    assert (record['sessionId'], record['turnId'], record['toolUseId']) == ('real-native-sid', 'real-turn', 'call-1')
+    assert record['argsFile'] == str(args)
+    with pytest.raises(LookupError, match='native_handoff_missing'):
+        handoffs.claim(reference)
+
+
+def test_handoff_approval_window_has_a_real_upper_bound(installed):
+    from ioalab_codex.native_hook import Handoffs
+    command = installed.command(operation='assistant.native.tool')
+    output = respond(installed.payload(command), installed.config, clock=lambda: 100)
+    reference = split_command(output['hookSpecificOutput']['updatedInput']['command'])[-1]
+    handoffs = Handoffs(Path(installed.config).parent, clock=lambda: 100+31*60)
+    with pytest.raises(LookupError, match='native_handoff_expired'):
+        handoffs.claim(reference)
+    with pytest.raises(LookupError, match='native_handoff_missing'):
+        handoffs.claim(reference)
+
+
+def test_permission_denial_before_claim_preserves_original_handoff_for_authorized_execution(installed, monkeypatch):
+    from ioalab_codex.native_hook import Handoffs
+    command = installed.command(operation='assistant.native.tool')
+    output = respond(installed.payload(command), installed.config)
+    reference = split_command(output['hookSpecificOutput']['updatedInput']['command'])[-1]
+    handoffs = Handoffs(Path(installed.config).parent)
+    rename = os.rename
+    def deny_rename(*args, **kwargs):
+        raise PermissionError('host sandbox denied rename')
+    monkeypatch.setattr(os, 'rename', deny_rename)
+    with pytest.raises(PermissionError):
+        handoffs.claim(reference)
+    monkeypatch.setattr(os, 'rename', rename)
+    assert handoffs.claim(reference)['sessionId'] == 'real-native-sid'
+
+
+def test_expired_handoff_error_requests_real_hook_refresh_without_token_or_effect_retry(installed):
+    args_file(installed, {'name': 'ioa_reply', 'arguments': {}})
+    command = installed.command(operation='assistant.native.tool')
+    output = respond(installed.payload(command), installed.config, clock=lambda: 0)
+    rewritten = output['hookSpecificOutput']['updatedInput']['command']
+    reference = split_command(rewritten)[-1]
+    code, result = run_entry(installed, rewritten)
+    assert code == 1 and result['error']['dispatch'] == 'not_submitted'
+    assert result['error']['recovery'] == 'refresh_native_handoff'
+    assert 'expired' in result['error']['message']
+    assert 'unchanged arguments' in result['error']['message']
+    assert reference not in json.dumps(result)
+    assert not installed.calls.exists()

@@ -132,8 +132,17 @@ def _claim(binding, role, root, invocation, reference):
         record = Handoffs(state_root(binding)).claim(reference)
     except PermissionError:
         raise _permission('native_handoff') from None
-    except (LookupError, ValueError):
-        raise _Stop('rejected', 'not_ready', 'native_source', 'The native handoff is missing, used or expired; run the original command again') from None
+    except LookupError as error:
+        reason = 'expired while waiting for host approval' if error.args == ('native_handoff_expired',) else 'missing or already used'
+        raise _Stop('rejected', 'not_ready', 'native_source',
+                    'The native handoff is '+reason+'. Execute the original fixed entry with the unchanged arguments '
+                    'through the normal host approval flow so the real hook issues a fresh handoff. '
+                    'Do not repeat external effects or a tool whose SDK result is unknown.', 'refresh_native_handoff') from None
+    except ValueError:
+        raise _Stop('rejected', 'not_ready', 'native_source',
+                    'The native handoff is invalid. Execute the original fixed entry with unchanged arguments '
+                    'so the real hook issues a fresh handoff; do not supply identity or handoff arguments.',
+                    'refresh_native_handoff') from None
     expected = {'role': role, 'operation': invocation['operation'], 'argsFile': invocation['argsFile']}
     if ({key: record.get(key) for key in expected} != expected or
             not isinstance(record.get('entry'), str) or
