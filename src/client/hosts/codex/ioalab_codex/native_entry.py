@@ -12,12 +12,14 @@ import subprocess
 import sys
 import tempfile
 from urllib.parse import urlsplit
+from urllib.error import HTTPError
 from urllib.request import Request, HTTPRedirectHandler, build_opener
 import uuid
 
-from .native_hook import ARGS_FLAG, HANDOFF_FLAG, ENTRY_FILES, Handoffs, entry_binding, state_root
+from .native_hook import ARGS_FLAG, HANDOFF_FLAG, ENTRY_FILES, TOOL_SUFFIX, Handoffs, entry_binding, state_root
 
 _LIMIT = 128*1024
+_TOOL_SECONDS = 900
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -74,7 +76,7 @@ def _run(command, body=None, timeout=None):
     return response.returncode, response.stdout
 
 
-def _post(descriptor, body, *, control=False):
+def _post(descriptor, body, *, control=False, timeout=15):
     url = descriptor['controlUrl'] if control else descriptor['url']; parsed = urlsplit(url)
     if (parsed.scheme != 'http' or parsed.hostname != '127.0.0.1' or parsed.path != ('/v1/native-control' if control else '/v1/native-source') or
             parsed.username or parsed.password or parsed.query or parsed.fragment):
@@ -82,7 +84,7 @@ def _post(descriptor, body, *, control=False):
     request = Request(url, data=json.dumps(body).encode(), method='POST', headers={
         'Content-Type': 'application/json', 'Authorization': 'Bearer '+descriptor['grant'],
         'X-Ioa-Instance': descriptor['bootId']})
-    with build_opener(_NoRedirect()).open(request, timeout=15) as response:
+    with build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
         if response.headers.get('X-Ioa-Instance') != descriptor['bootId']:
             raise ValueError('native_instance_mismatch')
         encoded = response.read(_LIMIT+1)
@@ -99,8 +101,7 @@ def _post(descriptor, body, *, control=False):
     return reference
 
 
-def _source(binding, profile, role, root, invocation, reference):
-    """Claim the hook's own metadata, wake the bound client, then P10-register it."""
+def _claim(binding, role, root, invocation, reference):
     if reference is None:
         raise _Stop('rejected', 'not_ready', 'native_source',
                     'The Codex IoA hook did not bind this call to the current chat. Run exactly '
@@ -115,6 +116,12 @@ def _source(binding, profile, role, root, invocation, reference):
             not isinstance(record.get('entry'), str) or
             os.path.normcase(str(Path(record['entry']).resolve())) != os.path.normcase(str(root/ENTRY_FILES[role]))):
         raise _Stop('rejected', 'identity_conflict', 'native_source', 'The native handoff belongs to another entry call')
+    return record
+
+
+def _source(binding, profile, role, root, invocation, reference):
+    """Claim the hook's own metadata, wake the bound client, then P10-register it."""
+    record = _claim(binding, role, root, invocation, reference)
     try:
         code, stdout = _run(profile['ensureCommand'], timeout=180)
         ready = json.loads(stdout)
@@ -134,12 +141,56 @@ def _source(binding, profile, role, root, invocation, reference):
         raise _Stop('rejected', 'native_entry_unavailable', 'source', 'The SDK did not accept this native source; no business call was submitted') from None
 
 
+def _tool(binding, profile, role, root, operation, args_file, reference):
+    """Relay one SDK tool of the queued route A turn to the running adapter; no ensure, no caller."""
+    if args_file is None:
+        raise _Stop('rejected', 'invalid_input', 'arguments', 'SDK tools require --args-file with {"name", "arguments"}')
+    try:
+        value = json.loads(Path(args_file).read_text(encoding='utf-8-sig'))
+    except (OSError, ValueError):
+        raise _Stop('rejected', 'invalid_input', 'arguments', 'The arguments file must be a readable UTF-8 JSON object') from None
+    if (not isinstance(value, dict) or set(value) != {'name', 'arguments'} or not isinstance(value['name'], str) or
+            not value['name'] or not isinstance(value['arguments'], dict)):
+        raise _Stop('rejected', 'invalid_input', 'arguments', 'Use exactly {"name": <declared SDK tool>, "arguments": {...}}')
+    record = _claim(binding, role, root, {'operation': operation, 'argsFile': args_file}, reference)
+    try:
+        descriptor = json.loads(Path(profile['descriptorFile']).read_text(encoding='utf-8'))
+        if (descriptor.get('adapterId') != 'codex' or descriptor.get('hostRef') != binding['hostRef'] or
+                descriptor.get('profile') != profile['profile'] or not descriptor.get('grant') or not descriptor.get('bootId')):
+            raise ValueError('native_binding_mismatch')
+    except (OSError, ValueError):
+        raise _Stop('rejected', 'not_ready', 'sdk_tool', 'The IoA client of this queued turn is not running; the SDK tool was not called') from None
+    body = {'kind': 'tool', 'sessionId': record['sessionId'], 'turnId': record['turnId'], 'callId': record['toolUseId'],
+            'name': value['name'], 'arguments': value['arguments']}
+    try:
+        data = _post(descriptor, body, control=True, timeout=_TOOL_SECONDS)
+    except HTTPError as error:
+        try:
+            detail = json.loads(error.read(_LIMIT)).get('error') or {}
+        except (OSError, ValueError, AttributeError):
+            detail = {}
+        code = detail.get('code') if isinstance(detail.get('code'), str) else 'native_entry_unavailable'
+        raise _Stop('rejected', code, 'sdk_tool', 'The SDK tool was not called: '+str(detail.get('message') or 'refused')) from None
+    except Exception:
+        return 1, {'status': 'unknown', 'data': None, 'error': {'code': 'unknown_result', 'phase': 'sdk_tool', 'dispatch': 'unknown',
+                   'message': 'The SDK tool result is unknown; do not repeat it'}}
+    result = data.get('toolResult') if isinstance(data, dict) else None
+    if not isinstance(result, dict):
+        return 1, {'status': 'unknown', 'data': None, 'error': {'code': 'unknown_result', 'phase': 'sdk_tool', 'dispatch': 'unknown',
+                   'message': 'The SDK tool result is unknown; do not repeat it'}}
+    error = result.get('error')
+    status = 'completed' if not error else 'unknown' if error.get('dispatch') == 'unknown' else 'rejected'
+    return (1 if error else 0), {'status': status, 'data': result.get('value'), 'error': error}
+
+
 def invoke(root, role, argv):
     root = Path(root).resolve()
     operation_id = None
     try:
         operation, args_file, reference = _parse(argv)
         binding, profile = entry_binding(root/ENTRY_FILES[role], role)
+        if operation == role+TOOL_SUFFIX:
+            return _tool(binding, profile, role, root, operation, args_file, reference)
         source = operation in binding['sourceOperations']
         setup = operation == binding.get('setupOperation')
         if (source or setup) and args_file is None:

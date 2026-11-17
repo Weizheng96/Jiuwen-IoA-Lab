@@ -465,3 +465,62 @@ def test_windows_hook_line_runs_spaced_paths_identically_in_cmd_and_powershell(t
 def test_windows_hook_line_refuses_shell_interpreted_characters(bad):
     with pytest.raises(ValueError):
         windows_command_line([bad, '-I'], system_root=r'C:\Windows')
+
+
+# --- Route A SDK tool relay through the same fixed entry ---------------------------------
+
+@contextmanager
+def control(installed, reply, *, status=200, boot='boot-1'):
+    seen = []
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            seen.append({'path': self.path, 'body': body})
+            data = json.dumps(reply).encode()
+            self.send_response(status); self.send_header('X-Ioa-Instance', boot)
+            self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(data)))
+            self.end_headers(); self.wfile.write(data)
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+    url = f'http://127.0.0.1:{server.server_port}'
+    for profile in installed.binding['profiles'].values():
+        path = Path(profile['descriptorFile']); path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({'url': url+'/v1/native-source', 'controlUrl': url+'/v1/native-control',
+            'bootId': boot, 'grant': 'g', 'hostRef': 'codex', 'adapterId': 'codex', 'profile': profile['profile']}))
+    try:
+        yield seen
+    finally:
+        server.shutdown(); server.server_close()
+
+
+def test_tool_relay_binds_actual_turn_and_call_without_ensure_or_caller(installed):
+    args = args_file(installed, {'name': 'ioa_reply', 'arguments': {'text': 'hi'}})
+    command = installed.command(operation='assistant.native.tool', args=str(args))
+    output = respond(installed.payload(command), installed.config)
+    rewritten = output['hookSpecificOutput']['updatedInput']['command']
+    reply = {'status': 'completed', 'data': {'toolResult': {'value': {'status': 'submitted'}, 'resources': [], 'error': None}}}
+    with control(installed, reply) as seen:
+        code, result = run_entry(installed, rewritten)
+    assert code == 0 and result == {'status': 'completed', 'data': {'status': 'submitted'}, 'error': None}
+    assert seen == [{'path': '/v1/native-control', 'body': {'kind': 'tool', 'sessionId': 'real-native-sid', 'turnId': 'real-turn',
+                                                             'callId': 'call-1', 'name': 'ioa_reply', 'arguments': {'text': 'hi'}}}]
+    assert not installed.ensures.exists() and not installed.calls.exists()
+    assert json.loads(args.read_text()) == {'name': 'ioa_reply', 'arguments': {'text': 'hi'}}  # no operationId written
+
+
+def test_tool_relay_requires_hook_and_role_and_reports_refusal(installed):
+    args = args_file(installed, {'name': 'ioa_reply', 'arguments': {}})
+    with control(installed, {}) as seen:
+        code, result = run_entry(installed, installed.command(operation='assistant.native.tool', args=str(args)))
+    assert code == 1 and result['error']['phase'] == 'native_source' and seen == []
+    # The provider tool operation never matches the assistant entry.
+    command = installed.command(operation='provider.native.tool', args=str(args))
+    assert respond(installed.payload(command), installed.config) is None
+    rewritten = respond(installed.payload(installed.command(operation='assistant.native.tool', args=str(args))),
+                        installed.config)['hookSpecificOutput']['updatedInput']['command']
+    refusal = {'status': 'rejected', 'data': None, 'error': {'code': 'identity_conflict', 'message': 'not this turn'}}
+    with control(installed, refusal, status=400):
+        code, result = run_entry(installed, rewritten)
+    assert code == 1 and result['status'] == 'rejected'
+    assert result['error']['code'] == 'identity_conflict' and result['error']['dispatch'] == 'not_submitted'

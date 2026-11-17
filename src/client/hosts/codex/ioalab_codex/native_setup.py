@@ -2,6 +2,7 @@
 from pathlib import Path
 import os
 import threading
+import time
 from ioalab_sdk.runtime import RuntimeFault
 from .native_process import NativeLaunchStore, native_cli_from_ancestors, windows_native_ancestors
 
@@ -19,9 +20,10 @@ def capture(workspace, extension):
 
 
 class NativeSetup:
-    def __init__(self, *, host_ref, home):
+    def __init__(self, *, host_ref, home, store=None, companion=None):
         self.host_ref = host_ref
-        self.store = NativeLaunchStore(host_ref=host_ref, home=home)
+        self.store = store or NativeLaunchStore(host_ref=host_ref, home=home)
+        self.companion = companion  # Route A desktop submissions share this resource lifecycle.
         self.condition = threading.Condition(threading.RLock())
         self.closed, self.calls = False, 0
 
@@ -55,11 +57,16 @@ class NativeSetup:
 
     def drain(self, timeout):
         """Resident close: refuse new setup control, then wait for original calls; False keeps ownership."""
+        started = time.monotonic()
         with self.condition:
             self.closed = True
-            return self.condition.wait_for(lambda: self.calls == 0, max(0, timeout))
+            if not self.condition.wait_for(lambda: self.calls == 0, max(0, timeout)):
+                return False
+        return self.companion is None or self.companion.drain(max(0, timeout-(time.monotonic()-started)))
 
     def close(self):
         with self.condition:
             self.closed = True
             self.condition.wait_for(lambda: self.calls == 0)
+        if self.companion is not None:
+            self.companion.close()

@@ -2,7 +2,7 @@
 
 **阻塞于：** 27、28、33公共基础切片
 
-**状态：** claimed（2026-11-17：D31固定入口hook、显式setup与最小native_adapter（S01准确not_submitted、check=unknown）已合并并定向通过；桌面hook已真实命中（r3：精确入口allow并附一次性handoff，入口停在ensure_client；近似命令不改），验证hook已经产品uninstall卸载；原生审批桥已由用户裁定走路线A（D32，设计v0.0.200），路线A切片A1—A8均未实施；桌面业务S01/工具/审批/P26未完成，开发中，与当前设计有偏离）。
+**状态：** claimed（2026-11-17：路线A切片A1—A7代码已实现并经假边界定向检查通过（temp/checks/t31-201-r06真实exit0），真实桌面闭环（建聊天可见、排队消费、hook工具回调、原生审批）未验；P26资源映射未接，提交前resource_mapping/not_submitted，开发中，与当前设计有偏离；A8文档已追平实现页与接口页测试列，工程进展由协调者同步）。
 
 ## 最终目标与边界
 
@@ -91,15 +91,22 @@ S02仅运行期；S03/S04/S05按真实支持分别声明。断线unknown沿原�
 - [x] 常驻关闭：NativeSetup补`drain`（拒新控制、等原调用），resident关闭不再AttributeError；client_hosts的Codex常驻用例迁到仅`{type:codex}`登记，断言state=unknown/available=false且两角色绑定、停止干净（不再用_codex_process.py）
 - 检查：temp/checks/t31-199-r10真实exit0（五文件135passed+4light）；r11迁移前该常驻用例exit1（复现）；r12真实exit0（五文件+常驻用例137passed+4light）。设计页事实修正后的轻量见r13。
 
-## 设计v0.0.200路线A待实施（D32/D33）
+## 设计v0.0.200路线A实施（D32/D37）
 
-规则见[路线A公开能力条件](../Codex适配/接口.md#路线a公开能力条件)及[只读观察](../共用运行时/接口/宿主提交.md#只读观察)；切片草案及定向集合在`temp/ticket31/199/route-a/SLICES.md`。以下均未实施，现有最小native_adapter的`desktop_transport/not_submitted`与`check=unknown`即本票与当前设计的偏离。
+规则见[路线A公开能力条件](../Codex适配/接口.md#路线a公开能力条件)及[只读观察](../共用运行时/接口/宿主提交.md#只读观察)。下列“代码”勾选只表示已实现并经假边界（自有app-server、进程枚举、SDK回调、真实HostRegistry）定向检查；真实桌面项另列，未运行。检查：最终代码temp/checks/t31-201-r06真实exit0（Codex适配接口页测试列全部文件+facts/transport/setup，222 passed，4light通过）；中间r02同模块1例client_onboarding失败落在并行29改动中的文件，单独重跑与r03、r06均未复现。
 
-- [ ] A1 桌面定位与S02：本CODEX_HOME桌面server在即available（聊天未加载不算unavailable），持续确认不到unavailable，枚举失败unknown
-- [ ] A2 外部新业务零模型建持久聊天（ephemeral=false、命名、不发turn），自有进程退出、P28绑定真实SID后再排队
-- [ ] A3 排队提交：原SID或新SID经公开队列带原clientUserMessageId，受理只算accepted，unknown只查不重投
-- [ ] A4 关联与终态：queue→clientId→唯一turn，仅completed且completedAt非空为机器终态
-- [ ] A5 冻结定义、工具声明与受控引用渲染进排队正文，不含秘密；SDK工具只经固定入口+窄hook
-- [ ] A6 静态登记不声明`native_tool_restriction`（本版三适配均不提供，D37）、readonly_context=business_session；报价、复签审查、观察照常排入并记录`nativeToolsRestricted=false`（登记字段由27提供）
-- [ ] A7 S04、S05不出现在静态登记，公共层保unknown／等自然结束
-- [ ] A8 收口：实现页、接口页测试列及本票、工程进展追平
+- [x] A1 代码：native_desktop按setup所存CLI的安装位置只读进程映像，桌面server在即available（不看聊天），间隔内多次采样都不在unavailable，未setup/枚举失败unknown；常驻用例仍unknown（无setup）。本机零模型探针（只读映像，未起Codex、未写~/.codex）：桌面已升级为WindowsApps包OpenAI.Codex_26.1111.2228.0内app
+esources\codex.exe（2个进程），旧AppData\Local\OpenAI\Codexin路径已不在，故安装位置按包族去版本匹配，check=available；temp/ticket31/201/desktop-enumeration-probe.json
+- [x] A2 代码：session空时自有app-server零模型thread/start(ephemeral=false)+name/set，不发turn，关闭本PID后才P28 session ACK，ACK不符不排队；建聊天不明unknown、不另建
+- [x] A3 代码：私有记录先持久clientUserMessageId再thread/queue/add（原SID或新SID）；受理只发accepted；JSON-RPC拒绝not_submitted，传输丢失unknown且同attempt不重投；不resume/turn/start/queue/start
+- [x] A4 代码：watcher每轮新起只读reader（turns/list全items、queue/list），client→唯一turn才P28精确(SID,turn)ACK并记delivered；仅completed且completedAt非空发机器终态；interrupted/空completedAt/多turn/仅回复文字不终态；截止或排空即停
+- [x] A5 代码：native_render把冻结定义、摘要、工具声明、截止与输入渲染进排队正文（不含grant/descriptor）；SDK工具经固定入口`<角色>.native.tool`+窄hook→native-control→适配核SID/turn（未关联则现场关联）后才on_tool，同callId重放不重复效果
+- [x] A6 代码：静态登记readonly_context=business_session，不声明native_tool_restriction；nativeToolsEnabled=false的报价/复签审查/观察照常排队，正文只作提示并注明不受限（nativeToolsRestricted记录归27公共层）
+- [x] A7 代码：optional_methods为空，无get_request/cancel方法
+- [x] 零模型协议核对（未调用模型、未写~/.codex，列表前后一致）：桌面包内codex-cli 0.169.0-alpha.11.1可由外部进程启动（--version exit0）；generate-json-schema --experimental仍含thread/queue/add（clientUserMessageId必填）、queue/list、turns/list、name/set，queue方法只在experimental输出中，适配initialize已声明experimentalApi。证据temp/ticket31/201/（version-probe.json、schema-0.169-experimental/）
+- [ ] A8 收口：实现页、接口页测试列（submit/check加codex_native_desktop）与本票已追平；工程进展待协调者同步
+- [ ] 真实桌面P2：建聊天在列表可见、打开后消费、hook工具回调到P40、原生审批只在桌面UI、报价/观察排入；步骤见交接回报（未运行）
+- [ ] 自有app-server的thread/queue/add是否只入持久队列而不自行消费、未加载聊天何时消费（未证，P2判定）
+- [ ] P26资源映射与工具产出资源回收（未接，提交前resource_mapping）
+
+已知风险（未验）：business_session观察排在同一聊天当前轮之后，若嵌套在该轮SDK工具回调中可能等到观察截止仍unknown；常驻重启后watcher与工具作用域不恢复，原receipt保持非终态（无S04）。

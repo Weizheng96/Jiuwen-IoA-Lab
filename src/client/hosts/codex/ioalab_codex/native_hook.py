@@ -22,6 +22,8 @@ HANDOFF_FORMAT = 'ioalab.codex-handoff/1'
 HANDOFF_FLAG = '--native-handoff'
 ARGS_FLAG = '--args-file'
 ENTRY_FILES = {'assistant': 'entry-assistant.py', 'provider': 'entry-provider.py'}
+# Adapter-fixed SDK tool relay of a queued route A turn: '<role>.native.tool'.
+TOOL_SUFFIX = '.native.tool'
 HANDOFF_SECONDS = 120
 _OPERATION = re.compile(r'[a-z][a-z0-9_-]*(?:\.[a-z0-9_-]+)+')
 _HANDOFF = re.compile(r'[0-9a-f]{64}')
@@ -94,7 +96,8 @@ def match_entry(command, bound):
         return None
     # The role is fixed by the entry file: an assistant entry never carries provider calls.
     setup = operation == bound[roles[0]]['setupOperation']
-    if not setup and (operation not in bound[roles[0]]['sourceOperations'] or not operation.startswith(roles[0]+'.')):
+    tool = operation == roles[0]+TOOL_SUFFIX
+    if not setup and not tool and (operation not in bound[roles[0]]['sourceOperations'] or not operation.startswith(roles[0]+'.')):
         return None
     # Source operations are mutating calls: the args file keeps the original operationId.
     if len(rest) != 2 or rest[0] != ARGS_FLAG or not _absolute_file(rest[1]):

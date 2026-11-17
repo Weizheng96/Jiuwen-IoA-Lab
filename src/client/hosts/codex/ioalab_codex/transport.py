@@ -12,6 +12,10 @@ class WireError(Exception):
     pass
 
 
+class WireRejected(WireError):
+    """The server answered with a JSON-RPC error: the request was not accepted."""
+
+
 class Stdio:
     def __init__(self, command, *, cwd, env=None):
         self.process=subprocess.Popen(command,cwd=cwd,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
@@ -90,7 +94,7 @@ class Stdio:
         while True:
             message=self.receive(deadline)
             if message.get('id')==key and 'method' not in message:
-                if 'error' in message:raise WireError('Codex rejected '+method)
+                if 'error' in message:raise WireRejected('Codex rejected '+method)
                 return message['result']
             if handle:handle(message)
             elif 'method' in message and 'id' in message:
