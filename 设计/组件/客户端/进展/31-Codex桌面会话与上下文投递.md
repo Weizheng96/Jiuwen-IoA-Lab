@@ -2,7 +2,7 @@
 
 **阻塞于：** 27、28、33公共基础切片
 
-**状态：** claimed（2026-11-17：D31固定入口hook、显式setup与最小native_adapter（S01准确not_submitted、check=unknown）已合并并定向通过；桌面hook已真实命中（r3：精确入口allow并附一次性handoff，入口停在ensure_client；近似命令不改），验证hook已经产品uninstall卸载；原生审批桥公开能力缺失待决策；桌面业务S01/工具/审批/P26未完成，与当前设计仍有偏离）。
+**状态：** claimed（2026-11-17：D31固定入口hook、显式setup与最小native_adapter（S01准确not_submitted、check=unknown）已合并并定向通过；桌面hook已真实命中（r3：精确入口allow并附一次性handoff，入口停在ensure_client；近似命令不改），验证hook已经产品uninstall卸载；原生审批桥已由用户裁定走路线A（D32，设计v0.0.200），路线A切片A1—A8均未实施；桌面业务S01/工具/审批/P26未完成，开发中，与当前设计有偏离）。
 
 ## 最终目标与边界
 
@@ -74,7 +74,7 @@ S02仅运行期；S03/S04/S05按真实支持分别声明。断线unknown沿原�
 - [x] 最小native_adapter：客户端可以codex登记装配，S01准确not_submitted、check=unknown不触发600秒退出（确定性用例）
 - [ ] 真实客户端以codex登记启动后，经hook→P10→公共caller的真实闭环（未运行）
 - [ ] 显式setup在真实Codex中经hook取得原项目/CLI并保存、ACK（未运行）
-- [ ] 原生审批桥：独立stdio server的审批不能到桌面UI（同进程线程订阅/重放，桌面为内嵌私有server），A/B/C方案待用户决定
+- [x] 原生审批桥方案已定：独立stdio server的审批不能到桌面UI，用户选定路线A（D32），实施见下节
 
 ## 2026-11-17 合并核对（31 owner）
 
@@ -90,3 +90,16 @@ S02仅运行期；S03/S04/S05按真实支持分别声明。断线unknown沿原�
 - [x] 卸载验证hook：产品`native_install uninstall`，hooks.json卸载前0e3facb0…2fec，仅含本组，卸载后文件按原状删除（首装时由本安装创建）；~/.codex其他文件列表不变，config.toml未被安装器写入（Codex自身信任项留存，由Codex管理）。回执temp/ticket31/199/uninstall-receipt-r14.json，原件备份hooks.json.before-uninstall-r14
 - [x] 常驻关闭：NativeSetup补`drain`（拒新控制、等原调用），resident关闭不再AttributeError；client_hosts的Codex常驻用例迁到仅`{type:codex}`登记，断言state=unknown/available=false且两角色绑定、停止干净（不再用_codex_process.py）
 - 检查：temp/checks/t31-199-r10真实exit0（五文件135passed+4light）；r11迁移前该常驻用例exit1（复现）；r12真实exit0（五文件+常驻用例137passed+4light）。设计页事实修正后的轻量见r13。
+
+## 设计v0.0.200路线A待实施（D32/D33）
+
+规则见[路线A公开能力条件](../Codex适配/接口.md#路线a公开能力条件)及[只读观察](../共用运行时/接口/宿主提交.md#只读观察)；切片草案及定向集合在`temp/ticket31/199/route-a/SLICES.md`。以下均未实施，现有最小native_adapter的`desktop_transport/not_submitted`与`check=unknown`即本票与当前设计的偏离。
+
+- [ ] A1 桌面定位与S02：本CODEX_HOME桌面server在即available（聊天未加载不算unavailable），持续确认不到unavailable，枚举失败unknown
+- [ ] A2 外部新业务零模型建持久聊天（ephemeral=false、命名、不发turn），自有进程退出、P28绑定真实SID后再排队
+- [ ] A3 排队提交：原SID或新SID经公开队列带原clientUserMessageId，受理只算accepted，unknown只查不重投
+- [ ] A4 关联与终态：queue→clientId→唯一turn，仅completed且completedAt非空为机器终态
+- [ ] A5 冻结定义、工具声明与受控引用渲染进排队正文，不含秘密；SDK工具只经固定入口+窄hook
+- [ ] A6 静态声明不支持`native_tool_restriction`、readonly_context=business_session；报价、复签审查、观察照常排入并记录`nativeToolsRestricted=false`（登记字段由27提供）
+- [ ] A7 S04、S05不出现在静态登记，公共层保unknown／等自然结束
+- [ ] A8 收口：实现页、接口页测试列及本票、工程进展追平

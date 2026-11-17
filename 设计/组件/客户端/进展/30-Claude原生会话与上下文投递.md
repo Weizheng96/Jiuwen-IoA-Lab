@@ -140,3 +140,11 @@
 - refs／proposal／false原生阶段仍具体not_submitted；P26 per-submit reader／sink由公共owner提供，本票实际授权bytes映射／回取未完成。A/B代码不等于整票、发布或真实原生验收。
 
 integration3真实exit0，共同61项及4light通过；本票全38项通过，P16正常回归／SDK受信闭包一并过，1169 source／assets前后无漂移。此后只追平文档与准备独立temp实机harness，不以确定性事件fixture当真实原生事件。首个专项限定新隔离账号／本机平台、零业务proof_echo、原S01/P28/强终态，实际启动仍须主集成核具体argv／资产／窗口后授权；旧LINK2及unknown op不重放。
+
+## 设计v0.0.200待实施（D34/D35/D33）
+
+以下均未实施；现有遇proposal_schema一律`bind_native_proposal`拒绝即本票与当前设计的偏离；false轮次的`bind_scoped_native_permissions`拒绝仅在静态声明支持限制后才合规，未声明前同属偏离。
+
+- [ ] 三自有工具窄授权（D34）：`client_assistant`、`client_provider`、`sdk_tool`在tool.call应答，其他工具仍走原权限；安装、加载、命中与边界分别留证，规则见[原生入口窄授权](../ClaudeCode适配/接口.md#原生入口窄授权)
+- [ ] proposal_schema可选通道（D35）：无结构化提案通道而本轮含同效果SDK工具时照常提交、proposal为空，规则见[S01执行、引用与结果](../共用运行时/接口/宿主提交.md#s01执行引用与结果)
+- [ ] 原生工具限制（D33）：按实测决定是否静态声明`native_tool_restriction`；声明则false轮次真实限制，未声明则照常提交并记录`nativeToolsRestricted=false`

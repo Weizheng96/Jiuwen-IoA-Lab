@@ -74,3 +74,14 @@ S02仅归运行期健康策略；本票不以检查成功作为配置或启动�
 修正组件发现语义后r2：原离仓安装节点1通过，4项light全0（真实测试退出0，34.36秒）；521项build/test输入前后hash相同。22项声明资源逐字节、离仓importlib.resources真实安装位置及RECORD核验通过；A2C41文件与独立wheel集合及字节相等，SDK web/trust保留，Claude native6及九问native3齐全。
 最终wheel SHA256为7870f186207a70dd871f5b9066095f2317d4f2bf7d99a01a7d518b0c25721577，产物版本仍186；这是当前冻结工作区的构建／安装证明，不是发布或原生业务验收。
 本次未启动模型、平台、账号或native CLI；30原失败环境不动，其后须在全新私有root重装验native。29其余接入／安全升级／新聊天发现仍按上述未验范围保留，192历史证据不替代本轮输入。
+
+## 设计v0.0.200待实施（D36）
+
+规则见[安装与发布](../共用运行时/接口/安装与实例.md#安装与发布)与[固定交付摘要](../共用运行时/接口/接入交付.md#固定交付摘要)；切片草案见`temp/ticket29/199-prep/PLAN.md`。以下均未实施，现有bootstrap只接受GitHub develop commit或GitCode tag，与当前设计有偏离。
+
+- [ ] 来源通道：GitCode main实际固定commit为正式来源，bootstrap.ps1 `-Channel main|develop`解析HEAD并回报resolvedCommit，谱系核验，marker记录channel
+- [ ] 显式`-Upgrade`／`--upgrade`：原客户端安全停止、OS锁证明、env改名保留、失败恢复；缺安全停止入口返回explicit_upgrade_required
+- [ ] 中断安装原位恢复：仅同一安装标记、同一固定来源且无配置与数据目录
+- [ ] skills-install对逐字节核验未改、同绑定的自有目录原子替换，账号后重装取得完整绑定
+- [ ] 固定SHA256下载的国内镜像备用源；bootstrap.ps1环境阶段失败也输出六项摘要
+- [ ] P37第1项待完成事项结构化为{actor, 原样说明, verify}步骤；README_AGENT要求原样转告user步骤、完成后verify再报完成，不引导在线试用与管理员助手
