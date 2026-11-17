@@ -135,10 +135,26 @@ def _source(binding, profile, role, root, invocation, reference):
         if (descriptor.get('adapterId') != 'codex' or descriptor.get('hostRef') != binding['hostRef'] or
                 descriptor.get('profile') != profile['profile'] or not descriptor.get('grant') or not descriptor.get('bootId')):
             raise ValueError('native_binding_mismatch')
-        return ({'entryRef': _post(descriptor, {'sessionId': record['sessionId'], 'workspace': record['workspace'],
-                                               'captureId': record['toolUseId']})}, record['workspace'])
+        context = {'entryRef': _post(descriptor, {'sessionId': record['sessionId'], 'workspace': record['workspace'],
+                                                 'captureId': record['toolUseId']})}
     except Exception:
         raise _Stop('rejected', 'native_entry_unavailable', 'source', 'The SDK did not accept this native source; no business call was submitted') from None
+    if invocation['operation'] != binding.get('setupOperation'):
+        _refresh_desktop(descriptor, record['sessionId'])
+    return context, record['workspace'], record['sessionId']
+
+
+def _refresh_desktop(descriptor, session_id):
+    from .desktop_context import capture_desktop
+    from ioalab_sdk.runtime import RuntimeFault
+    try:
+        captured = capture_desktop(session_id)
+        _post(descriptor, {'kind': 'entry_desktop', 'capture': captured}, control=True)
+    except RuntimeFault as error:
+        raise _Stop('rejected', error.code, 'desktop_context', str(error)) from None
+    except Exception:
+        raise _Stop('rejected', 'not_ready', 'desktop_context',
+                    'Refresh the IoA desktop connection through the fixed native setup entry; no business call was submitted') from None
 
 
 def _tool(binding, profile, role, root, operation, args_file, reference):
@@ -200,7 +216,7 @@ def invoke(root, role, argv):
         arguments, operation_id = _arguments(args_file)
         if setup and arguments:
             raise _Stop('rejected', 'invalid_input', 'native_setup', 'Explicit setup takes no business arguments')
-        context, workspace = _source(binding, profile, role, root, {'operation': operation, 'argsFile': args_file}, reference) if source or setup else (None, None)
+        context, workspace, session_id = _source(binding, profile, role, root, {'operation': operation, 'argsFile': args_file}, reference) if source or setup else (None, None, None)
     except _Stop as stop:
         return 0 if stop.status == 'waiting' else 1, {'operationId': operation_id, 'status': stop.status, 'data': None,
             'error': {'code': stop.code, 'phase': stop.phase, 'dispatch': 'not_submitted', 'message': stop.message}}
@@ -230,6 +246,13 @@ def invoke(root, role, argv):
             result = json.loads(stdout)
             if not isinstance(result, dict) or result.get('operationId') != operation_id:
                 raise ValueError('caller_receipt_mismatch')
+        if setup and result.get('status') == 'completed':
+            descriptor = json.loads(Path(profile['descriptorFile']).read_text(encoding='utf-8'))
+            try:
+                _refresh_desktop(descriptor, session_id)
+            except _Stop as stop:
+                return 1, {'operationId': operation_id, 'status': stop.status, 'data': None,
+                           'error': {'code': stop.code, 'phase': stop.phase, 'dispatch': 'not_submitted', 'message': stop.message}}
         return code, result
     except Exception:
         # A lost common-caller receipt never proves non-execution; keep the original operation.

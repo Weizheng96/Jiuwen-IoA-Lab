@@ -14,6 +14,14 @@
 
 ## 保留成果与实证边界
 
+2026-11-17路线调整：共享daemon方向静态核本机桌面local-daemon分支排除win32，隔离CLI启动亦因缺完整安装包失败；停止该方向。本轮改经官方桌面create_thread/send_message_to_thread；独立Python按正规继承上下文已创建真实探针SID，40秒后该实际turn机器completed，用户亲自确认桌面看见；同SID续发第二标记9秒后机器completed。此为桌面入口验证，不代IoA业务通过。适配实现、上下文接棒与最简定向检查进行中；客户端原位更新及新admin发信待执行。连接信息不含聊天历史或模型记忆，不改公共submit参数；[高可用40](../../../工程/专题/一句话接入与三宿主全流程/40-Codex桌面连接与投送高可用.md)另行跟踪。
+
+2026-11-17共享daemon修复已由用户授权交给新的独立子智能体实施，优先Windows原生环境。先在隔离环境核实桌面和适配器连接同一执行实例的公开接缝，再按已证能力修改安装与运输；仅启动daemon、共用CODEX_HOME或队列受理均不算桌面执行通过。目标包括skills-install自动检测与复用/启动、明确智能体与用户待办及复验、IoA客户端停止或重启不停止共享daemon。主协调负责规范、版本与集成验收，原admin在途消息及原客户端保留不重投；若桌面连接入口仍不可用，准确保留未就绪和阻断证据，不用独立后台推理冒充成功。该项开发中，尚未实现或实机验收，不合main。
+
+2026-11-17真实admin入站消息发现路线A执行缺口：接收客户端已持久收到并创建交互，适配台账显示新会话created/named、phase=queued、queueObserved=true，但requestId为空；公开read_thread可读取该持久SID，status=notLoaded、turns为空，桌面列表未出现。当前native_transport在自有stdio AppServer中thread/start后退出，再起自有stdio做queue/add；native_host仅轮询turns/list及queue/list，无加载/消费步骤。此前桌面聊天工具的新会话/发送成功、loaded原聊天queue消费和零模型创建三类证据不能互相代替；本轮未重发原消息或用桌面工具手工补发冒充产品成功。
+
+根因属于Codex适配路线的能力缺口，而非Hook、账号或网络未接入。现行接口限定“仅桌面已加载聊天消费、适配不代加载”，实现与该限制一致，但无法兑现外部新业务自动处理目标；修复前需核真实桌面共享服务的公开加载/执行与审批归属机制，并裁定设计边界，不直接加入独立turn/start或第二writer。已核本机CLI0.169.0-alpha.11.1对应上游session_queue_commands.rs要求发现shared server避免separate server；queue --resume为在非embedded server上读取状态后对NotLoaded发thread/resume，不等于保证当前Desktop展示/执行。当前默认daemon查询失败只证明该默认连接不可用，不推断平台永久不支持。相关证据保持本机私有验收目录，真实业务仍待验。
+
 2026-11-17 v208新聊天 `01a1e9c8-d2f5-7ad1-8489-ea024a1876a8`：两份Skill可发现，配置绑定及安装状态查询正常；普通沙箱配置读取拒绝。原生控制入口runtime.status进一步因SDK在校验request-stdin前读配置，早期失败operationId=null，被严格relay转为unknown／操作编号不匹配，遮蔽原错误。主协调沿原两份参数及原operationId，以获准权限只读重查均completed、同runtimeId `b2ae263e-0cb6-40be-ac6f-1f7cb9b34624`、平台已连接；Hook已有真实PreToolUse运行元数据，runtime.status本不采集source，不由此宣称Hook未加载或来源绑定成功。原生entry binding仍intent/unknown，业务未验。修复中：先完整验证native包，再在提交前失败中保原ID与原因；不放宽relay错ID拒绝、不把已提交未知误称未提交。
 
 保留公开CLI queue与实际桌面原聊天排队消费的局部证据，及旧纯SDK生产/交付记录（17）。现有stdio后台、动态SDK工具或取消能力不自动证明实际桌面原生新会话/可继续/真实终态。
@@ -31,6 +39,8 @@
 S02仅运行期；S03/S04/S05按真实支持分别声明。断线unknown沿原请求查，文件失败不重产；四流程与跨宿主由36。
 
 ## 验收与交接
+
+v209候选实施完成：官方MCP运输、真实hook上下文刷新、完整机器delegation精确关联与SDK回调已落盘，旧独立AppServer运输及专属测试已删除。最简检查r1四轻量通过、128通过/1新夹具字段错误；r2修字段后抢跑回调通过，但正常新业务用例因2秒墙钟预算在本机负载下过期；只将正常夹具预算改30秒，并补实际发送前原期限重核，r3三相关用例全通过（exit0），未变输入复用r1。不运行fast/full。原客户端升级、新admin完整业务、材料与原生审批仍待现场验证，未合main。
 
 - [ ] 目标契约所需改动已实现，旧入口分叉/错误前置已移除，保原数据/原操作/期限
 - [ ] 正常路径经公开入口定向验证；上述拒绝、竞争和恢复用例逐项记录

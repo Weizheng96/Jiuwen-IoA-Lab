@@ -81,6 +81,15 @@ def installed(tmp_path, monkeypatch):
     value = Installed(tmp_path)
     workspace = tmp_path/'work'; workspace.mkdir(exist_ok=True)
     monkeypatch.chdir(workspace)
+    # A desktop-launched child inherits its real executor and official MCP launch paths.
+    plugin = value.codex_home/'plugins/cache/openai-bundled/codex-app-tools/26.11.1'
+    (plugin/'.codex-plugin').mkdir(parents=True)
+    (plugin/'.codex-plugin/plugin.json').write_text(json.dumps({'name': 'codex-app-tools'}))
+    (plugin/'.mcp.json').write_text('{}'); (plugin/'server.mjs').write_text('')
+    monkeypatch.setenv('CODEX_HOME', str(value.codex_home))
+    monkeypatch.setenv('CODEX_THREAD_ID', 'real-native-sid')
+    monkeypatch.setenv('CODEX_APP_TOOLS_PIPE_PATH', 'private-desktop-pipe')
+    monkeypatch.setenv('CODEX_MCP_NODE_PATH', sys.executable)
     return value
 
 
@@ -275,8 +284,11 @@ def test_hook_handoff_registers_real_native_source_then_calls_common_caller(inst
     with p10(installed) as seen:
         code, result = run_entry(installed, rewritten)
     assert (code, result['status']) == (0, 'completed')
-    assert seen == [{'path': '/v1/native-source', 'auth': 'Bearer grant-secret', 'instance': 'boot-1',
+    assert seen[:1] == [{'path': '/v1/native-source', 'auth': 'Bearer grant-secret', 'instance': 'boot-1',
                      'body': {'sessionId': 'real-native-sid', 'workspace': str(installed.root/'work'), 'captureId': 'call-1'}}]
+    assert len(seen) == 2 and seen[1]['path'] == '/v1/native-control'
+    assert seen[1]['body']['kind'] == 'entry_desktop'
+    assert seen[1]['body']['capture']['threadId'] == 'real-native-sid'
     packet = json.loads(installed.calls.read_text().splitlines()[0])
     saved = json.loads((installed.root/'work'/'args.json').read_text(encoding='utf-8'))
     assert packet == {'operation': 'assistant.delegation.flow', 'operationId': saved['operationId'],
@@ -339,6 +351,17 @@ def test_control_operation_goes_to_same_caller_without_source(installed):
     code, result = invoke(Path(installed.entries['assistant']).parent, 'assistant', ['runtime.status'])
     packet = json.loads(installed.calls.read_text().splitlines()[0])
     assert result['status'] == 'completed' and packet['contextRef'] is None and not installed.ensures.exists()
+
+
+def test_completed_native_setup_refreshes_desktop_without_replacing_original_launch(installed):
+    args_file(installed, {'operationId': 'setup-refresh'})
+    command = installed.command(operation='runtime.entry.bind')
+    rewritten = respond(installed.payload(command), installed.config)['hookSpecificOutput']['updatedInput']['command']
+    with p10(installed) as seen:
+        code, result = run_entry(installed, rewritten)
+    assert (code, result['status']) == (0, 'completed')
+    assert [request['body'].get('kind') for request in seen] == [None, 'entry_desktop']
+    assert 'private-desktop-pipe' not in json.dumps(result)
 
 
 def test_lost_caller_receipt_is_unknown_not_retried(installed, monkeypatch):
