@@ -93,3 +93,10 @@ core9已验证计划/实际request修正后的两文件23例。后续新增冻�
 
 - [ ] 本版不提供工具限制选项，静态登记不声明`native_tool_restriction`；nativeToolsEnabled=false的报价、复签审查与观察照常提交、不限制原生工具，执行事实与观察依据记录nativeToolsRestricted=false
 - [ ] proposal_schema按[S01执行、引用与结果](../共用运行时/接口/宿主提交.md#s01执行引用与结果)作可选通道：无结构化提案通道而本轮含同效果SDK工具时照常提交
+
+## 设计v0.0.202待实施（D38）
+
+以下未实施。`ProcessHost.check`现每次新开九问进程做协议查询，协议能力未完成即报unavailable，与当前设计有偏离；修复为按次启动判据。
+
+- [ ] `ProcessHost.check`：不起九问进程、不推理；command可执行、data_dir与模型配置可读为available，有依据缺失为unavailable，本适配有S01在执行为busy，自检有界未完成为unknown；规则见[S02运行期健康](../共用运行时/接口/宿主提交.md#s02运行期健康)与[宿主适配](../宿主适配/接口.md#agenthost-实现)
+- [ ] 原生入口按插件worker心跳窗口判断（常驻形态）；实测确定插件未加载、重载中归unavailable还是unknown

@@ -148,3 +148,10 @@ integration3真实exit0，共同61项及4light通过；本票全38项通过，P1
 - [ ] 三自有工具窄授权（D34）：`client_assistant`、`client_provider`、`sdk_tool`在tool.call应答，其他工具仍走原权限；安装、加载、命中与边界分别留证，规则见[原生入口窄授权](../ClaudeCode适配/接口.md#原生入口窄授权)
 - [ ] proposal_schema可选通道（D35）：无结构化提案通道而本轮含同效果SDK工具时照常提交、proposal为空，规则见[S01执行、引用与结果](../共用运行时/接口/宿主提交.md#s01执行引用与结果)
 - [ ] 原生工具限制（D33/D37）：本版不提供工具限制选项，静态登记不声明`native_tool_restriction`；nativeToolsEnabled=false的报价、复签审查与观察照常提交、不限制原生工具，记录`nativeToolsRestricted=false`；后续版本再增加
+
+## 设计v0.0.202待实施（D38）
+
+以下未实施。显式SDK `ClaudeCodeHost.check`现先跑版本命令再做SDK握手，原生`NativeClaudeHost.check`只看已绑定路由、start后恒available，均与当前设计有偏离；修复为按次启动判据。
+
+- [ ] `ClaudeCodeHost.check`：不起claude进程、不握手、不推理；CLI可执行文件存在、配置与数据目录可读为available，有依据缺失为unavailable，本适配有S01在执行为busy，有界做不完为unknown；规则见[S02运行期健康](../共用运行时/接口/宿主提交.md#s02运行期健康)与[ClaudeCode适配](../ClaudeCode适配/接口.md#agenthost实现)
+- [ ] `NativeClaudeHost.check`按同一判据，不以已绑定路由恒报available
