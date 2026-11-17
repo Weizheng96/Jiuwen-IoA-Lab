@@ -39,9 +39,10 @@ REPLACEMENT_COVERAGE = {
 }
 
 
-def inventory(root=ROOT):
+def _parse(root=ROOT):
+    """Parse every test module once: (diagnostic module -> path, path -> AST)."""
     root = Path(root)
-    modules = {}
+    modules, trees = {}, {}
     for path in sorted((root / 'tests').rglob('test_*.py')):
         relative = path.relative_to(root).as_posix()
         if path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
@@ -51,19 +52,20 @@ def inventory(root=ROOT):
                    n.name.startswith('test_') for n in ast.walk(tree)):
             raise ValueError('No test definitions in ' + relative)
         parts = path.relative_to(root / 'tests').with_suffix('').parts
-        module = '.'.join((*parts[:-1], parts[-1].removeprefix('test_')))
-        modules[module] = relative
+        modules['.'.join((*parts[:-1], parts[-1].removeprefix('test_')))] = relative
+        trees[relative] = tree
     if not modules:
         raise ValueError('No test modules found; coverage cannot be established')
-    return modules
+    return modules, trees
 
 
-def test_functions(root=ROOT):
-    """Test file -> test function names; class methods are written Class::method."""
-    root = Path(root)
+def inventory(root=ROOT):
+    return _parse(root)[0]
+
+
+def _functions(trees):
     result = {}
-    for relative in inventory(root).values():
-        tree = ast.parse((root / relative).read_text(encoding='utf-8-sig'), filename=relative)
+    for relative, tree in trees.items():
         names = set()
 
         def visit(body, prefix=''):
@@ -76,6 +78,11 @@ def test_functions(root=ROOT):
         visit(tree.body)
         result[relative] = names
     return result
+
+
+def test_functions(root=ROOT):
+    """Test file -> test function names; class methods are written Class::method."""
+    return _functions(_parse(root)[1])
 
 # Chain entries retired by the explicit Codex S01 migration (ticket 31): the old
 # run/probe/HostTurn functions were rewritten, not renamed. Each old rule keeps a
@@ -134,7 +141,80 @@ RETIRED_CHAIN = {
 }
 
 
-def manifest(root=ROOT):
+# Whole-chain functions moved from fast to chain by measured timings (fast-slim B1/B2).
+# Each names the fast tests that still hold the same assertion seam; a guard must exist
+# and stay fast (moved_guard_problems), so moving a guard later fails the repository test.
+_RM = 'tests/test_recovery_matrix.py::'
+_HSR = 'tests/test_host_submission_roles.py::'
+_HS = 'tests/test_host_submission.py::'
+_NEI = 'tests/test_native_event_integration.py::'
+_NE = 'tests/test_native_events.py::'
+_FE = 'tests/test_frontend.py::'
+_WB = 'tests/test_web_browser.py::'
+_REQ = 'tests/a2c_protocol/test_request_resume.py::'
+_WEB_GUARDS = [_FE + 'test_actual_login_cookie_logout_and_admin_permissions',
+               _FE + 'test_public_pages_and_server_side_workbench_gates',
+               _FE + 'test_login_return_target_rejects_foreign_and_unrecognized_routes',
+               _FE + 'test_all_html_assets_are_stamped_and_stale_changes_fail']
+
+MOVED_TO_CHAIN = {
+    _RM + 'test_acceptance_survives_a_socket_drop_during_the_acceptance_notice': {
+        'owner': '33', 'seam': 'outbox resends one dropped message.send a2c.request exactly once; the two-period chain itself is already chain (resident_multiperiod)',
+        'guards': [_RM + 'test_termination_survives_a_socket_drop_during_the_signed_notice',
+                   _RM + 'test_every_stage_and_fault_names_existing_recovery_tests',
+                   'tests/test_runtime_delivery.py::test_operation_payload_is_saved_before_send_and_cannot_change']},
+    _RM + 'test_contract_choice_waiting_for_the_user_survives_an_assistant_restart': {
+        'owner': '33', 'seam': 'a waiting user confirmation survives an assistant restart with the original reference and a single effect',
+        'guards': [_RM + 'test_authorization_waiting_for_the_user_survives_an_assistant_restart',
+                   'tests/test_user_confirmations.py::test_confirmation_is_immutable_and_bound_to_actual_preview_and_operation',
+                   'tests/test_delegation_scopes.py::test_select_reserves_full_price_before_slot1_and_never_selects_two_cards']},
+    _HSR + 'test_a2c_not_submitted_preserves_working_task_card_fee_and_original_host_across_restart': {
+        'owner': '27/33', 'seam': 'proven not_submitted keeps the working task, fee and original host across restart and retries the same operation',
+        'guards': [_HSR + 'test_not_submitted_private_request_waits_and_restarts_on_original_host_without_failure_or_replay',
+                   _HS + 'test_proven_not_submitted_retries_same_operation_with_new_attempt',
+                   _REQ + 'test_resume_after_restart_preserves_original_request_materials_fee_and_task']},
+    _HSR + 'test_accepted_native_request_is_not_retried_and_late_sdk_reply_then_machine_end_converges': {
+        'owner': '27/33', 'seam': 'an accepted native request is never retried; late reply and machine end converge on the original facts',
+        'guards': [_HS + 'test_accepted_request_cannot_be_washed_into_not_submitted',
+                   _HS + 'test_claim_survives_transport_unknown_without_second_submission',
+                   _HS + 'test_duplicate_and_late_events_preserve_committed_facts']},
+    _HSR + 'test_real_role_rpc_uses_original_binding_and_frozen_tool_after_default_changes': {
+        'owner': '27/33', 'seam': 'an existing business keeps its original host binding and frozen tools after the default changes',
+        'guards': ['tests/test_host_registry.py::test_default_changes_only_new_business_and_binding_survives_restart',
+                   'tests/test_host_registry.py::test_assistant_resumes_original_rule_tools_after_restart_with_other_default']},
+    _NEI + 'test_native_flow_leaf_dedup_and_post_formation_step_result': {
+        'owner': '27', 'seam': 'each business operation produces exactly one native notice across repeated observes',
+        'guards': [_NE + 'test_inactive_flow_receipt_recovers_after_callback_interruption_without_history_scan',
+                   _NE + 'test_permits_survive_restart_and_origin_target_does_not_become_iid',
+                   _NEI + 'test_private_reply_returns_to_original_native_session_once']},
+    _NEI + 'test_native_provider_sync_result_and_async_decision_terminal': {
+        'owner': '27', 'seam': 'an async decision reaches one terminal native notice, including expiry, without inventing success',
+        'guards': [_NEI + 'test_async_flow_rejection_is_not_lost_after_real_confirmation',
+                   _NE + 'test_machine_failure_releases_notice_permit_without_claiming_handled_or_business_success',
+                   'tests/test_confirmation_deadlines.py::test_explicit_object_bound_confirmation_is_not_an_implicit_empty_deadline']},
+    'tests/test_quote_admission_rejection.py::test_late_reservation_recovers_original_prepared_quote_once': {
+        'owner': '33', 'seam': 'a prepared quote recovers only from original proof, consumes resume once and charges at most once',
+        'guards': ['tests/test_quote_admission_rejection.py::test_prepared_recovery_requires_original_proof_and_consumes_resume_once',
+                   'tests/test_quote_admission_rejection.py::test_original_negative_receipt_and_absent_acceptance_are_both_required']},
+    'tests/test_resident_fulfillment.py::test_early_step_answer_queues_original_job_until_actual_native_terminal_and_drain': {
+        'owner': '33', 'seam': 'the original job keeps its permit until the actual native terminal; drain preserves active and unknown writers',
+        'guards': [_HS + 'test_unknown_job_retains_one_permit_until_machine_and_actual_callbacks_end',
+                   _HS + 'test_completed_business_keeps_native_sid_and_pending_admission_until_original_machine_end',
+                   'tests/test_runtime_scheduling.py::test_stopping_pending_business_checks_all_jobs_and_preserves_active_and_unknown_writers']},
+    _WB + 'test_public_pages_load_without_errors_and_private_pages_ask_for_login': {
+        'owner': 'Web', 'seam': 'public pages render and private pages require login', 'guards': _WEB_GUARDS},
+    _WB + 'test_admin_opens_every_tab_without_errors': {
+        'owner': 'Web', 'seam': 'admin UI rendering; admin permission held by the HTTP test', 'guards': _WEB_GUARDS},
+    _WB + 'test_register_validation_login_logout_through_the_real_forms': {
+        'owner': 'Web', 'seam': 'registration/login/logout through forms; cookie and status codes held by the HTTP test', 'guards': _WEB_GUARDS},
+    _WB + 'test_home_language_navigation_and_real_public_stats': {
+        'owner': 'Web', 'seam': 'home navigation rendering', 'guards': _WEB_GUARDS},
+    _WB + 'test_ordinary_account_cannot_open_the_admin_page_or_its_data': {
+        'owner': 'Web', 'seam': 'an ordinary account gets 403 on admin', 'guards': _WEB_GUARDS},
+}
+
+
+def manifest(root=ROOT, known=None):
     """The chain-layer manifest, validated against the real test functions; fails closed."""
     path = Path(root) / MANIFEST
     if not path.is_file():
@@ -143,7 +223,7 @@ def manifest(root=ROOT):
     chain, threshold = data.get('chain'), data.get('thresholdSeconds')
     if not isinstance(chain, dict) or isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or threshold <= 0:
         raise ValueError(MANIFEST + ' must map test files to function names and give a positive thresholdSeconds')
-    known = test_functions(root)
+    known = test_functions(root) if known is None else known
     unknown = []
     for file, names in chain.items():
         if not isinstance(names, list) or not names or not all(isinstance(name, str) for name in names):
@@ -157,14 +237,34 @@ def manifest(root=ROOT):
     return {'threshold': float(threshold), 'chain': {file: set(names) for file, names in chain.items()}}
 
 
+def moved_guard_problems(root=ROOT, known=None):
+    """Moved functions must be listed chain; every named guard must exist and stay fast."""
+    layer = manifest(root, known)
+    known = test_functions(root) if known is None else known
+    problems = []
+    for moved, entry in MOVED_TO_CHAIN.items():
+        file, name = moved.split('::', 1)
+        if name not in layer['chain'].get(file, ()):
+            problems.append('moved function is not in the chain manifest: ' + moved)
+        if not entry.get('guards'):
+            problems.append('moved function names no fast guard: ' + moved)
+        for guard in entry.get('guards', ()):
+            gfile, gname = guard.split('::', 1)
+            if gname not in known.get(gfile, ()):
+                problems.append('guard does not exist: ' + guard)
+            elif gname in layer['chain'].get(gfile, ()):
+                problems.append('guard is not in the fast layer: ' + guard)
+    return problems
+
+
 def plan(*, layer=None, module=None, root=ROOT):
-    modules = inventory(root)
+    modules, trees = _parse(root)
     if module is not None and module not in modules:
         raise ValueError('Unknown diagnostic module: ' + module)
     if layer is not None and layer not in LAYERS:
         raise ValueError('Unknown layer: ' + str(layer))
     result = {'replacements': dict(APPROVED_REPLACEMENTS), 'replacementCoverage': REPLACEMENT_COVERAGE,
-              'retiredChain': RETIRED_CHAIN,
+              'retiredChain': RETIRED_CHAIN, 'movedToChain': MOVED_TO_CHAIN,
               'diagnostics': {name: path for name, path in modules.items()},
               'coverage': 'All effective coverage retained, including reviewed replacement mappings; no representative sampling.',
               'limits': 'Layers select by the measured manifest only. Environment-gated tests remain gated; '
@@ -172,7 +272,7 @@ def plan(*, layer=None, module=None, root=ROOT):
     if module is not None:
         result.update(layer='diagnose', tests=[modules[module]], pytestArgs=[])
     elif layer is not None:
-        listed = manifest(root)['chain']
+        listed = manifest(root, _functions(trees))['chain']
         result.update(layer=layer, tests=['tests'], pytestArgs=list(LAYERS[layer]),
                       manifest={'files': len(listed), 'functions': sum(len(names) for names in listed.values())})
     else:
@@ -182,9 +282,10 @@ def plan(*, layer=None, module=None, root=ROOT):
 
 def audit(report, root=ROOT):
     """Compare real per-test timings with the manifest. Advisory output, no manifest edits."""
-    layer = manifest(root)
+    known = test_functions(root)
+    layer = manifest(root, known)
     threshold = layer['threshold']
-    dotted = {path[:-3].replace('/', '.'): path for path in test_functions(root)}
+    dotted = {path[:-3].replace('/', '.'): path for path in known}
     measured, skipped = {}, set()
     for case in ET.parse(report).iter('testcase'):
         classname, name = case.get('classname', ''), case.get('name', '').split('[')[0]

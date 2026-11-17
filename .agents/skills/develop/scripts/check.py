@@ -75,6 +75,18 @@ def main():
     if layer_plan and report_dir is None:
         report_dir = ROOT / 'temp/checks' / ('layer-' + uuid.uuid4().hex)
     result = runner.run_checks(steps, report_dir)
+    if layer_plan and args.layer:
+        # Advisory only: name measured slow functions outside the manifest; never edits it.
+        try:
+            slow = layer_module.audit(report_dir / 'pytest.xml', root=ROOT)['unlistedSlow']
+        except (ValueError, SyntaxError, OSError, layer_module.ET.ParseError):
+            slow = []
+        if slow:
+            ranked = sorted(slow, key=lambda item: -float(item.rsplit(' ', 1)[1].rstrip('s')))
+            print(f'Layer audit (advisory, manifest unchanged): {len(slow)} functions outside tests/chain_layer.json '
+                  'measured at or above its threshold; move only whole-chain/real-process ones and name their fast guards:', flush=True)
+            for item in ranked[:10]:
+                print('  ' + item, flush=True)
     if result and layer_plan:
         failed = layer_module.failed_modules(report_dir, layer_plan['diagnostics'])
         if failed:

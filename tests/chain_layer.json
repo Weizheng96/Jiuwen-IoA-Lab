@@ -391,6 +391,7 @@
    "test_sdk_managed_scope_recovers_lost_reply_without_another_signature_or_confirmation"
   ],
   "tests/test_quote_admission_rejection.py": [
+   "test_late_reservation_recovers_original_prepared_quote_once",
    "test_withdrawn_template_rejects_original_quote_without_host_payment_or_replacement"
   ],
   "tests/test_resident_contracts.py": [
@@ -419,6 +420,7 @@
   ],
   "tests/test_resident_fulfillment.py": [
    "test_actual_bad_delivery_fails_wasm_and_never_signs_acceptance_or_pays",
+   "test_early_step_answer_queues_original_job_until_actual_native_terminal_and_drain",
    "test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_reputation",
    "test_real_original_jiuwen_produces_native_file_and_completes_original_contract"
   ],
@@ -538,6 +540,26 @@
    "test_flow_wait_survives_runtime_restart_and_preserves_confirmation",
    "test_two_period_flow_waits_for_independent_acceptance_before_next_delivery",
    "test_messaging_flow_unknown_lookup_recovers_original_message_without_resending"
+  ],
+  "tests/test_recovery_matrix.py": [
+   "test_acceptance_survives_a_socket_drop_during_the_acceptance_notice",
+   "test_contract_choice_waiting_for_the_user_survives_an_assistant_restart"
+  ],
+  "tests/test_host_submission_roles.py": [
+   "test_a2c_not_submitted_preserves_working_task_card_fee_and_original_host_across_restart",
+   "test_accepted_native_request_is_not_retried_and_late_sdk_reply_then_machine_end_converges",
+   "test_real_role_rpc_uses_original_binding_and_frozen_tool_after_default_changes"
+  ],
+  "tests/test_native_event_integration.py": [
+   "test_native_flow_leaf_dedup_and_post_formation_step_result",
+   "test_native_provider_sync_result_and_async_decision_terminal"
+  ],
+  "tests/test_web_browser.py": [
+   "test_admin_opens_every_tab_without_errors",
+   "test_home_language_navigation_and_real_public_stats",
+   "test_ordinary_account_cannot_open_the_admin_page_or_its_data",
+   "test_public_pages_load_without_errors_and_private_pages_ask_for_login",
+   "test_register_validation_login_logout_through_the_real_forms"
   ]
  }
 }

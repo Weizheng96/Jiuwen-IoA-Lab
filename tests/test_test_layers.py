@@ -8,7 +8,8 @@ import sys
 
 import pytest
 
-from tools.test_layers import ROOT, audit, failed_modules, manifest, plan
+from tools.test_layers import MOVED_TO_CHAIN, ROOT, audit, failed_modules, manifest, moved_guard_problems, plan
+from tools.test_layers import test_functions as functions_of  # aliased so pytest does not collect it
 
 MANIFEST = {'thresholdSeconds': 1.0, 'chain': {'tests/test_payments.py': ['test_recovery'],
                                                'tests/integration/test_process.py': ['TestOwner::test_release']}}
@@ -109,11 +110,30 @@ def test_conftest_marks_manifest_functions_so_layers_select_by_marker(tmp_path):
 
 
 def test_repository_manifest_lists_existing_functions_only():
-    layer = manifest()
+    known = functions_of()  # one parse of the repository tests, shared by both checks
+    layer = manifest(known=known)
     assert layer['threshold'] == 1.0 and layer['chain']
     assert all((ROOT / path).is_file() for path in layer['chain'])
     everything = plan(layer='chain')
     assert everything['manifest']['functions'] == sum(len(names) for names in layer['chain'].values())
+    assert MOVED_TO_CHAIN and everything['movedToChain'] == MOVED_TO_CHAIN
+    assert moved_guard_problems(known=known) == []
+
+
+def test_moved_function_needs_existing_fast_guards(tmp_path, monkeypatch):
+    import tools.test_layers as layers
+    sources(tmp_path)
+    moved = 'tests/test_payments.py::test_recovery'
+    for guards, problem in ((['tests/test_payments.py::test_quick'], None),
+                            ([], 'names no fast guard'),
+                            (['tests/test_payments.py::test_gone'], 'does not exist'),
+                            (['tests/integration/test_process.py::TestOwner::test_release'], 'not in the fast layer')):
+        monkeypatch.setattr(layers, 'MOVED_TO_CHAIN', {moved: {'guards': guards}})
+        found = moved_guard_problems(tmp_path)
+        assert (found == []) if problem is None else (len(found) == 1 and problem in found[0]), found
+    monkeypatch.setattr(layers, 'MOVED_TO_CHAIN', {'tests/test_payments.py::test_quick': {'guards': [moved]}})
+    found = moved_guard_problems(tmp_path)
+    assert any('not in the chain manifest' in item for item in found) and any('not in the fast layer' in item for item in found)
 
 
 def test_removed_scene_cases_and_asset_changes_select_their_real_coverage_owner():
@@ -217,7 +237,8 @@ def test_layer_entry_reuses_runner_preserves_exit_and_reports_diagnosis(tmp_path
     report.mkdir()
     (report / 'pytest.xml').write_text(
         '<testsuites><testsuite><testcase classname="tests.test_payments" name="test_recovery">'
-        '<failure/></testcase></testsuite></testsuites>', encoding='utf-8')
+        '<failure/></testcase><testcase classname="tests.test_payments" name="test_quick" time="2.50"/>'
+        '</testsuite></testsuites>', encoding='utf-8')
     env = {**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'}
     for layer in ('fast', 'chain'):
         command = [sys.executable, '-B', str(develop), '--layer', layer, '--report-dir', str(report)]
@@ -226,6 +247,9 @@ def test_layer_entry_reuses_runner_preserves_exit_and_reports_diagnosis(tmp_path
         selected = json.loads((tmp_path / 'selected.json').read_text())
         assert selected == [['base', []], ['Tests', ['-m', 'not chain' if layer == 'fast' else 'chain', 'tests']]]
         assert ('--diagnose payments' in result.stdout) is bool(exit_code)
+        # Advisory audit names the measured unlisted function and leaves the manifest unchanged.
+        assert 'Layer audit (advisory' in result.stdout and 'tests/test_payments.py::test_quick 2.50s' in result.stdout
+        assert json.loads((tmp_path / 'tests/chain_layer.json').read_text()) == MANIFEST
         (tmp_path / 'selected.json').unlink()
     for invalid in (['--diagnose', 'missing'], ['--layer', 'first']):
         result = subprocess.run([sys.executable, '-B', str(develop), *invalid], cwd=tmp_path,
