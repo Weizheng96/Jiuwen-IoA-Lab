@@ -10,6 +10,7 @@
 <label>显示名称<input name="name" maxlength="120" placeholder="我的 IoA 助手"></label>
 <button type="submit">保存并接入</button></form>
 <section><h2>接入状态</h2><p id="message" role="status"></p><p id="account"></p><details><summary>查看接入回执</summary><pre id="details"></pre></details><button id="resume">恢复原请求</button><button id="refresh">刷新状态</button></section>
+<section id="reuseSection" hidden><h2>发现已有接入</h2><p>继续使用已有的个人助手或服务方，原配置和运行实例保持不变。</p><div id="existingAccess"></div></section>
 <section id="credentialsSection" hidden><h2>本机账号</h2><p>自动生成的注册密码仅提供一次取回；请立即保存到自己的密码管理器，切勿粘贴到聊天窗口。手动输入的密码不提供取回。</p><button id="credentials">一次性取回注册密码</button><button id="discardSecret">清除尚未取回的注册密码</button><pre id="secret" hidden></pre><button id="hideSecret" hidden>隐藏密码</button></section>
 <section id="devicesSection" hidden><h2>设备登录管理</h2><p>管理前先安全停止下方已核对的客户端；完成后让接入助手启动原客户端。撤销当前设备将使它与平台的连接失效。</p>
 <button id="devices">查看设备列表</button><div id="deviceList"></div><button id="resumeRevoke">恢复上次未核实的撤销</button>
@@ -24,8 +25,9 @@
 <button type="submit">保存本地配置</button></form><pre id="configresult"></pre></section>
 <script>
 let csrf,busy=false,clientState=null;const form=document.getElementById('setup'),message=document.getElementById('message'),details=document.getElementById('details');
-async function request(path,body){const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','X-Ioa-Csrf':csrf||''},...(body===undefined?{}:{body:JSON.stringify(body)})});const v=await r.json();if(!r.ok)throw new Error(v.error?.message||'请求未完成');return v;}
+async function request(path,body){if(typeof accountApp!=='undefined')return accountApp.request(path,body);const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','X-Ioa-Csrf':csrf||''},...(body===undefined?{}:{body:JSON.stringify(body)})});const v=await r.json();if(!r.ok)throw new Error(v.error?.message||'请求未完成');return v;}
 function show(v){
+ if(typeof accountApp!=='undefined')document.getElementById('credentialsSection').hidden=!['ready','configured'].includes(v.phase);
  if(v.client){
   clientState=v.client;document.getElementById('configuration').hidden=false;document.getElementById('credentialsSection').hidden=false;document.getElementById('devicesSection').hidden=false;
   const select=document.getElementById('profile');select.replaceChildren();
@@ -33,13 +35,22 @@ function show(v){
   document.getElementById('configform').hidden=!select.options.length;
   document.getElementById('stop').disabled=!v.client.runtime.data?.bootId;
  }
- const labels={input:'请填写接入信息',pending:'原请求处理中',unknown:'结果待核实，请恢复原请求',rejected:'请求被拒绝，可纠正输入',configured:'已有本机配置；会话失效时请在设备登录管理中重新登录',ready:'账号已就绪，等待宿主配置与连接启动'};
+ document.getElementById('reuseSection').hidden=v.phase!=='existing';
+ const accesses=document.getElementById('existingAccess');accesses.replaceChildren();
+ for(const item of v.existingAccess||[]){
+  const card=document.createElement('div'),label=document.createElement('p'),button=document.createElement('button');
+  label.textContent='账号：'+item.account.username+' · 平台：'+item.account.platform+' · 身份：'+item.identities.join('、')+' · 在线';
+  button.textContent='继续使用';button.onclick=()=>submit({mode:'reuse',reference:item.reference});
+  card.append(label,button);accesses.append(card);
+ }
+ if(v.phase==='existing'&&!v.existingAccess?.length)accesses.textContent='暂时无法核对已有接入。请刷新状态；若仍不可用，请让接入助手检查原客户端。无需填写配置路径，也不会启动第二个实例。';
+ const labels={existing:'这个账号已有接入，请使用原客户端',reused:'已核对原接入，请返回聊天继续；原配置和实例保持不变',input:'请填写接入信息',pending:'原请求处理中',unknown:'结果待核实，请恢复原请求',rejected:'请求被拒绝，可纠正输入',configured:'已有本机配置；会话失效时请在设备登录管理中重新登录',ready:'账号已就绪，等待宿主配置与连接启动'};
  if(v.defaults){for(const [key,value] of Object.entries(v.defaults)){const field=form.elements.namedItem(key);if(field&&!field.value)field.value=value;if(key==='role'&&field)field.value=value;}}
  message.textContent=labels[v.phase]||v.phase;
  if(v.error)message.textContent+='。'+v.error.message;
  document.getElementById('account').textContent=v.account?'账号：'+v.account.username+'；平台：'+v.account.platform:'';
  details.textContent=JSON.stringify({account:v.account,error:v.error},null,2);
- form.hidden=!['input','rejected'].includes(v.phase);document.getElementById('resume').hidden=v.phase==='ready'||v.phase==='input';
+ form.hidden=!['input','rejected'].includes(v.phase);document.getElementById('resume').hidden=['ready','input','existing','reused','configured'].includes(v.phase);
 }
 async function submit(values){if(busy)return;busy=true;for(const b of document.querySelectorAll('button'))b.disabled=true;try{show(await request('/user/setup',values));form.reset();show(await request('/user/api'));}catch(e){message.textContent=e.message+'；可刷新查看原结果。';}finally{busy=false;for(const b of document.querySelectorAll('button'))b.disabled=false;document.getElementById('stop').disabled=!clientState?.runtime.data?.bootId;}}
 const secret=document.getElementById('secret'),hideSecret=document.getElementById('hideSecret');
@@ -63,6 +74,6 @@ async function deviceAction(values){
 document.getElementById('devices').onclick=()=>deviceAction({action:'list'});
 document.getElementById('resumeRevoke').onclick=()=>deviceAction({action:'resume'});
 document.getElementById('relogin').onsubmit=e=>{e.preventDefault();const password=e.target.elements.password.value;e.target.reset();deviceAction({action:'login',password});};
-form.onsubmit=e=>{e.preventDefault();submit(Object.fromEntries(new FormData(form)));};document.getElementById('resume').onclick=()=>submit({});document.getElementById('refresh').onclick=async()=>{try{show(await request('/user/api'));}catch(e){message.textContent=e.message;}};
-(async()=>{const token=location.hash.slice(1);history.replaceState(null,'',location.pathname);if(token)csrf=(await request('/user/session',{token})).csrf;const v=await request('/user/api');csrf=v.csrf;show(v);})().catch(e=>message.textContent=e.message);
+form.onsubmit=e=>{e.preventDefault();const values=Object.fromEntries(new FormData(form));for(const input of form.querySelectorAll('input[type=password]'))input.value='';submit(values);};document.getElementById('resume').onclick=()=>submit({});document.getElementById('refresh').onclick=async()=>{try{show(await request('/user/api'));}catch(e){message.textContent=e.message;}};
+(async()=>{if(typeof accountApp!=='undefined'){message.textContent='正在连接账号界面…';form.querySelector('button[type=submit]').onclick=e=>{e.preventDefault();if(form.reportValidity())form.onsubmit(e);};await accountApp.init(show);return;}const token=location.hash.slice(1);history.replaceState(null,'',location.pathname);if(token)csrf=(await request('/user/session',{token})).csrf;const v=await request('/user/api');csrf=v.csrf;show(v);})().catch(e=>message.textContent=e.message);
 </script></html>

@@ -94,11 +94,14 @@ def run(argv,*,modules,validate,service_fields):
         item.add_argument('--config',type=Path,required=True)
         if name=='account-setup':
             item.add_argument('--platform');item.add_argument('--role',choices=('assistant','service'))
-            item.add_argument('--worker');item.add_argument('--args-file',type=Path)
+            item.add_argument('--worker');item.add_argument('--args-file',type=Path);item.add_argument('--browser')
+            item.add_argument('--both-roles',action='store_true');item.add_argument('--embedded',action='store_true')
     call=commands.add_parser('call')
     call.add_argument('operation')
     call.add_argument('--config',type=Path,required=True)
     call.add_argument('--args-file',type=Path)
+    call.add_argument('--entry-ref',help=argparse.SUPPRESS)
+    call.add_argument('--request-stdin',action='store_true',help=argparse.SUPPRESS)
     args=parser.parse_args(argv)
     runtime=None
     try:
@@ -113,6 +116,8 @@ def run(argv,*,modules,validate,service_fields):
             else:
                 options={'role':args.role or 'assistant'}
                 if args.platform:options['platform_url']=args.platform
+                if args.browser:options['user_browser']=args.browser
+                if args.both_roles:options['prepare_both_roles']=True
                 if args.args_file:
                     from .files import read_json
                     options=read_json(args.args_file)
@@ -122,8 +127,9 @@ def run(argv,*,modules,validate,service_fields):
                         if options.get('role',args.role)!=args.role:
                             raise RuntimeFault('invalid_input','Account role must match the selected role skill','correct_input')
                         options={**options,'role':args.role}
+                    if args.both_roles:options={**options,'prepare_both_roles':True}
                 if args.worker:
-                    serve(args.config,options,args.worker)
+                    serve(args.config,options,args.worker,embedded=args.embedded)
                     return 0
                 result=launch(args.config,options)
         elif args.command=='login':
@@ -132,11 +138,22 @@ def run(argv,*,modules,validate,service_fields):
         elif args.command in ('validate','configuration','configure'):result=setup_command(args.command,args.config,getattr(args,'args_file',None),validate=validate,service_fields=service_fields())
         elif args.command=='start':result=start(args.config)
         else:
-            if args.operation not in READ_ONLY and not args.args_file:
+            if args.operation not in READ_ONLY and not args.args_file and not args.request_stdin:
                 raise RuntimeFault('invalid_input','Create an arguments file before a mutating call')
             config_path=args.config.resolve();document=read_configuration(config_path)
             home=data_directory(config_path,document)
-            values=read_arguments(args.args_file,configuration=config_path,home=home) if args.args_file else {}
+            packet=None
+            if args.request_stdin:
+                if args.args_file or args.entry_ref:raise RuntimeFault('invalid_input','Use one native transport envelope')
+                raw=sys.stdin.read(128*1024+1)
+                if len(raw)>128*1024:raise RuntimeFault('invalid_input','Native request exceeds 128 KiB')
+                packet=json.loads(raw)
+                if (not isinstance(packet,dict) or set(packet)!={'operation','operationId','arguments','contextRef'} or
+                    packet['operation']!=args.operation or not isinstance(packet['arguments'],dict) or 'operationId' in packet['arguments'] or
+                    not isinstance(packet['operationId'],str) or not 1<=len(packet['operationId'])<=128):
+                    raise RuntimeFault('invalid_input','Use the original native operation envelope')
+                values={**packet['arguments'],'operationId':packet['operationId']}
+            else:values=read_arguments(args.args_file,configuration=config_path,home=home) if args.args_file else {}
             operation=values.get('operationId') or str(uuid.uuid4())
             from .client import ClientOperations
             client=ClientOperations(config_path)
@@ -144,7 +161,8 @@ def run(argv,*,modules,validate,service_fields):
                 values['bootId']=client.call('runtime.status')['data']['bootId']
             values['operationId']=operation
             if args.args_file:private_json(args.args_file,values)
-            result=client.call(args.operation,{key:value for key,value in values.items() if key!='operationId'},operation_id=operation)
+            metadata=packet['contextRef'] if packet else ({'entryRef':args.entry_ref} if args.entry_ref else None)
+            result=client.call(args.operation,{key:value for key,value in values.items() if key!='operationId'},operation_id=operation,context_ref=metadata)
         print(json.dumps(result,ensure_ascii=False))
         return 1 if result.get('status') in ('rejected','failed','unknown') else 0
     except RuntimeFault as exc:

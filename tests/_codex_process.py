@@ -48,6 +48,9 @@ for line in sys.stdin:
         if mode=='bad-tool':
             send({'id':'tool-request','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'original-call','namespace':'other','tool':tools[0]['tools'][0]['name'],'arguments':{'text':'hello'}}})
             continue
+        if mode=='bad-args':
+            send({'id':'invalid-tool-request','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'invalid-call','namespace':'ioa_sdk','tool':tools[0]['tools'][0]['name'],'arguments':{'text':7}}})
+            continue
         if len(tools[0]['tools'])>1:
             send({'id':'reader-request','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'read-call','namespace':'ioa_sdk','tool':tools[0]['tools'][-1]['name'],'arguments':{'skill':'selected'}}})
             continue
@@ -55,6 +58,10 @@ for line in sys.stdin:
     elif method=='turn/interrupt':
         send({'id':request['id'],'result':{}})
         send({'method':'turn/completed','params':{'threadId':thread,'turn':{'id':turn,'status':'interrupted'}}})
+    elif method is None and request.get('id')=='invalid-tool-request':
+        rejected=json.loads(request['result']['contentItems'][0]['text'])
+        assert rejected['status']=='rejected' and rejected['error']['code']=='invalid_input'
+        send({'id':'tool-request','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'corrected-call','namespace':'ioa_sdk','tool':tools[0]['tools'][0]['name'],'arguments':{'text':'hello'}}})
     elif method is None and request.get('id')=='reader-request':
         assert json.loads(request['result']['contentItems'][0]['text'])['content']=='# Original skill'
         send({'id':'tool-request','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'original-call','namespace':'ioa_sdk','tool':tools[0]['tools'][0]['name'],'arguments':{'text':'hello'}}})

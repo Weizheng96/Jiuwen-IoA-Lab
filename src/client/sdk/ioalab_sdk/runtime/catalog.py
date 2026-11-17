@@ -5,6 +5,7 @@ operations only when the table names that role as handler. Script operations are
 product script or the SDK/host CLI and never reach the resident runtime.
 """
 from dataclasses import dataclass
+from .native_entry_bindings import NATIVE_ENTRY_BIND_OPERATION
 
 # Exposure: AGENT operations are documented in the product skills; INTERNAL ones are callable but not taught.
 AGENT, INTERNAL = 'agent', 'internal'
@@ -55,6 +56,7 @@ PERIOD = (shape(('contractRef', 'period'), CONTRACT_STEP),)
 OPERATIONS = (
     # Resident runtime fixed operations.
     Operation('runtime.status', RUNTIME, NONE, READ, False, LOCAL_READ, AGENT),
+    Operation(NATIVE_ENTRY_BIND_OPERATION, RUNTIME, NONE, LOCAL, False, SETUP, AGENT),
     Operation('runtime.stop', RUNTIME, (shape(('bootId',)),), CONTROL, False, ('completed', 'waiting', 'rejected'), AGENT),
     Operation('runtime.open_ui', RUNTIME, NONE, LOCAL, False, LOCAL_READ, AGENT),
     Operation('runtime.forms.list', RUNTIME, NONE, READ, False, LOCAL_READ, AGENT),
@@ -62,6 +64,7 @@ OPERATIONS = (
     Operation('runtime.forms.get', RUNTIME, REFERENCE, READ, False, LOCAL_READ, AGENT),
     Operation('runtime.forms.update', RUNTIME, (shape(('reference', 'revision', 'values')),), LOCAL, False, LOCAL_READ, AGENT),
     Operation('runtime.forms.preview', RUNTIME, (shape(('reference', 'revision')),), LOCAL, False, QUERY, AGENT),
+    Operation('runtime.forms.recover', RUNTIME, (shape(('reference', 'revision')),), LOCAL, False, LOCAL_READ, AGENT),
     Operation('runtime.forms.submit', RUNTIME, (shape(('reference', 'revision')),), EXTERNAL, True, CONFIRMED, AGENT),
     Operation('runtime.forms.open_ui', RUNTIME, REFERENCE, LOCAL, False, LOCAL_READ, AGENT),
     Operation('identity.status', RUNTIME, NONE, READ, False, LOCAL_READ, AGENT),
@@ -73,6 +76,8 @@ OPERATIONS = (
     Operation('runtime.connect', SCRIPT, NONE, CONTROL, False, SETUP, AGENT),
     Operation('runtime.mcp.configuration', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),
     Operation('runtime.install.status', SCRIPT, NONE, READ, False, SETUP, AGENT),
+    Operation('runtime.binding', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),
+    Operation('runtime.onboarding', SCRIPT, (shape(('host',)),), READ, False, SETUP, AGENT),
     Operation('runtime.validate', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),
     Operation('runtime.start', SCRIPT, NONE, CONTROL, False, SETUP, AGENT),
     Operation('runtime.configuration', SCRIPT, NONE, READ, False, LOCAL_READ, AGENT),

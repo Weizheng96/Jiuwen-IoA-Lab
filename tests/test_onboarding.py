@@ -164,3 +164,91 @@ def test_registered_account_is_retained_if_initial_login_is_rejected(platform, t
     with pytest.raises(RuntimeFault): onboarding.submit({**values, 'name': 'another-account'})
     result = onboarding.submit({})
     assert result['phase'] == 'ready' and registered == [result['account']['id']]
+
+
+@pytest.mark.parametrize("custom_home", [False, True])
+@pytest.mark.parametrize("role", ["assistant", "service"])
+def test_existing_login_hands_off_without_changing_original(platform, tmp_path, custom_home, role):
+    from conftest import wait_for
+    import hashlib
+    from _support import new_user, PASSWORD
+    from ioalab_sdk.runtime.protocol import encode
+    from ioalab_sdk.runtime.resident import ResidentRuntime
+    from ioalab_sdk.runtime.files import private_json
+    from ioalab_sdk.runtime.account_setup import status
+    user = new_user(platform)
+    home = tmp_path / 'clients' / hashlib.sha256(encode([platform.s.base_url, user['username']]).encode()).hexdigest()[:24]
+    if custom_home:
+        home = tmp_path / 'custom-data'
+    original = tmp_path / 'original.json'
+    private_json(original, {'platform_url': platform.s.base_url, 'username': user['username'],
+        'password': PASSWORD, 'data_dir': str(home),
+        'identities': [{'key': 'personal', 'role': role, 'name': 'Original'}]})
+    runtime = ResidentRuntime(RuntimeConfig.load(original), assembly='ioalab-sdk').start()
+    try:
+        wait_for(lambda: runtime.connection.connected)
+        before = original.read_bytes()
+        boot = runtime.ipc.boot_id
+        setup = Onboarding(tmp_path / 'new.json')
+        result = setup.submit({'mode': 'login', 'platform': platform.s.base_url,
+                               'username': user['username'], 'password': PASSWORD, 'role': role})
+        assert result['phase'] == 'existing'
+        assert result['error']['recovery'] == 'reuse_existing'
+        assert setup.submit({})['phase'] == 'existing'
+        choices = result['existingAccess']
+        assert len(choices) == 1 and choices[0]['account']['username'] == user['username']
+        assert 'configuration' not in choices[0]
+        reference = choices[0]['reference']
+        with pytest.raises(RuntimeFault):
+            setup.submit({'mode': 'reuse', 'reference': 'forged'})
+        with pytest.raises(RuntimeFault):
+            setup.submit({'mode': 'reuse', 'configuration': str(original)})
+        assert setup.status()['phase'] == 'existing'
+        changed = json.loads(before)
+        changed['max_model_runs'] = 3
+        private_json(original, changed)
+        with pytest.raises(RuntimeFault):
+            setup.submit({'mode': 'reuse', 'reference': reference})
+        assert setup.status()['existingAccess'] == []
+        original.write_bytes(before)
+        result = setup.submit({'mode': 'reuse', 'reference': reference})
+        assert setup.submit({'mode': 'reuse', 'reference': reference}) == result
+        assert result['phase'] == 'reused'
+        assert result['existingConfiguration'] == str(original)
+        assert status(setup.path)['data']['nextAction'] == 'use_existing_configuration'
+        from ioalab_sdk.runtime.account_setup import options_for
+        assert options_for(setup.path, {'role': role})['role'] == role
+        assert setup.submit({}) == result
+        assert not setup.path.exists()
+        assert original.read_bytes() == before and runtime.ipc.boot_id == boot
+        assert runtime.connection.connected
+    finally:
+        runtime.close()
+
+
+def test_account_app_channel_reuses_onboarding_without_browser_authority(platform, tmp_path):
+    from ioalab_sdk.runtime.user_ui import UserUi
+    from ioalab_sdk.runtime.ipc import IpcServer
+    account = Onboarding(tmp_path / 'inline.json')
+    account.home.mkdir(parents=True)
+    ui = UserUi(onboarding=account)
+    server = IpcServer(account.home, 'inline-test', lambda *_: {}, user_ui=ui).start()
+    try:
+        entry = ui.account_app_entry()
+        headers = {'Origin': 'null', 'Authorization': 'Bearer ' + entry['token']}
+        with httpx.Client(base_url=entry['origin'], trust_env=False) as client:
+            assert client.get('/user/app/api', headers={'Origin': 'null'}).status_code == 403
+            assert client.options('/user/app/setup', headers={'Origin': 'null', 'Access-Control-Request-Method': 'POST'}).status_code == 200
+            body = {'mode': 'register', 'platform': platform.s.base_url}
+            assert client.post('/user/app/setup', json=body, headers=headers).json()['phase'] == 'ready'
+            assert 'password' not in client.get('/user/app/api', headers=headers).text
+            assert client.post('/user/app/configuration', json={'action': 'stop'}, headers=headers).status_code == 403
+            assert client.post('/user/decision', json={}, headers=headers).status_code == 403
+            secret = client.post('/user/app/credentials', json={}, headers=headers).json()['password']
+            assert secret
+            assert client.post('/user/app/credentials', json={}, headers=headers).status_code != 200
+            assert not RuntimeConfig.load(account.path).password
+            ui.clock = lambda: 10**12
+            assert client.get('/user/app/api', headers=headers).status_code == 403
+    finally:
+        server.close()

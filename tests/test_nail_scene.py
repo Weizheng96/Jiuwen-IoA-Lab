@@ -49,7 +49,7 @@ def test_native_scene_build_is_deterministic_and_uses_exact_owned_source(tmp_pat
     assert terms['deliverables'][0]['specSchema'] == owned['deliverable']['specSchema']
     assert terms['pricing']['proposalFee'] == 1 and terms['authorizableSteps'] == owned['steps']
     assert terms['deadlines']['respondWithin'] == 'PT30M'
-    assert owned['deadlines']['respondWithin'] == 'PT10M'
+    assert owned['deadlines']['respondWithin'] == 'PT24H'
     assert {k: v for k, v in module.definition()['deadlines'].items() if k != 'respondWithin'} == {
         k: v for k, v in owned['deadlines'].items() if k != 'respondWithin'}
     assert terms['samples'] == [] and not {'a2cVersion', 'kind', 'validUntil', 'provider', 'signatures'} & terms.keys()
@@ -238,7 +238,7 @@ def test_countersign_requires_real_upload_and_retains_material_price_and_scope(t
     assert completed['templateStatus'] == 'draft_ready'
     terms = json.loads((tmp_path / 'referenced/template-draft-input.json').read_text(encoding='utf-8'))['terms']
     assert terms['formation'] == 'countersign' and terms['pricing']['priceFormula'] == {'booking': str(amount)}
-    assert 'proposalFee' not in terms['pricing'] and terms['deadlines']['acceptWithin'] == {'booking': 'PT15M'}
+    assert 'proposalFee' not in terms['pricing'] and terms['deadlines']['acceptWithin'] == {'booking': 'PT24H'}
     assert terms['acceptance']['booking'] == {'verifiers': {'script': reference}, 'notCovered': value['notCovered']}
     assert [item['name'] for item in terms['inputs']][:2] == ['requirement_text', 'function_spec']
     if service_id == 'nail-yungou':

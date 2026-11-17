@@ -114,15 +114,22 @@ class Reset:
                 raise RuntimeError('Test reset requires a completed existing deployment')
             self.saved(phase='quiescing',previous=previous,
                 before=i.manager.freeze([row['unit'] for row in i.plans.values()]))
-        if self.record['phase']=='quiescing':
+        if self.record['phase'] in ('quiescing','resuming'):
             for group in units.STOP_GROUPS:
                 names=[i.plans[key]['unit'] for key in group if key in i.plans]
                 for name in names:i.manager.request_stop(name,self.record['before'][name])
                 while not all(i.manager.released(name,self.record['before'][name]) for name in names):time.sleep(.2)
-            with runtime_leases(self.layout,i.plans):
+            resuming=self.record['phase']=='resuming'
+            if resuming:
+                from .reset_resume import partial_leases
+                leases=partial_leases(i)
+            else:leases=runtime_leases(self.layout,i.plans)
+            with leases:
                 if not self.released():raise RuntimeError('A service-account process or original writer remains')
-                self.saved(phase='clearing')
-                self.clear()
+                if resuming:self.saved(phase='pruning')
+                else:
+                    self.saved(phase='clearing')
+                    self.clear()
         elif self.record['phase']=='clearing':
             # The namespace retirement was persisted while holding the original
             # locks. A crash may leave some old lock files already removed.
@@ -132,7 +139,7 @@ class Reset:
             current=activation.current(self.layout)
             if current!=i.progress['candidate']:
                 activation.activate(self.layout,i.progress['candidate'],self.record['previous']['setId'])
-            prune(self.layout,released=self.released,operation=i.job.operation)
+            prune(self.layout,released=self.released,operation=None if i.request.get('resumeTestReset') else i.job.operation)
             self.saved(phase='initializing')
         if self.record['phase']=='initializing':
             i.config.base();i.permissions();i.bootstrap()

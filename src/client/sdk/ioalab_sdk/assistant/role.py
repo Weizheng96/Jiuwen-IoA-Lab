@@ -20,7 +20,7 @@ from .inbound import Inbound
 from .messaging import Messaging,stable
 from .forms import rule_form, interface_management
 from .interaction import interaction_form
-from .trade_workflow import delegation_form, case_form
+from .trade_workflow import delegation_form, case_form, renewal_form
 
 
 class AssistantRole:
@@ -51,9 +51,11 @@ class AssistantRole:
         self.inbound=Inbound(self)
         from .agent_flows import AssistantFlows
         self.flows=AssistantFlows(self)
+        from .native_events import NativeProjections
+        self.native_projections=NativeProjections(self)
         return {'operations':{name:self._operation(name.split('.',1)[1]) for name in handled_by(ASSISTANT)},
-                'forms': (rule_form(self), interface_management(self), interaction_form(self), delegation_form(self), case_form(self)),
-                'jobs':{'assistant.message':JobHandler(self.inbound.process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.capabilities().get('available'))),
+                'forms': (rule_form(self), interface_management(self), interaction_form(self), delegation_form(self), case_form(self), renewal_form(self)),
+                'jobs':{'assistant.message':JobHandler(self.inbound.process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.can_submit())),
                         'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False),
                         'assistant.compare':JobHandler(self.comparisons.run,'assistant-compare-v1',False),
                         'assistant.contract':JobHandler(self.contracts.run,'assistant-contract-v1',False),
@@ -177,7 +179,8 @@ class AssistantRole:
                 if self.runtime.connection.connected and self.trading:
                     self.trading.recover();self.contracts.recover();self.fulfillment.recover();self.termination.recover();self.termination.scan();self.cases.scan()
                     self.flows.scan()
-                if self.runtime.connection.connected and self.host and self.host.capabilities().get('available'):
+                    self.native_projections.scan()
+                if self.runtime.connection.connected and self.host and self.host.can_submit():
                     self.inbound.schedule_received()
             except (RuntimeFault,httpx.HTTPError):pass
             except Exception as exc:

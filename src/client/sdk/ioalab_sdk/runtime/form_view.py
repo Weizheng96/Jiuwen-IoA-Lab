@@ -13,4 +13,5 @@ def form_page(mode):
             .replace('/* IOA_VIEWS */', '\n'.join(root.joinpath(path).read_text(encoding='utf-8') for path in (
                 'shared/presentation.js', 'registry/view.js', 'messaging/view.js', 'payments/view.js', 'delegation/view.js', 'provider/view.js')))
             .replace('/* IOA_TRANSPORT */', root.joinpath('shared/' + mode + '.js').read_text(encoding='utf-8'))
+            .replace('/* IOA_CONFIRMATION */', root.joinpath('delegation/confirmation.js').read_text(encoding='utf-8'))
             .replace('/* IOA_FORMS */', root.joinpath('shared/forms.js').read_text(encoding='utf-8')))

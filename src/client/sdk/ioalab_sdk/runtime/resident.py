@@ -22,8 +22,16 @@ from .installation import current as current_installation
 
 
 class ResidentRuntime:
-    def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=(),modules=(),assembly=None):
+    def __init__(self,config:RuntimeConfig,*,operations=None,jobs=None,host_status=None,ready_profiles=(),modules=(),assembly=None,host_registry=None,native_handlers=None,native_resources=None,native_entry_required=False):
         self.config=config
+        self.host_registry=host_registry
+        self.native_entry_required=native_entry_required
+        self.native_resources=dict(native_resources or {})
+        self.callback_pool=None
+        self.native_events=None
+        self.native_sources=None
+        self.native_entry_bindings=None
+        self.health=None
         self.installation=current_installation(assembly)
         self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=self.forms=None
         self.identities=[]
@@ -54,10 +62,19 @@ class ResidentRuntime:
             self.identities=[load_identity(self.account,config.home,profile) for profile in config.identities]
             actors=[p.agent_id for p in self.identities]
             self.store=RuntimeStore(config.home/'runtime.sqlite',config.platform,actors,owner_id=self.account.account['id'])
+            if host_registry is not None:
+                from .sdk_tool_callbacks import CallbackPool
+                self.callback_pool=CallbackPool(config.max_model_runs)
+                host_registry.bind(self.store,identities=self.identities)
+                host_registry.callback_pool=self.callback_pool
             self.connection=AgentConnection(config.platform,self.account.bearer,actors,self.store,network=self.account.network)
             self.confirmations=Confirmations(self.store)
             job_handlers=dict(jobs or {})
             form_definitions=[]
+            if host_registry is not None:
+                from .native_events import NativeEvents
+                self.native_events=NativeEvents(self,host_registry)
+                job_handlers.update(self.native_events.handlers())
             for module in self.modules:
                 registration=module.bind(self)
                 registered=registration.get('operations',{})
@@ -71,6 +88,11 @@ class ResidentRuntime:
                 form_definitions.extend(registration.get('forms',()))
             self.scheduler=Scheduler(self.store,job_handlers,max_models=config.max_model_runs,max_pending=config.max_pending_requests,
                                      can_dispatch=lambda:self.connection.connected and not self.stop_requested.is_set())
+            if host_registry is not None:host_registry.scheduler=self.scheduler
+            if host_registry is not None:
+                from .health import RuntimeHealth
+                self.health=RuntimeHealth(host_registry,shutdown_seconds=config.host_unavailable_shutdown_seconds,
+                    on_health=self._host_health,request_stop=self.stop_requested.set)
             self.connection.on_delivery=self._wake_roles
             self.forms=InteractionForms(self.store,form_definitions,
                 can_advance=lambda:self.connection.connected and not self.stop_requested.is_set() and not self.closing.is_set(),
@@ -78,7 +100,26 @@ class ResidentRuntime:
             from .account_setup import setup
             self.user_ui=UserUi(self.confirmations,browser=config.user_browser,forms=self.forms,
                                 open_setup=lambda:setup(config.source,open_browser=True))
-            self.ipc=IpcServer(config.home,self.store.runtime_id,self.call,user_ui=self.user_ui)
+            if host_registry is not None and self.native_entry_required:
+                from .native_sources import NativeSources
+                from .protocol import encode
+                import hashlib
+                owner_ref=hashlib.sha256(encode([self.store.runtime_id,self.account.account['id']]).encode()).hexdigest()
+                self.native_sources=NativeSources(self.store,host_registry,self.identities,self.installation,owner_ref,config.home,
+                    accept_setup=lambda:not self.stop_requested.is_set())
+            self.ipc=IpcServer(config.home,self.store.runtime_id,self.call,user_ui=self.user_ui,native_sources=self.native_sources,native_handlers=native_handlers)
+            if self.native_sources is not None:
+                from .host_submission import HostRegistration
+                self.native_sources.attach(self.ipc.descriptor)
+                self.native_entry_bindings=self.native_sources.entry_bindings
+                # Entry resources exist before any S01; optional S03 is not their initializer.
+                for ref,adapter in host_registry.hosts.items():
+                    if isinstance(getattr(adapter,'registration',None),HostRegistration):
+                        for identity in self.identities:self.native_sources.provision(ref,identity.profile)
+                for ref,resource in self.native_resources.items():
+                    bind_entry_control=getattr(resource,'bind_entry_control',None)
+                    if callable(bind_entry_control):
+                        bind_entry_control(self.native_sources.entry_control_for(ref))
         except BaseException:
             self.close()
             raise
@@ -91,6 +132,11 @@ class ResidentRuntime:
         self.forms.start()
         return self
 
+    def _host_health(self,host_ref,state):
+        for module in self.modules:
+            callback=getattr(module,'host_health',None)
+            if callable(callback):callback(host_ref,state)
+
     def _wake_roles(self):
         for module in self.modules:module.wake()
 
@@ -102,12 +148,15 @@ class ResidentRuntime:
         host=self.host_status()
         scheduler=self.scheduler.status()
         connected=self.connection.connected
-        available=bool(host.get('available') and connected and not scheduler['error'] and not self.stop_requested.is_set())
+        # Readiness is the configured SDK calling scope, not a fresh health or
+        # model-availability assertion. P34's recorded host health stays separate.
+        configured=bool(self.host_registry and self.host_registry.can_submit())
+        available=bool(configured and connected and not scheduler['error'] and not self.stop_requested.is_set())
         def role_ready(profile):
             return all(module.ready(profile) for module in self.modules
                        if hasattr(module,'ready') and ((getattr(module,'identity',None) and module.identity.profile==profile)
                            or profile in getattr(module,'identities',{})))
-        return {'runtimeId':self.store.runtime_id,'bootId':self.ipc.boot_id,'pid':os.getpid(),
+        result={'runtimeId':self.store.runtime_id,'bootId':self.ipc.boot_id,'pid':os.getpid(),
                 'configurationDigest':self.config.public_summary()['configurationDigest'],
                 'installation':self.installation,
                 'ipcReady':bool(self.ipc.thread and self.ipc.thread.is_alive()),
@@ -118,6 +167,11 @@ class ResidentRuntime:
                 'host':host,'scheduler':scheduler,'delivery':self.store.summary(),
                 'roleErrors':[module.error for module in self.modules if getattr(module,'error',None)],
                 'stopping':self.stop_requested.is_set()}
+        if self.native_events is not None:result['nativeEvents']=self.native_events.status()
+        if self.health is not None:result['hostHealth']=self.health.snapshot()
+        if self.native_entry_bindings is not None:
+            result['nativeEntryBindings']={ref:self.native_entry_bindings.status(ref) for ref in self.host_registry.hosts}
+        return result
 
     def _delivery_operation(self,args):
         if set(args)!={'reference'} or not isinstance(args['reference'],dict):
@@ -138,10 +192,30 @@ class ResidentRuntime:
         if not pending:raise RuntimeFault('not_ready','Original operation is not stored in this instance')
         return {'status':'accepted','response':None,'reference':reference}
 
-    def call(self,operation,operation_id,args):
+    def call(self,operation,operation_id,args,*,context_ref=None):
+        from .host_registry import source_scope,PendingSource
+        context=None
+        from .native_entry_bindings import NATIVE_ENTRY_BIND_OPERATION
+        if context_ref is not None and operation!=NATIVE_ENTRY_BIND_OPERATION:
+            if self.native_sources is None:raise RuntimeFault('not_ready','The bound native entry is unavailable','connect_native_context')
+            context=PendingSource(lambda:self.native_sources.lookup(context_ref))
+        with source_scope(context):
+            return self._call(operation,operation_id,args,context_ref=context_ref)
+
+    def _call(self,operation,operation_id,args,*,context_ref=None):
         try:
             state='completed'
-            if operation=='runtime.status':
+            from .native_entry_bindings import NATIVE_ENTRY_BIND_OPERATION
+            if operation==NATIVE_ENTRY_BIND_OPERATION:
+                if not isinstance(args,dict) or args:raise RuntimeFault('invalid_input','Native entry setup takes no model parameters')
+                if self.native_entry_bindings is None:raise RuntimeFault('not_ready','Use the installed native product entry','connect_native_context')
+                data=self.native_entry_bindings.get(operation_id)
+                if not data or data['phase'] not in ('reserved','bound','migration_required'):
+                    if self.stop_requested.is_set():raise RuntimeFault('closed','Runtime is draining')
+                    if context_ref is None:raise RuntimeFault('not_ready','Capture the current entry through the native wrapper','connect_native_context')
+                    data=self.native_entry_bindings.begin(operation_id,source=self.native_sources.setup_source(context_ref))
+                state=data['state']
+            elif operation=='runtime.status':
                 if args:raise RuntimeFault('invalid_input','Status takes no arguments')
                 data=self.status()
             elif operation=='account.refresh':
@@ -204,28 +278,44 @@ class ResidentRuntime:
                 if self.stop_requested.is_set():
                     self.scheduler.drain()
                     if self.scheduler.idle:break
+                if self.health is not None and not self.stop_requested.is_set():self.health.poll()
                 time.sleep(.1)
         finally:
-            try:self.close()
+            try:
+                while True:
+                    try:self.close();break
+                    except RuntimeFault as exc:
+                        if exc.code!='not_ready':raise
+                        # Unknown native execution keeps its control port and ownership.
+                        time.sleep(.1)
             finally:
                 for sig,handler in previous.items():signal.signal(sig,handler)
 
     def close(self):
         if self._closed:return
-        self._closed=True
+        self.stop_requested.set()
         self.closing.set()
         # Keep the DB and OS ownership until all actual work/RPC threads stop.
         if self.scheduler:self.scheduler.drain()
         if self.forms:self.forms.close()
         for module in self.modules:
             if hasattr(module,'quiesce'):module.quiesce()
-        if self.ipc:self.ipc.close()
+        if self.callback_pool:
+            self.callback_pool.seal()
+            if not self.callback_pool.drain(.1):raise RuntimeFault('not_ready','Keep SDK resources until original callbacks end')
+        for resource in self.native_resources.values():
+            if not resource.drain(.1):raise RuntimeFault('not_ready','Keep native control until original executions end')
         if self.scheduler:self.scheduler.close()
         for module in self.modules:module.close()
+        if self.host_registry is not None and not self.host_registry._close_resource_controls():
+            raise RuntimeFault('not_ready','Keep SDK resources until original resource I/O ends')
+        if self.ipc:self.ipc.close()
+        if self.callback_pool:self.callback_pool.close()
         if self.connection:self.connection.close()
         if self.store:self.store.close()
         if self.account:self.account.close()
         if self._lease:self._lease.close()
+        self._closed=True
 
     def __enter__(self):return self.start()
     def __exit__(self,*_):self.close()

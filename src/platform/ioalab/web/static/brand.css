@@ -1,0 +1,11 @@
+@font-face{font-family:"IoA Sans";src:url("/static/ioa-sans-600.woff2") format("woff2");font-weight:600;font-style:normal;font-display:swap}
+/* One V4 identity for sidebar, header and favicon. */
+.ioa-brand{display:inline-flex;align-items:center;gap:11px;text-decoration:none;color:#1b201b;white-space:nowrap;letter-spacing:normal}
+.ioa-brand .site-logo,.unified-header .ioa-brand .site-logo{display:block;flex:none;width:27px;height:27px;object-fit:contain;filter:none}
+.ioa-brand .ioa-wordmark{font-family:"IoA Sans",Arial,sans-serif;font-size:18px;font-weight:650;line-height:1.4;letter-spacing:-.045em;color:#1b201b}
+.ioa-brand .ioa-dot{font-weight:400;color:#718074}
+.ioa-brand .brand-caption{font-size:12px;font-weight:400;letter-spacing:.03em;color:#718074;border-left:1px solid #1b201b24;padding-left:14px;margin-left:4px}
+.home-sidebar .ioa-brand{font-size:18px;letter-spacing:normal}
+@media(max-width:650px){.ioa-brand .brand-caption{font-size:11px;padding-left:10px;margin-left:0}.ioa-brand{gap:11px}}
+
+.unified-header .ioa-brand{gap:11px}

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import Error, sync_playwright
 
     class Handler(SimpleHTTPRequestHandler):
         def log_message(self, *args):
@@ -26,6 +26,7 @@ def main():
         "wallet": "100",
         "identities": [],
         "orders": [],
+        "intents": [],
         "services": [],
         "events": [],
         "categories": [],
@@ -44,10 +45,13 @@ def main():
         ],
     }
     public_services=[{'id':f'service-{i}','name':name,'status':'online','category':'cat_dev','description':'公开服务说明','url':f'http://service-{i}'} for i,name in enumerate(['码上飞','快搭建站','灵犀小程序','翻译工作室','行程顾问','正则助手','简历顾问','家庭菜单','品牌文案','配色设计','周报助手','医疗提醒'])]
-    sample['services']=[{'id':f'owned-{i}','name':n,'status':'online','category':'cat_dev','description':'独立的专业服务','url':f'http://owned-{i}','orders':[],'earned':'0.00'} for i,n in enumerate(['码上飞','快搭建站'])]
+    sample['services']=[{'id':f'owned-{i}','name':n,'status':'online','category':'cat_dev','description':'独立的专业服务','url':f'http://owned-{i}','orders':[],'intents':[],'earned':'0.00','completedCount':0,'commissionEarned':'0.00','proposalFeesEarned':'0.00'} for i,n in enumerate(['码上飞','快搭建站'])]
     try:
         with sync_playwright() as pw:
-            browser = pw.chromium.launch()
+            try:
+                browser = pw.chromium.launch()
+            except Error:
+                browser = pw.chromium.launch(channel="chrome")
             for width, height in ((960, 928), (1920, 1080)):
                 page = browser.new_page(viewport={"width": width, "height": height})
                 errors = []

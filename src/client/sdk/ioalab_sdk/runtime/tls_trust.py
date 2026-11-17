@@ -30,7 +30,7 @@ def resource_bytes(root, name):
         raise ValueError('Trust resource must be a package-local file')
     target = root.joinpath(name)
     if isinstance(target, Path):
-        if any(item.is_symlink() for item in (target, *target.parents)):
+        if target.is_symlink() or not target.resolve().is_relative_to(root.resolve()):
             raise ValueError('Trust resource must not contain links')
     with target.open('rb') as stream:
         raw = stream.read(1024*1024+1)
@@ -43,7 +43,14 @@ def context(platform):
     """Return one SSL context and its non-secret, frozen policy description."""
     try:
         target = origin(platform)
-        root = importlib.resources.files('ioalab_sdk.runtime').joinpath('trust')
+        package = importlib.resources.files('ioalab_sdk.runtime')
+        root = package.joinpath('trust')
+        if isinstance(package, Path):
+            # The environment prefix may be a verified deployment/current alias.
+            # Package directories and the trust resources themselves may not be links.
+            if any(item.is_symlink() for item in (package, package.parent, root)):
+                raise ValueError('Trust package resources must not contain links')
+            root = root.resolve(strict=True)
         raw = resource_bytes(root, 'platform-trust.json')
         policy = json.loads(raw)
         if (not isinstance(policy, dict) or set(policy) != {'format', 'origins', 'anchors'}

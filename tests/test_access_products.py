@@ -2,10 +2,12 @@
 from dataclasses import replace
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 import zipfile
 
 import pytest
@@ -95,7 +97,7 @@ def test_unrelated_role_cannot_trigger_bootstrap_or_rpc(tmp_path,monkeypatch,cap
 @pytest.mark.parametrize('role,operation,status,error',[
     ('assistant','assistant.delegation.prepare','waiting',None),
     ('service','provider.tasks.get','completed',None),
-    ('assistant','assistant.unsupported','rejected',{'code':'not_ready','message':'Unknown capability','recovery':'inspect_capabilities'}),
+    ('assistant','assistant.tools.list','rejected',{'code':'not_ready','message':'Unknown capability','recovery':'inspect_capabilities'}),
 ])
 def test_complete_role_operation_is_forwarded_without_alias_or_error_reclassification(tmp_path,monkeypatch,capsys,role,operation,status,error):
     from types import SimpleNamespace
@@ -108,11 +110,13 @@ def test_complete_role_operation_is_forwarded_without_alias_or_error_reclassific
     expected={'status':status,'data':{'reference':'original'},'error':error};calls=[]
     def invoke(actual_python,command):
         calls.append((actual_python,command))
+        if command[1:3]==['ioalab_client.runtime','start']:
+            return SimpleNamespace(stdout=json.dumps({'status':'completed','data':{}}),stderr='',returncode=0)
         return SimpleNamespace(stdout=json.dumps(expected),stderr='',returncode=1 if status=='rejected' else 0)
     monkeypatch.setattr(module,'invoke',invoke)
     assert module.main(['--role',role,operation,'--config',str(config),'--args-file',str(arguments)])==(1 if status=='rejected' else 0)
     assert json.loads(capsys.readouterr().out)==expected
-    assert calls==[(python,['-m','ioalab_sdk.access','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
+    assert calls==[(python,['-m','ioalab_client.runtime','start','--config',str(config.resolve())]),(python,['-m','ioalab_sdk.access','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
     assert json.loads(arguments.read_text())=={'request':'unchanged'} and not config.exists()
 
 
@@ -185,22 +189,206 @@ def test_old_installation_status_preserves_observation_and_allows_safe_stop(plat
     finally:runtime.close()
 
 
-def test_connect_reports_missing_host_configuration_before_launch(tmp_path,monkeypatch,capsys):
+@pytest.mark.parametrize('role', ['assistant', 'service'])
+@pytest.mark.parametrize('existing', [False, True])
+def test_mcp_registration_precedes_account_and_preserves_configuration(tmp_path, monkeypatch, capsys, role, existing):
     from types import SimpleNamespace
-    module=bootstrap();root=tmp_path/'skill';(root/'assets').mkdir(parents=True)
-    (root/'assets/skill.json').write_text(json.dumps({'role':'assistant'}));module.__file__=str(root/'scripts/ioalab.py')
-    config=tmp_path/'settings.json';config.write_text('{}')
-    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda *a,**kw:
-        {'status':'completed','data':{'python':sys.executable}}))
+    module = bootstrap()
+    config = tmp_path / 'account.json'
+    original = b'{"platform_url":"http://127.0.0.1:8750"}'
+    if existing:
+        config.write_bytes(original)
+    monkeypatch.setattr(module, 'installation', lambda: SimpleNamespace(prepare=lambda: {
+        'status': 'completed', 'data': {'python': sys.executable}}))
+    monkeypatch.setattr(module, 'invoke', lambda *args: pytest.fail('Registration must not open accounts or start a resident'))
+    assert module.main(['--role', role, 'runtime.mcp.configuration', '--config', str(config)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result['status'] == 'completed'
+    data = result['data']
+    assert (data['stage'], data['nextAction'], data['accountRequired']) == ('mcp', 'enable_in_current_chat', False)
+    assert data['setupArguments'] == {'role': role}
+    assert data['args'] == ['-m', 'ioalab_sdk.mcp', '--config', str(config)]
+    assert data['jiuwenJson']['mcpServers']['ioalab']['args'] == data['args']
+    assert config.exists() == existing
+    if existing:
+        assert config.read_bytes() == original
+    assert not list(tmp_path.glob('.ioa-setup-*'))
+
+@pytest.mark.parametrize('operation',['runtime.stop','account.refresh','operations.get'])
+def test_control_and_original_observation_never_auto_start(tmp_path,monkeypatch,capsys,operation):
+    from types import SimpleNamespace
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    monkeypatch.setattr(module,'ensure_running',lambda *args:pytest.fail('Control recursively started the runtime'))
+    calls=[]
     def invoke(python,command):
-        if command[2]=='validate':data={'identities':[{'role':'assistant'}]}
-        elif command[2]=='configuration':data={'hostFields':[],'configurationDigest':'sha256:test'}
-        else:pytest.fail('Incomplete onboarding launched a resident instead of requesting host configuration')
-        return SimpleNamespace(stdout=json.dumps({'status':'completed','data':data,'error':None}),stderr='',returncode=0)
+        calls.append(command)
+        return SimpleNamespace(stdout=json.dumps({'status':'completed','data':{},'error':None}),stderr='',returncode=0)
     monkeypatch.setattr(module,'invoke',invoke)
-    assert module.main(['--role','assistant','runtime.connect','--config',str(config)])==0
+    assert module.main(['--role','assistant',operation,'--config',str(tmp_path/'config.json')])==0
+    assert len(calls)==1 and calls[0][1:3]==['ioalab_sdk.access','call']
+
+
+def test_business_waiting_start_never_submits_or_rewrites_original_arguments(tmp_path,monkeypatch,capsys):
+    from types import SimpleNamespace
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    waiting={'status':'waiting','data':{'startingOrBusy':True},'error':{'code':'not_ready'}}
+    monkeypatch.setattr(module,'ensure_running',lambda *args:SimpleNamespace(stdout=json.dumps(waiting),returncode=0))
+    monkeypatch.setattr(module,'invoke',lambda *args:pytest.fail('Busy runtime received a new business call'))
+    path=tmp_path/'original.json';path.write_text('{"operationId":"keep-original"}')
+    assert module.main(['--role','assistant','assistant.delegation.flow','--args-file',str(path)])==0
+    assert json.loads(capsys.readouterr().out)==waiting
+    assert json.loads(path.read_text())=={'operationId':'keep-original'}
+
+
+def test_native_stdin_reuses_bound_caller_and_forwards_sdk_entry_envelope(tmp_path,monkeypatch,capsys):
+    import io
+    from types import SimpleNamespace
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    packet={'operation':'assistant.delegation.flow','operationId':'original-native-operation',
+            'arguments':{'action':'begin','input':{}},'contextRef':{'entryRef':'sdk-issued-entry'}}
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps(packet)))
+    calls=[]
+    def invoke(python,arguments,**options):
+        calls.append((arguments,options))
+        return SimpleNamespace(stdout=json.dumps({'operationId':packet['operationId'],'status':'completed','data':{},'error':None}),stderr='',returncode=0)
+    monkeypatch.setattr(module,'invoke',invoke)
+    assert module.main(['--role','assistant','--config',str(tmp_path/'bound.json'),'--native-input'])==0
+    assert calls[0][0][1:3]==['ioalab_client.runtime','start']
+    assert calls[1][0][-1]=='--request-stdin'
+    assert json.loads(calls[1][1]['input'])==packet
+    assert 'entryRef' not in packet['arguments']
+
+
+def test_native_stdin_cannot_override_bound_role_or_config(tmp_path,monkeypatch,capsys):
+    import io
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:pytest.fail('Unbound native metadata reached installation'))
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps({'operation':'assistant.delegation.flow',
+        'operationId':'original','arguments':{},'contextRef':{'entryRef':'opaque'},'role':'service'})))
+    assert module.main(['--role','assistant','--native-input'])==1
+    assert json.loads(capsys.readouterr().out)['status']=='rejected'
+
+
+def test_native_control_stdin_reuses_private_args_file_and_never_starts(tmp_path,monkeypatch,capsys):
+    import io
+    from types import SimpleNamespace
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    monkeypatch.setattr(module,'ensure_running',lambda *args:pytest.fail('Control recursively started the runtime'))
+    values={'expectedDigest':'original-config-digest','changes':{'max_model_runs':2}}
+    packet={'operation':'runtime.configure','operationId':'original-control','arguments':values,'contextRef':None}
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps(packet)))
+    paths=[]
+    def invoke(python,arguments,**options):
+        assert arguments[1:3]==['ioalab_client.runtime','configure']
+        path=Path(arguments[arguments.index('--args-file')+1]);paths.append(path)
+        assert json.loads(path.read_text(encoding='utf-8'))==values
+        assert 'entryRef' not in path.read_text(encoding='utf-8')
+        assert not options
+        return SimpleNamespace(stdout=json.dumps({'status':'completed','data':{},'error':None}),stderr='',returncode=0)
+    monkeypatch.setattr(module,'invoke',invoke)
+    assert module.main(['--role','assistant','--config',str(tmp_path/'bound.json'),'--native-input'])==0
     result=json.loads(capsys.readouterr().out)
-    assert result['status']=='waiting' and result['stage']=='configuration'
-    assert result['nextAction']=='runtime.configure'
-    assert set(result['data']['requiredFields'])=={'host.command','host.data_dir'}
-    assert result['data']['configurationDigest']=='sha256:test'
+    assert result['operationId']=='original-control' and result['operationKind']=='control_association'
+    assert len(paths)==1 and not paths[0].exists()
+
+
+def test_native_unknown_operation_cannot_wake_or_enter_installation(monkeypatch,capsys):
+    import io
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:pytest.fail('Unknown operation entered installation'))
+    monkeypatch.setattr(module,'ensure_running',lambda *args:pytest.fail('Unknown operation woke the client'))
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps({'operation':'assistant.unknown',
+        'operationId':'original-unknown','arguments':{},'contextRef':None})))
+    assert module.main(['--role','assistant','--native-input'])==1
+    assert json.loads(capsys.readouterr().out)['error']['code']=='invalid_input'
+
+
+def test_native_role_effect_cannot_borrow_control_null_source(monkeypatch,capsys):
+    import io
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:pytest.fail('Unbound effect entered installation'))
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps({'operation':'assistant.delegation.flow',
+        'operationId':'original-unbound','arguments':{'action':'begin','input':{}},'contextRef':None})))
+    assert module.main(['--role','assistant','--native-input'])==1
+    assert json.loads(capsys.readouterr().out)['error']['code']=='not_ready'
+
+
+def test_native_business_waiting_start_keeps_startup_reference_and_original_request(monkeypatch,capsys):
+    import io
+    from types import SimpleNamespace
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps({'operation':'assistant.delegation.flow',
+        'operationId':'original-business','arguments':{'action':'begin','input':{}},'contextRef':{'entryRef':'issued'}})))
+    waiting={'operationId':'actual-startup-control','status':'waiting','data':{'startingOrBusy':True},'error':None}
+    monkeypatch.setattr(module,'ensure_running',lambda *args:SimpleNamespace(stdout=json.dumps(waiting),returncode=0))
+    monkeypatch.setattr(module,'invoke',lambda *args,**kwargs:pytest.fail('Waiting startup submitted business'))
+    assert module.main(['--role','assistant','--native-input'])==0
+    result=json.loads(capsys.readouterr().out)
+    assert result['operationId']=='original-business' and result['dispatch']=='not_submitted'
+    assert result['phase']=='ensure_client' and result['data']['startup']==waiting
+
+
+def test_native_rpc_different_operation_id_is_not_rewritten(monkeypatch,capsys):
+    import io
+    from types import SimpleNamespace
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps({'operation':'runtime.status',
+        'operationId':'original-read','arguments':{},'contextRef':None})))
+    monkeypatch.setattr(module,'invoke',lambda *args,**kwargs:SimpleNamespace(stdout=json.dumps({
+        'operationId':'another-real-rpc','status':'completed','data':{'marker':'not-the-original'}}),stderr='',returncode=0))
+    assert module.main(['--role','assistant','--native-input'])==1
+    result=json.loads(capsys.readouterr().out)
+    assert result['operationId']=='original-read' and result['status']=='unknown'
+    assert result['data'] is None
+
+
+@pytest.mark.parametrize('status',['completed','waiting','unknown'])
+def test_native_setup_forwards_sdk_entry_ref_and_original_state_without_role_start(monkeypatch,capsys,status):
+    from ioalab_sdk.runtime import NATIVE_ENTRY_BIND_OPERATION
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    monkeypatch.setattr(module,'ensure_running',lambda *args:pytest.fail('Setup wrapper already owns explicit ensure'))
+    packet={'operation':NATIVE_ENTRY_BIND_OPERATION,'operationId':'original-native-setup',
+            'arguments':{},'contextRef':{'entryRef':'sdk-verified-by-server'}}
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps(packet)))
+    expected={'operationId':packet['operationId'],'status':status,'data':{'phase':'sdk-original-setup'},'error':None}
+    def invoke(python,arguments,**options):
+        assert arguments[1:4]==['ioalab_sdk.access','call',NATIVE_ENTRY_BIND_OPERATION]
+        assert arguments[-1]=='--request-stdin'
+        assert json.loads(options['input'])==packet
+        return SimpleNamespace(stdout=json.dumps(expected),stderr='',returncode=1 if status=='unknown' else 0)
+    monkeypatch.setattr(module,'invoke',invoke)
+    assert module.main(['--role','assistant','--native-input'])==(1 if status=='unknown' else 0)
+    assert json.loads(capsys.readouterr().out)==expected
+
+
+@pytest.mark.parametrize('arguments,reference',[
+    ({'sessionId':'model-input'},{'entryRef':'opaque'}),
+    ({'cwd':'C:/model-input'},{'entryRef':'opaque'}),
+    ({'confirmed':True},{'entryRef':'opaque'}),
+    ({},None),
+])
+def test_native_setup_rejects_model_fields_or_missing_source_before_installation(monkeypatch,capsys,arguments,reference):
+    from ioalab_sdk.runtime import NATIVE_ENTRY_BIND_OPERATION
+    module=bootstrap()
+    monkeypatch.setattr(module,'installation',lambda:pytest.fail('Invalid setup crossed installation boundary'))
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps({'operation':NATIVE_ENTRY_BIND_OPERATION,
+        'operationId':'original-invalid-setup','arguments':arguments,'contextRef':reference})))
+    assert module.main(['--role','assistant','--native-input'])==1
+    assert json.loads(capsys.readouterr().out)['status']=='rejected'
+
+
+def test_p07_setup_identifier_comes_from_sdk_declaration_and_not_role_operations(tmp_path):
+    from ioalab_client.skills import native_entry_binding
+    from ioalab_sdk.runtime import NATIVE_ENTRY_BIND_OPERATION,CATALOG
+    bound=native_entry_binding(python=sys.executable,config=tmp_path/'original.json',host_ref='original-host')
+    assert bound['setupOperation']==NATIVE_ENTRY_BIND_OPERATION
+    assert NATIVE_ENTRY_BIND_OPERATION in CATALOG
+    assert NATIVE_ENTRY_BIND_OPERATION not in bound['sourceOperations']
+    assert 'runtime.status' not in bound['sourceOperations']

@@ -17,7 +17,18 @@ class ClientOperations:
     def configuration(self):
         return {'status': 'completed', 'data': inspect_config(self.path), 'error': None}
 
-    def call(self, operation, arguments=None, *, operation_id=None):
+    def confirmation_entry(self, reference=None):
+        """Trusted renderer only. Never expose the returned capability as model content."""
+        config = RuntimeConfig.load(self.path)
+        state = self.call('runtime.status')
+        if state['status'] != 'completed':
+            raise RuntimeFault('not_ready', 'Confirm the original local instance is ready')
+        state = state['data']
+        installation = state.get('installation') or {}
+        require_configuration(state, config, assembly=installation.get('assembly'))
+        return LocalClient(config.home, boot_id=state['bootId']).confirmation_entry(reference)['data']
+
+    def call(self, operation, arguments=None, *, operation_id=None, context_ref=None):
         identifier = operation_id or str(uuid.uuid4())
         try:
             if arguments is not None and not isinstance(arguments, dict):
@@ -32,7 +43,7 @@ class ClientOperations:
                 require_configuration(state, config,
                     assembly=installation.get('assembly') if isinstance(installation, dict) else None)
                 client = LocalClient(home, boot_id=state['bootId'])
-            result = client.call(operation, arguments or {}, operation_id=identifier)
+            result = client.call(operation, arguments or {}, operation_id=identifier, context_ref=context_ref)
             if operation == 'runtime.status' and result['status'] == 'completed':
                 actual = result['data'].get('installation')
                 try:

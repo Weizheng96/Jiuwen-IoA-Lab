@@ -6,7 +6,7 @@
 
 统一客户端发行包通过包资源携带`ioalab_sdk/runtime/trust/`下的本项目CA公共PEM及`platform-trust.json`（`ioalab.platform-trust/1`）清单，作为受审发布资源；初始来源是[安装与发布](安装与实例.md#安装与发布)的GitCode固定tag/commit，经系统CA验证来源，再核安装RECORD。CA私钥、服务器私钥及业务凭据均不进入发布资源。不能从尚未通过TLS验证的平台、Agent Card、模型输出或下载链接自动新增信任。
 
-清单包含format、origins和anchors；origins为规范化HTTPS Origin（scheme、精确hostname、有效port），anchors各含相对PEM资源路径和证书DER的SHA-256指纹。路径限定在包内，拒绝链接、越界、空集合、非CA证书及摘要不符。本方案的首个发行仅授权`https://ioalab.openjiuwen.com:443`，不以域名后缀、子域通配或服务器返回的publicUrl扩大范围；IP不会自动映射为域名。
+清单包含format、origins和anchors；origins为规范化HTTPS Origin（scheme、精确hostname、有效port），anchors各含相对PEM资源路径和证书DER的SHA-256指纹。受管环境前缀可由已核部署集合指针定位；包目录和信任资源本身拒绝链接。路径限定在包内，拒绝越界、空集合、非CA证书及摘要不符。本方案的首个发行仅授权`https://ioalab.openjiuwen.com:443`，不以域名后缀、子域通配或服务器返回的publicUrl扩大范围；IP不会自动映射为域名。
 
 `Network(platform)`从实际已安装包读取清单：命中受管Origin时，在系统默认SSL上下文中加载对应CA；其他Origin只使用系统默认信任。受管清单/证书缺失、损坏、非CA或指纹不匹配时拒绝初始化；CA证书尚未生效或已过期时不加载该锚，在inactiveCaFingerprints中报告，仍严格验证系统公共CA链，内部CA服务器链不因此豁免到期检查。这样同一域名改用受系统信任的公共CA时，不会被旧内部CA到期阻断。HTTP或未校验TLS始终拒绝。系统默认信任集合不被清空，也不写系统、浏览器或其他Python环境的证书库。
 

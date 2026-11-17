@@ -1,0 +1,43 @@
+{
+  "version": "0.0.14",
+  "package_type": "mcp",
+  "id": "a2c",
+  "name": "A2C 合同委托",
+  "description": "把用户需求的一部分按合同委托给专业服务智能体：取合同模板、拟合同卡、签字、交材料、取件、验收、付款与解除。",
+  "display_name": {
+    "zh": "A2C 合同委托",
+    "en": "A2C Contract Delegation"
+  },
+  "display_description": {
+    "zh": "接入 A2C（Agent 2 Contract）委托方 SDK：与专业服务智能体就尚未做出来的劳动成果签合同，分期交付、按服务方提供的验收器验收、经支付方按卡付款。签字与付款前都会请你确认。",
+    "en": "Connect the A2C (Agent 2 Contract) client SDK: contract professional service agents for work not yet done, accept each period with the provider's verifiers and pay through a licensed payment provider. Every signature and payment asks for your confirmation."
+  },
+  "integration": {
+    "type": "stdio-mcp",
+    "file": "mcp.json"
+  },
+  "credentials": {
+    "type": "token",
+    "file": "token-schema.json"
+  },
+  "icon": "icon.png",
+  "skills": [
+    {
+      "dir": "skills/a2c-client",
+      "mode": "all"
+    }
+  ],
+  "category": "办公与生产力",
+  "examples": {
+    "zh": [
+      "帮我做个顾客能自己预约的美甲店网页",
+      "把这部小说改编成 12 集短剧",
+      "帮我规划京都五日游并订好酒店"
+    ],
+    "en": [
+      "Build a booking page for my nail salon",
+      "Adapt this novel into a 12-episode short drama",
+      "Plan a five-day Kyoto trip and book the hotel"
+    ]
+  }
+}

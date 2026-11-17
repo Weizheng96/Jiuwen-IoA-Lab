@@ -20,11 +20,13 @@
 | `src/client/sdk/ioalab_sdk/access.py` | [SDK装配](../../../../设计/组件/客户端/SDK装配/接口.md) |
 | `src/client/examples/` | [共用运行时](../../../../设计/组件/客户端/共用运行时/接口.md)（调用方示例） |
 | `src/client/hosts/codex/` | [Codex适配](../../../../设计/组件/客户端/Codex适配/接口.md) |
+| `src/client/hosts/claude_code/` | [ClaudeCode适配](../../../../设计/组件/客户端/ClaudeCode适配/接口.md) |
 | `src/client/hosts/jiuwen/` | [宿主适配](../../../../设计/组件/客户端/宿主适配/接口.md) |
 | `src/official/services/` | [官方服务](../../../../设计/组件/官方服务/接口.md) |
 | `src/official/admin-assistant/`、`src/official/tools/` | [管理员助手](../../../../设计/组件/管理员助手/接口.md) |
 | `src/trial/`、`deploy/trial/` | [在线试用](../../../../设计/组件/在线试用/接口.md) |
 | `deploy/` | [部署](../../../../设计/组件/部署/接口.md) |
+| `src/a2c/` | [A2C协议](../../../../设计/组件/A2C协议/接口.md) |
 | `vendor/` | [发行与依赖](../../../../设计/组件/部署/接口/发行与依赖.md) |
 | `tools/media/` | [演示制作](../../../../设计/工程/演示.md) |
 | `tools/verification/` | 所属专项技能 |

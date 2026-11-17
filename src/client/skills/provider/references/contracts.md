@@ -31,7 +31,7 @@
 | 按单需求 | 用明确的specSchema标量字段或inputs传递客户每单需求；本单只能按这些入卡内容生产和确定判据。空specSchema加空inputs不能表达逐单定制，不能照抄为空；固定无参数成果可以保持空规格 |
 | 用户材料 | inputs使用name、description、required、specSchema等原字段；需签前审查的材料声明reviewBeforeSigning |
 
-specSchema是“规格键→取值域”的映射，不是完整JSON Schema。例：`{"features":{"type":"string","maxLength":4000},"pages":{"type":"integer","minimum":1,"maximum":20}}`；没有规格键时用{}。每个值只用原A2C支持的const、enum、type(string/integer/number)、minimum/maximum、maxLength和format=date，不包type=object/properties/required；字段说明写在交付件或材料description中。
+specSchema是“规格键→取值域”的映射，不是完整JSON Schema。例：`{"features":{"type":"string","maxLength":4000},"pages":{"type":"integer","minimum":1,"maximum":20}}`；没有规格键时用{}。每个值只用原A2C支持的const、enum、type(string/integer/number)、minimum/maximum、maxLength和format=date，不包type=object/properties/required；字段说明写在交付件或材料description中。const字段由模板固定，逐单spec只提供可变规格；固定成果可使用对应交付件的空对象，不重复传const字段。
 
 用户所说的通常交付总价只作为本单报价的业务参考，不填proposalFee。拟卡费是另一项事前公示收费，用户未说明时先询问，不能把通常总价改成拟卡费。
 

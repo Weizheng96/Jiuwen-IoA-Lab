@@ -1,27 +1,20 @@
 # 账号完成后的宿主接入
 
-触发：原account.setup.status已completed，继续首次接入。复用账号阶段已定位的脚本、外置配置和原非秘密参数，不打开配置文件。SDK负责保留账号、密码、data_dir与身份；模型只提交以下host字段。
+触发：原ioa_setup_status或account.setup.status已completed，继续首次接入。phase=reused时改用回执existingConfiguration只读核原实例，不执行本页配置/启动；MCP配置绑定交接按mcp-setup.md。复用账号阶段已定位的脚本、外置配置和原非秘密参数，不打开配置文件。SDK负责保留设备凭据、data_dir与身份；宿主接入按下文公共登记流程完成。
 
-1. 查询SDK脱敏配置，不带args-file：
+1. 调用 runtime.configuration 取得脱敏配置和 configurationDigest。复用已有 host.default 及 host.registrations，不因当前聊天宿主不同而修改默认执行宿主。
+2. 当前宿主的安装回执提供真实原生入口、登记引用及公开字段采集步骤；只完成该宿主尚未完成的步骤。缺少原生入口、信任或重载时按回执报告具体未完成动作，不要求用户手填会话、工作目录、模型或命令。
+3. 需要登记时，用新建独立 UTF-8 文件向 runtime.configure 提交 expectedDigest 和 changes.host.registrations。既有引用保留类型；新增引用复用账号及实例，首次登记选为默认，之后新增不切换默认。旧单宿主格式须经该公开入口显式迁移。
+4. 配置完成后调用 runtime.start，再按 status.md 分别核认证、身份 bound、平台连接与宿主能力。waiting 只观察原实例，不另起进程。文件安装、原生发现、可信来源采集和原会话回执分别报告；未实现或未实测的能力保持 not_ready/待验。
 
-```text
-python3.11 "<skill_directory>/scripts/ioalab.py" runtime.configuration --config "<原外置配置文件>"
-```
+普通业务调用自动复用已运行且账号、配置及安装身份匹配的实例，停止后沿原配置启动。普通控制、安装和账号准备不递归唤起业务；下面的明确入口绑定是唯一setup特例。原生来源由宿主适配采集并验证，模型不提交 host/session/workspace 自报字段。
 
-Windows使用已核的python。保留此stdout回执，读取其data中的configurationDigest及hostFields。已有command和data_dir且用户没有要求修改时直接复用。缺项时先读取本进程公开运行信息：用Python的shutil.which('jiuwenswarm-process')定位原版Process可执行文件，command为包含该绝对路径的argv数组；host.data_dir只取环境变量JIUWENSWARM_DATA_DIR。任一值缺失或无法确认属于当前九问时才询问用户，不猜模块名、默认目录或追加--dotenv，不读取.env、模型配置或密钥。SDK回执的dataDir属于IoA，不能用于host.data_dir，两个目录保持分离。用户已指定模型时，一起提交实际selection_key到host.model；未指定则省略，由原版公开目录选择当前模型。
+## 明确入口绑定
 
-Linux读取上述非秘密元数据可执行：
+账号、宿主登记、原客户端启动和当前宿主必要入口资源完成后，在**本次真实原生入口**执行一次`runtime.entry.bind`，`arguments={}`。此步骤不通过普通终端脚本代调；原生包装自动取得实际来源并完成SDK意图/绑定，模型不提供SID、cwd、CLI、profile、model、目录指针、grant或批准布尔。初次账号准备和SDK启动不以此步骤或宿主探针为前置。
 
-```text
-python3.11 -c "import os,shutil,json; print(json.dumps({'command':[shutil.which('jiuwenswarm-process')],'data_dir':os.environ.get('JIUWENSWARM_DATA_DIR')}))"
-```
+原生入口需要用户信任、授权或重载时，准确展示该宿主安装回执中的动作并保持未完成，不代用户点击，不把安装或后台日志当成已绑定。无此入口时不猜最近聊天、SDK数据目录或其他宿主项目。
 
-2. 用新的独立UTF-8文件提交仅包含宿主的更改，例如：
+只按实际回执报告：`completed`只确认此次入口绑定状态，不证明模型可用、已公示/可接单或四流程通过；`waiting`保留原接入operationId及实际待办；`rejected/failed`按真实缺项修复，不切账号/默认宿主；`unknown`保留原操作及已保存回执，沿原接入查询，不换号从当前聊天重新采集。
 
-```json
-{"expectedDigest":"<上述SDK回执的configurationDigest>","changes":{"host":{"command":["<用户既有Process入口>"],"data_dir":"<用户既有九问目录>","model":"<用户已指定的实际selection_key>"}}}
-```
-
-未指定model就省略该字段。参数文件只从用户给出的宿主值与这份SDK回执组装，不从账号配置复制、拼接或读取原字段。执行runtime.configure --config "<同一外置配置>" --args-file "<本次独立更改文件>"。摘要冲突重新查询原runtime.configuration；实例持锁按shared-runtime.md正常停止后继续原配置，不换账号或身份。
-
-3. 配置完成后调用runtime.start --config "<同一外置配置>"，再读取status.md，按其只读命令核实际账号、身份、连接、宿主模型和角色能力。用户名与账号ID只取account字段，agentId只取身份字段；服务未配置和公示时保持executionReady=false，不称可接单。这里只接入既有宿主，不配置业务、修改九问安装或全局设置。
+已绑定时重复接入复用原项目，新增宿主不隐式切默认；变更项目须显式迁移。后续新业务不要求原接入聊天继续存活，已有业务SID不被重配，当前model正常更新不因旧接入字符串被拒绝。最后按onboarding.md生成只读摘要，仍分别报告原生发现、模型能力、真实执行与未验范围。

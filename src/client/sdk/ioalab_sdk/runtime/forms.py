@@ -1,5 +1,7 @@
 """Durable ordinary-input forms; roles own previews/effects, Confirmations owns approval."""
 from copy import deepcopy
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 import hashlib
 import threading
@@ -10,6 +12,20 @@ from jsonschema import Draft202012Validator
 
 from .ipc import public_error
 from .protocol import RuntimeFault, encode
+
+
+_form_source = ContextVar('ioalab_local_form_source', default=None)
+
+
+def form_source():
+    return _form_source.get()
+
+
+@contextmanager
+def _form_scope(record):
+    token = _form_source.set(record['reference'])
+    try: yield
+    finally: _form_source.reset(token)
 
 
 @dataclass(frozen=True)
@@ -24,6 +40,8 @@ class FormDefinition:
 @dataclass(frozen=True)
 class WorkflowDefinition(FormDefinition):
     """A role-owned sequence; callbacks also receive its saved ordinary context."""
+    recover: Callable | None = None
+    presentation: Callable | None = None
 
 
 def check_schema(schema):
@@ -139,10 +157,26 @@ class InteractionForms:
 
     def _view(self, record):
         definition = self._definition(record['kind'])
-        return {**{key: deepcopy(value) for key, value in record.items() if key not in ('initialDigest', 'definitionDigest', 'context', 'history')},
+        view = {**{key: deepcopy(value) for key, value in record.items() if key not in ('initialDigest', 'definitionDigest', 'context', 'history')},
                 'completedSteps': len(record.get('history', [])),
                 'title': record.get('title', definition.title), 'schema': deepcopy(record.get('schema', definition.schema)),
-                'readOnly': record['phase'] not in ('draft', 'previewed')}
+                'readOnly': record['phase'] not in ('draft', 'previewed'),
+                'canRecover': isinstance(definition, WorkflowDefinition) and definition.recover is not None
+                    and record['phase'] in ('rejected', 'failed')
+                    and (((record.get('result') or {}).get('error') or {}).get('code') == 'expired'
+                         or (((record.get('result') or {}).get('data') or {}).get('reason') == 'expired'
+                             and bool(((record.get('result') or {}).get('data') or {}).get('confirmationRef'))))}
+
+        if isinstance(definition, WorkflowDefinition) and definition.presentation:
+            presentation = definition.presentation(deepcopy(record.get('context', {})))
+            view['presentation'] = presentation
+            for name, labels in presentation.get('choices', {}).items():
+                field = view['schema'].get('properties', {}).get(name)
+                if field and 'enum' in field:
+                    previous = field.get('enumNames', field['enum'])
+                    field['enumNames'] = [labels.get(value, previous[index])
+                                          for index, value in enumerate(field['enum'])]
+        return view
 
     def _current(self, reference, revision):
         record = self._read(reference)
@@ -204,8 +238,31 @@ class InteractionForms:
             self._validate(definition, record['values'], complete=True, schema=record.get('schema'))
             arguments = [self._operation(record), deepcopy(record['values'])]
             if isinstance(definition, WorkflowDefinition): arguments.append(deepcopy(record.get('context', {})))
-            prepared = definition.preview(*arguments)
+            with _form_scope(record):
+                prepared = definition.preview(*arguments)
             record = {**record, 'phase': 'previewed', 'preview': prepared}
+            self.store.checkpoint_set('forms', reference, record)
+            return self._view(record)
+
+    def _following(self, record, definition, following):
+        check_schema(following['schema'])
+        self._validate(definition, following.get('values', {}), schema=following['schema'])
+        return {**record, 'revision': record['revision'] + 1, 'phase': 'draft', 'preview': None,
+                'schema': deepcopy(following['schema']), 'values': deepcopy(following.get('values', {})),
+                'context': deepcopy(following['context']), 'title': following['title'],
+                'evidence': deepcopy(following.get('evidence', {})),
+                'history': [*record.get('history', []), {'revision': record['revision'], 'result': record['result']}]}
+
+    def recover(self, reference, revision):
+        with self._lock:
+            old = self._read(reference)
+            if any(item['revision'] == revision for item in old.get('history', [])): return self._view(old)
+            record, definition = self._current(reference, revision)
+            if not self._view(record)['canRecover']:
+                raise RuntimeFault('not_ready', 'This original form has no verified recovery path')
+            with _form_scope(record):
+                following = definition.recover(deepcopy(record))
+            record = {**self._following(record, definition, following), 'result': None}
             self.store.checkpoint_set('forms', reference, record)
             return self._view(record)
 
@@ -223,7 +280,8 @@ class InteractionForms:
             try:
                 arguments = [self._operation(record), deepcopy(record['preview'])]
                 if isinstance(definition, WorkflowDefinition): arguments.append(deepcopy(record.get('context', {})))
-                result = definition.submit(*arguments)
+                with _form_scope(record):
+                    result = definition.submit(*arguments)
             except RuntimeFault as exc:
                 phase = ('unknown' if exc.code in ('unknown_result', 'result_unknown') else
                          'waiting' if exc.code == 'not_ready' else 'rejected')
@@ -239,12 +297,6 @@ class InteractionForms:
             if following is not None:
                 if result['status'] != 'completed' or not isinstance(following, dict):
                     raise RuntimeFault('protocol_error', 'Only a completed step can advance a workflow')
-                check_schema(following['schema'])
-                self._validate(definition, following.get('values', {}), schema=following['schema'])
-                record = {**record, 'revision': revision + 1, 'phase': 'draft', 'preview': None,
-                          'schema': deepcopy(following['schema']), 'values': deepcopy(following.get('values', {})),
-                          'context': deepcopy(following['context']), 'title': following['title'],
-                          'evidence': deepcopy(following.get('evidence', {})),
-                          'history': [*record.get('history', []), {'revision': revision, 'result': result}]}
+                record = self._following(record, definition, following)
             self.store.checkpoint_set('forms', reference, record)
             return self._view(record)

@@ -139,6 +139,28 @@ class Admissions:
                 continue
         return expired
 
+    def expired_unquoted_in(self,conn):
+        """No signed offer can still become valid after this response deadline."""
+        expired=[]
+        for row in conn.execute("SELECT * FROM delegation_admissions WHERE state='committed'"):
+            try:
+                source=self.evidence_in(conn,row['id']);template=source['template'];request=source['signedRequest']
+                if template['formation']!='proposal' or Decimal(str(template['pricing'].get('proposalFee',0)))!=0:continue
+                if source['offer'] is not None or request is None:continue
+                if self.contracts.evidence_in(conn,row['id']) is not None or self.contracts.payments.evidence_in(conn,row['binding']):continue
+                verify_template(template,self.contracts.keys(row))
+                validate_request(template,request);header=verify_request(request)
+                metadata=json.loads(self.identities.agent(row['client'])['meta'])
+                if (request_digest(request)!=row['binding'] or template['templateDigest']!=row['template']
+                        or request['delegationScopeDigest']!=row['scope'] or request['client']['id']!=row['client']
+                        or request['client']['jwk']!=metadata.get('clientJwk') or request['user']['jwk']!=metadata.get('userJwk')
+                        or template['provider']!=self.identities.service_party(row['service'])['id']):continue
+                due=parse_time(header['a2c-ts'])+parse_duration(template['deadlines']['respondWithin'])
+                if self.clock()>due.timestamp():expired.append(row)
+            except (A2CError,LabError,KeyError,TypeError,ValueError,AttributeError):
+                continue
+        return expired
+
     def can_close_in(self,conn,origin):
         return not conn.execute("SELECT 1 FROM delegation_admissions WHERE origin=? AND state='committed'",(origin,)).fetchone()
 

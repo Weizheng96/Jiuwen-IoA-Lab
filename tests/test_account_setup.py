@@ -221,3 +221,24 @@ def test_legacy_registration_migrates_and_recovers_same_operation(platform,tmp_p
     assert platform.wallets.balance(registered['id'])==100
     assert PASSWORD not in config.read_text() and PASSWORD not in journal.read_text()
     assert read_json(config)['data_dir']==str(home)
+
+
+@pytest.mark.parametrize('role',['assistant','service'])
+def test_setup_options_survive_recovery_and_preserve_browser(platform,tmp_path,role):
+    import sys
+    from pathlib import Path
+    from ioalab_sdk.runtime.account_setup import options_for
+    path=tmp_path/'settings.json';page=Onboarding(path)
+    browser=str(Path(sys.executable).resolve())
+    options=options_for(path,{'platform_url':platform.s.base_url,'role':role,'user_browser':browser})
+    private_json(page.home/'options.json',options)
+    assert options_for(path,{})==options
+    result=page.submit({'mode':'register'})
+    assert result['phase']=='ready'
+    document=read_json(path)
+    assert document['user_browser']==browser
+    assert {p['role'] for p in document['identities']}=={'assistant','service'}
+    assert document['provider']['services']['service']['accepting'] is False
+    before=path.read_bytes()
+    options_for(path,{'prepare_both_roles':True})
+    assert path.read_bytes()==before and 'password' not in document

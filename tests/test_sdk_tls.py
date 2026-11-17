@@ -142,7 +142,7 @@ def test_failed_account_initialization_closes_its_network_pool(tmp_path,monkeypa
 def bundled_policy(tmp_path, monkeypatch, certificate, origins):
     import hashlib
     import importlib.resources
-    root = tmp_path/'bundled'; directory = root/'trust'; directory.mkdir(parents=True)
+    root = tmp_path/'bundled'/'ioalab_sdk'/'runtime'; directory = root/'trust'; directory.mkdir(parents=True)
     raw = certificate.read_bytes(); (directory/'ca.pem').write_bytes(raw)
     cert = x509.load_pem_x509_certificate(raw)
     policy = {'format': 'ioalab.platform-trust/1', 'origins': origins,
@@ -242,3 +242,29 @@ def test_wss_authenticates_with_packaged_ca_without_system_install(tmp_path, mon
         assert connection.network.trust['source'] == 'bundled'
     finally:
         connection.close(); store.close(); server.shutdown(); worker.join(5)
+
+
+@pytest.mark.parametrize('link_location', ['environment', 'trust_directory', 'certificate'])
+def test_verified_environment_alias_is_allowed_but_linked_trust_is_not(tmp_path, monkeypatch, https_platform, link_location):
+    import importlib.resources
+    from ioalab_sdk.runtime.network import Network
+    ca, port = https_platform; base = f'https://127.0.0.1:{port}'
+    monkeypatch.delenv('SSL_CERT_FILE', raising=False)
+    directory = bundled_policy(tmp_path, monkeypatch, ca, [base])
+    try:
+        if link_location == 'environment':
+            alias = tmp_path/'current'; alias.symlink_to(tmp_path/'bundled', target_is_directory=True)
+            monkeypatch.setattr(importlib.resources, 'files', lambda package: alias/'ioalab_sdk/runtime')
+        elif link_location == 'trust_directory':
+            real = directory.with_name('real-trust'); directory.rename(real)
+            directory.symlink_to(real, target_is_directory=True)
+        else:
+            real = directory/'original.pem'; (directory/'ca.pem').rename(real)
+            (directory/'ca.pem').symlink_to(real)
+    except OSError:
+        pytest.skip('No symlink privilege; run Linux verification')
+    if link_location == 'environment':
+        with Network(base) as network:
+            assert network.http.get(base+'/api/config').status_code == 200
+    else:
+        with pytest.raises(RuntimeFault): Network(base)

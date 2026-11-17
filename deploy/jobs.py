@@ -49,7 +49,7 @@ class Job:
         self.folder=path_without_links(layout.private/'jobs'/operation)
         self.system=Systemd(self.owner,{},lambda:None)
 
-    def create(self,action,source,input_digest,*,repair=None):
+    def create(self,action,source,input_digest,*,repair=None,resume=None):
         if action not in ('install','upgrade','repair-bootstrap','test-reset'):raise ValueError('Use an explicit installation action')
         if (action=='repair-bootstrap')!=isinstance(repair,dict):
             raise ValueError('Only a bootstrap repair carries an explicit original operation')
@@ -57,6 +57,9 @@ class Job:
         value={'format':'ioalab.installation-job/1','deploymentId':self.owner,'operationId':self.operation,
                'action':action,'source':source,'inputDigest':input_digest}
         if repair is not None:value['repair']=repair
+        if resume is not None:
+            if action!='test-reset' or not isinstance(resume,dict):raise ValueError('Only test-reset may resume its failed initialization')
+            value['resumeTestReset']=resume
         write_initial(self.folder/'request.json',(json.dumps(value,sort_keys=True)+'\n').encode())
         return value
 

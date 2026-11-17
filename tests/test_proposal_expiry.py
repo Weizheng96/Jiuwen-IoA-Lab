@@ -160,3 +160,136 @@ def test_unknown_or_missing_original_evidence_never_releases_a_proposal(platform
             assert not notices(platform,quote)
             broker.cleanup()
             assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',aid)['state']=='released'
+
+
+@pytest.mark.parametrize('fee',[0,1])
+def test_unquoted_expiry_preserves_unknown_task_and_closes_only_free_request(platform,tmp_path,monkeypatch,fee):
+    from submission_fixture import FixtureResult
+    from test_resident_delegation import request,terminal
+    from test_resident_delegation import QuoteHost
+    class UnknownHost(QuoteHost):
+        def execute(self,turn):
+            turn.on_session('unknown-original')
+            return FixtureResult('unknown','unknown-original',None,{'code':'host_timeout'})
+    with participants(platform,tmp_path,fee=fee,agent_host=UnknownHost()) as (provider,assistant,host,template,task):
+        begun,_=request(assistant,provider,template,task)
+        ref=begun['data']['quoteRef']
+        wait_for(lambda:terminal(assistant,ref))
+        assert terminal(assistant,ref)['status']=='unknown'
+        aid=platform.db.one('SELECT * FROM delegation_admissions WHERE service=? ORDER BY rowid DESC',provider.identities[0].agent_id)
+        source=platform.db.one('SELECT * FROM delegation_signed_requests WHERE admission=?',aid['id'])
+        original=json.loads(source['request'])
+        due=(parse_time(header_of(original['signature'])['a2c-ts'])+parse_duration(template['deadlines']['respondWithin'])).timestamp()
+        with platform.db.lock:
+            monkeypatch.setattr(platform.admissions,'clock',lambda:due)
+            platform.delivery.cleanup()
+            assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',aid['id'])['state']=='committed'
+            monkeypatch.setattr(platform.admissions,'clock',lambda:due+.01)
+            if not fee:
+                original_message=platform.db.one('SELECT envelope FROM delivery_messages WHERE id=?',source['message'])['envelope']
+                platform.db.run('UPDATE delivery_messages SET envelope=NULL WHERE id=?',source['message'])
+                platform.delivery.cleanup()
+                assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',aid['id'])['state']=='committed'
+                platform.db.run('UPDATE delivery_messages SET envelope=? WHERE id=?',original_message,source['message'])
+                platform.db.run('INSERT INTO paid(ref,purpose,period,at) VALUES(?,?,?,?)',aid['binding'],'proposal-fee',0,due)
+                platform.delivery.cleanup()
+                assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',aid['id'])['state']=='committed'
+                platform.db.run('DELETE FROM paid WHERE ref=?',aid['binding'])
+                with monkeypatch.context() as fault:
+                    def interrupted(*args):raise OSError('closure interrupted')
+                    fault.setattr(platform.delivery,'_closed_notices',interrupted)
+                    with pytest.raises(OSError):platform.delivery.cleanup()
+                assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',aid['id'])['state']=='committed'
+            platform.delivery.cleanup();platform.delivery.cleanup()
+            assert platform.db.one('SELECT state FROM delegation_admissions WHERE id=?',aid['id'])['state']==('released' if not fee else 'committed')
+            assert platform.db.one('SELECT request FROM delegation_signed_requests WHERE admission=?',aid['id'])['request']==source['request']
+            notifications=platform.db.rows("SELECT * FROM delivery_messages WHERE interaction=? AND kind='interaction.closed'",aid['interaction'])
+            assert len(notifications)==(2 if not fee else 0)
+        assert terminal(assistant,ref)['status']=='unknown'
+
+
+def test_original_trade_form_retries_only_after_platform_closed_notice(platform,tmp_path,monkeypatch):
+    from ioalab_sdk.runtime import ClientOperations
+    from submission_fixture import FixtureResult
+    from test_resident_delegation import QuoteHost
+    from test_interaction_workflows import step
+    from test_assistant_role import user_decision
+    class OnceUnknown(QuoteHost):
+        failed=False
+        def execute(self,turn):
+            if self.failed:return super().execute(turn)
+            self.failed=True;turn.on_session('unknown-quote')
+            return FixtureResult('unknown','unknown-quote',None,{'code':'host_timeout'})
+    with participants(platform,tmp_path,fee=0,agent_host=OnceUnknown(),service_name="原报价无决定恢复专用服务") as (provider,assistant,host,template,task):
+        api=ClientOperations(assistant.config.source)
+        form=api.call('runtime.forms.open',{'kind':'delegation.trade'})['data']
+        form=step(api,form,{'purpose':'验证原委托重报价','budget':50,'proposalFeeLimit':0,'query':'原报价无决定恢复专用服务'})
+        user_decision(assistant,form['result']['data']['confirmationRef']);form=step(api,form)
+        # Select the real published provider from semantic discovery; an opaque ID is not a text query.
+        form=step(api,form,{'action':'select','service':provider.identities[0].agent_id})
+        form=step(api,form,{'templateDigest':template['templateDigest']})
+        form=step(api,form,{'spec':{'result':{}}})
+        def refresh():return api.call('runtime.forms.submit',{'reference':form['reference'],'revision':form['revision']})['data']
+        wait_for(lambda:refresh()['phase']=='unknown')
+        form=refresh();old=platform.db.one('SELECT * FROM delegation_admissions WHERE service=? ORDER BY rowid DESC',provider.identities[0].agent_id)
+        assert form['phase']=='unknown'
+        source=platform.db.one('SELECT request FROM delegation_signed_requests WHERE admission=?',old['id'])
+        due=(parse_time(header_of(json.loads(source['request'])['signature'])['a2c-ts'])+parse_duration(template['deadlines']['respondWithin'])).timestamp()
+        with monkeypatch.context() as clock:
+            clock.setattr(platform.admissions,'clock',lambda:due+1);platform.delivery.cleanup()
+        wait_for(lambda:refresh()['title'].startswith('原报价请求已过期'))
+        form=refresh();assert form['phase']=='draft'
+        assert len(platform.db.rows('SELECT * FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id))==1
+        form=step(api,form,{'action':'retry'})
+        wait_for(lambda:refresh()['title']=='比较报价与选择合同')
+        form=refresh();assert form['phase']=='draft'
+        rows=platform.db.rows('SELECT * FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id)
+        assert len(rows)==2 and {r['scope'] for r in rows}=={old['scope']}
+        assert {r['state'] for r in rows}=={'released','committed'}
+
+
+def test_expired_returned_quote_recovers_original_form_and_waits_for_safe_closure(platform,tmp_path,monkeypatch):
+    from datetime import timedelta
+    from ioalab_sdk.runtime import ClientOperations
+    from test_interaction_workflows import step
+    from test_assistant_role import user_decision
+    from ioalab_sdk.assistant import candidates
+    with participants(platform,tmp_path,fee=0,service_name="已过期报价原表单恢复专用服务") as (provider,assistant,host,template,task):
+        api=ClientOperations(assistant.config.source)
+        form=api.call('runtime.forms.open',{'kind':'delegation.trade'})['data']
+        form=step(api,form,{'purpose':'原表单报价过期恢复','budget':50,'proposalFeeLimit':0,'query':'已过期报价原表单恢复专用服务'})
+        user_decision(assistant,form['result']['data']['confirmationRef']);form=step(api,form)
+        form=step(api,form,{'action':'select','service':provider.identities[0].agent_id})
+        form=step(api,form,{'templateDigest':template['templateDigest']})
+        form=step(api,form,{'spec':{'result':{}}})
+        def current():return api.call('runtime.forms.get',{'reference':form['reference']})['data']
+        wait_for(lambda:current()['title']=='比较报价与选择合同')
+        form=current();quote=form['evidence']['报价'][0];card=quote['card'];response,end=windows(template,card)
+        with monkeypatch.context() as clock:
+            clock.setattr(candidates,'utcnow',lambda:datetime.fromtimestamp(response+1,timezone.utc))
+            saved=api.call('runtime.forms.update',{'reference':form['reference'],'revision':form['revision'],'values':{'action':'select','quoteRef':quote['quoteRef']}})['data']
+            target={'reference':form['reference'],'revision':saved['revision']}
+            assert api.call('runtime.forms.preview',target)['status']=='completed'
+            denied=api.call('runtime.forms.submit',target)
+            assert denied['status']=='rejected' and denied['error']['code']=='expired'
+            assert current()['canRecover']
+            recovered=api.call('runtime.forms.recover',target)
+            assert recovered['status']=='completed',recovered
+            form=recovered['data'];assert form['phase']=='draft' and form['revision']==target['revision']+1
+            assert '报价已过期' in form['title'] and form['result'] is None
+            assert api.call('runtime.forms.recover',target)['data']==form
+            assert api.call('runtime.forms.submit',target)['data']==form
+        # Preparing recovery and repeated reads cannot reserve another slot.
+        assert len(platform.db.rows('SELECT * FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id))==1
+        form=step(api,form,{'action':'retry'})
+        assert form['phase']=='running' and form['result']['data']['waitingFor']=='original_quote_closure'
+        assert len(platform.db.rows('SELECT * FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id))==1
+        with monkeypatch.context() as clock:
+            clock.setattr(platform.admissions,'clock',lambda:end+1);platform.delivery.cleanup()
+        wait_for(lambda:current()['title']=='比较报价与选择合同')
+        fresh=current()['evidence']['报价'][-1]
+        assert fresh['taskRef']==quote['taskRef'] and fresh['quoteRef']!=quote['quoteRef']
+        assert current()['schema']['properties']['quoteRef']['enum']==[fresh['quoteRef']]
+        assert current()['evidence']['历史过期报价'][0]['quoteRef']==quote['quoteRef']
+        assert fresh['card']['spec']==card['spec']
+        assert not fresh['card']['signatures']['1']

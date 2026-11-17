@@ -7,7 +7,7 @@ from a2c.codec import digest
 import httpx
 from jsonschema import Draft202012Validator,FormatChecker
 
-from ..runtime import RuntimeFault,encode,instant,stamp
+from ..runtime import RuntimeFault,encode,instant,stamp,native_source,source_context,form_source
 
 
 def stable(*values):return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(list(values))))
@@ -71,8 +71,22 @@ class Messaging:
             envelope={'messageId':mid,'kind':'message.request','recipient':interface['agentId'],'expiresAt':stamp(until),
                       'body':{'interfaceName':interface['name'],'revision':interface['revision'],'input':args['input']}}
             if relation:envelope['interactionId']=relation['id']
+            registry=getattr(self.role.runtime,'host_registry',None)
+            if registry is not None:
+                if relation:
+                    original=registry.context(self.role.identity.agent_id,relation['id'])
+                    if not original:raise RuntimeFault('not_ready','Explicitly recover the original interaction host','migrate_host')
+                    source=source_context(original,actor=self.role.identity.agent_id) if original['source']=='native' else None
+                else:
+                    source=native_source(self.role.identity.agent_id)
+                    if self.role.runtime.native_entry_required and source is None and not form_source():raise RuntimeFault('not_ready','Verified native source is required','connect_native_context')
+                if source is not None:registry.record_origin(self.role.identity.agent_id,mid,source)
+                elif not self.role.runtime.native_entry_required or form_source() or (relation and original['source']=='external'):
+                    registry.record_application_origin(self.role.identity.agent_id,mid,
+                        host_ref=original['hostRef'] if relation else registry.default,interaction=relation['id'] if relation else None)
             reference={'kind':'delivery','agentId':self.role.identity.agent_id,'operation':'message.send','operationId':operation}
-            record={'fingerprint':fingerprint,'messageId':mid,'operationRef':reference,'interface':interface,'envelope':envelope}
+            record={'fingerprint':fingerprint,'messageId':mid,'operationRef':reference,'interface':interface,'envelope':envelope,
+                    'noticeOwner':self.role.store.checkpoint('native-notice-owners',encode([self.role.identity.agent_id,operation]))}
             self.role.store.prepare_checkpointed(self.role.identity.agent_id,'message.send',envelope,operation,self.role.namespace,
                                             {'send:'+operation:record,'message:'+mid:record})
         self.role.wake()
@@ -83,9 +97,8 @@ class Messaging:
         if not record:raise RuntimeFault('forbidden','Message is outside this local sender')
         relation=self.role.store.interaction(origin=mid) or self.role.store.interaction(interaction_id=record['envelope'].get('interactionId'))
         response=self.role.store.response(self.role.identity.agent_id,'message.send',record['operationRef']['operationId'])
-        replies=[frame['message'] for frame in self.role.store.messages(self.role.identity.agent_id)
-                 if frame['message'].get('kind')=='message.result' and frame['message'].get('inReplyTo')==mid and frame['message'].get('payloadAvailable') is not False]
-        body=replies[-1]['body'] if replies else None
+        evidence=self.role.store.request_evidence(self.role.identity.agent_id,mid,relation['id'] if relation else None)
+        body=evidence['reply']['body'] if evidence['reply'] else None
         platform_state=None
         # A local deadline cannot prove that a remote effect never started.
         # Recover through the account-authorized original message, never re-send.
@@ -99,9 +112,7 @@ class Messaging:
                 platform_state=remote['requestState']
                 body=remote.get('result')
             except (httpx.HTTPError,RuntimeFault):platform_state='unknown'
-        closed=any(frame['message'].get('kind')=='interaction.closed' and
-                   (frame['message'].get('originMessageId')==mid or relation and frame['message'].get('interactionId')==relation['id'])
-                   for frame in self.role.store.messages(self.role.identity.agent_id))
+        closed=evidence['closed']
         state=body['outcome'] if body else 'rejected' if response and not response['ok'] else platform_state or ('closed' if closed else 'awaiting_result' if relation else 'awaiting_open')
         return {'messageRef':mid,'interactionRef':relation['id'] if relation else None,'state':state,'result':body,
                 'closed':closed,'requestState':platform_state,'platformReceipt':response.get('result') if response and response['ok'] else None,

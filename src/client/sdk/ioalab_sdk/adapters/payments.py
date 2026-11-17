@@ -112,7 +112,9 @@ class PaymentRecovery:
                 or frame.get('agentId')!=self.actor or frame.get('operation')!='ap2.pay'
                 or frame.get('operationId')!=attempt['operationId'] or frame.get('ok') is not False):return None
         error=frame.get('error') or {}
-        if (error.get('code')!='payment_rejected' and not (error.get('code')=='forbidden'
+        scope_expired = (error.get('code')=='expired' and error.get('message')=='Explicit user renewal is required'
+                         and error.get('recovery')=='wait_for_user')
+        if (not scope_expired and error.get('code')!='payment_rejected' and not (error.get('code')=='forbidden'
                 and error.get('message')=='Payment changed or expired before transaction commit')):return None
         if frame.get('outcome') not in (None,'rejected'):return None
         return {'reference':attempt['operationId'],'bodyDigest':attempt['bodyDigest'],

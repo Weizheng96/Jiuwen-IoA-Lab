@@ -41,7 +41,7 @@
 
 ## 使用教程
 
-普通用户使用自己的九问 Swarm，说“读取 https://raw.githubusercontent.com/ZhangRan-Zora/Jiuwen-IoA-Lab/develop/README_AGENT.md ，帮我接入 <目标平台完整地址>；若引导不可读就停止并报告，不猜地址、不克隆仓库、不绕过TLS校验”。这是当前 GitHub origin 仓库唯一接入说明的原文地址；[仓库文件页面](https://github.com/ZhangRan-Zora/Jiuwen-IoA-Lab/blob/develop/README_AGENT.md)供浏览器查看。引导包括统一客户端安装与两个轻量角色 Skill 导出、原生导入、账号设置及就绪核对。
+普通用户可让自己的九问Swarm或Codex：“从 https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git 用Git浅克隆最新已发布客户端tag，读取仓内README_AGENT.md并帮我接入IoA Lab；Git下载或验证失败时停止报告，不猜地址、不关闭TLS校验。”引导包含客户端及安装脚本取得、两角色Skill加载、本机账号设置及对应宿主配置。
 
 ### 发布服务演示
 

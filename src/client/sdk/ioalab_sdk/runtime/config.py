@@ -2,6 +2,7 @@
 from dataclasses import dataclass,field,replace
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -35,6 +36,20 @@ def data_directory(path,value):
     return (home if home.is_absolute() else Path(path).resolve().parent/home).resolve()
 
 
+def browser_executable(browser):
+    if browser is None:return None
+    def invalid(message):raise RuntimeFault('invalid_input',message,'configure')
+    if not isinstance(browser,str) or not 1<=len(browser)<=8192 or not Path(browser).is_absolute():
+        invalid('user_browser requires an absolute browser executable path without arguments')
+    try:
+        executable=Path(browser).resolve(strict=True)
+        valid=executable.is_file() and (executable.suffix.lower()=='.exe' if os.name=='nt' else os.access(executable,os.X_OK))
+    except (OSError,ValueError,RuntimeError):valid=False
+    if not valid:invalid('user_browser must reference an existing executable file')
+    browser=str(executable)
+    return browser
+
+
 @dataclass(frozen=True)
 class RuntimeConfig:
     platform: str
@@ -51,6 +66,7 @@ class RuntimeConfig:
     credential_ref: str|None=None
     source: Path|None=field(default=None,repr=False,compare=False)
     source_digest: str|None=field(default=None,repr=False,compare=False)
+    host_unavailable_shutdown_seconds: float=600
 
     def require_current(self):
         if self.source is None:return
@@ -62,7 +78,8 @@ class RuntimeConfig:
     def public_summary(self):
         value={'platform':self.platform,'username':self.username,'dataDir':str(self.home),'identities':list(self.identities),
                'maxModelRuns':self.max_model_runs,'maxPendingRequests':self.max_pending_requests,
-               'assistant':self.assistant,'provider':self.provider,'host':self.host,'userBrowser':self.user_browser}
+               'assistant':self.assistant,'provider':self.provider,'host':self.host,'userBrowser':self.user_browser,
+               'hostUnavailableShutdownSeconds':self.host_unavailable_shutdown_seconds}
         return {'configurationDigest':digest(value),'dataDir':str(self.home),'identities':list(self.identities)}
 
     @classmethod
@@ -74,7 +91,7 @@ class RuntimeConfig:
     @classmethod
     def from_mapping(cls,path,value):
         allowed={'platform_url','username','password','password_env','credential_ref','data_dir','identities',
-                 'max_model_runs','max_pending_requests','assistant','provider','host','user_browser'}
+                 'max_model_runs','max_pending_requests','assistant','provider','host','user_browser','host_unavailable_shutdown_seconds'}
         def invalid(message):raise RuntimeFault('invalid_input',message,'configure')
         if not isinstance(value,dict) or set(value)-allowed:invalid('Unknown common runtime configuration fields')
         for key in ('username',):
@@ -97,16 +114,7 @@ class RuntimeConfig:
             if 'password' in value or 'password_env' in value:invalid('Migrate password configuration before using credential_ref')
             password=''
         elif not isinstance(password,str) or not password:invalid('Open the account setup page to create a device session')
-        browser=value.get('user_browser')
-        if browser is not None:
-            if not isinstance(browser,str) or not 1<=len(browser)<=8192 or not Path(browser).is_absolute():
-                invalid('user_browser requires an absolute browser executable path without arguments')
-            try:
-                executable=Path(browser).resolve(strict=True)
-                valid=executable.is_file() and (executable.suffix.lower()=='.exe' if os.name=='nt' else os.access(executable,os.X_OK))
-            except (OSError,ValueError,RuntimeError):valid=False
-            if not valid:invalid('user_browser must reference an existing executable file')
-            browser=str(executable)
+        browser=browser_executable(value.get('user_browser'))
         home=data_directory(path,value)
         if credential_ref:
             expected=hashlib.sha256(json.dumps([str(home),{'platform':platform,'username':value['username'].strip()}],sort_keys=True).encode()).hexdigest()
@@ -129,6 +137,10 @@ class RuntimeConfig:
             if type(number) is not int or not 1<=number<=limit:invalid('Invalid '+key)
         for key in ('assistant','provider','host'):
             if not isinstance(value.get(key,{}),dict):invalid(key+' configuration must be an object')
+        duration=value.get('host_unavailable_shutdown_seconds',600)
+        if isinstance(duration,bool) or not isinstance(duration,(int,float)) or (isinstance(duration,float) and not math.isfinite(duration)) or duration<=0:
+            invalid('host_unavailable_shutdown_seconds requires a positive finite number')
         return cls(platform,value['username'].strip(),password,home.resolve(),tuple(dict(p) for p in profiles),
                    value.get('max_model_runs',2),value.get('max_pending_requests',128),
-                   value.get('assistant',{}),value.get('provider',{}),value.get('host',{}),user_browser=browser,credential_ref=credential_ref)
+                   value.get('assistant',{}),value.get('provider',{}),value.get('host',{}),user_browser=browser,credential_ref=credential_ref,
+                   host_unavailable_shutdown_seconds=duration)

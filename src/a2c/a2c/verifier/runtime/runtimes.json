@@ -1,0 +1,11 @@
+{
+  "cpython-3.13-wasi": {
+    "archive": "python-3.13.15-wasi_sdk-24.zip",
+    "archiveSha256": "67e1c32a85d5e0600c0939f5fd4023ca0127f1a9e81f5499697467bda67af78d",
+    "wasm": "python.wasm",
+    "wasmSha256": "706dcc16b2eeb89628b774de9fb6841896aa11e2d20b1ec40d70e5e968a43157",
+    "stdlib": "lib",
+    "source": "https://github.com/brettcannon/cpython-wasi-build/releases/download/v3.13.15/python-3.13.15-wasi_sdk-24.zip",
+    "license": "Python Software Foundation License (LICENSE inside the archive)"
+  }
+}

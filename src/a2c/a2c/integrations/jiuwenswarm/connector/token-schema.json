@@ -1,0 +1,68 @@
+{
+  "title": "A2C 合同委托设置",
+  "title_en": "A2C settings",
+  "description": "委托方的合同数据与签名密钥保存在本机 A2C_HOME 目录，不会上传。市场与支付方由你所在的平台提供。",
+  "description_en": "Contracts and signing keys stay in A2C_HOME on this machine. The market and the payment provider come from your platform.",
+  "fields": [
+    {
+      "key": "A2C_HOME",
+      "label": "数据目录",
+      "label_en": "Data directory",
+      "type": "text",
+      "required": true,
+      "placeholder": "~/.a2c",
+      "description": "合同卡、签名密钥、交付件存放处",
+      "description_en": "Where cards, keys and deliverables are kept"
+    },
+    {
+      "key": "A2C_MARKETS",
+      "label": "信任的 Agent 市场",
+      "label_en": "Trusted markets",
+      "type": "text",
+      "required": true,
+      "placeholder": "https://market.example/.well-known/agent-card.json",
+      "description": "多个用英文逗号分隔",
+      "description_en": "Comma-separated Agent Card URLs"
+    },
+    {
+      "key": "A2C_PAYMENT_PROVIDER",
+      "label": "支付方标识",
+      "label_en": "Payment provider id",
+      "type": "text",
+      "required": true,
+      "placeholder": "https://pay.example",
+      "description": "写进合同卡的 paymentProvider.id",
+      "description_en": "paymentProvider.id on the card"
+    },
+    {
+      "key": "A2C_PAYMENT_JWKS",
+      "label": "支付方公钥集",
+      "label_en": "Payment provider JWKS",
+      "type": "text",
+      "required": true,
+      "placeholder": "https://pay.example/.well-known/jwks.json",
+      "description": "用于核验付款凭证",
+      "description_en": "Used to verify vouchers"
+    },
+    {
+      "key": "A2C_PSP",
+      "label": "支付方 AP2 接口",
+      "label_en": "AP2 endpoint",
+      "type": "text",
+      "required": true,
+      "placeholder": "https://pay.example",
+      "description": "委托方经 AP2 付款",
+      "description_en": "Payments go through AP2"
+    },
+    {
+      "key": "A2C_INSTRUMENT",
+      "label": "付款方式",
+      "label_en": "Payment instrument",
+      "type": "password",
+      "required": false,
+      "placeholder": "支付方给出的付款方式标识",
+      "description": "AP2 Payment Mandate 的 payment_instrument.id",
+      "description_en": "payment_instrument.id of the AP2 Payment Mandate"
+    }
+  ]
+}

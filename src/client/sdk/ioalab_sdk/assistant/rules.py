@@ -196,7 +196,7 @@ class Rules:
         result=self.account.api('POST','/messaging/interfaces',{'operationId':operation,**payload})
         return self._finish(operation,record,result)
 
-    def version(self,name,revision,*,validate_tools=True):
+    def version(self,name,revision,*,validate_tools=True,tools=None):
         record=self.store.checkpoint(self.namespace,'version:'+name+':'+str(revision))
         if not record:raise RuntimeFault('not_ready','The original local rule revision is unavailable','recover_publication')
         path=self.root/'versions'/(record['contentDigest'].removeprefix('sha256:')+'.md')
@@ -204,7 +204,8 @@ class Rules:
             raise RuntimeFault('protocol_error','Original immutable rule content is missing or damaged','restore_rule')
         value={**parse(path.read_text(encoding='utf-8')),**record}
         if validate_tools and value['declaration']['enabled']:
-            current=[self.tools[name].policy() if name in self.tools else None for name in value['declaration']['tools']]
+            available=self.tools if tools is None else tools
+            current=[available[name].policy() if name in available else None for name in value['declaration']['tools']]
             if current!=record['tools']:raise RuntimeFault('not_ready','Restore the confirmed tool definitions or publish a new rule revision','restore_tools')
         return value
 

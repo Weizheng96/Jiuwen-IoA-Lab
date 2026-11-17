@@ -373,7 +373,10 @@ print(json.dumps(r,ensure_ascii=False))
         if self.progress['stage']=='candidate':
             candidate=self.candidate();current=activation.current(self.layout)
             if self.request['action']=='test-reset':
-                self.saved(stage='test-reset',candidate=candidate,testReset={},requiredRunning=list(self.plans))
+                resume=self.request.get('resumeTestReset')
+                record=({'phase':'resuming','previous':resume['parentCandidate'],
+                         'before':self.manager.freeze([row['unit'] for row in self.plans.values()])} if resume else {})
+                self.saved(stage='test-reset',candidate=candidate,testReset=record,requiredRunning=list(self.plans))
             elif self.request['action']=='upgrade':
                 if not self.metadata.get('initialized') or not current:
                     raise RuntimeError('Finish the original installation before requesting an upgrade')
@@ -412,5 +415,8 @@ print(json.dumps(r,ensure_ascii=False))
             self.metadata.update(completedSet=self.progress['candidate']['setId'],source=self.request['source'],
                                  lastReadiness=ready,verifiedAt=datetime.now(timezone.utc).isoformat())
             self.save_metadata();self.saved(stage='completed',outcome='completed')
+        if self.progress['stage']=='completed' and self.request.get('resumeTestReset'):
+            from .reset_resume import finish
+            finish(self.job,self.request)
         return {'status':'completed','setId':self.progress['candidate']['setId'],
                 'readiness':self.metadata.get('lastReadiness'),'configuration':self.config.public()}

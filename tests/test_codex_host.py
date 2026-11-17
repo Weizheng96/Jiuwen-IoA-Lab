@@ -1,121 +1,202 @@
-"""Host public contract over an explicit external stdio process boundary."""
-import sys
-from pathlib import Path
+"""S01 Codex tests at the real adapter / explicit public-wire process boundary.
+
+Checks SDK protocol, source binding, schema and unknown recovery; no claim of
+native desktop visibility or live Codex model acceptance.
+"""
 from dataclasses import replace
-import json
-import threading
-import time
-
+from datetime import datetime,timedelta,timezone
+import json,sys,threading,time
+from pathlib import Path
 import pytest
-
 from ioalab_codex import CodexHost
-from ioalab_sdk.runtime import AgentDefinition,HostTurn,ToolBinding,RuntimeFault
+from ioalab_sdk.runtime import RuntimeFault
+from ioalab_sdk.runtime.host_submission import (HostInput,HostExecution,HostDefinition,HostResource,HostToolDeclaration,
+ SubmissionAttempt,BindingAck,HostToolResult)
 
+def configured(mode='normal',**kw):
+    command=[sys.executable,'-u',str(Path(__file__).with_name('_codex_submission_process.py')),'--mode',mode]
+    return CodexHost(command,model='test-model',**kw)
 
-def configured(mode='normal'):
-    command=[sys.executable,'-u',str(Path(__file__).with_name('_codex_process.py')),'--mode',mode]
-    return CodexHost(command,model='test-model')
+def execution(tmp_path,**kw):
+    tool=HostToolDeclaration('local.notice','Return original receipt',{'type':'object','properties':{'text':{'type':'string'}},'required':['text'],'additionalProperties':False})
+    return HostExecution('actor','profile','business','interaction','job',HostDefinition('assistant','1','fixed-digest','Use only the bound SDK tool.'),tools=(tool,),workspace=str(tmp_path),**kw)
 
+def submit(host,tmp_path,*,op='operation',session=None,text='Call local.notice',events=None,tool=None,definition=None):
+    def event(value):
+        if events is not None:events.append(value)
+        if value.kind=='session':return BindingAck(value.result.session_id,value.result.request_id)
+    return host.submit(op,HostInput(text,attempt=SubmissionAttempt('attempt-'+op,'scope','actor','profile')),session,
+        execution=definition or execution(tmp_path),on_event=event,on_tool=tool or(lambda call:HostToolResult(value={'receipt':call.arguments['text']})))
 
-def round_at(tmp_path,**kwargs):
-    definition=AgentDefinition('assistant','Use only the bound SDK tool.',(
-        ToolBinding('local.notice','Return a receipt',{'type':'object','properties':{'text':{'type':'string'}},'required':['text'],'additionalProperties':False},lambda *_:None),))
-    return HostTurn('operation','actor','interaction',definition,'Call local.notice',str(tmp_path),**kwargs)
+def test_static_registration_and_check_are_not_submit_gate(tmp_path):
+    host=configured()
+    assert host.registration.adapter_id=='codex'
+    assert set(host.registration.optional_methods)=={'get_request','cancel'}
+    assert not any(hasattr(host,n)for n in ('run','probe','capabilities','prepare_delivery','collect_context','resolve_context'))
+    assert submit(host,tmp_path).state=='completed'
 
+def test_bound_tool_round_has_actual_turn_and_prior_p28_ack(tmp_path):
+    host=configured();events=[];calls=[]
+    def invoke(call):
+        assert any(e.kind=='session'and e.result.session_id==call.session_id and e.result.request_id==call.request_id for e in events)
+        assert call.request_id=='test-turn'and call.call_id=='original-call'
+        calls.append(call);return HostToolResult(value={'receipt':call.arguments['text']})
+    first=submit(host,tmp_path,events=events,tool=invoke)
+    assert first.state=='completed'and first.request_id=='test-turn'and first.terminal.request_id=='test-turn'
+    assert first.usage['total']['totalTokens']==17 and len(calls)==1
+    second=submit(configured(),tmp_path,op='next',session=first.session_id)
+    assert second.session_id==first.session_id and second.state=='completed'
 
-def test_unprobed_host_is_unavailable_and_configuration_is_explicit(tmp_path):
-    host=CodexHost.from_config({'command':[sys.executable], 'model':'test-model'},base_dir=tmp_path)
-    assert host.capabilities()['available'] is False
+@pytest.mark.parametrize('fails',[False,True])
+def test_bad_arguments_correct_in_same_turn_callback_failure_stays_unknown(tmp_path,fails):
+    calls=[]
+    def invoke(call):
+        calls.append(call)
+        if fails:raise RuntimeError('Original effect unknown')
+        return HostToolResult(value={'receipt':'hello'})
+    result=submit(configured('bad-args'),tmp_path,tool=invoke)
+    assert [c.call_id for c in calls]==['corrected-call']
+    assert result.state==('unknown'if fails else 'completed')
 
+def test_lost_result_keeps_machine_id_and_same_operation_does_not_replay(tmp_path):
+    host=configured('exit');first=submit(host,tmp_path)
+    assert first.state=='unknown'and first.session_id=='test-real-thread'and first.request_id=='test-turn'
+    assert submit(configured('exit'),tmp_path)==first
 
-def test_bound_tool_round_and_new_host_resume_keep_the_original_session(tmp_path):
-    host=configured();assert host.probe()['available'] is True
-    sessions=[];calls=[]
-    def invoke(name,args,call):
-        assert sessions==['test-real-thread']
-        assert json.loads((tmp_path/'codex-session.json').read_text())['sessionId']==sessions[0]
-        calls.append((name,args,call));return {'receipt':args['text']}
-    turn=round_at(tmp_path,on_session=sessions.append,on_tool=invoke)
-    first=host.run(turn)
-    assert first.status=='completed' and first.session_id=='test-real-thread'
-    assert first.usage['total']['totalTokens']==17
-    sessions.clear();host=configured();host.probe()
-    second=host.run(replace(turn,session_id=first.session_id))
-    assert second.status=='completed' and second.session_id==first.session_id
-    assert calls==[('local.notice',{'text':'hello'},'original-call')]*2
+def test_original_scope_cannot_change_or_bind_another_session(tmp_path):
+    first=submit(configured(),tmp_path)
+    with pytest.raises(RuntimeFault):submit(configured(),tmp_path,text='changed')
+    with pytest.raises(RuntimeFault):submit(configured(),tmp_path,session='different-thread')
+    assert first.session_id=='test-real-thread'
 
-
-def test_lost_result_keeps_session_and_never_retries(tmp_path):
-    host=configured('exit');assert host.probe()['available']
-    result=host.run(round_at(tmp_path))
-    assert result.status=='unknown' and result.session_id=='test-real-thread'
-    assert len(list((tmp_path/'runs').glob('*.json')))==1
-    with pytest.raises(RuntimeFault,match='Resume the original'):
-        host.run(round_at(tmp_path))
-
-
-def test_changed_definition_and_missing_original_binding_are_rejected(tmp_path):
-    host=configured();host.probe()
-    turn=round_at(tmp_path,on_tool=lambda *_:{'receipt':'hello'})
-    first=host.run(turn);assert first.status=='completed'
-    changed=replace(turn.definition,instructions='A different tool policy')
-    with pytest.raises(RuntimeFault,match='definition changed'):
-        host.run(replace(turn,session_id=first.session_id,definition=changed))
-    (tmp_path/'codex-session.json').unlink()
-    with pytest.raises(RuntimeFault,match='Restore the original'):
-        host.run(replace(turn,session_id=first.session_id))
-
-
-def test_cancel_returns_actual_terminal_and_cannot_claim_no_effect(tmp_path):
-    host=configured('wait');host.probe()
-    started=threading.Event();results=[]
-    turn=round_at(tmp_path,on_event=lambda e:started.set() if e['method']=='turn/started' else None)
-    worker=threading.Thread(target=lambda:results.append(host.run(turn)))
+def test_cancel_ack_does_not_replace_actual_terminal(tmp_path):
+    host=configured('wait');started=threading.Event();result=[]
+    def event(e):
+        if e.kind=='running':started.set()
+        if e.kind=='session':return BindingAck(e.result.session_id,e.result.request_id)
+    worker=threading.Thread(target=lambda:result.append(host.submit('op',HostInput('wait',attempt=SubmissionAttempt('attempt','scope','actor','profile')),execution=execution(tmp_path),on_event=event)))
     worker.start()
     try:
         assert started.wait(10)
-        assert host.cancel(turn.operation_id) is True
-    finally:
-        worker.join(10)
-    assert not worker.is_alive()
-    assert results[0].status=='cancelled' and results[0].session_id=='test-real-thread'
-    assert host.cancel(turn.operation_id) is False
+        assert host.cancel('test-turn')['state']=='accepted'
+    finally:worker.join(10)
+    assert not worker.is_alive()and result[0].state=='cancelled'and result[0].terminal.state=='cancelled'
+    assert host.cancel('missing')['state']=='unknown'
+
+def test_sdk_native_permissions_reject_before_any_native_submission(tmp_path):
+    result=submit(configured(),tmp_path,definition=execution(tmp_path,authorization={'nativeTools':{'Bash':'allow'}}))
+    assert result.error.dispatch=='not_submitted'and not(tmp_path/'codex-submissions').exists()
+
+def test_unbound_namespace_never_enters_sdk_callback(tmp_path):
+    calls=[];result=submit(configured('bad-tool'),tmp_path,tool=lambda c:calls.append(c))
+    assert result.state=='unknown'and calls==[]
+
+def test_missing_p28_ack_cannot_activate_sdk_tools(tmp_path):
+    calls=[];host=configured()
+    result=host.submit('op',HostInput('call',attempt=SubmissionAttempt('attempt','scope','actor','profile')),execution=execution(tmp_path),on_event=lambda e:None,on_tool=lambda c:calls.append(c))
+    assert result.state=='unknown'and calls==[]
+
+def test_resources_preserve_original_reference_and_fail_before_dispatch_until_p26_glue(tmp_path):
+    source=tmp_path/'source';source.mkdir();(source/'SKILL.md').write_text('# Original skill')
+    host=configured(skill_directories={'selected':str(source)})
+    frozen=HostResource('frozen-skill','SKILL.md','text/markdown','original-digest','original-scope','sdk-definition:frozen-skill')
+    selected=replace(execution(tmp_path/'work'),definition=replace(execution(tmp_path/'work').definition,resources=(frozen,)))
+    first=submit(host,tmp_path/'work',definition=selected)
+    (source/'SKILL.md').write_text('# Changed source')
+    second=submit(host,tmp_path/'work',definition=selected)
+    assert first.error.phase==second.error.phase=='resource_mapping'
+    assert first.error.dispatch==second.error.dispatch=='not_submitted'
+    assert selected.definition.resources==(frozen,)and not(tmp_path/'work/codex-submissions').exists()
+
+def test_bounded_turn_deadline_keeps_unknown_and_original_session(tmp_path):
+    deadline=(datetime.now(timezone.utc)+timedelta(seconds=.5)).isoformat()
+    start=time.monotonic();result=submit(configured('stall-input'),tmp_path,text='x'*(1024*1024),definition=execution(tmp_path,deadline=deadline))
+    assert result.state=='unknown'and result.session_id=='test-real-thread'
+    assert time.monotonic()-start<3
+
+def test_runtime_check_is_bounded_read_only_inventory():
+    assert configured().check()['state']=='available'
 
 
-def test_native_tools_and_unprobed_rounds_fail_before_start(tmp_path):
-    host=configured();turn=round_at(tmp_path)
-    with pytest.raises(RuntimeFault) as error:host.run(turn)
-    assert error.value.code=='not_ready'
-    host.probe()
-    with pytest.raises(RuntimeFault) as error:
-        host.run(replace(turn,definition=replace(turn.definition,native_tools=(('Bash','allow'),))))
-    assert error.value.code=='not_ready' and not (tmp_path/'runs').exists()
+@pytest.mark.parametrize('mode',['early-good','early-wrong','early-mixed','wrong-start'])
+def test_only_rpc_owned_turn_can_activate_early_tool_packets(tmp_path,mode):
+    events=[];calls=[]
+    def invoke(call):
+        assert any(e.kind=='session'and(e.result.session_id,e.result.request_id)==(call.session_id,call.request_id)for e in events)
+        calls.append(call);return HostToolResult(value={'receipt':'hello'})
+    result=submit(configured(mode),tmp_path,events=events,tool=invoke)
+    assert [c.request_id for c in calls]==(['test-turn']if mode=='early-good'else [])
+    assert result.state==('completed'if mode=='early-good'else 'unknown')
+    assert result.request_id=='test-turn'
 
+def test_request_binding_ack_must_include_exact_actual_request(tmp_path):
+    calls=[];host=configured('early-good')
+    result=host.submit('op',HostInput('call',attempt=SubmissionAttempt('attempt','scope','actor','profile')),execution=execution(tmp_path),
+        on_event=lambda e:BindingAck(e.result.session_id,None)if e.kind=='session'else None,
+        on_tool=lambda c:calls.append(c))
+    assert result.state=='unknown'and result.request_id=='test-turn'and calls==[]
 
-def test_selected_skills_are_frozen_and_cannot_be_replaced_on_resume(tmp_path):
-    source=tmp_path/'source';source.mkdir();(source/'SKILL.md').write_text('# Original skill',encoding='utf-8')
-    host=CodexHost(configured().command,model='test-model',skill_directories={'selected':str(source)})
-    host.probe()
-    turn=round_at(tmp_path/'work',on_tool=lambda *_:{'receipt':'hello'})
-    turn=replace(turn,definition=replace(turn.definition,skills=('selected',)))
-    first=host.run(turn)
-    assert first.status=='completed'
-    (source/'SKILL.md').write_text('# Changed source',encoding='utf-8')
-    second=host.run(replace(turn,session_id=first.session_id))
-    assert second.status=='completed'
-    assert (tmp_path/'work/skill-documents/selected/SKILL.md').read_text()=='# Original skill'
+def test_terminal_event_callback_failure_preserves_machine_fact_and_replay(tmp_path):
+    host=configured()
+    def event(value):
+        if value.kind=='terminal':raise RuntimeError('SDK event receipt failed')
+        if value.kind=='session':return BindingAck(value.result.session_id,value.result.request_id)
+    result=host.submit('op',HostInput('call',attempt=SubmissionAttempt('attempt','scope','actor','profile')),execution=execution(tmp_path),
+        on_event=event,on_tool=lambda c:HostToolResult(value={'receipt':'hello'}))
+    assert result.state=='completed'and result.terminal.state=='completed'
+    assert result.error.phase=='event_callback'and host.get_request('test-turn')==result
+    replay=host.submit('op',HostInput('call',attempt=SubmissionAttempt('attempt','scope','actor','profile')),execution=execution(tmp_path),on_event=event)
+    assert replay==result
 
+@pytest.mark.parametrize('field,value',[('actor','other-actor'),('profile','other-profile')])
+def test_execution_cannot_override_sdk_attempt_identity(tmp_path,field,value):
+    with pytest.raises(RuntimeFault):submit(configured(),tmp_path,definition=replace(execution(tmp_path),**{field:value}))
+    assert not(tmp_path/'codex-submissions').exists()
 
-def test_unbound_namespace_cannot_reach_the_role_callback(tmp_path):
-    host=configured('bad-tool');host.probe();calls=[]
-    result=host.run(round_at(tmp_path,on_tool=lambda *args:calls.append(args)))
-    assert result.status=='unknown' and calls==[]
-    assert result.error['message']=='Unbound SDK tool call'
+def test_relative_workspace_is_not_made_absolute_by_resolve(tmp_path):
+    with pytest.raises(RuntimeFault):submit(configured(),tmp_path,definition=replace(execution(tmp_path),workspace='relative-untrusted'))
+    assert not(tmp_path/'codex-submissions').exists()
 
+def test_proposal_schema_is_preserved_and_rejected_before_dispatch(tmp_path):
+    schema={'type':'object','properties':{'actual':{'type':'string'}},'required':['actual'],'additionalProperties':False}
+    original=execution(tmp_path,proposal_schema=schema)
+    result=submit(configured(),tmp_path,definition=original)
+    assert original.proposal_schema==schema
+    assert result.error.phase=='proposal_schema'and result.error.dispatch=='not_submitted'
+    assert not(tmp_path/'codex-submissions').exists()
 
-def test_unresponsive_child_cannot_block_the_turn_deadline_while_writing(tmp_path):
-    host=configured('stall-input');host.probe()
-    turn=replace(round_at(tmp_path),input='x'*(1024*1024),timeout_seconds=.5)
-    start=time.monotonic();result=host.run(turn)
-    assert result.status=='unknown' and result.session_id=='test-real-thread'
-    assert time.monotonic()-start<2
+@pytest.mark.parametrize('has_deadline',[False,True])
+def test_model_wait_uses_original_deadline_without_extra_five_minute_cap(tmp_path,monkeypatch,has_deadline):
+    # Fake only the external clock at the wire boundary: a completed tool step
+    # consumes 700s while native terminal bytes remain the same real wire data.
+    # This catches an extra 300s cap without waiting 12 minutes in the suite.
+    from types import SimpleNamespace
+    import ioalab_codex.transport as transport
+    monotonic=time.monotonic;elapsed=[0]
+    monkeypatch.setattr(transport,'time',SimpleNamespace(monotonic=lambda:monotonic()+elapsed[0]))
+    definition=execution(tmp_path,deadline=(datetime.now(timezone.utc)+timedelta(hours=1)).isoformat()if has_deadline else None)
+    def invoke(call):
+        elapsed[0]=700
+        return HostToolResult(value={'receipt':'hello'})
+    result=submit(configured(),tmp_path,definition=definition,tool=invoke)
+    assert result.state=='completed'and result.terminal.state=='completed'
+    assert configured().registration.readonly_context=='isolated_session'
+
+@pytest.mark.parametrize('kind',['business','observation'])
+def test_true_native_phase_is_not_ignored_with_empty_native_requirements(tmp_path,kind):
+    result=submit(configured(),tmp_path,definition=execution(tmp_path,kind=kind,
+        authorization={'nativeToolsEnabled':True,'nativeTools':{}}))
+    assert result.error.phase=='native_permissions'and result.error.dispatch=='not_submitted'
+    assert not(tmp_path/'codex-submissions').exists()
+
+@pytest.mark.parametrize('flag',[1,0,None,'false',{},[]])
+def test_mutated_non_boolean_native_phase_is_rejected_before_dispatch(tmp_path,flag):
+    original=execution(tmp_path,authorization={'nativeToolsEnabled':False})
+    original.authorization['nativeToolsEnabled']=flag
+    result=submit(configured(),tmp_path,definition=original)
+    assert result.error.code=='invalid_input'and result.error.dispatch=='not_submitted'
+    assert not(tmp_path/'codex-submissions').exists()
+
+def test_false_native_phase_remains_restricted_sdk_execution(tmp_path):
+    result=submit(configured(),tmp_path,definition=execution(tmp_path,authorization={'nativeToolsEnabled':False,'nativeTools':{}}))
+    assert result.state=='completed'and result.terminal.state=='completed'

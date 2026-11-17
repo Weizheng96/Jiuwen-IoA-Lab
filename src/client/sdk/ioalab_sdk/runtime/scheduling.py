@@ -13,6 +13,7 @@ import uuid
 from .protocol import RuntimeFault,encode
 
 CURRENT_JOB=ContextVar('ioa-current-job',default=None)
+_CALLBACK_MODEL_SCOPE=ContextVar('ioa-p20-callback-model-scope',default=None)
 
 
 SCHEMA='''CREATE TABLE IF NOT EXISTS runtime_jobs(
@@ -39,6 +40,7 @@ class JobHandler:
     uses_model: bool=True
     ready: Callable|None=None
     control: bool=False
+    retain_model_on_unknown: bool=False
 
 
 class Scheduler:
@@ -48,6 +50,7 @@ class Scheduler:
             raise ValueError('Positive scheduler limits are required')
         if any(not isinstance(name,str) or not isinstance(h,JobHandler) or not h.revision or not callable(h.run)
                or h.control and h.uses_model for name,h in handlers.items()):raise ValueError('Register explicit local handlers; control handlers cannot run models')
+        if any(h.retain_model_on_unknown and (not h.uses_model or h.control) for h in handlers.values()):raise ValueError('Uncertain native execution retains a real model permit')
         self.store,self.handlers=store,dict(handlers)
         self.max_models,self.max_pending,self.max_workers=max_models,max_pending,max_workers
         self.can_dispatch=can_dispatch
@@ -60,6 +63,8 @@ class Scheduler:
         self.error=None
         self._pool=ThreadPoolExecutor(max_workers=max_workers,thread_name_prefix='ioa-role')
         with store.lock:store.db.executescript(SCHEMA)
+        with store.lock:store.db.execute("CREATE INDEX IF NOT EXISTS runtime_submit_jobs ON runtime_checkpoints(json_extract(value,'$.jobId'),json_extract(value,'$.released')) WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2")
+        with store.lock:store.db.execute("CREATE INDEX IF NOT EXISTS runtime_pending_submissions ON runtime_checkpoints(json_extract(value,'$.jobId'),key) WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2 AND json_extract(value,'$.released')=0")
         with store.transaction() as conn:
             if 'model_waiting' not in {row[1] for row in conn.execute('PRAGMA table_info(runtime_jobs)')}:
                 conn.execute('ALTER TABLE runtime_jobs ADD COLUMN model_waiting INTEGER NOT NULL DEFAULT 0')
@@ -95,7 +100,7 @@ class Scheduler:
             if self._draining:raise RuntimeFault('closed','Runtime is draining; no new jobs are accepted')
             if not conn.execute('SELECT 1 FROM runtime_cursors WHERE actor=?',(actor,)).fetchone():
                 raise RuntimeFault('forbidden','Job identity is outside this instance')
-            count=conn.execute("SELECT COUNT(*) FROM runtime_jobs WHERE state IN ('queued','running','waiting','unknown')").fetchone()[0]
+            count=conn.execute("SELECT count(*) FROM (SELECT id FROM runtime_jobs WHERE state IN ('queued','running','waiting','unknown') UNION SELECT json_extract(value,'$.jobId') FROM runtime_checkpoints WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2 AND json_extract(value,'$.released')=0 AND json_extract(value,'$.jobId') IS NOT NULL)").fetchone()[0]
             if count>=self.max_pending and not admitted:raise RuntimeFault('quota_exceeded','Local pending queue is full','wait_for_capacity')
             conn.execute('INSERT INTO runtime_jobs(id,actor,interaction,session,handler,revision,payload,fingerprint,state,created,deadline,result,continuation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
                          (job,actor,interaction,session,handler,revision,encode(payload),fingerprint,
@@ -111,11 +116,12 @@ class Scheduler:
     def bind_session(self,job,session):
         if not isinstance(session,str) or not session:raise RuntimeFault('protocol_error','A real host session is required')
         with self.store.transaction() as conn:
-            row=conn.execute('SELECT session,state,interaction,handler FROM runtime_jobs WHERE id=?',(job,)).fetchone()
+            row=conn.execute('SELECT actor,session,state,interaction,handler FROM runtime_jobs WHERE id=?',(job,)).fetchone()
             if not row or row['state']!='running':raise RuntimeFault('not_ready','Job is not currently executing')
             if self.handlers[row['handler']].control:raise RuntimeFault('forbidden','A protocol control handler cannot bind or execute a host session')
             if row['session'] and row['session']!=session:raise RuntimeFault('identity_conflict','Host session changed')
-            conflicts=conn.execute("SELECT handler,interaction FROM runtime_jobs WHERE id!=? AND session=? AND state IN ('running','waiting','unknown')",(job,session)).fetchall()
+            scope=self.store.session_scope(row['actor'],row['interaction'],session)
+            conflicts=[other for other in self._held(conn) if other['id']!=job and self.store.session_scope(other['actor'],other['interaction'],other['session'])==scope]
             if any(other['interaction']!=row['interaction'] or other['handler'] not in self.handlers or not self.handlers[other['handler']].control for other in conflicts):
                 raise RuntimeFault('not_ready','Another unresolved job owns this host session')
             conn.execute('UPDATE runtime_jobs SET session=? WHERE id=?',(session,job))
@@ -208,16 +214,25 @@ class Scheduler:
         current=CURRENT_JOB.get()
         if not current or current[0] is not self:return False
         with self._condition,self.store.lock:
-            if current[1] not in self._active:return False
-            row=self.store.db.execute('SELECT state,model_waiting FROM runtime_jobs WHERE id=?',(current[1],)).fetchone()
-            return bool(row and row['state']=='running' and not row['model_waiting'])
+            row=self.store.db.execute('SELECT actor,interaction,state,model_waiting FROM runtime_jobs WHERE id=?',(current[1],)).fetchone()
+            running=bool(current[1] in self._active and row and row['state']=='running' and not row['model_waiting'])
+        if running:return True
+        callback=_CALLBACK_MODEL_SCOPE.get()
+        from .host_registry import HostRegistry
+        return bool(row and not row['model_waiting'] and isinstance(callback,tuple) and len(callback)==2 and
+                    isinstance(callback[0],HostRegistry) and callback[0].scheduler is self and
+                    callback[0]._callback_permit(callback[1],current[1],row['actor'],row['interaction']))
 
     def require_model(self,actor,interaction):
         current=CURRENT_JOB.get()
         if not current or current[0] is not self:raise RuntimeFault('forbidden','Model observations require the current local model job')
         with self.store.lock:row=self.store.db.execute('SELECT actor,interaction,handler,state,model_waiting FROM runtime_jobs WHERE id=?',(current[1],)).fetchone()
         handler=self.handlers.get(row['handler']) if row else None
-        if not row or row['actor']!=actor or row['interaction']!=interaction or row['state']!='running' or row['model_waiting'] or not handler or not handler.uses_model or handler.control:
+        callback=_CALLBACK_MODEL_SCOPE.get()
+        from .host_registry import HostRegistry
+        trusted=bool(isinstance(callback,tuple) and len(callback)==2 and isinstance(callback[0],HostRegistry)
+                     and callback[0].scheduler is self and callback[0]._callback_permit(callback[1],current[1],actor,interaction))
+        if not row or row['actor']!=actor or row['interaction']!=interaction or (row['state']!='running' and not trusted) or row['model_waiting'] or not handler or not handler.uses_model or handler.control:
             raise RuntimeFault('forbidden','This job has no model permit for the requested identity and interaction')
         return current[1]
 
@@ -250,8 +265,7 @@ class Scheduler:
                     if self._stop.is_set() or self._draining or cancelled():
                         raise RuntimeFault('closed','Runtime stopped while the original user question was waiting')
                     with self.store.transaction() as conn:
-                        running=conn.execute("SELECT handler FROM runtime_jobs WHERE state='running' AND model_waiting=0").fetchall()
-                        models=sum(self.handlers[row['handler']].uses_model for row in running if row['handler'] in self.handlers)
+                        models=self._model_permits(conn)
                         if self.can_dispatch() and models<self.max_models:
                             conn.execute('UPDATE runtime_jobs SET model_waiting=0 WHERE id=?',(job,))
                             self._condition.notify_all()
@@ -301,12 +315,43 @@ class Scheduler:
         conn.execute('UPDATE runtime_jobs SET state=?,result=?,session=?,model_waiting=0 WHERE id=?',
                      (outcome.state,encode(outcome.data),outcome.session or row['session'],row['id']))
 
+    def _held(self,conn):
+        rows=[dict(row) for row in conn.execute("SELECT id,actor,interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')")]
+        # Business completion does not attest to native execution ending. This is
+        # the original ledger's remaining obligation, not a new business state.
+        pending=conn.execute("SELECT j.id,j.actor,j.interaction,j.session,j.handler,j.state,j.model_waiting,c.value FROM runtime_checkpoints AS c JOIN runtime_jobs AS j ON j.id=json_extract(c.value,'$.jobId') WHERE c.namespace='host-deliveries' AND json_extract(c.value,'$.format')=2 AND json_extract(c.value,'$.released')=0").fetchall()
+        for row in pending:
+            record=json.loads(row['value']);receipt=record.get('receipt') or {}
+            interaction=record['target'][1]
+            if record.get('kind')=='observation':
+                # A nested observation is its parent business job's native obligation:
+                # same-interaction controls may still receive facts, business never bypasses.
+                interaction=(json.loads(record['parameters']).get('execution') or {}).get('business_ref') or interaction
+            rows.append({**{key:row[key] for key in ('id','actor','interaction','session','handler','state','model_waiting')},
+                         'interaction':interaction,'session':receipt.get('session_id') or row['session'],'nativeHeld':True})
+        return rows
+
+    def _model_permits(self,conn):
+        held=self._held(conn);retained={row['id'] for row in held if row.get('nativeHeld')}
+        rows={row['id']:row for row in held}.values()
+        # Query only current jobs through the partial expression index, never walk
+        # every historical submission on the dispatcher's periodic wakeup.
+        submitted=set()
+        for row in rows:
+            if row['state']!='unknown':continue
+            arguments=(row['id'],)
+            prefix="SELECT 1 FROM runtime_checkpoints WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2 AND json_extract(value,'$.jobId')=?"
+            if conn.execute(prefix+' LIMIT 1',arguments).fetchone():submitted.add(row['id'])
+        return sum(bool(handler and handler.uses_model and
+                        (not row['model_waiting'] if row['state']=='running' else
+                         row['id'] in retained or row['state']=='unknown' and handler.retain_model_on_unknown and row['id'] not in submitted))
+                   for row in rows for handler in (self.handlers.get(row['handler']),))
+
     def _next(self):
         with self.store.transaction() as conn:
-            held=conn.execute("SELECT id,interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')").fetchall()
-            models=sum(self.handlers[r['handler']].uses_model for r in held
-                       if r['state']=='running' and not r['model_waiting'] and r['handler'] in self.handlers)
-            business_threads=sum(not self.handlers[r['handler']].control for r in held if r['id'] in self._active and r['handler'] in self.handlers)
+            held=self._held(conn)
+            models=self._model_permits(conn)
+            business_threads=len({r['id'] for r in held if r['id'] in self._active and r['handler'] in self.handlers and not self.handlers[r['handler']].control})
             for row in conn.execute("SELECT * FROM runtime_jobs WHERE state='queued' ORDER BY created,id").fetchall():
                 handler=self.handlers.get(row['handler'])
                 if row['deadline'] is not None and row['deadline']<=time.time():
@@ -315,7 +360,8 @@ class Scheduler:
                 if not handler or row['revision']!=handler.revision or handler.ready and not handler.ready():continue
                 blocked=False
                 for other in held:
-                    if other['interaction']!=row['interaction'] and not (row['session'] and row['session']==other['session']):continue
+                    scope=self.store.session_scope(row['actor'],row['interaction'],row['session'])
+                    if other['interaction']!=row['interaction'] and not (scope and scope==self.store.session_scope(other['actor'],other['interaction'],other['session'])):continue
                     prior=self.handlers.get(other['handler'])
                     # Only installed non-model controls for this same interaction
                     # may receive facts while its business execution is unresolved.

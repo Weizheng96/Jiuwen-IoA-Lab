@@ -58,12 +58,14 @@ const result=(item,status='answered')=>({...item,status});
 async function setup(items){
   const document={activeElement:null,createElement(tag){return new Element(tag,this)}};
   const cards=new Element('main',document),error=new Element('p',document),requests=[],intervals=[],history=[];
-  document.getElementById=id=>({cards,error}[id]);
+  const controls=Object.fromEntries(['pending-view','history-view','previous-page','next-page','page-status'].map(id=>[id,new Element('button',document)]));
+  document.getElementById=id=>({cards,error,...controls}[id]);
   const context={console,document,location:{hash:'#one-time-entry'},history:{replaceState(...args){history.push(args)}},
     setInterval(callback,delay){intervals.push({callback,delay})},
     fetch(path,options){return new Promise((resolve,reject)=>requests.push({path,options,resolve,reject,done:false}))}};
   vm.createContext(context);vm.runInContext(script,context,{filename:'user.html'});
   async function reply(request,data,status=200){
+    if(request.path.startsWith('/user/api')&&data.confirmations&&!data.page)data={...data,page:{view:request.path.includes('view=history')?'history':'pending',nextCursor:null,total:data.confirmations.length,pendingCount:data.confirmations.filter(item=>item.status==='pending').length,size:50}};
     request.done=true;request.resolve({ok:status>=200&&status<300,status,json:async()=>data});await tick();
   }
   const pending=path=>requests.filter(request=>request.path===path&&!request.done);
@@ -74,7 +76,8 @@ async function setup(items){
   assert.equal(intervals.length,1);assert.equal(intervals[0].delay,1500);
   assert.equal(history[0][2],'/user');
   for(const request of requests)assert.equal(request.options.credentials,'same-origin');
-  return {cards,error,requests,pending,reply,document,
+  return {cards,error,requests,pending,reply,document,controls,
+    async navigate(id){controls[id].listeners.click();await tick();return requests.filter(r=>r.path.startsWith('/user/api')&&!r.done).at(-1)},
     async poll(next){intervals[0].callback();await tick();const request=pending('/user/api')[0];assert(request);await reply(request,{csrf:'browser-csrf',confirmations:next})},
     async startPoll(){intervals[0].callback();await tick();return pending('/user/api')[0]},
     card(reference){return cards.children.find(card=>card.dataset.ref===reference)},
@@ -104,6 +107,51 @@ function assertPost(h,item,decision='answer'){
   return request;
 }
 const scenarios={
+  async pages(){
+    const item=question(),h=await setup([item]),card=h.card(item.reference);edit(h,card);
+    const request=await h.startPoll();await h.reply(request,{csrf:'browser-csrf',confirmations:[item],page:{view:'pending',nextCursor:'next-opaque',total:51,pendingCount:51,size:50}});
+    assert.equal(h.controls['next-page'].disabled,false);
+    const second=await h.navigate('next-page');assert(second.path.includes('cursor=next-opaque'));
+    await h.reply(second,{csrf:'browser-csrf',confirmations:[approval()]});
+    assert.equal(h.card(item.reference),undefined);
+    const first=await h.navigate('previous-page');await h.reply(first,{csrf:'browser-csrf',confirmations:[item]});
+    assert.deepEqual(answers(h.card(item.reference)),expected);
+    const history=await h.navigate('history-view');assert(history.path.includes('view=history'));
+    await h.reply(history,{csrf:'browser-csrf',confirmations:[]});
+    const back=await h.navigate('pending-view');await h.reply(back,{csrf:'browser-csrf',confirmations:[item]});
+    assert.deepEqual(answers(h.card(item.reference)),expected);
+    assert.equal(h.requests.filter(r=>r.path==='/user/decision').length,0);
+  },
+  async pages_unknown(){
+    const item=question(),h=await setup([item]),card=h.card(item.reference);edit(h,card);await h.click(card);
+    const post=assertPost(h,item);post.done=true;post.reject(Error('连接中断'));await tick();
+    const refresh=h.pending('/user/api')[0];await h.reply(refresh,{csrf:'browser-csrf',confirmations:[],page:{view:'pending',nextCursor:'page-two',total:51,pendingCount:51,size:50}});
+    const lookup=h.pending('/user/api?reference='+item.reference)[0];assert(lookup);
+    const next=await h.navigate('next-page');await h.reply(next,{csrf:'browser-csrf',confirmations:[approval()]});
+    await h.reply(lookup,{error:{message:'暂不可核实'}},503);
+    assert.equal(h.requests.filter(r=>r.path==='/user/decision').length,1);
+    const previous=await h.navigate('previous-page');await h.reply(previous,{csrf:'browser-csrf',confirmations:[]});
+    const retry=h.pending('/user/api?reference='+item.reference)[0];assert(retry);
+    await h.reply(retry,{csrf:'browser-csrf',confirmation:result(item)});
+    const history=await h.navigate('history-view');await h.reply(history,{csrf:'browser-csrf',confirmations:[result(item)]});
+    assert(h.card(item.reference).innerHTML.includes('已答复'));
+    assert.equal(h.card(item.reference).querySelector('[data-decision]'),null);
+    assert.equal(h.requests.filter(r=>r.path==='/user/decision').length,1);
+  },
+  async deadlines(){
+    const item={...approval(),expiresAt:null,responseDueAt:'2020-01-01T00:00:00Z',responseOverdue:true};
+    const h=await setup([item]),card=h.card(item.reference);
+    assert(card.innerHTML.includes('合同响应截止'));
+    assert(card.innerHTML.includes('已逾期'));
+    assert(card.innerHTML.includes('不使合同自动解除'));
+    assert(!card.innerHTML.includes('1970')&&!card.innerHTML.includes('Invalid Date'));
+    assert(card.querySelector('[data-decision="approve"]'));
+    await h.poll([{...item,expiresAt:'2099-01-01T00:00:00Z'}]);
+    assert(card.innerHTML.includes('本操作有效至'));
+    await h.poll([{...item,responseDueAt:null,objectBound:true}]);
+    assert(card.innerHTML.includes('执行前须重新核验'));
+    assert(!card.innerHTML.includes('永久')&&!card.innerHTML.includes('1970'));
+  },
   async closed(){
     const item={...question(),questions:[
       {question:'是否同意',allow_custom_input:false,options:[{value:'allow',label:'同意'},{value:'deny',label:'拒绝'}]},

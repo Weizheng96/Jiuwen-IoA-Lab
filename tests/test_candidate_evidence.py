@@ -123,13 +123,13 @@ def test_expired_offer_keeps_declared_omissions_but_cannot_create_confirmation(p
     from datetime import timedelta
     from a2c.codec import utcnow
     class OmissionHost(QuoteHost):
-        def run(self,turn):
+        def execute(self,turn):
             self.turns.append(turn);turn.on_session('original-omission-session')
             turn.on_tool('provider.task.quote',{
                 'acceptance':{'result':{'verifiers':{'script':self.verifier},'notCovered':['External certification is excluded']}},
                 'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}},'original-quote-call')
-            from ioalab_sdk.runtime.host import HostResult
-            return HostResult('completed',turn.session_id,{})
+            from submission_fixture import FixtureResult
+            return FixtureResult('completed',turn.session_id,{})
     with participants(platform,tmp_path,agent_host=OmissionHost()) as (p,a,host,t,task):
         q=candidate(a,p,t,task);client=LocalClient(a.config.home)
         future=utcnow()+timedelta(days=2)

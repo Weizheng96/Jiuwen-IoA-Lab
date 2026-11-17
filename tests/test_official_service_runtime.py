@@ -1,6 +1,6 @@
 """Actual resource-to-WS/A2C/WASM/AP2 lifecycle; user channel is a scripted browser."""
 from contextlib import contextmanager
-from dataclasses import replace
+from types import SimpleNamespace
 import json
 import os
 from pathlib import Path
@@ -13,21 +13,20 @@ from ioalab_sdk.assistant.role import AssistantRole
 from ioalab_sdk.provider import ProviderRole
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json, read_json
-from ioalab_sdk.runtime.host import HostResult
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from conftest import wait_for
+from submission_fixture import FixtureResult, ScriptedSubmission, bound_runtime
 from test_resident_runtime import configuration
 from test_assistant_role import user_decision
 from test_resident_contracts import confirm, status
 from test_resident_fulfillment import invoke, operation, accept_preview
 
 
-class SampleHost:
+class SampleHost(ScriptedSubmission):
     """Explicit deterministic double; no claim of model production."""
-    def capabilities(self): return {'available': True, 'testDouble': True}
     def cancel(self, operation): return True
-    def run(self, turn):
+    def execute(self, turn):
         turn.on_session(turn.session_id or 'official-test-' + str(uuid.uuid4()))
         phase = json.loads(turn.input)['phase']
         if phase == 'decision':
@@ -41,7 +40,7 @@ class SampleHost:
             assert tested['status'] == 'pass', tested
             delivered = turn.on_tool('provider.task.deliver', {'files': files}, 'delivery')
             assert delivered['status'] == 'delivered', delivered
-        return HostResult('completed', turn.session_id, {'explicitTestDouble': True})
+        return FixtureResult('completed', turn.session_id, {'explicitTestDouble': True})
 
 
 @contextmanager
@@ -52,8 +51,7 @@ def owned_participants(platform, path, host):
     config['provider'] = {'services': {'service': {'instructions': '待装配业务资源', 'skills': [],
                                                  'max_active_delegations': 1, 'accepting': False}}}
     private_json(pconfig, config)
-    role = ProviderRole(host)
-    provider = ResidentRuntime(RuntimeConfig.load(pconfig), modules=(role,), host_status=host.capabilities).start()
+    provider = bound_runtime(RuntimeConfig.load(pconfig), host, lambda selected: ProviderRole(selected)).start()
     aconfig, _ = configuration(platform, path / 'assistant', service=False)
     assistant = ResidentRuntime(RuntimeConfig.load(aconfig), modules=(AssistantRole(),)).start()
     try:
@@ -79,8 +77,8 @@ def owned_participants(platform, path, host):
         config['provider']['services']['service'] = prepared['execution']
         private_json(pconfig, config)
         provider.close()
-        role = ProviderRole(host)
-        provider = ResidentRuntime(RuntimeConfig.load(pconfig), modules=(role,), host_status=host.capabilities).start()
+        provider = bound_runtime(RuntimeConfig.load(pconfig), host, lambda selected: ProviderRole(selected)).start()
+        role = provider.modules[0]
         wait_for(lambda: provider.connection.connected and role.ready('service'))
         yield provider, assistant, published['data']['publicationReceipt']['templates'][0]
     finally:
@@ -96,20 +94,19 @@ def test_official_service_uses_ordinary_sdk_publication_execution_and_payment(pl
         from ioalab_jiuwen.process import ProcessHost
         host = ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),
             os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'], model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'))
-        assert host.probe()['available'], host.capabilities()
     else:
         host = SampleHost()
     turns, calls = [], []
-    original = host.run
-    def execute(turn):
-        turns.append(turn)
-        original_tool = turn.on_tool
-        def call(name, args, key):
-            result = original_tool(name, args, key)
-            calls.append({'name': name, 'status': result.get('status')})
+    original = host.submit
+    def submit(operation_id, input, session_id=None, *, execution=None, on_event=None, on_tool=None):
+        # Observe only the public S01 frame and SDK tool receipts; the adapter stays unchanged.
+        turns.append(SimpleNamespace(input=input.text, session_id=session_id, definition=execution.definition))
+        def call(request):
+            result = on_tool(request)
+            calls.append({'name': request.name, 'status': result.value.get('status') if isinstance(result.value, dict) else None})
             return result
-        return original(replace(turn, on_tool=call))
-    host.run = execute
+        return original(operation_id, input, session_id, execution=execution, on_event=on_event, on_tool=call)
+    host.submit = submit
     with owned_participants(platform, tmp_path, host) as (provider, assistant, template):
         client = LocalClient(assistant.config.home)
         task = client.call('assistant.delegation.prepare', {'purpose': '为小满美甲写春日朋友圈文案',
@@ -157,7 +154,7 @@ def test_official_service_uses_ordinary_sdk_publication_execution_and_payment(pl
         if real and os.environ.get('IOALAB_REAL_OFFICIAL_REPORT'):
             private_json(Path(os.environ['IOALAB_REAL_OFFICIAL_REPORT']), {
                 'scope': 'Owned packaged service on ordinary SDK, real original Jiuwen, HTTP/WS/A2C/WASM/AP2; scripted trusted browser confirmations; not native front-end workflow, bulk defaults or film acceptance',
-                'service': 'wechat-posts', 'formation': template['formation'], 'model': host.capabilities()['model'],
+                'service': 'wechat-posts', 'formation': template['formation'], 'model': host.model,
                 'resourceSources': seed_manifest()['source'], 'sampleGivenToModel': False, 'interactionId': actual['interactionId'],
                 'sessionId': session, 'cardDigest': reference, 'calls': calls, 'paymentRecords': payments,
                 'closed': True, 'reputationCompleted': 1, 'capacityReleased': True})

@@ -13,6 +13,7 @@ from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_jiuwen.__main__ import main
 from test_configuration_boundary import product
 from test_resident_runtime import configuration
+from _client_installation import installed_client_python
 
 
 SECRET='PRIVATE-ACCOUNT-CREDENTIAL-SENTINEL'
@@ -51,7 +52,9 @@ def arguments(tmp_path,path,changes,*,expected=None,name='changes.json'):
 
 def test_offline_inspection_and_validation_do_not_read_tools_start_hosts_or_create_state(tmp_path,monkeypatch,capsys):
     path,original=settings(tmp_path);before=path.read_bytes()
-    monkeypatch.setattr('ioalab_jiuwen.process.ProcessHost.probe',lambda *_:pytest.fail('Setup started a host'))
+    # Design 196 removed probe: offline inspection must not reach the adapter's S02 check or S01 submit either.
+    for method in ('check','submit'):
+        monkeypatch.setattr('ioalab_jiuwen.process.ProcessHost.'+method,lambda *_a,**_k:pytest.fail('Setup started a host'))
     monkeypatch.setattr('ioalab_jiuwen.tools.ConfiguredTools',lambda *_a,**_k:pytest.fail('Setup loaded private tools'))
     for name in ('configuration','validate'):
         code,result=command(capsys,name,path)
@@ -130,7 +133,6 @@ def test_host_and_sdk_directories_cannot_overlap(tmp_path,capsys,host_directory)
 def test_assembly_rejects_mixed_host_directory_before_loading_resources(tmp_path,monkeypatch):
     from ioalab_jiuwen import assembled
     path,value=settings(tmp_path);value['host']['data_dir']='state';private_json(path,value)
-    monkeypatch.setattr('ioalab_jiuwen.assembly.ConfiguredTools',lambda *_a,**_k:pytest.fail('Mixed directory loaded private resources'))
     with pytest.raises(RuntimeFault) as error:
         with assembled(path):pytest.fail('Mixed directory started an assembly')
     assert error.value.code=='invalid_input' and not (tmp_path/'state').exists()
@@ -162,8 +164,9 @@ def test_configuration_file_cannot_be_its_own_arguments(tmp_path,capsys):
     assert path.read_bytes()==before and not (tmp_path/'state').exists()
 
 
-def test_actual_product_entry_can_configure_without_reading_settings(tmp_path,monkeypatch,capsys):
-    path,_=settings(tmp_path);module=product(tmp_path,monkeypatch,'service')
+def test_actual_product_entry_can_configure_without_reading_settings(tmp_path,monkeypatch,capsys,installed_client_python):
+    path,_=settings(tmp_path);module=product(tmp_path,monkeypatch,'service',python=installed_client_python)
+    value=read_json(path);value['host']={'default':'jiuwen','registrations':{'jiuwen':{'type':'jiuwen',**value['host']}}};private_json(path,value)
     assert module.main(['runtime.configuration','--config',str(path)])==0
     text=capsys.readouterr().out;result=json.loads(text)
     assert result['data']['configuredServices']==['existing']

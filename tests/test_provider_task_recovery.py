@@ -12,7 +12,7 @@ import httpx
 import pytest
 from a2c.codec import utcnow
 from ioalab_sdk.provider import ProviderRole
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult,bound_runtime
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.resident import ResidentRuntime
@@ -39,7 +39,7 @@ class ResumeHost(DynamicVerifierHost):
             result=turn.on_tool('provider.task.quote',{'acceptance':{'result':{'verifiers':{'script':reference},'notCovered':[]}},
                 'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}},'recovered-quote')
             assert result['status']=='recorded',result
-        return HostResult('completed',session,{})
+        return FixtureResult('completed',session,{})
 
 
 @contextmanager
@@ -84,8 +84,8 @@ def test_public_resume_preserves_a2c_task_fee_session_and_completes_payment(plat
         original_tasks=set(endpoint.provider.tasks)
         fresh=None
         if restart:
-            config=provider.config;provider.close();role=ProviderRole(host=host)
-            fresh=ResidentRuntime(config,modules=(role,)).start();provider=fresh
+            config=provider.config;provider.close()
+            fresh=bound_runtime(config,host,lambda selected:ProviderRole(selected)).start();provider=fresh
             wait_for(lambda:provider.connection.connected)
             actual=LocalClient(provider.config.home).call('provider.tasks.get',{'profile':'service','taskRef':snapshot['taskRef']})
             assert actual['data']['items'][0]['canResume'],actual
@@ -93,6 +93,7 @@ def test_public_resume_preserves_a2c_task_fee_session_and_completes_payment(plat
             accepted=resume(provider,snapshot);assert accepted['status']=='accepted',accepted
             quote=recovered_quote(assistant,quote_ref)
             assert quote['interactionId']==original_interaction and len(uploads)<=2 and len(host.turns)==2
+            assert host.turns[0].operation_id==snapshot['taskRef'] and host.turns[1].operation_id!=snapshot['taskRef']
             current=LocalClient(provider.config.home).call('provider.tasks.get',{'profile':'service','taskRef':snapshot['taskRef']})['data']['items'][0]
             assert current['status']=='completed' and current['sessionId']==original_session
             endpoint=next(iter(provider.modules[0].execution.contexts.values()))
@@ -157,7 +158,7 @@ def test_exception_without_a_completed_host_round_never_gets_a_resume_permit(pla
     host=ResumeHost();execute=host.execute
     def lost_result(turn):
         execute(turn);raise RuntimeError('original host outcome unknown')
-    host.run=lost_result
+    host.execute=lost_result
     with stopped(platform,tmp_path,monkeypatch,host=host) as (provider,assistant,host,_,_,reference,snapshot,_):
         assert not snapshot['canResume'] and snapshot['resumeReason']=='original_model_result_unknown'
         assert resume(provider,snapshot)['status']=='unknown'
@@ -225,3 +226,41 @@ def test_original_jiuwen_resumes_the_original_quote_after_an_unknown_upload(plat
             from pathlib import Path
             from ioalab_sdk.runtime.files import private_json
             private_json(Path(os.environ['IOALAB_REAL_TASK_RECOVERY_REPORT']),evidence)
+
+
+def test_missing_quote_after_known_terminal_can_resume_same_task(platform,tmp_path):
+    class MissingQuoteHost(ResumeHost):
+        def execute(self,turn):
+            data=json.loads(turn.input)
+            if data['phase']!='quote':return super().execute(turn)
+            self.turns.append(turn)
+            session=turn.session_id or 'original-quote-session';turn.on_session(session)
+            paths=data['requiredAction']['fieldPaths']
+            assert ['acceptance','result','verifiers'] in paths
+            if len(self.turns)==1:
+                uploaded=turn.on_tool('provider.task.verifier.publish',self.package,'upload')
+                assert uploaded['status']=='completed'
+                malformed={'acceptance':{'result':{'result':{'verifiers':{'script':uploaded['data']},'notCovered':[]}}},
+                           'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}}
+                with pytest.raises(RuntimeFault) as denied:
+                    turn.on_tool('provider.task.quote',malformed,'bad-quote')
+                assert denied.value.code=='invalid_input'
+            else:
+                ref=data['preparedVerifiers'][0]['reference']
+                assert turn.on_tool('provider.task.quote',{'acceptance':{'result':{'verifiers':{'script':ref},'notCovered':[]}},
+                    'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}},'correct-quote')['status']=='recorded'
+            return FixtureResult('completed',session,{})
+    host=MissingQuoteHost()
+    with participants(platform,tmp_path,agent_host=host,business={'resources':{}},preload_verifier=False) as (provider,assistant,_,template,task):
+        started,_=request(assistant,provider,template,task);ref=started['data']['quoteRef']
+        wait_for(lambda:terminal(assistant,ref))
+        assert terminal(assistant,ref)['status']=='unknown'
+        client=LocalClient(provider.config.home)
+        snapshot=client.call('provider.tasks.get',{'profile':'service'})['data']['items'][0]
+        assert snapshot['canResume'] and snapshot['resumeReason']=='quote_round_finished_without_decision', (snapshot, getattr(host,'failure',None))
+        assert resume(provider,snapshot)['status']=='accepted'
+        quote=recovered_quote(assistant,ref)
+        assert quote['interactionId']==snapshot['interactionId']
+        current=client.call('provider.tasks.get',{'profile':'service','taskRef':snapshot['taskRef']})['data']['items'][0]
+        assert current['status']=='completed' and current['sessionId']==snapshot['sessionId']
+        assert len(host.turns)==2

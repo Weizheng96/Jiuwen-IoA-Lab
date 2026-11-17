@@ -6,7 +6,7 @@ const transport = (()=>{
       headers:body?{'Content-Type':'application/json','X-Ioa-Csrf':csrf||''}:{},
       body:body?JSON.stringify(body):undefined});
     const value=await response.json();
-    if(!response.ok)throw new Error(value.error?.message||'请求未完成，请检查原状态。');
+    if(!response.ok)throw Object.assign(new Error(value.error?.message||'请求未完成，请检查原状态。'),{code:value.error?.code});
     return value;
   }
   return {

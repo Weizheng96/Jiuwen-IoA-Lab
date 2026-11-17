@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 ROOT=Path(__file__).resolve().parents[1]/'src/platform/ioalab/web/static'
-PATTERN=re.compile(r'(/static/([A-Za-z0-9_-]+\.(?:css|js)))(?:\?sha256=[a-f0-9]{16})?(?=["\'])')
+PATTERN=re.compile(r'(/static/([A-Za-z0-9_-]+\.(?:css|js|svg)))(?:\?sha256=[a-f0-9]{16})?(?=["\'])')
 
 
 def main():

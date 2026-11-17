@@ -10,7 +10,7 @@ HOST_FIELDS={'command','data_dir','model','skill_directories'}
 
 def validate_host(config,*,base_dir):
     if config.host:
-        value=dict(config.host);value.pop('business_tools',None)
+        value=dict(config.host);value.pop('business_tools',None);value.pop('type',None)
         host=ProcessHost.from_config(value,base_dir=base_dir)
         home=config.home.resolve()
         if host.data_dir.is_relative_to(home) or home.is_relative_to(host.data_dir):

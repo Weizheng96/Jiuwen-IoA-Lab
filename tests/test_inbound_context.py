@@ -3,7 +3,8 @@ import json
 import uuid
 
 import pytest
-from ioalab_sdk.runtime.host import HostResult, ToolBinding
+from ioalab_sdk.runtime.host import ToolBinding
+from submission_fixture import FixtureResult,ScriptedSubmission
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from test_assistant_role import runtime_at, user_decision, send_and_read, INPUT, OUTPUT
 
@@ -31,10 +32,9 @@ def test_workflow_and_tool_schema_are_in_host_context_and_frozen_for_old_interac
         return tool
     tools = [ToolBinding(name, '接收者配置的处理工具：' + name, INPUT, execute(name), 'reservation') for name in flows]
     tools.append(ToolBinding('unselected_action', '未获本规则授权的工具', INPUT, lambda *args: forbidden.append(args), 'external'))
-    class InspectHost:
-        def capabilities(self): return {'available': True, 'explicitModelDouble': True}
+    class InspectHost(ScriptedSubmission):
         def cancel(self, operation): return True
-        def run(self, turn):
+        def execute(self, turn):
             turns.append(turn)
             bindings = {tool.name: tool for tool in turn.definition.tools}
             selected = next(name for name in flows if name in bindings)
@@ -47,11 +47,12 @@ def test_workflow_and_tool_schema_are_in_host_context_and_frozen_for_old_interac
             assert incoming['senderAgent'] and incoming['messageId'] and set(incoming['input']) == {'slot'}
             sid = turn.session_id or 'explicit-context-session-' + uuid.uuid4().hex
             turn.on_session(sid)
-            with pytest.raises(RuntimeFault, match='outside this incoming rule'):
+            with pytest.raises(RuntimeFault) as forbidden_call:
                 turn.on_tool('unselected_action', incoming['input'], 'not-authorized')
+            assert forbidden_call.value.code=='forbidden'
             result = turn.on_tool(selected, incoming['input'], 'original-call')
             turn.on_tool('ioa_reply', {'output': result}, 'original-reply')
-            return HostResult('completed', sid, {'explicitModelDouble': True})
+            return FixtureResult('completed', sid, {'explicitModelDouble': True})
     with runtime_at(platform, tmp_path / 'sender') as (sender, client, _, user):
         with runtime_at(platform, tmp_path / 'receiver', InspectHost(), tools) as (receiver, inbox, module, target):
             publish(receiver, inbox, user['username'], 'reserve_original', flows['reserve_original'], 0)

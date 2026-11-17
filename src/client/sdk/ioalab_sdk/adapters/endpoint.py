@@ -12,6 +12,9 @@ from a2c.common import Reply,Task
 from a2c.errors import A2CError
 from ..runtime.files_api import PrivateFiles
 from ..runtime.protocol import RuntimeFault,stamp
+from ..runtime import NativeSubmissionPending
+from ..runtime import MaterialObservationPending,MaterialObservationBlocked
+from contextlib import nullcontext
 from .transport import stable
 
 
@@ -23,10 +26,11 @@ def task_data(task,*,local=False):
 
 
 class EndpointSession:
-    def __init__(self,runtime,identity,interaction,provider,*,on_permit=None):
+    def __init__(self,runtime,identity,interaction,provider,*,on_permit=None,material_review=None):
         self.runtime,self.identity,self.interaction,self.provider=runtime,identity,interaction,provider
         self.store=provider.store;self.files=PrivateFiles(runtime.account,identity.agent_id)
         self.on_permit=on_permit
+        self.material_review=material_review
         self.lock=threading.RLock()
         self.deferred={}
         for identifier,value in self.store.all('tasks').items():
@@ -69,22 +73,69 @@ class EndpointSession:
             return self.publish(message,packed)
         finally:self.save_tasks()
 
-    def finish(self,message,*,resume_request=False):
+    def material_owner(self,message):
+        if self.material_review is None:return None
+        from ..runtime.scheduling import CURRENT_JOB
+        from a2c.card import request_digest
+        current=CURRENT_JOB.get()
+        if not current or current[0] is not self.runtime.scheduler:
+            raise RuntimeFault('forbidden','Material review requires its original SDK job')
+        subject=message['body']['body'].get('request') or message['body']['body'].get('card')
+        checksum=request_digest(subject) if message['body']['op']=='request.submit' else card_digest(subject)
+        return self.material_review.owner(message,self.runtime.scheduler.get(current[1]),stable('task',message['messageId']),checksum)
+
+    def finish(self,message,*,resume_operation=None):
         with self.lock:
             mid=message['messageId'];record=self.store.get('calls',mid)
             if record and record.get('reply') is not None:return self.publish(message,record['reply'])
             reply=self.deferred.pop(mid,None)
-            if resume_request:
-                if message['body']['op']!='request.submit':raise RuntimeFault('forbidden','Only the verified original quote can continue')
-                reply=self.provider.resume_request(stable('task',mid))
+            material_owner=self.material_owner(message)
+            if resume_operation=='material-review':
+                if self.material_review is None:raise RuntimeFault('not_ready','Restore the original material recovery owner')
+                reply=self.provider.resume_material_review(stable('task',mid),guard=self.material_review.guard(material_owner))
+            elif resume_operation is not None:
+                if resume_operation!=message['body']['op'] or resume_operation not in ('request.submit','card.countersign'):
+                    raise RuntimeFault('forbidden','Only the verified original protocol task can continue')
+                reply=(self.provider.resume_request if resume_operation=='request.submit' else self.provider.resume_countersign)(stable('task',mid))
             if reply is None:raise RuntimeFault('unknown_result','The original deferred endpoint needs reconciliation')
             self.runtime.require_execution()
             try:
-                try:reply=self.provider.finish(reply)
+                try:
+                    with self.material_review.scope(material_owner) if self.material_review is not None else nullcontext():
+                        reply=self.provider.finish(reply)
                 except A2CError as exc:reply=Reply(exc.to_payload(message['body']['op']),task_id=reply.task_id,state='failed')
                 self.save_tasks();packed=self.pack(reply)
                 self.store.put('calls',mid,{'fingerprint':digest(message['body']),'state':'finished','reply':packed})
                 return self.publish(message,packed)
+            except MaterialObservationPending as pending:
+                task=self.provider.tasks.get(reply.task_id) if reply.task_id else None
+                reference=pending.reference
+                if (pending.issuer is not self.runtime.host_registry or reference.get('owner')!=material_owner
+                    or not task or task.state!='working' or reference.get('child',{}).get('actor')!=self.identity.agent_id):
+                    raise RuntimeFault('unknown_result','Restore the original material observation proof') from None
+                self.material_review.eligible(material_owner)
+                if not self.material_review.retry(reference):
+                    raise RuntimeFault('unknown_result','Original material child is not proven undispatched') from None
+                self.deferred[mid]=reply
+                self.store.put('calls',mid,{'fingerprint':digest(message['body']),'state':'pending_material',
+                    'materialObservation':reference,'taskId':reply.task_id})
+                raise
+            except MaterialObservationBlocked as blocked:
+                self.store.put('calls',mid,{'fingerprint':digest(message['body']),'state':'unknown_material',
+                    'materialOwner':material_owner,'materialReason':blocked.reason,'taskId':reply.task_id})
+                raise
+            except NativeSubmissionPending as pending:
+                from ..runtime.scheduling import CURRENT_JOB
+                current=CURRENT_JOB.get();registry=getattr(self.runtime,'host_registry',None)
+                task=self.provider.tasks.get(reply.task_id) if reply.task_id else None
+                if (not current or current[0] is not self.runtime.scheduler or pending.issuer is not registry
+                    or pending.reference['actor']!=self.identity.agent_id or pending.reference['interaction']!=self.interaction
+                    or not registry.pending_retry(pending.reference,current[1]) or not task or task.state!='working'):
+                    raise RuntimeFault('unknown_result','Restore the original pending protocol scope; do not re-enter signing') from None
+                self.deferred[mid]=reply
+                self.store.put('calls',mid,{'fingerprint':digest(message['body']),'state':'pending_native',
+                    'nativeSubmission':pending.reference,'taskId':reply.task_id})
+                raise
             except Exception:
                 task=self.provider.tasks.get(reply.task_id) if reply.task_id else None
                 if task and task.state in ('working','auth-required'):

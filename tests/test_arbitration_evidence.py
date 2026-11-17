@@ -9,7 +9,7 @@ import pytest
 from a2c import objects
 from a2c.codec import utcnow
 from ioalab_sdk.adapters.transport import SessionTransport
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.provider.production import Production
@@ -90,14 +90,14 @@ def test_paid_fee_without_submitted_request_does_not_prove_provider_timeout(plat
 
 
 class TwoStepHost(QuoteHost):
-    def run(self,turn):
+    def execute(self,turn):
         data=json.loads(turn.input)
-        if data['phase']!='production':return super().run(turn)
+        if data['phase']!='production':return super().execute(turn)
         self.turns.append(turn);turn.on_session(turn.session_id)
         step=('first','second')[len(data['steps'])]
         result=turn.on_tool('provider.task.request_step',{'step':step},'original-'+step)
         assert result['status']=='waiting',result
-        return HostResult('completed',turn.session_id,{'testDouble':True})
+        return FixtureResult('completed',turn.session_id,{'testDouble':True})
 
 
 def test_every_original_step_and_answer_contributes_to_deadline(platform,tmp_path,monkeypatch):
@@ -141,13 +141,13 @@ def test_every_original_step_and_answer_contributes_to_deadline(platform,tmp_pat
 
 
 class DeliverHost(QuoteHost):
-    def run(self,turn):
+    def execute(self,turn):
         data=json.loads(turn.input)
-        if data['phase']!='production':return super().run(turn)
+        if data['phase']!='production':return super().execute(turn)
         self.turns.append(turn);turn.on_session(turn.session_id)
         value=turn.on_tool('provider.task.deliver',{'files':{'result.txt':{'text':'actual delivered bytes','mediaType':'text/plain'}}},'actual-delivery')
         assert value['status']=='delivered',value
-        return HostResult('completed',turn.session_id,{'testDouble':True})
+        return FixtureResult('completed',turn.session_id,{'testDouble':True})
 
 
 def delivered(a,ref):
@@ -162,12 +162,12 @@ def delivered(a,ref):
 
 
 class SameIdVerifierHost(DeliverHost):
-    def run(self,turn):
-        if json.loads(turn.input)['phase']!='quote':return super().run(turn)
+    def execute(self,turn):
+        if json.loads(turn.input)['phase']!='quote':return super().execute(turn)
         self.turns.append(turn);turn.on_session(turn.session_id or 'dual-verifier-session')
         turn.on_tool('provider.task.quote',{'acceptance':{'result':{'verifiers':{'script':self.verifier,'skill':self.skill},'notCovered':[]}},
             'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}},'dual-verifier-quote')
-        return HostResult('completed',turn.session_id,{'testDouble':True})
+        return FixtureResult('completed',turn.session_id,{'testDouble':True})
 
 
 @pytest.mark.parametrize('dual',[False,True])

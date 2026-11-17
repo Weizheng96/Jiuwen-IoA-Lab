@@ -6,10 +6,11 @@ from types import SimpleNamespace
 
 from ioalab_sdk.runtime.files import private_json
 from test_access_products import bootstrap
+from _client_installation import installed_client_python
 
 
-def test_both_roles_share_external_default_after_skill_replacement_and_explicit_override(tmp_path,monkeypatch,capsys):
-    profile=tmp_path/'profile';shared=profile/'.ioalab/settings.local.json';home=tmp_path/'durable-state'
+def test_both_roles_share_external_default_after_skill_replacement_and_explicit_override(tmp_path,monkeypatch,capsys,installed_client_python):
+    profile=tmp_path/'profile';shared=profile/'.ioalab/client/settings.local.json';home=tmp_path/'durable-state'
     value={'platform_url':'http://127.0.0.1:8000','username':'owner-account','password':'PRIVATE-CONFIG-VALUE',
            'data_dir':str(home),'identities':[{'key':'personal','role':'assistant','name':'Owner'},
                                             {'key':'service','role':'service','name':'Service'}]}
@@ -17,6 +18,7 @@ def test_both_roles_share_external_default_after_skill_replacement_and_explicit_
     class UserPaths(type(Path())):
         @classmethod
         def home(cls):return cls(profile)
+    monkeypatch.setattr('ioalab_client.layout.Path',UserPaths)
     def product(role):
         module=bootstrap();root=tmp_path/('skill-'+role);root.mkdir()
         # A stale file in the replaceable package is not an alternative configuration source.
@@ -24,7 +26,7 @@ def test_both_roles_share_external_default_after_skill_replacement_and_explicit_
         module.__file__=str(root/'scripts/ioalab.py')
         monkeypatch.setattr(module,'Path',UserPaths)
         monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda *a,**k:
-            {'status':'completed','data':{'python':sys.executable},'error':None}))
+            {'status':'completed','data':{'python':str(installed_client_python)},'error':None}))
         return module,root
     def validate(module,role,args=()):
         assert module.main(['--role',role,'runtime.validate',*args])==0

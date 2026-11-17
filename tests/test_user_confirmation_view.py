@@ -11,7 +11,7 @@ import pytest
 
 
 @pytest.mark.skipif(not shutil.which('node'), reason='Node is required for owner-page JavaScript checks')
-@pytest.mark.parametrize('scenario', ['drafts', 'success', 'failure', 'unknown', 'binding', 'closed'])
+@pytest.mark.parametrize('scenario', ['drafts', 'success', 'failure', 'unknown', 'binding', 'closed', 'deadlines', 'pages', 'pages_unknown'])
 def test_owner_confirmation_view(scenario):
     root = Path(__file__).resolve().parents[1]
     result = subprocess.run(

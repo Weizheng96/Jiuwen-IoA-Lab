@@ -15,6 +15,7 @@ TICKET = re.compile(r"^\d\d-.*\.md$")
 
 # Module name -> code paths (files or directories). The longest matching prefix owns a file.
 MODULES = {
+    "A2C协议": ["src/a2c/a2c"],
     "身份中心": ["src/platform/ioalab/identity"],
     "注册中心": ["src/platform/ioalab/registry"],
     "委托中心": ["src/platform/ioalab/delegation"],
@@ -47,9 +48,11 @@ MODULES = {
 OUTSIDE = {"示例": ["src/client/examples"], "开发工具": ["tools"], "测试": ["tests"]}
 # Import roots for absolute imports.
 PACKAGES = {
+    "a2c": "src/a2c/a2c",
     "ioalab_client": "src/client/ioalab_client",
     "ioalab": "src/platform/ioalab", "ioalab_sdk": "src/client/sdk/ioalab_sdk",
     "ioalab_codex": "src/client/hosts/codex/ioalab_codex",
+    "ioalab_claude_code": "src/client/hosts/claude_code/ioalab_claude_code",
     "ioalab_jiuwen": "src/client/hosts/jiuwen/ioalab_jiuwen", "ioalab_services": "src/official/services/ioalab_services",
     "ioalab_admin_assistant": "src/official/admin-assistant/ioalab_admin_assistant",
     "ioalab_tools": "src/official/tools/ioalab_tools", "ioalab_trial": "src/trial/ioalab_trial",
@@ -73,6 +76,7 @@ CONVERGED = {
     "个人助手端": PACKAGE,
     "服务方端": PACKAGE,
     "Codex适配": PACKAGE,
+    "ClaudeCode适配": PACKAGE,
     "宿主适配": PACKAGE,
     "SDK装配": FILES,
     "MCP接入": PACKAGE,

@@ -2,12 +2,14 @@
 import json
 import hashlib
 import uuid
+from dataclasses import asdict
 
 from a2c.codec import digest
 from a2c.slots import verify_card
 
 from ..runtime import validate_output
 from ..runtime import RuntimeFault
+from ..adapters import stable
 from .policy import definition_digest
 
 
@@ -19,10 +21,42 @@ class ProductionRecovery:
     def namespace(identity):
         return 'provider-production-recovery:' + identity.agent_id
 
-    def begin(self, identity, job, relation, definition):
+    def native_operation(self,identity,job,relation):
+        continuation=job.get('continuation')
+        if not continuation:return job['id']
+        if set(continuation)=={'nativeSubmission'}:
+            pending=continuation['nativeSubmission']
+            if not self.execution.host.pending_retry(pending,job['id']):
+                raise RuntimeFault('identity_conflict','Restore the original undispatched production operation')
+            return pending['operation']
+        previous=self.runtime.store.checkpoint(self.namespace(identity),'round:'+job['id'])
+        if not previous or not self.execution.host.original_execution_ended(identity.agent_id,relation['id'],previous.get('operationId',job['id']),job['id']):
+            raise RuntimeFault('unknown_result','The original production execution has not ended and drained')
+        if set(continuation)=={'stepAnswer'}:
+            endpoint=self.execution.context(identity,relation,job)
+            card=endpoint.store.get('cards',job['payload']['cardDigest'])
+            steps=card.get('steps',[]) if card else []
+            answer=continuation['stepAnswer']
+            if not steps or steps[-1].get('answer')!=answer or not isinstance(answer,dict) or answer.get('granted') is not True:
+                raise RuntimeFault('identity_conflict','Restore the original user-approved production step')
+            self.candidate(identity,job,starting=True)
+            return stable('native-production-step',job['id'],digest({'answer':answer}))
+        if continuation.get('kind')=='provider.production' and continuation.get('previewDigest'):
+            # require_continuation has revalidated the original preview/effects
+            # against the real contract before this operation is selected.
+            return stable('native-production-resume',job['id'],continuation['previewDigest'])
+        raise RuntimeFault('identity_conflict','Production has no original continuation authorization')
+
+    def begin(self, identity, job, relation, definition, *, native_operation):
         namespace = self.namespace(identity)
+        previous=self.runtime.store.checkpoint(namespace,'round:'+job['id'])
+        if previous and previous.get('operationId',job['id'])==native_operation:
+            return previous
+        if set(job.get('continuation') or {})=={'nativeSubmission'}:
+            raise RuntimeFault('identity_conflict','Restore the original undispatched production round')
         self.runtime.store.checkpoint_delete(namespace, 'proof:' + job['id'])
         record = {'roundId': str(uuid.uuid4()), 'taskRef': job['id'], 'actor': identity.agent_id,
+                  'operationId':native_operation,
                   'interactionId': relation['id'], 'sessionId': relation['session'],
                   'definitionDigest': definition, 'contractRef': job['payload']['cardDigest'],
                   'period': job['payload']['period'], 'state': 'started'}
@@ -34,14 +68,22 @@ class ProductionRecovery:
         current = self.runtime.store.checkpoint(namespace, 'round:' + job['id'])
         if current != record:
             raise RuntimeFault('identity_conflict', 'Original production round changed')
+        if (result.operation_id!=record.get('operationId',job['id']) or result.terminal and
+            (result.terminal.operation_id,result.terminal.attempt_id,result.terminal.session_id,result.terminal.request_id)
+            !=(result.operation_id,result.attempt_id,result.session_id,result.request_id)):
+            raise RuntimeFault('identity_conflict','Machine evidence belongs to a different production round')
         relation=self.runtime.store.interaction(interaction_id=job['interaction'])
         endpoint=self.execution.context(identity,relation,job)
         calls={key:value for key,value in endpoint.store.all('production_calls').items()
                if value.get('cardDigest')==record['contractRef'] and value.get('context',{}).get('period')==record['period']}
-        ended = {**record, 'state': result.status, 'requestId': result.request_id,
-                 'hostError': result.error, 'effectsDigest': digest(calls)}
+        ended = {**record, 'state': result.state, 'requestId': result.request_id,
+                 'hostError': asdict(result.error) if result.error else None, 'effectsDigest': digest(calls),
+                 'machineTerminal':asdict(result.terminal) if result.terminal else None}
         self.runtime.store.checkpoint_set(namespace, 'round:' + job['id'], ended)
-        if result.status in ('completed', 'failed') and result.session_id == record['sessionId'] and result.request_id:
+        # A completed round whose whole submission still erred (for example its
+        # output was not collected) is not runtime proof: owner review only.
+        collected = not (result.state == 'completed' and result.error is not None)
+        if collected and result.terminal and result.state in ('completed', 'failed','cancelled') and result.session_id == record['sessionId'] and result.request_id:
             self.runtime.store.checkpoint_set(namespace, 'proof:' + job['id'],
                 {**ended, 'source': 'runtime_host_result'})
 
@@ -141,7 +183,7 @@ class ProductionRecovery:
             definition_hash = definition_digest(definition)
             if relation['details'].get('definitionDigest') != definition_hash:
                 raise RuntimeFault('identity_conflict', 'Restore the original production agent definition')
-            business = self.execution.business_tools(identity.profile, endpoint.provider.policy.config.get('businessTools', []))
+            business = self.execution.business_tools(identity.profile, endpoint.provider.policy.config.get('businessTools', []),interaction=relation['id'],actor=identity.agent_id)
             effects = []
             original_calls = {}
             for key, call in sorted(endpoint.store.all('production_calls').items()):
@@ -182,6 +224,8 @@ class ProductionRecovery:
         namespace = self.namespace(identity)
         round_record = self.runtime.store.checkpoint(namespace, 'round:' + job['id'])
         proof = self.runtime.store.checkpoint(namespace, 'proof:' + job['id'])
+        if not self.execution.host.original_execution_ended(identity.agent_id,relation['id'],(round_record or {}).get('operationId',job['id']),job['id']):
+            raise RuntimeFault('unknown_result','The original native machine and callbacks need reconciliation')
         binding = {'taskRef': job['id'], 'actor': identity.agent_id, 'interactionId': relation['id'],
                    'sessionId': relation['session'], 'definitionDigest': definition_hash,
                    'contractRef': cd, 'period': period}
@@ -229,6 +273,12 @@ class ProductionRecovery:
     def require_continuation(self, identity, job):
         continuation = job.get('continuation')
         if not continuation:
+            return
+        if set(continuation)=={'nativeSubmission'}:
+            pending=continuation['nativeSubmission']
+            if (pending.get('actor')!=identity.agent_id or pending.get('interaction')!=job['interaction']
+                or not self.execution.host.pending_retry(pending,job['id'])):
+                raise RuntimeFault('identity_conflict','Restore the original undispatched production scope')
             return
         if set(continuation)=={'stepAnswer'}:
             return

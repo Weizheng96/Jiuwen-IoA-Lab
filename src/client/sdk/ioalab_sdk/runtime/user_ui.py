@@ -8,17 +8,24 @@ import secrets
 import subprocess
 import threading
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit,parse_qs
 import uuid
 import webbrowser
 
-from .protocol import RuntimeFault
+from .protocol import RuntimeFault, instant
 from .confirmation_view import present
 
 
 class UserUi:
-    def snapshot(self):
-        return {'confirmations':[present(item) for item in self.confirmations.list()]}
+    page_name='user.html'
+
+    def snapshot(self,*,view='pending',cursor=None,reference=None):
+        if reference is not None:
+            if not isinstance(reference,str) or not 1<=len(reference)<=256:
+                raise RuntimeFault('invalid_input','Original confirmation reference required')
+            return {'confirmation':present(self.confirmations.get(reference,detail=True))}
+        result=self.confirmations.page(view=view,cursor=cursor)
+        return {**result,'confirmations':[present(item) for item in result['confirmations']]}
 
     def decision(self,body,session):
         if set(body)-{'reference','bindingDigest','decision','answers'}:raise RuntimeFault('invalid_input','Unknown user decision fields')
@@ -31,8 +38,120 @@ class UserUi:
         self.onboarding=onboarding
         self.open_setup=open_setup
         self._authority=confirmations.user_channel() if confirmations else None
-        self._entries={};self._sessions={};self._lock=threading.RLock()
+        self._confirmation_apps={};self._app_sessions={};self._entries={};self._sessions={};self._lock=threading.RLock()
         self.origin=None
+
+    def confirmation_app_entry(self, reference=None):
+        """Mint a single-original-confirmation capability for a trusted App renderer."""
+        if not self.forms or not self.confirmations or not self.origin:
+            raise RuntimeFault('not_ready', 'Confirmation presentation is unavailable')
+        result = {'origin': self.origin}
+        if reference is None:
+            return result
+        form = self.forms.get(reference)
+        ref = ((form.get('result') or {}).get('data') or {}).get('confirmationRef')
+        if not form['kind'].startswith('delegation.') or not ref:
+            return result
+        item = self.confirmations.get(ref, detail=True)
+        if (not item['stage'].startswith('delegation.')
+                or item['kind'] == 'question' and item['stage'] != 'delegation.answer_step'):
+            return result
+        result.update(formReference=reference, revision=form['revision'], reference=ref,
+                      bindingDigest=item['bindingDigest'], status=item['status'], expiresAt=item['expiresAt'])
+        if item['status'] != 'pending' or form['phase'] != 'waiting':
+            return result
+        token = secrets.token_urlsafe(32)
+        with self._lock:
+            self._confirmation_apps = {key: value for key, value in self._confirmation_apps.items() if value['expires'] > self.clock()}
+            self._confirmation_apps[hashlib.sha256(token.encode()).hexdigest()] = {
+                'id': str(uuid.uuid4()), 'form': reference, 'revision': form['revision'],
+                'reference': ref, 'bindingDigest': item['bindingDigest'],
+                # Presentation access may outlive the business deadline to read its
+                # expired state. Confirmations still checks that deadline on every decision.
+                'expires': self.clock() + 900}
+        return {**result, 'token': token, 'formReference': reference, 'revision': form['revision'],
+                'reference': ref, 'bindingDigest': item['bindingDigest']}
+
+    def _confirmation_app(self, request, path):
+        headers = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                   'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Private-Network': 'true'}
+        try:
+            if path not in ('/user/confirmation-app/status', '/user/confirmation-app/decision'):
+                raise RuntimeFault('forbidden', 'Unknown confirmation App operation')
+            if request.command == 'OPTIONS':
+                request.reply(200, {}, headers=headers)
+                return True
+            auth = request.headers.get('Authorization', '')
+            with self._lock:
+                scope = self._confirmation_apps.get(hashlib.sha256(auth.removeprefix('Bearer ').encode()).hexdigest())
+            if not auth.startswith('Bearer ') or not scope or scope['expires'] <= self.clock():
+                raise RuntimeFault('forbidden', '内嵌连接已失效，请重新连接原确认。此提示不代表业务确认已过期。',
+                                   'refresh_confirmation_entry')
+            item = self.confirmations.get(scope['reference'], detail=True)
+            if item['bindingDigest'] != scope['bindingDigest']:
+                raise RuntimeFault('forbidden', 'Original confirmation changed')
+            if request.command == 'GET' and path.endswith('/status'):
+                value = present(item)
+            elif request.command == 'POST' and path.endswith('/decision'):
+                body = self._body(request)
+                expected = {'reference', 'bindingDigest', 'decision'} | ({'answers'} if item['kind'] == 'question' else set())
+                if (set(body) != expected
+                        or body.get('reference') != scope['reference'] or body.get('bindingDigest') != scope['bindingDigest']):
+                    raise RuntimeFault('forbidden', 'Decision must match this displayed original confirmation')
+                if item['status'] == 'pending':
+                    form = self.forms.get(scope['form'])
+                    ref = ((form.get('result') or {}).get('data') or {}).get('confirmationRef')
+                    if form['phase'] != 'waiting' or form['revision'] != scope['revision'] or ref != scope['reference']:
+                        raise RuntimeFault('forbidden', '原表单确认已变化，请刷新核对，不可复用旧确认卡片。')
+                value = self.decision(body, scope)
+            else:
+                raise RuntimeFault('forbidden', 'Unknown confirmation App operation')
+            request.reply(200, value, headers=headers)
+        except RuntimeFault as exc:
+            request.reply(403 if exc.code == 'forbidden' else 409,
+                          {'error': {'code': exc.code, 'message': str(exc), 'recovery': exc.recovery}}, headers=headers)
+        return True
+
+    def account_app_entry(self):
+        """Account-only capability, delivered exclusively to the App, never model content."""
+        if not self.onboarding or not self.origin:
+            raise RuntimeFault('not_ready', 'Account page is not listening')
+        token = secrets.token_urlsafe(32)
+        with self._lock:
+            self._app_sessions = {key: value for key, value in self._app_sessions.items() if value > self.clock()}
+            self._app_sessions[hashlib.sha256(token.encode()).hexdigest()] = self.clock() + 900
+        return {'origin': self.origin, 'token': token}
+
+    def _account_app(self, request, path):
+        # Cross-origin access is limited to this capability-authenticated account surface.
+        # No cookies, general IPC, device management or business approval are accepted.
+        headers = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                   'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Private-Network': 'true'}
+        try:
+            if not self.onboarding or path not in ('/user/app/api', '/user/app/setup', '/user/app/credentials'):
+                raise RuntimeFault('forbidden', 'Unknown account App operation')
+            if request.command == 'OPTIONS':
+                request.reply(200, {}, headers=headers)
+                return True
+            auth = request.headers.get('Authorization', '')
+            digest = hashlib.sha256(auth.removeprefix('Bearer ').encode()).hexdigest()
+            with self._lock:
+                expires = self._app_sessions.get(digest, 0)
+            if not auth.startswith('Bearer ') or expires <= self.clock():
+                raise RuntimeFault('forbidden', '账号界面已过期，请在聊天中重新打开接入界面。')
+            if request.command == 'GET' and path == '/user/app/api':
+                value = self.onboarding.status()
+            elif request.command == 'POST' and path != '/user/app/api':
+                body = self._body(request)
+                operation = self.onboarding.submit if path.endswith('/setup') else self.onboarding.credentials
+                value = operation(body)
+            else:
+                raise RuntimeFault('forbidden', 'Unknown account App operation')
+            request.reply(200, value, headers=headers)
+        except RuntimeFault as exc:
+            request.reply(403 if exc.code == 'forbidden' else 400,
+                          {'error': {'code': exc.code, 'message': str(exc), 'recovery': exc.recovery}}, headers=headers)
+        return True
 
     def entry_url(self,form_reference=None):
         if not self.origin:raise RuntimeFault('not_ready','Local user page is not listening')
@@ -95,8 +214,12 @@ class UserUi:
         if not path.path.startswith('/user'):return False
         try:
             origin=self.origin
-            if request.headers.get('Host')!=urlsplit(origin).netloc or path.query:
+            if request.headers.get('Host')!=urlsplit(origin).netloc or (path.query and not (request.command=='GET' and path.path=='/user/api')):
                 raise RuntimeFault('forbidden','User page Host must match the local listener')
+            if path.path.startswith('/user/confirmation-app/'):
+                return self._confirmation_app(request, path.path)
+            if path.path.startswith('/user/app/'):
+                return self._account_app(request, path.path)
             supplied=request.headers.get('Origin')
             if supplied is not None and supplied!=origin:raise RuntimeFault('forbidden','User actions must come from the local page')
             form_page_request=path.path.startswith('/user/forms/') and path.path!='/user/forms/api'
@@ -152,13 +275,19 @@ class UserUi:
                 body=self._body(request)
                 action=body.pop('action',None)
                 shapes={'list':set(),'get':{'reference'},'update':{'reference','revision','values'},
-                        'preview':{'reference','revision'},'submit':{'reference','revision'}}
+                        'recover':{'reference','revision'},'preview':{'reference','revision'},'submit':{'reference','revision'}}
                 if not isinstance(action,str) or action not in shapes or set(body)!=shapes[action]:
                     raise RuntimeFault('invalid_input','Use a documented form action')
                 request.reply(200,getattr(self.forms,action)(**body))
                 return True
             if request.command=='GET' and path.path=='/user/api':
-                request.reply(200,{'csrf':session['csrf'],**self.snapshot()})
+                try:
+                    query=parse_qs(path.query,strict_parsing=True,max_num_fields=3,keep_blank_values=True)
+                    if (set(query)-{'view','cursor','reference'} or any(len(v)!=1 or not v[0] for v in query.values())
+                        or ('reference' in query and len(query)!=1)):raise ValueError()
+                except ValueError:
+                    raise RuntimeFault('invalid_input','Invalid confirmation page query') from None
+                request.reply(200,{'csrf':session['csrf'],**self.snapshot(**{key:value[0] for key,value in query.items()})})
                 return True
             if request.command=='POST' and path.path=='/user/decision':
                 if supplied!=origin or not hmac.compare_digest(request.headers.get('X-Ioa-Csrf','').encode(),session['csrf'].encode()):

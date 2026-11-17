@@ -1,8 +1,17 @@
 """Complete role workflows through the public form API and original platform protocols."""
+import pytest
 from conftest import wait_for
 from ioalab_sdk.runtime import ClientOperations
 from test_assistant_role import runtime_at, user_decision
 from test_interaction_forms import rule_values
+
+
+@pytest.fixture
+def platform(tmp_path_factory):
+    # Public discovery is intentionally bounded. Other cases' same-named services
+    # must not displace this case's provider from the real search result.
+    from conftest import platform as shared_platform
+    yield from shared_platform.__wrapped__(tmp_path_factory)
 
 
 def step(api, form, values=None):
@@ -20,18 +29,18 @@ def step(api, form, values=None):
 
 def test_private_workflow_discovers_schema_sends_and_recovers_same_message(platform, tmp_path):
     import json
-    from ioalab_sdk.runtime import HostResult
-    class EchoHost:
+    from submission_fixture import FixtureResult, ScriptedSubmission
+    class EchoHost(ScriptedSubmission):
         def __init__(self): self.turns = []
         def capabilities(self): return {'available': True, 'testDouble': True}
         def cancel(self, operation): return True
-        def run(self, turn):
+        def execute(self, turn):
             self.turns.append(turn)
             session = turn.session_id or 'isolated-private-conversation'
             turn.on_session(session)
             incoming = json.loads(turn.input.split('\n', 1)[1])['input']
             turn.on_tool('ioa_reply', {'output': {'reply': incoming['text']}}, 'reply')
-            return HostResult('completed', session, {'testDouble': True})
+            return FixtureResult('completed', session, {'testDouble': True})
     host = EchoHost()
     with runtime_at(platform, tmp_path / 'recipient', host) as (recipient, _, _, user):
         recipient_api = ClientOperations(recipient.config.source)
@@ -41,7 +50,8 @@ def test_private_workflow_discovers_schema_sends_and_recovers_same_message(platf
         user_decision(recipient, waiting['result']['data']['confirmationRef'])
         published = step(recipient_api, waiting)
         assert published['phase'] == 'completed'
-        with runtime_at(platform, tmp_path / 'sender') as (sender, _, _, _):
+        with runtime_at(platform, tmp_path / 'sender', EchoHost()) as (sender, _, _, _):
+            sender.native_entry_required = True
             api = ClientOperations(sender.config.source)
             form = api.call('runtime.forms.open', {'kind': 'messaging.interaction'})['data']
             choose = step(api, form, {'account': user['username']})
@@ -125,19 +135,43 @@ def test_trade_workflow_keeps_task_and_contract_approval_separate(platform, tmp_
         quote = step(api, spec, {'spec': {'result': {}}})
         assert quote['title'] == '比较报价与选择合同'
         ref = quote['schema']['properties']['quoteRef']['enum'][0]
+        label = quote['schema']['properties']['quoteRef']['enumNames'][0]
+        assert '用户配置的专业服务' in label
+        assert '单期交付' in label
+        assert provider.identities[0].agent_id not in label
+        stored = assistant.store.checkpoint('forms', quote['reference'])
+        again = api.call('runtime.forms.get', {'reference': quote['reference']})['data']
+        assert again == quote
+        assert assistant.store.checkpoint('forms', quote['reference']) == stored
         contract = step(api, quote, {'action': 'select', 'quoteRef': ref})
         assert contract['phase'] == 'waiting'
         assert contract['result']['data']['confirmationRef'] != brief['result']['data']['confirmationRef']
         assert len(assistant.confirmations.list()) >= 2
 
 
-def test_workflow_reaches_real_delivery_step_acceptance_and_payment(platform, tmp_path, monkeypatch):
+@pytest.mark.parametrize("confirmation_wait", [False, True, "payment", "inline-payment"])
+def test_workflow_reaches_real_delivery_step_acceptance_and_payment(platform, tmp_path, monkeypatch, confirmation_wait):
     from test_resident_delegation import participants
     from test_resident_fulfillment import ProductionHost, VERIFIER, configure_template
     configure_template(monkeypatch)
     with participants(platform, tmp_path, formation='countersign', fee=0,
                       agent_host=ProductionHost(), verifier_source=VERIFIER) as (provider, assistant, host, template, _):
+        assistant.native_entry_required = True
         api = ClientOperations(assistant.config.source)
+        denied = api.call('assistant.delegation.prepare', {'purpose':'unbound direct call', 'budget':1, 'proposalFeeLimit':0})
+        assert denied['status'] == 'rejected' and denied['error']['recovery'] == 'connect_native_context'
+        def decide(form, decision='approve', answers=None):
+            if confirmation_wait != 'inline-payment':
+                return user_decision(assistant, form['result']['data']['confirmationRef'], decision=decision, answers=answers)
+            import httpx
+            entry = api.confirmation_entry(form['reference'])
+            assert entry['reference'] == form['result']['data']['confirmationRef']
+            headers = {'Origin': 'null', 'Authorization': 'Bearer ' + entry['token']}
+            body = {'reference': entry['reference'], 'bindingDigest': entry['bindingDigest'], 'decision': decision}
+            if answers is not None: body['answers'] = answers
+            response = httpx.post(entry['origin'] + '/user/confirmation-app/decision', headers=headers, json=body, trust_env=False)
+            assert response.status_code == 200, response.text
+            assert response.json()['status'] == ('answered' if answers is not None else 'approved')
         def pending(form, predicate):
             found = []
             def check():
@@ -149,13 +183,13 @@ def test_workflow_reaches_real_delivery_step_acceptance_and_payment(platform, tm
             return found[0]
         form = api.call('runtime.forms.open', {'kind': 'delegation.trade'})['data']
         form = step(api, form, {'purpose': '制作业务交付', 'budget': 50, 'proposalFeeLimit': 0, 'query': '专业服务'})
-        user_decision(assistant, form['result']['data']['confirmationRef'])
+        decide(form)
         form = step(api, form)
         form = step(api, form, {'action': 'select', 'service': provider.identities[0].agent_id})
         form = step(api, form, {'templateDigest': template['templateDigest']})
         form = step(api, form, {'spec': {'result': {}}})
         form = step(api, form, {'action': 'select', 'quoteRef': form['schema']['properties']['quoteRef']['enum'][0]})
-        user_decision(assistant, form['result']['data']['confirmationRef'])
+        decide(form)
         form = pending(form, lambda f: f['phase'] == 'draft')
         # Refresh uses a new UI revision, never another start/contract operation.
         for _ in range(20):
@@ -164,17 +198,72 @@ def test_workflow_reaches_real_delivery_step_acceptance_and_payment(platform, tm
         assert form['evidence']['合同状态']['stepRequestDigest']
         form = step(api, form, {'action': 'answer_step'})
         assert form['phase'] == 'waiting'
-        user_decision(assistant, form['result']['data']['confirmationRef'], decision='answer', answers=[{'selected_options': ['allow']}])
+        decide(form, decision='answer', answers=[{'selected_options': ['allow']}])
         form = pending(form, lambda f: f['phase'] == 'draft')
         for _ in range(40):
             if form['evidence']['合同状态']['availablePeriods']: break
             form = step(api, form, {'action': 'refresh'})
         assert form['evidence']['合同状态']['availablePeriods'] == 1
+        assert form['presentation']['directActions'] == {'refresh': '刷新合同状态', 'fetch': '下载本期交付', 'verify': '查看本期验收结果'}
+        revision = form['revision']
+        assert api.call('runtime.forms.get', {'reference': form['reference']})['data']['revision'] == revision
+        scope_clock = platform.scopes.clock
+        monkeypatch.setattr(platform.scopes, 'clock', lambda: scope_clock() + 8*86400)
+        form = step(api, form, {'action': 'pay', 'period': 1})
+        assert form['title'] == '续期原委托授权' and form['phase'] == 'draft'
+        monkeypatch.setattr(platform.scopes, 'clock', scope_clock)
+        form = step(api, form, {'validDays': 1})
+        assert form['phase'] == 'waiting'
+        renewal = form['result']['data']['confirmationRef']
+        assert assistant.confirmations.get(renewal)['stage'] == 'delegation.renew'
+        decide(form)
+        form = step(api, form)
+        assert form['phase'] == 'draft' and form['values']['action'] == 'refresh'
+        assert form['evidence']['操作结果']['authorization']['state'] == 'active'
+        payment_before = form['evidence']['合同状态']['payment']
         form = step(api, form, {'action': 'accept', 'period': 1})
         if form['phase'] != 'waiting': form = pending(form, lambda f: f['phase'] == 'waiting')
-        user_decision(assistant, form['result']['data']['confirmationRef'])
+        if confirmation_wait is True:
+            old_confirmation = form['result']['data']['confirmationRef']
+            clock = assistant.confirmations.clock
+            monkeypatch.setattr(assistant.confirmations, 'clock', lambda: clock() + 3600)
+            current = api.call('runtime.forms.get', {'reference': form['reference']})['data']
+            decision = assistant.confirmations.get(old_confirmation)
+            assert current['phase'] == 'waiting' and not current['canRecover']
+            assert current['result']['data']['confirmationRef'] == old_confirmation
+            assert decision['status'] == 'pending' and decision['expiresAt'] is None
+            assert decision['responseDueAt'] is not None
+            assert current['evidence']['合同状态']['payment'] == payment_before
+            monkeypatch.setattr(assistant.confirmations, 'clock', clock)
+        if confirmation_wait in ('payment', 'inline-payment'):
+            from decimal import Decimal
+            owner = assistant.account.account['id']
+            platform.wallets.adjust(owner, -platform.wallets.balance(owner), by='test', note='Payment refusal fixture')
+        decide(form)
         form = pending(form, lambda f: f['phase'] == 'draft')
         assert form['evidence']['合同状态']['acceptedPeriods'] == 1
+        if confirmation_wait in ('payment', 'inline-payment'):
+            ref = form['evidence']['合同状态']['contractRef']
+            signatures = form['evidence']['合同状态']['card']['signatures']['7']
+            form = step(api, form, {'action': 'pay', 'period': 1})
+            assert form['phase'] == 'waiting'
+            original_confirmation = form['result']['data']['confirmationRef']
+            clock = assistant.confirmations.clock
+            monkeypatch.setattr(assistant.confirmations, 'clock', lambda: clock() + 3600)
+            current = api.call('runtime.forms.get', {'reference': form['reference']})['data']
+            decision = assistant.confirmations.get(original_confirmation)
+            assert current['phase'] == 'waiting' and not current['canRecover']
+            assert current['result']['data']['confirmationRef'] == original_confirmation
+            assert decision['status'] == 'pending' and decision['expiresAt'] is None
+            assert decision['responseDueAt'] is not None
+            assert current['evidence']['合同状态']['card']['signatures']['7'] == signatures
+            assert not platform.db.rows("SELECT * FROM payment_records WHERE ref=? AND purpose='installment'", ref)
+            monkeypatch.setattr(assistant.confirmations, 'clock', clock)
+            platform.wallets.adjust(owner, Decimal('20'), by='test', note='Recovery fixture balance')
+            decide(form)
+            form = pending(form, lambda f: f['phase'] == 'draft')
+            assert form['evidence']['合同状态']['card']['signatures']['7'] == signatures
+            assert len(platform.db.rows("SELECT * FROM payment_records WHERE ref=? AND purpose='installment'", ref)) == 1
         assert form['evidence']['合同状态']['payment'] == 'paid'
 
 
@@ -285,3 +374,24 @@ def test_overdue_paid_proposal_uses_original_quote_without_a_contract(platform, 
             assert case['ground'] == 'proposal-overdue'
         finally: host.wait.set()
         wait_for(lambda: terminal(assistant, quote))
+
+
+def test_renewal_form_requires_own_approval_and_preserves_original_scope(platform, tmp_path):
+    from test_resident_delegation import participants
+    with participants(platform, tmp_path) as (_, assistant, _, _, task):
+        api = ClientOperations(assistant.config.source)
+        before = api.call('assistant.delegation.status', {'taskRef': task})['data']
+        form = api.call('runtime.forms.open', {'kind': 'delegation.renew', 'values': {'taskRef': task, 'validDays': 1}})
+        assert form['status'] == 'completed', form
+        form = step(api, form['data'])
+        assert form['phase'] == 'waiting'
+        assert api.call('assistant.delegation.status', {'taskRef': task})['data']['authorization']['revision'] == before['authorization']['revision']
+        confirm = form['result']['data']['confirmationRef']
+        assert assistant.confirmations.get(confirm)['stage'] == 'delegation.renew'
+        user_decision(assistant, confirm)
+        form = step(api, form)
+        assert form['phase'] == 'completed'
+        after = api.call('assistant.delegation.status', {'taskRef': task})['data']
+        assert after['authorized'] and after['authorization']['revision'] == before['authorization']['revision'] + 1
+        assert after['scopeDigest'] == before['scopeDigest'] and after['budget'] == before['budget']
+        assert step(api, form)['revision'] == form['revision']

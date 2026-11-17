@@ -91,7 +91,11 @@ class Onboarding:
     def status(self):
         record = self._read()
         if record:
-            return {key: record[key] for key in ('phase', 'account', 'error') if key in record}
+            result = {key: record[key] for key in ('phase', 'account', 'error', 'existingConfiguration') if key in record}
+            if record['phase'] == 'existing':
+                result['existingAccess'] = [{k: v for k, v in item.items() if k != 'configuration'}
+                    for item in self.existing_access(record)]
+            return result
         if self.path.exists():
             config = RuntimeConfig.load(self.path)
             return {'phase': 'configured', 'account': {'username': config.username, 'platform': config.platform}}
@@ -177,8 +181,69 @@ class Onboarding:
             except (OSError, subprocess.TimeoutExpired):
                 raise RuntimeFault('result_unknown', 'Configuration result is unverified; inspect the current summary') from None
 
+    def existing_access(self, record):
+        """Bounded SDK-only discovery; configuration bodies never leave this component."""
+        from .client import ClientOperations
+        from .lifecycle import require_configuration
+        expected = record.get('config', {})
+        if record.get('mode') != 'login' or not expected:
+            return []
+        role = expected['identities'][0]['role']
+        found = []
+        seen = set()
+        # Only explicit setup storage and the product's own default directory.
+        for directory in dict.fromkeys((self.path.parent, Path.home() / '.ioalab')):
+            if not directory.is_dir():
+                continue
+            for candidate in sorted(directory.glob('*.json'))[:128]:
+                if candidate == self.path or candidate.is_symlink():
+                    continue
+                try:
+                    if not candidate.is_file() or candidate.stat().st_size > 131072:
+                        continue
+                    config = RuntimeConfig.load(candidate)
+                    if (config.platform != expected['platform_url'] or config.username != expected['username']
+                            or not any(p['role'] == role for p in config.identities)):
+                        continue
+                    if config.home in seen:
+                        continue
+                    result = ClientOperations(candidate).call('runtime.status')
+                    if result['status'] != 'completed':
+                        continue
+                    state = result['data']
+                    installation = state.get('installation')
+                    require_configuration(state, config, assembly=installation.get('assembly') if isinstance(installation, dict) else None)
+                    if not state.get('platformConnected') or state.get('stopping'):
+                        continue
+                    reference = hashlib.sha256(encode([str(candidate.resolve()), state['bootId'],
+                        state['configurationDigest']]).encode()).hexdigest()
+                    found.append({'reference': reference, 'configuration': str(candidate.resolve()),
+                        'account': state['account'], 'platformConnected': True,
+                        'identities': [p['name'] for p in config.identities if p['role'] == role]})
+                    seen.add(config.home)
+                except (RuntimeFault, OSError, ValueError):
+                    continue
+        return found
+
+    def reuse(self, reference):
+        """The browser selects a verified reference, never an arbitrary file path."""
+        with Lease(self.home / 'account.lock', timeout=0):
+            record = self._read()
+            if record and record.get('phase') == 'reused' and record.get('reuseReference') == reference:
+                return self.status()
+            if not record or record.get('phase') not in ('existing', 'unknown') or record.get('mode') != 'login':
+                raise RuntimeFault('invalid_input', '请先登录并核对已有接入')
+            candidate = next((item for item in self.existing_access(record) if item['reference'] == reference), None)
+            if candidate is None:
+                raise RuntimeFault('not_ready', '原接入状态已变化或暂不可用，请刷新状态后重试；不会启动第二个实例')
+            self._save({'phase': 'reused', 'account': candidate['account'],
+                'existingConfiguration': candidate['configuration'], 'reuseReference': reference})
+            return self.status()
+
     def submit(self, values):
         """Trusted-input API. Never expose this method as an ordinary MCP tool."""
+        if isinstance(values, dict) and set(values) == {'mode', 'reference'} and values['mode'] == 'reuse':
+            return self.reuse(values['reference'])
         if values == {'mode':'cancel'}:
             self.cancelled=True
             return {'cancelled':True}
@@ -196,6 +261,9 @@ class Onboarding:
                     raise RuntimeFault('identity_conflict','Reuse the platform and role selected by the original setup')
                 values={**values,'role':options['role'],'platform':options['platform_url']}
             fingerprint = hashlib.sha256(encode(values).encode()).hexdigest()
+            if record and record['phase']=='reused':
+                if values:raise RuntimeFault('id_conflict', '请继续使用已核对的原配置')
+                return self.status()
             if record and record['phase']=='ready':
                 current=RuntimeConfig.load(self.path)
                 saved=record.get('account',{})
@@ -230,6 +298,13 @@ class Onboarding:
                             'data_dir': str(self.path.parent / 'clients' / identity),
                             'identities': [{'key': 'personal' if role == 'assistant' else 'service',
                                             'role': role, 'name': values.get('name') or 'IoA ' + role}]}
+                if options.get('prepare_both_roles', False):
+                    other='service' if role=='assistant' else 'assistant'
+                    document['identities'].append({'key':'personal' if other=='assistant' else 'service',
+                                                   'role':other,'name':'IoA '+other})
+                    document['provider']={'services':{'service':{
+                        'instructions':'尚未配置专业能力；仅准备服务方入口，不开展生产。','accepting':False}}}
+                if options.get('user_browser'):document['user_browser']=options['user_browser']
                 RuntimeConfig.from_mapping(self.path, document)
                 if mode=='register' and not values.get('password'):
                     self._vault().update(generatedPassword=password)
@@ -250,9 +325,11 @@ class Onboarding:
                     record['registered'] = receipt
                     self._save(record)
                 config = RuntimeConfig.from_mapping(self.path, record['config'])
+                if record['mode'] == 'login' and self.existing_access(record):
+                    raise RuntimeFault('existing_client', '发现已有接入，请点击继续使用。', 'reuse_existing')
                 prepare_home(config.home)
                 try: account_guard = Lease(config.home / 'client.lock', timeout=0)
-                except RuntimeError: raise RuntimeFault('not_ready', 'The existing client owns this account; inspect its status') from None
+                except RuntimeError: raise RuntimeFault('existing_client', '这个账号已在本机运行，请使用已有接入；无需重复登录或恢复请求。', 'reuse_existing') from None
                 with account_guard:
                     receipt=record.get('registered') or {}
                     sdk_registration=record['mode']=='register' and record.get('registrationEndpoint')=='/api/v1/accounts'
@@ -284,6 +361,9 @@ class Onboarding:
                 record['error'] = {'code': 'account_rejected' if rejected else 'result_unknown',
                                    'httpStatus': status, 'recovery': 'correct_account_input' if rejected else 'resume_original',
                                    'message': '账号请求被拒绝，请检查注册政策、邀请码或凭据。' if rejected else '原账号操作尚未核实，请恢复原请求。'}
+                if isinstance(exc, RuntimeFault) and exc.code == 'existing_client':
+                    record['phase'] = 'existing'
+                    record['error'] = {'code': exc.code, 'recovery': exc.recovery, 'message': str(exc)}
                 if isinstance(exc, httpx.HTTPStatusError):
                     # Only fixed, documented policy messages; never arbitrary server text.
                     reasons = {'用户名已被占用': '账号已被占用，请登录原账号或填写另一个名称。',

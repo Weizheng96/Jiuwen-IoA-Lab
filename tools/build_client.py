@@ -17,11 +17,13 @@ def build(output, *, root=ROOT):
         snapshot=Path(temporary)
         shutil.copytree(root/'src/client',snapshot/'src/client',
                         ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
+        shutil.copytree(root/'src/a2c',snapshot/'src/a2c',
+                        ignore=shutil.ignore_patterns('build','dist','*.egg-info','__pycache__','*.pyc'))
         vendor=snapshot/'vendor';vendor.mkdir()
         shutil.copy2(root/'vendor/SOURCES.json',vendor/'SOURCES.json')
         manifest=json.loads((vendor/'SOURCES.json').read_text(encoding='utf-8'))
         for item in manifest['components']:
-            if item['id'] in ('a2c','jiuwenswarm-process-sdk'):
+            if item['id']=='jiuwenswarm-process-sdk':
                 source=root/'vendor'/item['wheelInfo']['file'];target=vendor/item['wheelInfo']['file']
                 target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,target)
         shutil.copytree(root/'vendor/licenses',vendor/'licenses')

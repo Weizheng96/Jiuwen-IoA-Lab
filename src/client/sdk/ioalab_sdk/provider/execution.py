@@ -1,4 +1,6 @@
 """Service ingress and per-interaction original Providers on the shared runtime."""
+from ..runtime import MaterialObservationPending,MaterialObservationBlocked
+from ..runtime import HostRegistry,HostResource,NativeSubmissionPending
 import threading
 import time
 import httpx
@@ -48,8 +50,8 @@ class ProviderExecution:
                         'provider.arbitration':JobHandler(self.rulings.run,'provider-arbitration-v1',False,control=True),
                         'provider.production':JobHandler(self.production.run,'provider-production-v1',True,self.model_available)},'profiles':list(self.configs)}
 
-    def business_tools(self,profile,expected=None):
-        available=self.role.tools_by_profile.get(profile,{})
+    def business_tools(self,profile,expected=None,*,interaction=None,actor=None):
+        available=self.host.tools_for(actor,interaction,profile) if interaction and isinstance(self.host,HostRegistry) else self.role.tools_by_profile.get(profile,{})
         if expected is None:return dict(available)
         selected={}
         for policy in expected:
@@ -58,7 +60,7 @@ class ProviderExecution:
             selected[name]=tool
         return selected
 
-    def model_available(self):return bool(self.host and self.host.capabilities().get('available'))
+    def model_available(self):return bool(self.host and self.host.can_submit())
 
     def start(self):
         self.thread=threading.Thread(target=self.listen,name='ioa-provider',daemon=True);self.thread.start()
@@ -66,28 +68,27 @@ class ProviderExecution:
     def wake(self):self.changed.set()
 
     def ready(self,profile):
-        return bool(profile in self.configs and not self.tool_errors(profile) and not self.skill_errors(profile) and self.published.get(profile,0)>time.time() and self.host and self.host.capabilities().get('available') and self.thread and self.thread.is_alive())
+        return bool(profile in self.configs and not self.skill_errors(profile) and self.published.get(profile,0)>time.time() and self.model_available() and self.thread and self.thread.is_alive())
 
     def tool_errors(self,profile):
-        policy=self.host.capabilities().get('nativeToolPolicy',{}) if self.host else {}
-        return [name for name,level in self.configs.get(profile,{}).get('native_tools',{}).items() if level!='deny' and policy.get(name)=='deny']
+        # Native permission feasibility is an actual S01 constraint, not a startup probe.
+        return []
 
     def skill_errors(self,profile):
-        sources=self.host.capabilities().get('skillSources',{}) if self.host else {}
-        return [name for name in self.configs.get(profile,{}).get('skills',[]) if not sources.get(name)]
+        return [name for name in self.configs.get(profile,{}).get('skills',[]) if not isinstance(name,HostResource)]
 
     def status(self,profile):
-        return {'configured':profile in self.configs,'hostAvailable':bool(self.host and self.host.capabilities().get('available')),
+        return {'configured':profile in self.configs,'hostAvailable':bool(self.host and self.host.status_snapshot()['available']),
                 'executionReady':self.ready(profile),'publicationValidUntil':self.published.get(profile),
                 'unavailableNativeTools':self.tool_errors(profile),
-                'uncheckedNativeTools':[name for name,level in self.configs.get(profile,{}).get('native_tools',{}).items() if level!='deny' and name not in (self.host.capabilities().get('nativeToolPolicy',{}) if self.host else {})],
+                'uncheckedNativeTools':[name for name,level in self.configs.get(profile,{}).get('native_tools',{}).items() if level!='deny'],
                 'unavailableSkills':self.skill_errors(profile),
                 'errors':self.errors.get('profile:'+profile),'blockedRequests':len(self.errors)}
 
     def quiesce(self):
         self.stop.set();self.wake()
         if self.host:
-            for job in list(self.active):self.host.cancel(job)
+            for job in list(self.active):self.host.cancel_job(job)
         if self.thread:
             self.thread.join(15)
             if self.thread.is_alive():raise RuntimeError('Provider control thread is still active; preserve local ownership')
@@ -208,10 +209,14 @@ class ProviderExecution:
                 try:candidates.append(self.runtime.scheduler.get(self.runtime.scheduler.reference(identity.agent_id,'provider.a2c',message['messageId'])))
                 except RuntimeFault:pass
             for candidate in candidates:
+                if candidate['status']=='waiting' and any((candidate.get('data') or {}).get(key) for key in ('nativeSubmission','materialObservation')):
+                    self.tasks.resume_native(identity,candidate['reference'])
                 if candidate['status']=='unknown':
                     endpoint=self.context(identity,relation,candidate)
                     result=endpoint.recover(message)
                     if result:self.runtime.scheduler.resolve(candidate['reference'],JobOutcome('completed',result,relation['session']))
+                    elif candidate['reference']==self.runtime.scheduler.reference(identity.agent_id,'provider.a2c',message['messageId']):
+                        self.tasks.resume_native(identity,candidate['reference'])
             return
         except RuntimeFault as exc:
             if exc.code!='not_ready':raise
@@ -233,16 +238,19 @@ class ProviderExecution:
             if config is None:
                 if identity.profile not in self.configs:raise RuntimeFault('not_ready','Restore the original local service configuration')
                 config={key:self.configs[identity.profile].get(key,[] if key=='skills' else {} if key in ('resources','native_tools') else '') for key in ('instructions','skills','resources','native_tools')}
-                config['businessTools']=[tool.policy() for tool in self.business_tools(identity.profile).values()];store.put('context','config',config)
+                config['businessTools']=[tool.policy() for tool in self.business_tools(identity.profile,interaction=relation['id'],actor=identity.agent_id).values()];store.put('context','config',config)
             transport=SessionTransport(self.runtime,identity,relation['id'],aid,relation['peer'],public=self.public)
             keys=Directory(fetch=transport.jwks)
             payment=AP2Payment(transport,psp=self.runtime.account.config['pay'],payer=identity.payment,
                 instrument={'id':'ioalab-virtual','type':'wallet'},clock=utcnow,keys=keys,store=store)
+            from ..runtime import MaterialObservations
+            material_review=MaterialObservations(self.runtime,self.host,identity,relation['id'],handler='provider.a2c')
             provider=Provider(identity.signer,market=self.runtime.account.config['market'],keys=keys,transport=transport,
                 fetch=self.runtime.account.fetch_package,store=store,ap2_key=identity.payment,name=identity.name,payment=payment,
-                model=model_port(self.runtime,self.host,identity,relation['id']))
+                model=model_port(self.runtime,self.host,identity,relation['id']),
+                material_observation_context=material_review.context)
             provider.store.put('templates',original['template']['templateDigest'],original['template'])
-            endpoint=EndpointSession(self.runtime,identity,relation['id'],provider,on_permit=lambda permit:provider.bind_contract(permit['contractCard'],deposit_voucher=permit.get('depositVoucher')) if permit.get('contractCard') else None)
+            endpoint=EndpointSession(self.runtime,identity,relation['id'],provider,material_review=material_review,on_permit=lambda permit:provider.bind_contract(permit['contractCard'],deposit_voucher=permit.get('depositVoucher')) if permit.get('contractCard') else None)
             provider.policy=HostPolicy(self,identity,relation,provider,job,config,aid)
             self.contexts[relation['id']]=endpoint
             return endpoint
@@ -254,7 +262,13 @@ class ProviderExecution:
         endpoint=self.context(identity,relation,job,for_execution=True)
         if message['body']['op']=='request.submit':endpoint.provider.transport.request=message['body']['body']['request']
         resume=self.tasks.require_continuation(identity,job,relation,message)
-        result=endpoint.finish(message,resume_request=resume) if job['handler']=='provider.a2c' else endpoint.prepare(message)
+        try:result=endpoint.finish(message,resume_operation=resume or None) if job['handler']=='provider.a2c' else endpoint.prepare(message)
+        except MaterialObservationPending as pending:
+            return JobOutcome('waiting',{'reason':'material_not_submitted','materialObservation':pending.reference},relation['session'])
+        except MaterialObservationBlocked as blocked:
+            return JobOutcome('unknown',{'reason':'material_observation_unknown','materialReason':blocked.reason},relation['session'])
+        except NativeSubmissionPending as pending:
+            return JobOutcome('waiting',{'reason':'native_not_submitted','nativeSubmission':pending.reference,'error':pending.details},relation['session'])
         if result.get('deferred'):
             self.runtime.scheduler.submit(identity.agent_id,relation['id'],'provider.a2c',job['payload'],operation_id=message['messageId'],
                 session=relation['session'],deadline=instant(message['expiresAt']),admitted=True)

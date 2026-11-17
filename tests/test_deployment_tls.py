@@ -15,6 +15,8 @@ from deploy.layout import Layout
 
 @pytest.fixture
 def certificate_authority(tmp_path):
+    if shutil.which('openssl') is None:
+        pytest.skip('Real OpenSSL CLI required; run the Linux certificate-maintenance suite')
     layout = Layout(tmp_path/'runtime', tmp_path/'state', tmp_path/'config')
     layout.claim()
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -92,7 +94,6 @@ def test_renewal_timer_is_bound_to_current_source_and_cannot_take_foreign_units(
     directory = source.parent/'units'; directory.mkdir()
     monkeypatch.setattr(tls, 'SYSTEMD_DIRECTORY', directory)
     seen = []; monkeypatch.setattr(tls, 'systemctl', lambda *args: seen.append(args))
-    monkeypatch.setattr(tls, 'verify_units', lambda paths: seen.append(tuple(p.name for p in paths)))
     assert tls.main(['install-renewal','--state',str(layout.state)]) == 0
     result = json.loads(capsys.readouterr().out)
     text = (directory/'ioalab-tls-renew.service').read_text()

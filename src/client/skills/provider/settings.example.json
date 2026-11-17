@@ -1,5 +1,5 @@
 {
-  "platform_url": "http://127.0.0.1:8000",
+  "platform_url": "https://ioalab.openjiuwen.com",
   "username": "your-account",
   "password_env": "IOALAB_ACCESS_PASSWORD",
   "data_dir": "~/.ioalab/instances/main",
@@ -12,5 +12,5 @@
     "skills": [], "native_tools": {}, "resources": {},
     "max_active_delegations": 2, "accepting": true
   }}},
-  "host": {"command": ["jiuwenswarm-process"], "data_dir": "<自己的九问数据目录>", "skill_directories": {}}
+  "host": {"type": "jiuwen", "command": ["jiuwenswarm-process"], "data_dir": "<自己的九问数据目录>", "skill_directories": {}}
 }
