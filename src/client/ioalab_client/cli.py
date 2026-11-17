@@ -20,6 +20,7 @@ def main(argv=None):
     parser.add_argument('--host-ref')
     parser.add_argument('--host', choices=('jiuwen', 'codex', 'claude_code'))
     parser.add_argument('--format', choices=('json', 'markdown'), default='json')
+    parser.add_argument('--verify', metavar='STEP', help='onboarding: read-only check of one structured pending step')
     args = parser.parse_args(argv)
     result = installation.prepare()
     if result['status'] == 'completed' and args.command == 'skills':
@@ -38,6 +39,9 @@ def main(argv=None):
                 from .native_skills import install
                 data = install(args.host, config=args.config, output=args.output, host_ref=args.host_ref)
                 result = {'status': 'completed' if data['installed'] else 'waiting', 'data': data, 'error': None}
+            elif args.verify:
+                from .onboarding import verify
+                result = verify(args.host, args.verify, config=args.config, python=result['data']['python'], host_ref=args.host_ref)
             else:
                 from .onboarding import summary
                 result = summary(args.host, config=args.config, python=result['data']['python'], host_ref=args.host_ref)

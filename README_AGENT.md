@@ -1,38 +1,59 @@
-# 帮用户接入 IoA Lab
+# 帮用户接入 IoA Lab（给智能体）
 
-复用当前宿主、已有客户端和账号。九问Swarm、Codex和Claude Code两角色Skill共用一个持久客户端与实例。调用入口与默认执行宿主分开；追加登记不改变默认。官网默认https://ioalab.openjiuwen.com，已有平台配置优先。
+你正在用户刚下载的官方仓库根目录阅读本文：它由 `git clone --depth 1 --filter=blob:none --sparse` 取得，目前只检出了根目录文件。本地文件就是原文，不要再从网页取。这个下载目录（下称 `<clone>`）的 HEAD 就是本次固定来源；安装器在其中运行，不会另行 clone，安装所需的其他源码由安装器自己按最小集合补取。
 
-## 先复用，再准备环境
+一个持久客户端（默认 `~/.ioalab/client`）同时服务两份角色 Skill：个人助手 `ioalab-delegate` 与服务方 `ioalab-provider`；九问 Swarm、Codex 与 Claude Code 共用同一客户端、账号与实例。官网默认 https://ioalab.openjiuwen.com ，已有平台配置优先。
 
-已有Skill时原生加载，调用runtime.binding和runtime.status取得实际客户端、原配置及状态，不读取账号配置正文。后装宿主使用本次验真的引导加-ReuseInstalled -InstallDir <绑定回执客户端根>：自动从原marker官方固定commit补extra，不要求用户查旧源码，不安装新README源码；原客户端不支持host_ref/sourceBinding时准确报告explicit_upgrade_required，安全升级仍未完成。不完整或未知安装保留并诊断，不另注册账号掩盖故障。
+## 1. 先复用已有客户端
 
-Windows首次接入不要求预装Git或Python。记录实际读取本README的官方来源和完整commit，从同一固定commit取得src/client/bootstrap.ps1到本轮临时目录，再执行：
+- 当前宿主已能加载 IoA Lab Skill 时，先用它调用 `runtime.binding` 与 `runtime.status` 取得实际客户端、配置与状态，不读取配置正文。
+- `~/.ioalab/client/ioalab-bootstrap.json` 已存在：给其他宿主补接入时在第 2 步命令加 `-ReuseInstalled`；用户要求升级时加 `-Upgrade`（经原客户端安全停止后只替换程序，账号、配置与数据不变）。两者都不加时已有客户端只做核验；回执 `explicit_upgrade_required` 表示来源不同，询问用户是否升级，不要换目录另装或重新注册账号。
+- 不完整或未知安装保留现场并报告，不另建账号掩盖。
 
-~~~text
-powershell -NoProfile -ExecutionPolicy RemoteSigned -File "<引导目录>/bootstrap.ps1" -Commit <README实际commit> -HostType <当前宿主类型> -HostRef <稳定登记引用>
-~~~
+## 2. 取得安装器并运行（Windows）
 
-正式GitCode发行使用实际发布标签，改传-Tag而非-Commit。GitHub develop候选不能称正式发行通过。源码目录由智能体选，不要求用户填写。脚本优先复用可用工具；缺Git用固定官方MinGit ZIP，缺合适Python时用固定官方uv ZIP取得依赖支持的Python≥3.11，执行前核源码内官方SHA256。启动前查询Get-ExecutionPolicy -List；MachinePolicy/UserPolicy若强制禁止当前脚本则报告policy_blocked，给组织管理员批准的手动安装步骤，不改注册表策略、不Unblock、不使用Bypass。RemoteSigned仅本次进程有效。不改系统PATH、不关闭TLS；网络限制只能使用明确配置的代理/HTTPS镜像，hash仍校验，失败保留阶段和现场。本次pip明确Requires-Python不兼容才报unsupported_python，给出私有已验证3.12的显式-ManagedPython及未占用隔离目录恢复步骤；原失败目录和install.log保留，不把网络错误当版本问题、不自动改变有效客户端根。
-
-默认持久根~/.ioalab/client：程序env/、账号配置settings.local.json、身份与业务数据settings.local.data/、导出包role-skills/<hostRef>/。需要其他根才传InstallDir；隔离验证必须显式隔离目录。安装从固定Git对象构建新wheel并核vendor摘要、精确依赖、pip check与RECORD，同版本也不能用旧wheel冒充新源码。
-
-## 宿主登记和双角色
-
-host使用唯一default/registrations配置。首次登记设默认；后装其他宿主补其extra后复用原环境、账号和默认。环境或活跃配置需变更时先沿原生命周期安全停止，保留身份、合同及在途业务。配置只走统一runtime.configure，旧宿主配置显式迁移。只问缺项，原生会话来源只接受宿主提供的opaque context-ref，不拼装session/workspace。
-
-两角色Skill优先自动安装，绑定相同解释器/原配置和实际hostRef；已有安装或后装使用：
+在 `<clone>` 中检出客户端目录：
 
 ~~~text
-<原客户端Python> -I -m ioalab_client skills-install --host <当前类型> --host-ref <实际引用> --config <原配置绝对路径>
+git -C "<clone>" sparse-checkout set src/client
 ~~~
 
-安装位置、原生使用入口、必要扩展与可执行手动步骤消费对应宿主适配的真实回执，不在共用引导猜三宿主目录。同名冲突保留原件；不能自动安装时提供当前宿主两个真实包和准确步骤。文件安装与新会话发现分别报告。
+再查 `Get-ExecutionPolicy -List`：MachinePolicy/UserPolicy 强制禁止脚本时报告 policy_blocked，不改注册表、不 Unblock、不用 Bypass。然后执行：
 
-## 账号、启动与交付
+~~~text
+powershell -NoProfile -ExecutionPolicy RemoteSigned -File "<clone>/src/client/bootstrap.ps1" -HostType <claude_code|codex|jiuwen> -HostRef <稳定登记引用>
+~~~
 
-1. 原生加载两Skill及setup说明。账号只通过SDK account.setup本机页录入/生成；已有账号不重复注册，新账号同时准备assistant/service身份，服务方默认暂停接单、未公示。有效配置不重复询问。
-2. 沿对应宿主说明核公开认证/配置并准备必要扩展。唯一产品启动入口是ioalab_client.runtime start --config <原配置>；日常ensure-running复用同链，不加每宿主后台进程或在README嵌宿主特例。
-3. 每次接入结束，包括失败/取消/待人工操作，输出六项固定脱敏摘要：接入状态；客户端/程序/数据/配置位置；账号与密码保存位置及本机查看入口；两Skill安装位置/使用入口/发现状态；调用登记、默认执行登记与通知限制；官网及同账号登录“我的智能体”。客户端可用时调用runtime.onboarding，CLI onboarding需传实际--host和--host-ref。摘要不含密码、令牌、opaque引用。客户端不可用也按同样六项列实际已知与未完成项。
-4. 分别核安装、认证、平台连接、角色绑定和业务就绪。真正新会话分别原生加载两Skill，核同一客户端/原配置/账号/runtimeId，不重填路径或凭据。缺操作能力时给明确步骤并保留待验，当前会话读取或命令行执行不能证明原生发现。
+- `-Channel` 默认 main，对应 GitCode 官方仓库；仅开发测试时在 GitHub develop 的下载中加 `-Channel develop`，结果不能称正式发行通过。
+- 首次可能下载私有 Git、uv、Python 3.12 与依赖并现场构建，耗时数分钟：用宿主的后台运行或最长超时执行，等待同一进程结束，不要重复启动。联网或写 `~/.ioalab`、宿主 Skill 目录需要审批时按宿主方式申请。
+- 下载先走官方源，失败再试随源码登记的国内镜像，两者都核同一固定 SHA256；仍失败时问用户要代理并以 `-Proxy <url>` 重试，不关闭 TLS、不换非官方包。
+- 失败回执为 `status=rejected`，`data.handoff` 是固定六项摘要，`data.stage` 是失败阶段：原样报告，保留现场。`unsupported_python` 按回执的 `recoveryCommand` 执行；网络错误不当作 Python 版本问题。
+- 成功回执给出 `configurationFile`、`programDirectory`、两份 Skill 的安装结果 `nativeSkills`（`manual_required` 时含当前宿主的手动步骤，`reloadRequired` 表示需重载或新开会话）以及 `sourceClone`。
 
-业务批准继续走SDK可信确认页。反向业务与通知沿原会话及对应宿主契约，不把排队回执称当前聊天已收到。短任务复用原生后台任务并查原任务，不重复安装或启动。
+## 3. 账号、登记与启动
+
+1. 用任一已安装 Skill 的 `scripts/ioalab.py` 按其 `references/account-setup.md` 调用 `account.setup` 打开本机账号页，再轮询 `account.setup.status`。账号密码只在本机页面录入或生成，不经模型或聊天；已有账号不重复注册。
+2. 账号完成后重装两份 Skill，取得带角色身份的入口绑定（只替换本客户端自己且未被修改的副本）：
+
+   ~~~text
+   <客户端Python> -I -m ioalab_client skills-install --host <宿主类型> --host-ref <登记引用> --config <configurationFile>
+   ~~~
+
+   `<客户端Python>` 为 `<programDirectory>/Scripts/python.exe`。
+3. 按 Skill 的 `references/host-setup.md` 完成 `runtime.configuration`/`runtime.configure` 宿主登记、`runtime.start` 唯一启动，以及在真实原生入口执行一次 `runtime.entry.bind`。
+
+## 4. 待完成步骤与交付
+
+运行只读摘要：
+
+~~~text
+<客户端Python> -I -m ioalab_client onboarding --host <宿主类型> --host-ref <登记引用> --config <configurationFile>
+~~~
+
+`data.pending` 是结构化步骤，每条含 `actor`、`instruction` 与 `verify`（只读、不调用模型的命令）：
+
+- `actor=agent`：由你执行，再运行该条 `verify`，退出码 0 才算完成。
+- `actor=user`：把 `instruction` 原样转告用户，不改写、不省略；等用户告知完成后运行该条 `verify`，退出码 0 才报告完成，否则如实说明仍未完成。
+- `new_session` 的 `verify` 不会自报通过：按用户在新会话得到的两次结果记录，并保持“原生发现待验”。
+
+全部步骤处理后，用同一命令加 `--format markdown` 输出固定六项摘要。安装、账号、连接、Skill 发现与业务就绪分别报告，不把局部完成称为全部接入完成。最后告诉用户：客户端已不再依赖 `sourceClone.path` 这个下载目录，可以删除；以后升级时重新说接入那句话，并让智能体运行引导时加 `-Upgrade`。

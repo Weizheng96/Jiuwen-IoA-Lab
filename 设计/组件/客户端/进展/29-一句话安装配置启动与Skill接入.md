@@ -2,7 +2,7 @@
 
 **阻塞于：** 27、28
 
-**状态：** claimed（198统一打包缺原生资源阻塞已修并离仓验证；其余新契约迁移及原生验收未完成）。
+**状态：** claimed，开发中（D36/D41工作区实现与定向检查通过，未提交；198统一打包修复已离仓验证；原生验收未完成）。
 **负责范围：** P01/P02安装、P03复用与安全升级、P07/P08接入交付、P37脱敏摘要；消费公共配置和唯一启动入口。
 **依赖：** 27公共／适配契约、28公共Skill及原生包装；30—32交付对应宿主的静态登记、实际入口及必要扩展资源。
 **规范入口：** [共用运行时](../共用运行时/接口.md)、[安装与实例](../共用运行时/接口/安装与实例.md)、[接入交付](../共用运行时/接口/接入交付.md)。
@@ -75,13 +75,14 @@ S02仅归运行期健康策略；本票不以检查成功作为配置或启动�
 最终wheel SHA256为7870f186207a70dd871f5b9066095f2317d4f2bf7d99a01a7d518b0c25721577，产物版本仍186；这是当前冻结工作区的构建／安装证明，不是发布或原生业务验收。
 本次未启动模型、平台、账号或native CLI；30原失败环境不动，其后须在全新私有root重装验native。29其余接入／安全升级／新聊天发现仍按上述未验范围保留，192历史证据不替代本轮输入。
 
-## 设计v0.0.200待实施（D36）
+## 设计v0.0.200／v0.0.203实施（D36、D41）
 
-规则见[安装与发布](../共用运行时/接口/安装与实例.md#安装与发布)与[固定交付摘要](../共用运行时/接口/接入交付.md#固定交付摘要)；切片草案见`temp/ticket29/199-prep/PLAN.md`。以下均未实施，现有bootstrap只接受GitHub develop commit或GitCode tag，与当前设计有偏离。
+规则见[安装与发布](../共用运行时/接口/安装与实例.md#安装与发布)与[固定交付摘要](../共用运行时/接口/接入交付.md#固定交付摘要)。2026-11-17工作区已实现下列各项，**未提交、未发布、未实机**；只有定向检查（`temp/checks/t29-201-r*`）证明对应输入。一句话按用户定稿写入根README：部分克隆（`--depth 1 --filter=blob:none --sparse`）后读根README_AGENT.md。
 
-- [ ] 来源通道：GitCode main实际固定commit为正式来源，bootstrap.ps1 `-Channel main|develop`解析HEAD并回报resolvedCommit，谱系核验，marker记录channel
-- [ ] 显式`-Upgrade`／`--upgrade`：原客户端安全停止、OS锁证明、env改名保留、失败恢复；缺安全停止入口返回explicit_upgrade_required
-- [ ] 中断安装原位恢复：仅同一安装标记、同一固定来源且无配置与数据目录
-- [ ] skills-install对逐字节核验未改、同绑定的自有目录原子替换，账号后重装取得完整绑定
-- [ ] 固定SHA256下载的国内镜像备用源；bootstrap.ps1环境阶段失败也输出六项摘要
-- [ ] P37第1项待完成事项结构化为{actor, 原样说明, verify}步骤；README_AGENT要求原样转告user步骤、完成后verify再报完成，不引导在线试用与管理员助手
+- [x] 账号后重装（已实现，定向通过）：skills-install仅替换按自身清单逐字节核验未改且binding与sourceBinding相同的自有目录；暂存→旧目录移入暂存内层→新目录就位，失败回滚，回滚也失败时不删除并报告保留位置；导出ZIP同规则替换；回执含replaced／reloadRequired。解28待续“空profiles绑定重装判differs”
+- [x] 来源（已实现，定向通过）：bootstrap.ps1在其所在官方clone内运行、不另clone；origin按通道核对（容忍无.git／尾斜杠），HEAD即固定来源并回报resolvedCommit；bootstrap.py `--commit --channel`核`refs/remotes/origin/<通道>`谱系（--depth 1下tip即自身祖先），tag改为ls-remote须指向clone HEAD；marker记录channel及对应design标签；源码快照改为ls-tree列出所需路径blob、在稀疏clone中以no-cone稀疏检出一次批量取得（保留根文件）、cat-file按对象写出，不再用git archive（部分克隆中它会懒取整仓）：本地file://实测克隆0.3MB、检出src/client后0.8MB、快照后14.7MB（git archive基线345—360MB），272文件与提交blob逐一相同，路径清单只在bootstrap.py一处；结果含sourceClone可删提示
+- [x] 显式`-Upgrade`（已实现，定向通过）：原客户端CATALOG缺runtime.stop返回explicit_upgrade_required；经原客户端runtime.stop后从固定源码加载SDK自身Lease取得原data_dir锁，未取得返回not_ready且不改程序；env改名保留后新建并核pip check／RECORD来源，失败恢复原env与marker；账号、配置、数据不动；回执标入口绑定migration_pending及其他宿主Skill待重装。未给-Upgrade时来源不同返回explicit_upgrade_required
+- [x] 中断恢复（已实现，定向通过）：仅marker installing、同一来源、无配置文件且无`.data`目录时原env改名保留后原位重装，其余保留拒绝
+- [x] 镜像与失败摘要（已实现，定向通过；镜像URL未联网实测）：MinGit／uv官方失败后试登记的npmmirror地址，任何来源都核同一SHA256，不符即拒并保留文件；uv私有Python依次官方、npmmirror python-build-standalone（显式-PythonMirror时只用它）；ps1失败输出ASCII转义的六项handoff、stage与resolvedCommit
+- [x] 结构化步骤（已实现，定向通过）：onboarding的pending为{id, actor, instruction, verify}，verify为只读`onboarding --verify <id>`，new_session永不自报完成；根README_AGENT.md按部分克隆重写（先`sparse-checkout set src/client`再运行bootstrap.ps1），要求原样转告user步骤、verify通过才报完成；`/connect`改307到GitCode仓库首页
+- [ ] 提交、GitCode发布及干净Windows三宿主实机（真实clone、镜像可达性、长耗时与审批次数、新聊天发现）

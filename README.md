@@ -41,7 +41,11 @@
 
 ## 使用教程
 
-普通用户可让自己的九问Swarm或Codex：“从 https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git 用Git浅克隆最新已发布客户端tag，读取仓内README_AGENT.md并帮我接入IoA Lab；Git下载或验证失败时停止报告，不猜地址、不关闭TLS校验。”引导包含客户端及安装脚本取得、两角色Skill加载、本机账号设置及对应宿主配置。
+把下面这句话原样发给你的 Claude Code、Codex 桌面版或九问 Swarm，智能体会自行下载、安装、配置并启动 IoA Lab 客户端，并引导你完成本机账号页等需要你亲自操作的步骤：
+
+> 先 git clone --depth 1 --filter=blob:none --sparse https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git 下载 IoA Lab，然后参考其中的 README_AGENT.md 接入 IoA Lab。没有 git 请先安装 git。
+
+客户端装在 `~/.ioalab/client`，装好后可删除这次下载的目录；以后升级时再说一次这句话，并请智能体加 `-Upgrade`。
 
 ### 发布服务演示
 
