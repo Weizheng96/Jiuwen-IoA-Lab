@@ -1,4 +1,5 @@
 """Read-only, sanitized handoff assembled from the SDK and native skill status."""
+import json
 from pathlib import Path
 
 from ioalab_sdk.runtime import (RuntimeConfig, RuntimeFault, LocalClient, require_configuration,
@@ -48,7 +49,12 @@ def summary(host, *, config=None, python=None, host_ref=None):
                         executionHost=entries[default]['type'] if default else None,
                         registeredHosts=[{'ref': ref, 'type': item['type']} for ref, item in entries.items()])
             if host_ref not in entries or entries[host_ref]['type'] != host:
-                step(data, 'host', 'agent', '经绑定 Skill 的统一 runtime.configure 登记当前宿主 '+host_ref+'（类型 '+host+'），保留已有默认宿主。')
+                arguments = {'expectedDigest': configured.public_summary()['configurationDigest'],
+                             'changes': {'host': {'registrations': {host_ref: {'type': host}}}}}
+                step(data, 'host', 'agent', '先调用绑定 Skill 的 runtime.configuration 刷新 configurationDigest；'
+                     '新建 UTF-8 参数文件，使用该摘要作为 expectedDigest，当前参数为 '+json.dumps(arguments, ensure_ascii=False)+
+                     '，再经同一 Skill 调用 runtime.configure --args-file <该文件绝对路径>。只选择适配类型，'
+                     '无需采集命令、模型、会话或工作目录；首次登记自动选为默认，已有默认保持。')
             notify = [ref for ref, item in entries.items()
                       if any(isinstance(tool, dict) and tool.get('factory') == 'jiuwen-web'
                              for tool in item.get('business_tools', []))]
@@ -90,6 +96,11 @@ def summary(host, *, config=None, python=None, host_ref=None):
         step(data, 'identities', 'agent', '客户端运行后核对两角色身份绑定；未绑定时按 runtime.status 的错误恢复，不要重新注册账号。')
     if not data['connected']: step(data, 'connection', 'agent', '客户端运行后核对账号认证与平台连接；失败时按 runtime.status 的错误恢复。')
     if not data.get('executionHostAvailable'): step(data, 'execution_host', 'agent', '核对后台执行宿主可用；不可用时按 runtime.status 报告的宿主与动作处理。')
+    entries = [str(Path(item['path'])/'native'/'README.md') for item in data['skills'] if item['installed'] and item['path']]
+    step(data, 'native_setup', 'agent', '账号、宿主登记及原客户端启动完成后，读取当前宿主两角色的 native/README.md：'+
+         ('、'.join(entries) if entries else '两份导出包中的 native/README.md')+
+         '，按实际路径完成原生入口安装；随后从当前真实原生入口以空业务参数执行 runtime.entry.bind。'
+         '普通终端调用不能代替原生绑定；缺入口时报告准确缺项，不猜身份或要求用户填写。')
     step(data, 'new_session', 'user', '请新开一个 '+HOST_NAMES[host]+' 会话，分别说“用 ioalab-delegate 查询 IoA Lab 的 runtime.status”和“用 ioalab-provider 查询 IoA Lab 的 runtime.status”，把两次结果中的 runtimeId 告诉智能体。')
     return {'status': 'waiting', 'data': data, 'error': None}
 
@@ -100,7 +111,7 @@ def verify(host, identifier, **options):
     pending = next((item for item in result['data']['pending'] if item['id'] == identifier), None)
     if pending is None:
         return {'status': 'completed', 'data': {'id': identifier, 'verified': True}, 'error': None}
-    message = ('新会话原生发现需要保留的会话证据，程序不自报完成' if identifier == 'new_session' else '该步骤尚未完成')
+    message = ('原生发现或入口绑定需要实际原生回执，程序不自报完成' if identifier in ('new_session', 'native_setup') else '该步骤尚未完成')
     return {'status': 'rejected', 'data': {'id': identifier, 'verified': False, 'step': pending},
             'error': {'code': 'step_pending', 'message': message}}
 

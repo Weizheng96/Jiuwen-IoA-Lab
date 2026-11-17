@@ -161,7 +161,7 @@ def install(host, *, config=None, output=None, source=None, python=None, host_re
         except (OSError, ValueError, RuntimeError, zipfile.BadZipFile) as error:
             item.update(status='manual_required', reason=str(error), instructions=adapter.manual_steps(package,name))
         results.append(item)
-    return {'host': host, 'binding': owned['binding'], 'skills': results, 'exportsReplaced': exports_replaced,
+    return {'host': host, 'hostRef': host_ref or host, 'binding': owned['binding'], 'skills': results, 'exportsReplaced': exports_replaced,
             'reloadRequired': any(item.get('reloadRequired', False) for item in results),
             'installed': all(item['installed'] for item in results), 'newSessionVerified': False}
 

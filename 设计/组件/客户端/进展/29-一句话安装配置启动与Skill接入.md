@@ -4,12 +4,22 @@
 
 2026-11-17交接：本票适配/安装切片已纳入develop提交`53d95e9`；下文“未提交”描述为原检查时点，不代表当前Git状态。原生、资源及完整验收仍按未勾选项保留。
 
-**状态：** claimed，开发中（D36/D41工作区实现与定向检查通过，未提交；198统一打包修复已离仓验证；原生验收未完成）。
+**状态：** claimed，开发中（207已正式发布，GitCode普通/ManagedPython隔离安装实测通过；干净新用户、原生加载与新聊天验收未完成）。
 **负责范围：** P01/P02安装、P03复用与安全升级、P07/P08接入交付、P37脱敏摘要；消费公共配置和唯一启动入口。
 **依赖：** 27公共／适配契约、28公共Skill及原生包装；30—32交付对应宿主的静态登记、实际入口及必要扩展资源。
 **规范入口：** [共用运行时](../共用运行时/接口.md)、[安装与实例](../共用运行时/接口/安装与实例.md)、[接入交付](../共用运行时/接口/接入交付.md)。
 
 ## 最终目标
+
+### 本轮原生验收发现（2026-11-17）
+
+本轮修复已实现：skills-install回执附现有onboarding/1摘要与actor/verify步骤，区分当前智能体动作和用户动作，支持Markdown展示；登记给实际host/ref、type-only参数及configurationDigest来源，保已有默认；原生安装/setup给当前入口说明。Codex信任要求改未知null，移除固定“去设置审阅信任”指引。首轮118通过/2资源装配失败（exit1），仅修测试资源装配后两新增用例重跑2通过（exit0，74.43秒），合计覆盖120项；失败报告保留。本轮未解决账号页无响应观察差异，也未完成修复版正式来源接入。用户明确要求跳过剩余发布前检查直接同步：未执行本轮full、自检及实际打包验证，不以定向结果代替。
+
+**已复现接入阻断：** 同一干净安装注册成功后，runtime.configuration为hostType=null、hostFields=[]，runtime.start返回not_ready／`Register a default host before starting`／recovery=configure_host。安装回执未给host-setup.md所要求的公开字段采集步骤，测试智能体未猜填模型/会话，也未使用旧配置绕过。Hook安装回执nativeTrustRequired=true、nativeLoaded=false，但用户确认设置中已出现Hook且未要求信任；不得把该字段当成实际用户待办。原始脱敏证据在新聊天工作目录 `outputs/acceptance-record.json`、`outputs/startup-receipt.json`、`outputs/native-hook-receipt.json`；开发与当前设计存在偏离，先核公共安装与Codex适配登记职责，补齐原定接入链及回执，拒绝增加第二启动链。修复和正式来源复验均未完成。
+
+已核引导来源：Codex native_install.install无条件返回nativeTrustRequired=true，native_skills.manual_steps与随包native/README.md固定要求审阅信任，未依据实际宿主提示。该不实待办须修正；重载和实际加载分别留证，不能从文件存在推断。
+
+Codex干净新聊天从GitCode `2d2de21`接入，用户完成本机账号页后反馈页面无响应；沿原请求查询已得到completed、新账号注册及在线认证成功、两角色身份刷新。未重复注册。当前只能确认页面反馈与后台结果存在观察差异，根因待查，不宣称注册失败或已修复。原生证据归[客户端36](36-Windows三宿主四流程统一验收.md#干净环境原生验收2026-11-17本轮进行中)，新聊天 `01a1e997-13e1-7781-9c12-0713e035f35b`。修复子智能体先核真实页面行为和客户端账号页响应/查询逻辑，确认根因后按正确规范修复；不得接触测试账号秘密或改本轮测试客户端。
 
 Windows用户向Claude Code CLI、Codex桌面版或九问Swarm提供同一句README_AGENT接入指令，智能体自行取得客户端、完成公共配置与SDK账号交互，并启动或复用原实例。
 宿主配置只选择静态已提供的适配器；命令、模型、认证、原生目录及连接机制由适配内部定位并复用原设置，不要求用户重新填写。
@@ -87,4 +97,13 @@ S02仅归运行期健康策略；本票不以检查成功作为配置或启动�
 - [x] 中断恢复（已实现，定向通过）：仅marker installing、同一来源、无配置文件且无`.data`目录时原env改名保留后原位重装，其余保留拒绝
 - [x] 镜像与失败摘要（已实现，定向通过；镜像URL未联网实测）：MinGit／uv官方失败后试登记的npmmirror地址，任何来源都核同一SHA256，不符即拒并保留文件；uv私有Python依次官方、npmmirror python-build-standalone（显式-PythonMirror时只用它）；ps1失败输出ASCII转义的六项handoff、stage与resolvedCommit
 - [x] 结构化步骤（已实现，定向通过）：onboarding的pending为{id, actor, instruction, verify}，verify为只读`onboarding --verify <id>`，new_session永不自报完成；根README_AGENT.md按部分克隆重写（先`sparse-checkout set src/client`再运行bootstrap.ps1），要求原样转告user步骤、verify通过才报完成；`/connect`改307到GitCode仓库首页
-- [ ] 提交、GitCode发布及干净Windows三宿主实机（真实clone、镜像可达性、长耗时与审批次数、新聊天发现）
+- [x] 207已提交并正式GitCode发布；本机真实稀疏clone与两种隔离安装通过（范围见下节）。
+- [ ] 干净Windows三宿主实机、缺Git分支、原生加载、审批次数与新聊天发现。
+
+## 207正式来源安装实测（2026-11-17）
+
+GitCode main固定`2d2de21d10f71c4a8ed5dc31edd838965efb1662`，按根README_AGENT真实部分克隆并检出src/client，不另clone。普通路径安装到`temp/i207/client-ordinary`，实际exit0/status=completed；pyvenv.cfg证明复用本机CPython3.11.4，PS5.1探针不再误判并下载备用解释器。ManagedPython路径安装到`temp/i207/client-managed`同样exit0/status=completed，使用已校SHA256的官方PyPI uv0.9.21 Windows wheel ZIP，独立exe真实版本0.9.21，venv解释器3.12.12；仅该子进程PATH排除现有uv以验证新资产链，未改全局PATH。
+
+uv官方PyPI与清华完整同文件下载均核SHA256 `64a7bb0e4e6a4c2d98c2d55f42aead7c2df0ceb17d5911d1a42b76228cab4525`。这是受审固定资产替换，不是修改旧GitHub ZIP哈希绕过校验；依然经原Get-PortableTool下载/校验/解压，不增加pip或第二安装链。ManagedPython复用了此前已下载的受管解释器缓存，不称本轮重新下载Python包。
+
+两安装均仅导出两角色ZIP、返回manual_required/connected=false，未配置账号、未启动实例、未导入用户已有宿主或改其Skill。账号页、宿主登记/start、原生导入/entry.bind、新聊天发现与四流程继续待验。此为现有Windows用户、已有Git/Python的正式来源安装证明，不代替干净新用户、缺Git场景或三宿主原生验收。证据：`temp/handoff-deploy/bootstrap-207-{ordinary,managed}.log`、`managed-207-asset-proof.json`及`uv-pypi-evidence.json`。

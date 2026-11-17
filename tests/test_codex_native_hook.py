@@ -381,7 +381,7 @@ def test_install_creates_only_our_group_and_uninstall_restores(tmp_path):
     document = json.loads(hooks.read_text(encoding='utf-8'))
     group, = document['hooks']['PreToolUse']
     assert group['matcher'] == 'Bash' and group['hooks'][0]['statusMessage'] == STATUS_MESSAGE
-    assert installed.receipt['nativeTrustRequired'] and not installed.receipt['nativeLoaded']
+    assert installed.receipt['nativeTrustRequired'] is None and not installed.receipt['nativeLoaded']
     assert install(installed.entries, home=installed.codex_home)['changed'] is False
     assert not (installed.codex_home/'config.toml').exists()
     assert uninstall(installed.entries, home=installed.codex_home)['removed']

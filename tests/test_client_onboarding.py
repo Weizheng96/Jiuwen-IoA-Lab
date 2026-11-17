@@ -11,6 +11,49 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT/'src/client/skills'
 
 
+@pytest.mark.parametrize('existing_default', [False, True])
+def test_skills_install_handoff_separates_actions_and_registration_preserves_default(tmp_path, monkeypatch, capsys, existing_default):
+    from functools import partial
+    from types import SimpleNamespace
+    from ioalab_client import cli, native_skills
+    from ioalab_client.runtime import merge_host
+    from ioalab_sdk.runtime import RuntimeConfig, private_json
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    config = tmp_path/'client/settings.json'
+    initial = {'username': 'clean-account', 'password': 'secret-not-for-handoff',
+               'data_dir': str(tmp_path/'client/data'),
+               'identities': [{'key': 'personal', 'role': 'assistant', 'name': 'Assistant'}]}
+    if existing_default:
+        initial['host'] = {'default': 'original', 'registrations': {'original': {'type': 'claude_code'}}}
+    private_json(config, initial)
+    monkeypatch.setattr(cli, 'installation', SimpleNamespace(prepare=lambda: {
+        'status': 'completed', 'data': {'python': sys.executable}}))
+    # Source checkout tests provide the same real resources explicitly as the other install tests;
+    # wheels receive these files at ioalab_client/data/skills during packaging.
+    monkeypatch.setattr(native_skills, 'install', partial(native_skills.install, source=SOURCE))
+    before = config.read_bytes()
+    assert cli.main(['skills-install', '--host', 'codex', '--host-ref', 'current', '--config', str(config)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    handoff = result['data']['onboarding']
+    assert handoff['format'] == 'ioalab.onboarding/1'
+    pending = {step['id']: step for step in handoff['pending']}
+    assert pending['host']['actor'] == pending['native_setup']['actor'] == 'agent'
+    assert pending['new_session']['actor'] == 'user'
+    assert all(step['verify'][-2:] == ['--verify', step['id']] for step in pending.values())
+    instruction = pending['host']['instruction']
+    payload = json.JSONDecoder().raw_decode(instruction[instruction.index('{'):])[0]
+    assert payload['expectedDigest'] == RuntimeConfig.load(config).public_summary()['configurationDigest']
+    assert payload['changes'] == {'host': {'registrations': {'current': {'type': 'codex'}}}}
+    merged = merge_host(initial.get('host', {}), payload['changes']['host'])
+    assert merged['default'] == ('original' if existing_default else 'current')
+    assert config.read_bytes() == before and not (tmp_path/'client/data').exists()
+    assert 'secret-not-for-handoff' not in json.dumps(result)
+    assert cli.main(['skills-install', '--host', 'codex', '--host-ref', 'current', '--config', str(config), '--format', 'markdown']) == 0
+    rendered = capsys.readouterr().out
+    assert '[智能体执行]' in rendered and '[由你完成]' in rendered
+    assert 'runtime.configure' in rendered and 'runtime.entry.bind' in rendered
+
+
 def test_fixed_handoff_before_account_setup_never_claims_complete(tmp_path, monkeypatch, capsys):
     from ioalab_client.cli import main
     from ioalab_client import installation

@@ -3,7 +3,7 @@
 Writes only: the adapter-owned hook config (``<client roles>/native-adapters/<hostRef>/codex-hook/hook.json``)
 and one matcher group in ``<CODEX_HOME>/hooks.json``. It never edits config.toml,
 never writes a trusted hash and never changes approval or sandbox settings; the
-user reviews and trusts the hook in Codex itself.
+installer does not infer whether the current Codex surface requires trust.
 """
 import argparse
 import hashlib
@@ -137,7 +137,7 @@ def install(entries, *, home=None):
     return {'status': 'installed', 'changed': changed, 'replaced': bool(present) and changed, 'hooksFile': str(hooks_file),
             'hookConfig': str(config_file), 'createdHooksFile': original is None and not present,
             'backup': str(backup) if backup else None,
-            'command': target['group']['hooks'][0]['command'], 'nativeTrustRequired': True, 'reloadRequired': True,
+            'command': target['group']['hooks'][0]['command'], 'nativeTrustRequired': None, 'reloadRequired': True,
             'nativeLoaded': False}
 
 
