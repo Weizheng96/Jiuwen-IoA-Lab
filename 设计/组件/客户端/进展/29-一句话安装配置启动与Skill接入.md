@@ -4,7 +4,7 @@
 
 2026-11-17交接：本票适配/安装切片已纳入develop提交`53d95e9`；下文“未提交”描述为原检查时点，不代表当前Git状态。原生、资源及完整验收仍按未勾选项保留。
 
-**状态：** claimed，开发中（D36/D41工作区实现与定向检查通过，未提交；198统一打包修复已离仓验证；原生验收未完成）。
+**状态：** claimed，开发中（207已正式发布，GitCode普通/ManagedPython隔离安装实测通过；干净新用户、原生加载与新聊天验收未完成）。
 **负责范围：** P01/P02安装、P03复用与安全升级、P07/P08接入交付、P37脱敏摘要；消费公共配置和唯一启动入口。
 **依赖：** 27公共／适配契约、28公共Skill及原生包装；30—32交付对应宿主的静态登记、实际入口及必要扩展资源。
 **规范入口：** [共用运行时](../共用运行时/接口.md)、[安装与实例](../共用运行时/接口/安装与实例.md)、[接入交付](../共用运行时/接口/接入交付.md)。
@@ -87,4 +87,13 @@ S02仅归运行期健康策略；本票不以检查成功作为配置或启动�
 - [x] 中断恢复（已实现，定向通过）：仅marker installing、同一来源、无配置文件且无`.data`目录时原env改名保留后原位重装，其余保留拒绝
 - [x] 镜像与失败摘要（已实现，定向通过；镜像URL未联网实测）：MinGit／uv官方失败后试登记的npmmirror地址，任何来源都核同一SHA256，不符即拒并保留文件；uv私有Python依次官方、npmmirror python-build-standalone（显式-PythonMirror时只用它）；ps1失败输出ASCII转义的六项handoff、stage与resolvedCommit
 - [x] 结构化步骤（已实现，定向通过）：onboarding的pending为{id, actor, instruction, verify}，verify为只读`onboarding --verify <id>`，new_session永不自报完成；根README_AGENT.md按部分克隆重写（先`sparse-checkout set src/client`再运行bootstrap.ps1），要求原样转告user步骤、verify通过才报完成；`/connect`改307到GitCode仓库首页
-- [ ] 提交、GitCode发布及干净Windows三宿主实机（真实clone、镜像可达性、长耗时与审批次数、新聊天发现）
+- [x] 207已提交并正式GitCode发布；本机真实稀疏clone与两种隔离安装通过（范围见下节）。
+- [ ] 干净Windows三宿主实机、缺Git分支、原生加载、审批次数与新聊天发现。
+
+## 207正式来源安装实测（2026-11-17）
+
+GitCode main固定`2d2de21d10f71c4a8ed5dc31edd838965efb1662`，按根README_AGENT真实部分克隆并检出src/client，不另clone。普通路径安装到`temp/i207/client-ordinary`，实际exit0/status=completed；pyvenv.cfg证明复用本机CPython3.11.4，PS5.1探针不再误判并下载备用解释器。ManagedPython路径安装到`temp/i207/client-managed`同样exit0/status=completed，使用已校SHA256的官方PyPI uv0.9.21 Windows wheel ZIP，独立exe真实版本0.9.21，venv解释器3.12.12；仅该子进程PATH排除现有uv以验证新资产链，未改全局PATH。
+
+uv官方PyPI与清华完整同文件下载均核SHA256 `64a7bb0e4e6a4c2d98c2d55f42aead7c2df0ceb17d5911d1a42b76228cab4525`。这是受审固定资产替换，不是修改旧GitHub ZIP哈希绕过校验；依然经原Get-PortableTool下载/校验/解压，不增加pip或第二安装链。ManagedPython复用了此前已下载的受管解释器缓存，不称本轮重新下载Python包。
+
+两安装均仅导出两角色ZIP、返回manual_required/connected=false，未配置账号、未启动实例、未导入用户已有宿主或改其Skill。账号页、宿主登记/start、原生导入/entry.bind、新聊天发现与四流程继续待验。此为现有Windows用户、已有Git/Python的正式来源安装证明，不代替干净新用户、缺Git场景或三宿主原生验收。证据：`temp/handoff-deploy/bootstrap-207-{ordinary,managed}.log`、`managed-207-asset-proof.json`及`uv-pypi-evidence.json`。
