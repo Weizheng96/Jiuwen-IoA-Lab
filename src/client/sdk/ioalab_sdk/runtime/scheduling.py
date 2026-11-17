@@ -11,6 +11,7 @@ from typing import Callable
 import uuid
 
 from .protocol import RuntimeFault,encode
+from .ipc import public_error
 
 CURRENT_JOB=ContextVar('ioa-current-job',default=None)
 _CALLBACK_MODEL_SCOPE=ContextVar('ioa-p20-callback-model-scope',default=None)
@@ -409,9 +410,12 @@ class Scheduler:
             with self.store.transaction() as conn:self._save_outcome(conn,row,outcome)
         except Exception as exc:
             # Even an exception after a tool call cannot prove that its effect failed.
+            error={'code':'unknown_result','type':type(exc).__name__,'recovery':'reconcile_role'}
+            if isinstance(exc,RuntimeFault):
+                error['cause']=public_error(exc)
             with self.store.transaction() as conn:
                 conn.execute("UPDATE runtime_jobs SET state='unknown',result=? WHERE id=?",
-                             (encode({'error':{'code':'unknown_result','type':type(exc).__name__,'recovery':'reconcile_role'}}),row['id']))
+                             (encode({'error':error}),row['id']))
 
     def _finished(self,job):
         with self._condition:

@@ -1,6 +1,6 @@
 # 41：Linux管理员远程用户确认验收通道
 
-状态：ready，环境与装配缺口；不影响已通过的Codex桌面收发主路径，阻塞通用流程4的admin实际签约、验收和付款。未实现，不增模块开放票数量；本轮业务矩阵仍归[客户端36](../../../组件/客户端/进展/36-Windows三宿主四流程统一验收.md)。
+状态：claimed；已通过临时真实Linux Chrome桌面打通admin原用户确认，后续合同/验收/付款仍待逐项验证。不影响已通过的Codex桌面收发主路径，不增模块开放票数量；本轮业务矩阵仍归[客户端36](../../../组件/客户端/进展/36-Windows三宿主四流程统一验收.md)。
 
 ## 已证事实
 
@@ -10,12 +10,14 @@
 
 ## 后续处理边界
 
+本轮已选并实测现有真实本机浏览器方案：官方仓安装Chrome157.0.8103.78，原非root受管用户运行，保NoNewPrivileges=yes；真实chrome://sandbox显示Namespace、PID/网络namespace、Seccomp-BPF均开启。临时Xvfb/openbox与原实例共享PrivateTmp，密码保护VNC仅回环，经既有严格主机校验SSH隧道在Windows Chrome查看并用CUA操作。原SDK仅按正常user_browser打开服务器本机Chrome，未提取URL fragment或增加RPC批准。原1元授权页核对后实际点击，待办1→0；原runtimeId、账号和身份保持。一次root配置写入导致文件归属变为root、受管启动拒绝，已按原单位/目录归属恢复专用用户0600并正常启动；后续配置和撤销须由原受管用户执行，不能把该运维错误归为SDK回执失败。临时桌面撤销、浏览器配置准确恢复与最终合同流程待核。
+
 先选择可操作的Linux真实本机浏览器/受控桌面，或按既有TrustedUserPort/TrustedUserServer接缝正式装配管理员确认Gateway。后者由受信部署绑定固定actor/generation，Gateway承担浏览器认证、同源、CSRF和真实用户eventId；须先落实设计及独立验收，不复制试用席位授权。
 
 不提取页面token、不配置临时browser_opener、不通过RPC或直接写库批准，也不以聊天中的“允许”代替实际预览决定。原合同、授权、验收与付款仍各自独立确认。
 
 ## 验收
 
-- [ ] 人类或已授权的真实浏览器操作可查看admin原授权预览、作出决定，并沿原flow恢复。
+- [x] 已授权的真实浏览器操作查看admin原授权预览、作出决定，并沿原flow恢复；search/inspect取得真实已签模板。
 - [ ] 合同、验收和付款逐项展示真实对象，拒绝、过期、未知及错误actor不产生越权或重复效果。
 - [ ] admin真实委托触发Codex桌面生产、交付和结清；与服务公示通过分别记录。
