@@ -39,7 +39,7 @@ class CodexSkills:
     def entry(self, name): return '$'+name
     def manual_steps(self, package, name):
         return [f'将 {package} 内的 {name} 文件夹安装到 {self.destination()/name}，保留同名冲突目录。',
-                f'按 native/README.md 使用绑定解释器运行 ioalab_codex.native_install install，并以 --entry 指定已装角色入口；在Codex hook设置中审阅并信任，重载或新开会话。',
+                f'由智能体按 native/README.md 使用绑定解释器运行 ioalab_codex.native_install install，并以 --entry 指定已装角色入口；安装文件后在新会话核验实际加载，只有Codex实际提示的用户动作才交给用户。',
                 f'在全新会话用 ${name} 加载，核宿主提供的实际技能目录并调用 runtime.status。']
 
     def resource_files(self, binding):

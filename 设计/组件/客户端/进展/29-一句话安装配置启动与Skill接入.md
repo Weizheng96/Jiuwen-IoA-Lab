@@ -11,6 +11,16 @@
 
 ## 最终目标
 
+### 本轮原生验收发现（2026-11-17）
+
+本轮修复已实现：skills-install回执附现有onboarding/1摘要与actor/verify步骤，区分当前智能体动作和用户动作，支持Markdown展示；登记给实际host/ref、type-only参数及configurationDigest来源，保已有默认；原生安装/setup给当前入口说明。Codex信任要求改未知null，移除固定“去设置审阅信任”指引。首轮118通过/2资源装配失败（exit1），仅修测试资源装配后两新增用例重跑2通过（exit0，74.43秒），合计覆盖120项；失败报告保留。本轮未解决账号页无响应观察差异，也未完成修复版正式来源接入。用户明确要求跳过剩余发布前检查直接同步：未执行本轮full、自检及实际打包验证，不以定向结果代替。
+
+**已复现接入阻断：** 同一干净安装注册成功后，runtime.configuration为hostType=null、hostFields=[]，runtime.start返回not_ready／`Register a default host before starting`／recovery=configure_host。安装回执未给host-setup.md所要求的公开字段采集步骤，测试智能体未猜填模型/会话，也未使用旧配置绕过。Hook安装回执nativeTrustRequired=true、nativeLoaded=false，但用户确认设置中已出现Hook且未要求信任；不得把该字段当成实际用户待办。原始脱敏证据在新聊天工作目录 `outputs/acceptance-record.json`、`outputs/startup-receipt.json`、`outputs/native-hook-receipt.json`；开发与当前设计存在偏离，先核公共安装与Codex适配登记职责，补齐原定接入链及回执，拒绝增加第二启动链。修复和正式来源复验均未完成。
+
+已核引导来源：Codex native_install.install无条件返回nativeTrustRequired=true，native_skills.manual_steps与随包native/README.md固定要求审阅信任，未依据实际宿主提示。该不实待办须修正；重载和实际加载分别留证，不能从文件存在推断。
+
+Codex干净新聊天从GitCode `2d2de21`接入，用户完成本机账号页后反馈页面无响应；沿原请求查询已得到completed、新账号注册及在线认证成功、两角色身份刷新。未重复注册。当前只能确认页面反馈与后台结果存在观察差异，根因待查，不宣称注册失败或已修复。原生证据归[客户端36](36-Windows三宿主四流程统一验收.md#干净环境原生验收2026-11-17本轮进行中)，新聊天 `01a1e997-13e1-7781-9c12-0713e035f35b`。修复子智能体先核真实页面行为和客户端账号页响应/查询逻辑，确认根因后按正确规范修复；不得接触测试账号秘密或改本轮测试客户端。
+
 Windows用户向Claude Code CLI、Codex桌面版或九问Swarm提供同一句README_AGENT接入指令，智能体自行取得客户端、完成公共配置与SDK账号交互，并启动或复用原实例。
 宿主配置只选择静态已提供的适配器；命令、模型、认证、原生目录及连接机制由适配内部定位并复用原设置，不要求用户重新填写。
 两份角色Skill及配套原生资源可自动或手动配置；用户得到当前宿主的真实安装结果、必要启用动作与未完成项。

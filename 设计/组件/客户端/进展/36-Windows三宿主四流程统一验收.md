@@ -39,6 +39,26 @@ Windows干净用户，三种用户已有登录宿主连接远程平台；README�
 | Codex桌面 | 待验 | 待验 | 待验 | 待验 |
 | Windows九问Swarm | 待验 | 待验 | 待验 | 待验 |
 
+## 干净环境原生验收（2026-11-17，本轮进行中）
+
+用户指定原句为 `先 git clone --depth 1 --filter=blob:none --sparse https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git 下载 IoA Lab，然后参考其中的 README_AGENT.md 接入 IoA Lab。没有 git 请先安装 git。`。测试接入材料只取本轮GitCode下载，不使用开发工作区实现、旧IoA配置、账号、Skill或业务数据；正常宿主安装与模型认证可保留。主协调仅用本地规范和票据记录问题，不向测试会话补实现。
+
+- Codex：独立新聊天 `01a1e997-13e1-7781-9c12-0713e035f35b`，projectless空目录；未发现旧IoA角色Skill。原句克隆成功，HEAD为 `2d2de21d10f71c4a8ed5dc31edd838965efb1662`，已进入本机账号页配置，等待用户注册/登录。尚未证明账号完成、启动、新会话发现或四业务。
+- Claude Code：2.1.326，新临时workspace与独立profile，初始无IoA Skill/MCP。首轮宿主模型API返回401，最小复用OAuth后403 network_edge_blocked，均未执行clone，归宿主环境阻断而非IoA缺陷。发现Windows用户级最新API认证与桌面进程继承值不同，自动审批曾拒绝将其发送至已配第三方端点；用户随后明确授权该目的地但同时要求暂停，故未执行新请求。所有本轮CLI已退出。脱敏证据：本机临时目录 `ioalab-claude-20261117-7bb18972/evidence/acceptance-status.json`，不入库正文与凭据。
+- 九问：用户指定已有安装 `D:/project/jiuwenswarm`；默认data存在旧记录，不作为干净工作区。已用独立DATA_DIR/CONFIG_DIR启动，数据目录为本机 `temp/host-acceptance-20261117/jiuwen-clean/data`，原件保留，不复用旧IoA绑定；会话/Skill/cron使用新data。worker IPC仍用全局run目录，本轮无其他九问进程，不声称已验证多实例控制隔离。用户指示阿里云API与此前默认千问3.8后，又明确停止配置并自行接手；停止前未发模型配置写入或模型请求，仍为占位模型your-model-name。网页 `http://localhost:5173/chat/new` 与本轮实例保留；原句尚未投递。
+
+用户最新明确暂停Claude与九问配置、随后自行处理；两路不继续配置或调用，等待用户恢复。Codex独立验收不在该暂停范围。
+
+Codex后续：原注册请求已completed、新账号在线认证成功、两角色身份刷新；浏览器无响应的观察差异记录到[29](29-一句话安装配置启动与Skill接入.md#本轮原生验收发现2026-11-17)，待独立子智能体诊断。尚未以该局部结果勾选四业务或新聊天发现。
+
+Codex本轮接入停止点：两角色Skill与Hook文件已安装，但缺默认执行宿主登记，runtime.start明确not_ready；安装回执缺公开宿主字段采集步骤，未猜填。Hook回执硬编码nativeTrustRequired=true／nativeLoaded=false；用户确认设置已出现Hook且无信任要求，撤销该未经核实的用户待办，适配回执及说明另需修正。此产品接入阻断与账号页观察差异分别归29诊断修复。四业务和新会话原生发现仍全部待验，不能因账号通过而记一句话完整接入成功。
+
+用户随后授权修复后合入main并同步GitCode，先清理本轮Hook。已用本轮安装绑定的native_install uninstall执行，真实exit0、removed=true；只读复核IoA组为0、适配hook配置不存在，hooks.json因无剩余条目已不存在。客户端/账号/数据保留；Codex验收通知暂停，待修复发布后再恢复，不再将该Hook报告为当前已安装。
+
+后续用户明确删除客户端和数据：独立清理子智能体核对归属、无相关Python进程后删除本轮work/client、旧默认 `C:/Users/ROG/.ioalab/client` 及绑定两份用户级IoA Skill，删除exit0且逐项核不存在；Hook仍不存在。保留宿主、九问独立工作区和脱敏证据。修复定向118通过加重跑2通过，full与实际打包按用户指令跳过直接同步；正式来源新一轮须从干净目录开始，四业务仍未通过。
+
+本轮四流程矩阵保持待验。账号注册、Skill启用与真实业务批准由用户配合；环境阻断、产品缺陷、修复后本机验证与正式来源复验分别记录。
+
 
 ## v205主路线接棒（D44—D46）
 

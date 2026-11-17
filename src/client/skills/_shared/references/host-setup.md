@@ -3,9 +3,11 @@
 原 account.setup.status 为 completed 后，继续使用同一脚本及外置配置，不读取配置正文。
 
 1. 调用 runtime.configuration 取得脱敏配置和 configurationDigest。复用已有 host.default 及 host.registrations，不因当前聊天宿主不同而修改默认执行宿主。
-2. 当前宿主的安装回执提供真实原生入口、登记引用及公开字段采集步骤；只完成该宿主尚未完成的步骤。缺少原生入口、信任或重载时按回执报告具体未完成动作，不要求用户手填会话、工作目录、模型或命令。
+2. 当前宿主的安装回执提供真实原生入口及登记引用。登记只选择适配类型，不采集命令、模型、会话或工作目录。读取回执的 `onboarding.pending`，智能体执行 `actor=agent` 的步骤，只将 `actor=user` 的实际待办原样转告用户；缺原生入口或实际宿主要求启用/重载时准确报告，不推测信任设置。
 3. 需要登记时，用新建独立 UTF-8 文件向 runtime.configure 提交 expectedDigest 和 changes.host.registrations。既有引用保留类型；新增引用复用账号及实例，首次登记选为默认，之后新增不切换默认。旧单宿主格式须经该公开入口显式迁移。
 4. 配置完成后调用 runtime.start，再按 status.md 分别核认证、身份 bound、平台连接与宿主能力。waiting 只观察原实例，不另起进程。文件安装、原生发现、可信来源采集和原会话回执分别报告；未实现或未实测的能力保持 not_ready/待验。
+
+例如本次安装回执为 `host=codex`、`hostRef=codex_clean`，则配置参数为 `{"expectedDigest":"<刚取得的configurationDigest>","changes":{"host":{"registrations":{"codex_clean":{"type":"codex"}}}}}`。必须用本次回执的实际宿主和引用替换示例；首次默认由SDK自动选择，新增不传default便保留已有默认。不要读取配置正文，也不要自行填写command、model或cwd。
 
 普通业务调用自动复用已运行且账号、配置及安装身份匹配的实例，停止后沿原配置启动。普通控制、安装和账号准备不递归唤起业务；下面的明确入口绑定是唯一setup特例。原生来源由宿主适配采集并验证，模型不提交 host/session/workspace 自报字段。
 

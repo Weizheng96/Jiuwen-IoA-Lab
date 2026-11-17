@@ -38,6 +38,8 @@ def main(argv=None):
             if args.command == 'skills-install':
                 from .native_skills import install
                 data = install(args.host, config=args.config, output=args.output, host_ref=args.host_ref)
+                from .onboarding import summary
+                data['onboarding'] = summary(args.host, config=args.config, python=result['data']['python'], host_ref=args.host_ref)['data']
                 result = {'status': 'completed' if data['installed'] else 'waiting', 'data': data, 'error': None}
             elif args.verify:
                 from .onboarding import verify
@@ -47,7 +49,10 @@ def main(argv=None):
                 result = summary(args.host, config=args.config, python=result['data']['python'], host_ref=args.host_ref)
         except (OSError, ValueError, RuntimeError) as error:
             result = {'status': 'rejected', 'data': None, 'error': {'code': 'onboarding_failed', 'message': str(error)}}
-    if args.format == 'markdown' and args.command == 'onboarding' and (result.get('data') or {}).get('format') == 'ioalab.onboarding/1':
+    if args.format == 'markdown' and args.command == 'skills-install' and (result.get('data') or {}).get('onboarding'):
+        from .onboarding import markdown
+        print(markdown({'data': result['data']['onboarding']}))
+    elif args.format == 'markdown' and args.command == 'onboarding' and (result.get('data') or {}).get('format') == 'ioalab.onboarding/1':
         from .onboarding import markdown
         print(markdown(result))
     else: print(json.dumps(result, ensure_ascii=True))
