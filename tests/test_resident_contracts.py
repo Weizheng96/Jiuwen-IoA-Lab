@@ -13,7 +13,7 @@ from a2c.card import card_digest
 from a2c.client import Client
 from a2c.slots import verify_card
 from ioalab_sdk.runtime.ipc import LocalClient
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.assistant.contracts import Contracts
 from ioalab_sdk.runtime.files import private_json
@@ -170,14 +170,14 @@ def test_two_concurrent_user_choices_cannot_sign_two_cards_in_one_scope(platform
 
 def test_wrong_phase_tool_returns_precise_error_and_can_correct_in_original_review(platform,tmp_path):
     class CorrectingHost(QuoteHost):
-        def run(self,turn):
+        def execute(self,turn):
             self.turns.append(turn);turn.on_session('isolated-review-session')
             assert json.loads(turn.input)['requiredAction']['tool']=='provider.task.decision'
-            rejected=turn.on_tool('provider.task.quote',{},'wrong-phase')
+            rejected=turn.on_tool('provider.task.quote',{'reason':'This is a structurally valid wrong-phase quote'},'wrong-phase')
             assert rejected['error']['code']=='forbidden' and 'provider.task.decision' in rejected['error']['message']
             assert platform.db.one('SELECT state FROM delegation_admissions WHERE service=?',turn.actor)['state']=='held'
             assert turn.on_tool('provider.task.decision',{'approved':True},'correct-review')['status']=='recorded'
-            return HostResult('completed','isolated-review-session',{'testDouble':True})
+            return FixtureResult('completed','isolated-review-session',{'testDouble':True})
     with participants(platform,tmp_path,formation='countersign',fee=0,agent_host=CorrectingHost()) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task)
         started,_,_=confirm(assistant,quote);ref=started['data']['contractRef']
@@ -186,9 +186,9 @@ def test_wrong_phase_tool_returns_precise_error_and_can_correct_in_original_revi
         assert len(host.turns)==1 and platform.db.one('SELECT state FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id)['state']=='committed'
 
 
-def test_original_native_tool_manifest_is_frozen_and_denied_tools_block_new_service(platform,tmp_path):
+def test_original_native_tool_manifest_is_frozen_and_native_requirements_are_checked_at_submission(platform,tmp_path):
     from ioalab_sdk.provider.policy import definition_digest
-    host=QuoteHost();host.capabilities=lambda:{'available':True,'testDouble':True,'nativeToolPolicy':{'write_file':'allow','edit_file':'allow','blocked_tool':'deny'}}
+    host=QuoteHost()
     with participants(platform,tmp_path,agent_host=host,business={'native_tools':{'write_file':'ask'}}) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task)
         execution=provider.modules[0].execution;endpoint=execution.contexts[quote['interactionId']]
@@ -204,7 +204,7 @@ def test_original_native_tool_manifest_is_frozen_and_denied_tools_block_new_serv
         assert state['executionReady'] and state['uncheckedNativeTools']==['not_installed']
         execution.configs['service']['native_tools']={'blocked_tool':'allow'}
         state=execution.status('service')
-        assert not state['executionReady'] and state['unavailableNativeTools']==['blocked_tool']
+        assert state['executionReady'] and state['unavailableNativeTools']==[] and state['uncheckedNativeTools']==['blocked_tool']
         execution.configs['service']['native_tools']={};execution.configs['service']['skills']=['missing_business_source']
         state=execution.status('service')
         assert not state['executionReady'] and state['unavailableSkills']==['missing_business_source']

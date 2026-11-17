@@ -2,7 +2,9 @@
 
 The original model writes every declaration and processing instruction.  This
 bridge only relays the six public SDK operations and drives an isolated approval
-after the first host run has ended with an actual pending confirmation.
+after the first S01 round has ended with an actual pending confirmation.  The
+original adapter is reached only through the explicit SDK Registry/Scheduler/S01
+driver; P28 binds the actual authoring session before any SDK tool call.
 """
 from copy import deepcopy
 from dataclasses import asdict
@@ -11,7 +13,8 @@ import uuid
 
 from a2c.codec import digest,digest_bytes
 from ioalab_sdk.runtime.files import private_json
-from ioalab_sdk.runtime.host import AgentDefinition,HostTurn,ToolBinding
+from ioalab_sdk.runtime import AgentDefinition,ToolBinding
+from tools.verification.s01_driver import ExplicitSubmission
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -47,14 +50,14 @@ def configure_with_original_model(receiver,inbox,host,allowed_account,workspace)
     """Return a private audit of model-authored rules and scripted user approval.
 
     ``receiver`` and ``inbox`` are the resident runtime and LocalClient yielded by
-    ``test_assistant_role.runtime_at``; ``host`` is a probed original ProcessHost.
+    ``test_assistant_role.runtime_at``; ``host`` is an original S01 ProcessHost
+    (no startup probe gate; an unavailable model fails its actual S01 round).
     ``workspace`` must be a fresh, isolated evidence directory outside SDK state.
     This function runs the model when called; importing this module does not.
     """
     from test_assistant_role import user_decision
 
     assert isinstance(allowed_account,str) and allowed_account
-    assert host.capabilities().get('available'),host.capabilities()
     workspace=Path(workspace).resolve()
     evidence=workspace/'owner-rule-authoring.json'
     assert not evidence.exists(),'Preserve the original authoring evidence; use a fresh isolated workspace'
@@ -66,7 +69,7 @@ def configure_with_original_model(receiver,inbox,host,allowed_account,workspace)
              '每条来信只按它指定的原时间检查并调用一次预约工具，冲突只返回建议、等对方另发消息改约且不自行采用建议，'
              '不冲突时提交邀请并完整回复工具实际结果，先让我确认后再发布。')
     audit={'scope':'Original Process model authors owner rules from one natural-language request; isolated scripted local-browser approval',
-           'workflowId':workflow,'model':host.capabilities().get('model'),'status':'running',
+           'workflowId':workflow,'model':host.model,'status':'running',
            'productFlow':str(flow_path.relative_to(ROOT)).replace('\\','/'),'productFlowDigest':digest_bytes(flow_bytes),
            'request':request,'sessionId':None,'sessions':[],'trace':[],'rounds':[],
            'limits':['Not a real human approval or native webpage Skill/menu acceptance',
@@ -75,9 +78,11 @@ def configure_with_original_model(receiver,inbox,host,allowed_account,workspace)
 
     def save():private_json(evidence,audit)
 
-    def bind(session):
-        assert isinstance(session,str) and session
-        assert audit['sessionId'] in (None,session),'Original authoring Session changed'
+    def bind(event):
+        # P28 has already persisted this actual session; the audit only mirrors it.
+        session=event.result.session_id
+        if not session or session==audit['sessionId']:return
+        assert audit['sessionId'] is None,'Original authoring Session changed'
         audit['sessionId']=session;audit['sessions'].append(session);save()
 
     def call(name,arguments,call_id):
@@ -105,11 +110,13 @@ def configure_with_original_model(receiver,inbox,host,allowed_account,workspace)
     audit['definitionDigest']=digest({'name':definition.name,'instructions':definition.instructions,
                                       'tools':[tool.policy() for tool in definition.tools]})
 
-    def run(text,session=None):
-        result=host.run(HostTurn(workflow,actor,workflow,definition,text,str(workspace/'model'),
-            timeout_seconds=300,session_id=session,on_session=bind,on_tool=call))
+    driver=ExplicitSubmission(host,workspace/'sdk-driver',actor=actor)
+
+    def run(text):
+        # The same workflow interaction keeps its original P28 session for the second round.
+        result=driver.submit(workflow,definition,text,workspace=workspace/'model',on_event=bind,on_tool=call,timeout=330)
         audit['rounds'].append({'phase':phase,**asdict(result)});save()
-        assert result.status=='completed' and result.session_id==audit['sessionId'],result
+        assert result.state=='completed' and result.terminal and result.session_id==audit['sessionId'],result
         return result
 
     save()
@@ -144,7 +151,7 @@ def configure_with_original_model(receiver,inbox,host,allowed_account,workspace)
         assert decision['status']=='approved' and decision['source'].startswith('local_user_ui:')
         audit['approval']={'performedBy':'isolated scripted local-browser user_decision','receipt':decision};save()
         phase='after_confirmation'
-        run('本机可信用户通道已实际批准刚才待确认的发布，请按原操作原样恢复该次publish并核对真实发布结果。',audit['sessionId'])
+        run('本机可信用户通道已实际批准刚才待确认的发布，请按原操作原样恢复该次publish并核对真实发布结果。')
         completed=[item for item in audit['trace'] if item['phase']==phase and item['name']=='assistant.rules.publish'
                    and (item.get('result') or {}).get('status')=='completed']
         assert completed,'Model did not complete publication after actual approval'
@@ -167,3 +174,4 @@ def configure_with_original_model(receiver,inbox,host,allowed_account,workspace)
         return audit
     except BaseException as exc:
         audit['status']='failed';audit['failureType']=type(exc).__name__;save();raise
+    finally:driver.close()

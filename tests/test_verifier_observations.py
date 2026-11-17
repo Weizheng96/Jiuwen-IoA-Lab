@@ -10,12 +10,13 @@ import pytest
 from a2c.codec import digest_bytes
 from a2c.verifier.acceptance import run_target
 from a2c.verifier.package import build
-from ioalab_sdk.runtime.host import HostResult
+from ioalab_sdk.runtime import HostContext,HostRegistry
 from ioalab_sdk.runtime.observations import model_port
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.scheduling import Scheduler,JobHandler,JobOutcome
 from ioalab_sdk.runtime.store import RuntimeStore
 from conftest import wait_for
+from submission_fixture import FixtureResult,RecordingSubmission,ScriptedSubmission
 
 SOURCE='''from a2c_verifier import observe
 def verify(ctx):
@@ -35,10 +36,9 @@ def verifier():
     return blob,{'skill':{'id':'observation@1','uri':'memory:package','digest':digest_bytes(blob),'disputeModels':['unused-arbitration-model']}}
 
 
-class ObservationHost:
+class ObservationHost(ScriptedSubmission):
     def __init__(self,expected=True):self.expected=expected;self.turns=[];self.entered=threading.Event();self.release=None;self.before=None
-    def capabilities(self):return {'available':True,'explicitTestDouble':True}
-    def run(self,turn):
+    def execute(self,turn):
         assert not turn.definition.skills and not turn.definition.native_tools and not turn.on_interaction
         assert [tool.name for tool in turn.definition.tools]==['verifier.observe']
         assert turn.session_id is None
@@ -49,17 +49,22 @@ class ObservationHost:
         session='observation-'+str(uuid.uuid4());turn.on_session(session)
         # A model's claimed verdict cannot override the program's boolean check.
         assert turn.on_tool('verifier.observe',{'observation':{'expected':self.expected,'status':'pass'}},'observation')['status']=='recorded'
-        return HostResult('completed',session,{'explicitTestDouble':True})
+        return FixtureResult('completed',session,{'explicitTestDouble':True})
 
 
 class Harness:
     def __init__(self,root,host,*,max_models=1):
         self.store=RuntimeStore(root/'runtime.sqlite','http://local',['a'],owner_id='owner')
         self.config=SimpleNamespace(home=root);self.require_execution=lambda:None
-        self.identity=SimpleNamespace(agent_id='a',profile='personal');self.host=host
+        self.identity=SimpleNamespace(agent_id='a',profile='personal');self.root=root
+        # Observations use the same sole SDK Registry/S01 route as roles; no registry means no owner model.
+        self.host=HostRegistry({'original':host},'original') if host is not None else None
+        if self.host:self.host.bind(self.store,identities=[self.identity])
         self.blob,self.refs=verifier()
         self.scheduler=Scheduler(self.store,{'verify':JobHandler(self.verify,'verify-v1'),
-            'control':JobHandler(self.control,'control-v1',False,control=True)},max_models=max_models).start()
+            'control':JobHandler(self.control,'control-v1',False,control=True)},max_models=max_models)
+        if self.host:self.host.scheduler=self.scheduler
+        self.scheduler.start()
     def verify(self,job):
         try:
             result=run_target(self.refs,fetch=lambda _:self.blob,template={'deliverables':[{'name':'result','specSchema':{}}]},card={},target='result',files={'result.json':b'{"delivered":"actual file bytes"}'},period=1,
@@ -72,6 +77,8 @@ class Harness:
         with pytest.raises(RuntimeFault,match='no model permit'):model_port(self,self.host,self.identity,job['interaction'])({}, {})
         return JobOutcome('completed',{'control':True})
     def submit(self,interaction,handler='verify'):
+        if self.host and not self.host.context('a',interaction):
+            self.host.bind_context('a',interaction,HostContext('original','business-'+interaction,str(self.root)))
         return self.scheduler.submit('a',interaction,handler,{},operation_id=str(uuid.uuid4()),session='business-'+interaction)['reference']
     def close(self):self.scheduler.close();self.store.close()
 
@@ -80,7 +87,7 @@ class Harness:
 def test_original_wasm_decides_from_observations_without_replacing_business_session(tmp_path,expected,verdict):
     host=ObservationHost(expected);runtime=Harness(tmp_path,host)
     try:
-        with pytest.raises(RuntimeFault,match='current local model job'):model_port(runtime,host,runtime.identity,'one')({}, {})
+        with pytest.raises(RuntimeFault,match='current local model job'):model_port(runtime,runtime.host,runtime.identity,'one')({}, {})
         job=runtime.submit('one');wait_for(lambda:runtime.scheduler.get(job)['status'] in ('completed','unknown'))
         actual=runtime.scheduler.get(job)
         assert actual['status']=='completed',getattr(runtime,'failure',actual)
@@ -113,7 +120,7 @@ def test_missing_observation_host_propagates_the_actual_error_without_claiming_p
     try:
         job=runtime.submit('one');wait_for(lambda:runtime.scheduler.get(job)['status'] in ('completed','unknown'))
         assert runtime.scheduler.get(job)['status']=='unknown'
-        assert runtime.failure['type']=='RuntimeFault' and 'owner observation model' in runtime.failure['message']
+        assert runtime.failure['type']=='RuntimeFault' and 'original SDK host registry' in runtime.failure['message']
         assert not runtime.store.checkpoints('model-observations:a')
     finally:runtime.close()
 
@@ -129,8 +136,8 @@ def test_resident_l2_selftest_async_preview_real_confirmation_and_original_payme
     from test_assistant_role import user_decision
     class Host(ProductionHost):
         def __init__(self):super().__init__();self.observer=ObservationHost()
-        def run(self,turn):
-            return self.observer.run(turn) if turn.definition.name=='ioa_verifier_observation' else super().run(turn)
+        def execute(self,turn):
+            return self.observer.execute(turn) if turn.definition.name=='ioa_verifier_observation' else super().execute(turn)
     configure_template(monkeypatch);host=Host()
     def arbitration_only(*args):raise AssertionError('Normal acceptance must use the owner model, not the registered arbitration model')
     monkeypatch.setitem(platform.market.market.models,'test-observation-model',arbitration_only)
@@ -139,7 +146,8 @@ def test_resident_l2_selftest_async_preview_real_confirmation_and_original_payme
     with participants(platform,tmp_path,agent_host=host,assistant_host=assistant_host,models=1,verifier_source=SOURCE,verifier_kind='skill') as (provider,assistant,host,template,task):
         lock_checks=[]
         def check_unlocked(turn):
-            endpoint=provider.modules[0].execution.contexts[turn.interaction_id]
+            # An S01 observation has its own interaction; its parent business is the original endpoint.
+            endpoint=provider.modules[0].execution.contexts[turn.business_ref]
             def acquire():
                 acquired=endpoint.lock.acquire(timeout=1)
                 if acquired:endpoint.lock.release()
@@ -183,19 +191,33 @@ def test_resident_l2_selftest_async_preview_real_confirmation_and_original_payme
                 confirmation=preview['data']['confirmationRef']
                 assert assistant.confirmations.get(confirmation,detail=True)['binding']['preview']['report']['status']=='pass'
                 if decision=='expire':
+                    # Acceptance keeps the original acceptWithin only as a soft response deadline
+                    # (expiresAt null, responseDueAt/responseOverdue): passing it is arbitration
+                    # evidence, never a hard client rejection, and creates no signature or payment.
+                    from datetime import datetime
+                    pending=client.call('confirmations.get',{'reference':confirmation})['data']
+                    assert pending['stage']=='delegation.accept' and pending['status']=='pending',pending
+                    assert pending['expiresAt'] is None and pending['responseDueAt'],pending
+                    assert pending['responseOverdue'] is False,pending
+                    due=datetime.fromisoformat(pending['responseDueAt'].replace('Z','+00:00')).timestamp()
                     clock=assistant.confirmations.clock
-                    assistant.confirmations.clock=lambda:clock()+901
-                else:user_decision(assistant,confirmation,decision=decision)
-                if decision in ('reject','expire'):
-                    # The real user decision/expiry alone ends the wait; no model
+                    assistant.confirmations.clock=lambda:max(clock(),due)+901
+                    overdue=client.call('confirmations.get',{'reference':confirmation})['data']
+                    assert overdue['status']=='pending' and overdue['expiresAt'] is None and overdue['responseOverdue'] is True,overdue
+                    assert client.call('assistant.delegation.accept',{'contractRef':ref,'period':1},operation_id=key)['status']=='waiting'
+                    assert assistant.scheduler.get(job)['status']=='waiting',assistant.scheduler.get(job)
+                elif decision=='reject':
+                    user_decision(assistant,confirmation,decision=decision)
+                    # The real user decision alone ends the wait; no model
                     # or SDK accept call is needed to release this interaction.
                     wait_for(lambda:assistant.scheduler.get(job)['status']=='rejected')
-                    assert assistant.scheduler.get(job)['data']['reason']==('expired' if decision=='expire' else 'rejected')
+                    assert assistant.scheduler.get(job)['data']['reason']=='rejected'
                     assert client.call('assistant.delegation.accept',{'contractRef':ref,'period':1},operation_id=key)['status']=='rejected'
                     checked,_=invoke(assistant,ref,'verify',period=1)
                     wait_for(lambda:operation(assistant,ref,checked))
                     assert operation(assistant,ref,checked)['status']=='completed'
                 else:
+                    user_decision(assistant,confirmation,decision=decision)
                     resumed=client.call('assistant.delegation.accept',{'contractRef':ref,'period':1},operation_id=key)
                     assert resumed['status']=='accepted' and resumed['data']['job']['reference']==job
                     wait_for(lambda:operation(assistant,ref,key))
@@ -215,8 +237,8 @@ def test_resident_l2_selftest_async_preview_real_confirmation_and_original_payme
 @pytest.mark.skipif(not os.environ.get('IOALAB_REAL_JIUWEN_DATA_DIR'),reason='requires explicitly configured original Jiuwen/model')
 def test_real_original_jiuwen_observation_is_judged_by_actual_l2_wasm(tmp_path):
     from ioalab_jiuwen.process import ProcessHost
-    host=ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'))
-    assert host.probe()['available'],host.capabilities()
+    # Opt-in real adapter only through the SDK Registry/S01; no startup probe gate.
+    host=RecordingSubmission(ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL')))
     runtime=Harness(tmp_path,host)
     try:
         job=runtime.submit('real');wait_for(lambda:runtime.scheduler.get(job)['status'] in ('completed','unknown'),timeout=150)
@@ -232,6 +254,6 @@ def test_real_original_jiuwen_observation_is_judged_by_actual_l2_wasm(tmp_path):
                 ('src/client/sdk/ioalab_sdk/runtime/scheduling.py',scheduling),
                 ('src/client/hosts/jiuwen/ioalab_jiuwen/process.py',process))}
             Path(os.environ['IOALAB_REAL_L2_REPORT']).write_text(json.dumps({'scope':'Real original Jiuwen JSON observations consumed by actual L2 WASM; not full business, native web or video',
-                'model':host.capabilities()['model'],'verdict':actual['data']['verdict'],'observation':records[0],
+                'model':host.host.model,'verdict':actual['data']['verdict'],'observation':records[0],
                 'verifierSourceDigest':digest_bytes(SOURCE.encode()),'sources':sources},ensure_ascii=False,indent=2),encoding='utf-8')
     finally:runtime.close()

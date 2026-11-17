@@ -2,6 +2,7 @@
 from dataclasses import dataclass,field,replace
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -64,6 +65,7 @@ class RuntimeConfig:
     user_browser: str|None=None
     source: Path|None=field(default=None,repr=False,compare=False)
     source_digest: str|None=field(default=None,repr=False,compare=False)
+    host_unavailable_shutdown_seconds: float=600
 
     def require_current(self):
         if self.source is None:return
@@ -75,7 +77,8 @@ class RuntimeConfig:
     def public_summary(self):
         value={'platform':self.platform,'username':self.username,'dataDir':str(self.home),'identities':list(self.identities),
                'maxModelRuns':self.max_model_runs,'maxPendingRequests':self.max_pending_requests,
-               'assistant':self.assistant,'provider':self.provider,'host':self.host,'userBrowser':self.user_browser}
+               'assistant':self.assistant,'provider':self.provider,'host':self.host,'userBrowser':self.user_browser,
+               'hostUnavailableShutdownSeconds':self.host_unavailable_shutdown_seconds}
         return {'configurationDigest':digest(value),'dataDir':str(self.home),'identities':list(self.identities)}
 
     @classmethod
@@ -87,7 +90,7 @@ class RuntimeConfig:
     @classmethod
     def from_mapping(cls,path,value):
         allowed={'platform_url','username','password','password_env','data_dir','identities',
-                 'max_model_runs','max_pending_requests','assistant','provider','host','user_browser'}
+                 'max_model_runs','max_pending_requests','assistant','provider','host','user_browser','host_unavailable_shutdown_seconds'}
         def invalid(message):raise RuntimeFault('invalid_input',message,'configure')
         if not isinstance(value,dict) or set(value)-allowed:invalid('Unknown common runtime configuration fields')
         for key in ('username',):
@@ -125,6 +128,10 @@ class RuntimeConfig:
             if type(number) is not int or not 1<=number<=limit:invalid('Invalid '+key)
         for key in ('assistant','provider','host'):
             if not isinstance(value.get(key,{}),dict):invalid(key+' configuration must be an object')
+        duration=value.get('host_unavailable_shutdown_seconds',600)
+        if isinstance(duration,bool) or not isinstance(duration,(int,float)) or (isinstance(duration,float) and not math.isfinite(duration)) or duration<=0:
+            invalid('host_unavailable_shutdown_seconds requires a positive finite number')
         return cls(platform,value['username'].strip(),password,home.resolve(),tuple(dict(p) for p in profiles),
                    value.get('max_model_runs',2),value.get('max_pending_requests',128),
-                   value.get('assistant',{}),value.get('provider',{}),value.get('host',{}),user_browser=browser)
+                   value.get('assistant',{}),value.get('provider',{}),value.get('host',{}),user_browser=browser,
+                   host_unavailable_shutdown_seconds=duration)

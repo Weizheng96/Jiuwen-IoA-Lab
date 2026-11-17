@@ -51,13 +51,15 @@ class DelegationTasks:
             old=self.store.checkpoint(self.namespace,key)
             if old and old['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Original delegation task changed')
             if not old:
-                source=native_source()
-                if getattr(self.runtime,'host_registry',None) is not None and source is None:
+                source=native_source(self.identity.agent_id)
+                if self.runtime.native_entry_required and source is None:
                     raise RuntimeFault('not_ready','Verified native source is required before creating a new task','connect_native_context')
                 context={'schema':'ioalab.scope/1','scopeId':reference,'platform':self.runtime.config.platform,
                          'actor':self.identity.agent_id,'user':{'id':self.identity.user.id,'jwk':self.identity.user.jwk},
                          'purpose':purpose,'categoryIds':categories,'currency':'CNY','budget':budget,'proposalFeeLimit':fees}
-                self.store.checkpoint_set(self.namespace,key,{'fingerprint':fingerprint,'context':context,'validDays':days,'nativeSource':source_value(source)})
+                registry=getattr(self.runtime,'host_registry',None)
+                self.store.checkpoint_set(self.namespace,key,{'fingerprint':fingerprint,'context':context,'validDays':days,'nativeSource':source_value(source),
+                    **({'executionHostRef':registry.default} if registry is not None and source is None and not self.runtime.native_entry_required else {})})
         return {'status':'completed','data':{'taskRef':reference,'scopeDigest':digest(self.task(reference)['context']),'authorized':False}}
 
     def task(self,reference):
@@ -175,10 +177,12 @@ class DelegationTasks:
                 self.store.checkpoint_set(self.namespace,'intent:'+reference,record)
         registry=getattr(self.runtime,'host_registry',None)
         if registry is not None:
-            source=source_context(task.get('nativeSource'))
-            if source is None and not self.store.operation(self.identity.agent_id,'message.send',operation):
+            source=source_context(task.get('nativeSource'),actor=self.identity.agent_id)
+            if source is None and self.runtime.native_entry_required and not self.store.operation(self.identity.agent_id,'message.send',operation):
                 raise RuntimeFault('not_ready','Recover the verified original native source','connect_native_context')
             if source is not None:registry.record_origin(self.identity.agent_id,reference,source)
+            elif not self.runtime.native_entry_required:
+                registry.record_application_origin(self.identity.agent_id,reference,host_ref=task.get('executionHostRef'))
         accepted=self.runtime.connection.call(self.identity.agent_id,'message.send',record['payload'],operation_id=record['operationId'])
         return {'status':'completed','data':{'messageRef':reference,'taskRef':record['taskRef'],'deliveryReceipt':accepted}}
 

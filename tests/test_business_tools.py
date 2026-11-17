@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator
 from ioalab_jiuwen.tools import ConfiguredTools
 from ioalab_tools.appointments import Appointments,INPUT,BOOK_OUTPUT,STATUS_OUTPUT
 from ioalab_tools.schedule import LocalSchedule
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult,RecordingSubmission,ScriptedSubmission
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from test_assistant import appointment
 from test_assistant_role import runtime_at,user_decision,send_and_read
@@ -99,11 +99,10 @@ def test_concurrent_reservation_is_visible_before_notification_returns(tmp_path)
     assert first.book(payload,original)==receipt and notice.calls==1
 
 
-class CalendarHost:
+class CalendarHost(ScriptedSubmission):
     def __init__(self):self.turns=[];self.contexts=[]
-    def capabilities(self):return {'available':True,'explicitTestDouble':True}
     def cancel(self,operation):return True
-    def run(self,turn):
+    def execute(self,turn):
         self.turns.append(turn)
         session=turn.session_id or 'isolated-calendar-'+uid();turn.on_session(session)
         payload=json.loads(turn.input.split('\n',1)[1])['input']
@@ -111,7 +110,7 @@ class CalendarHost:
         assert turn.on_tool('calendar.book',payload,'original-book')==actual
         assert turn.on_tool('calendar.book',payload,'model-repeated-book')==actual
         turn.on_tool('ioa_reply',{'output':actual},'original-reply')
-        return HostResult('completed',session,{'explicitTestDouble':True})
+        return FixtureResult('completed',session,{'explicitTestDouble':True})
 
 
 @pytest.mark.parametrize('real',[False,True])
@@ -125,14 +124,8 @@ def test_resident_meeting_conflict_retry_same_uuid_session_and_real_smtp_capture
     capture=Capture(tmp_path/'smtp').start();host=CalendarHost()
     if real:
         from ioalab_jiuwen.process import ProcessHost
-        original=ProcessHost(json.loads(os.environ['IOALAB_REAL_BUSINESS_COMMAND']),os.environ['IOALAB_REAL_BUSINESS_DATA_DIR'],model=os.environ.get('IOALAB_REAL_BUSINESS_MODEL'))
-        assert original.probe()['available']
-        class RecordingHost:
-            def __init__(self):self.turns=[]
-            def capabilities(self):return original.capabilities()
-            def cancel(self,operation):return original.cancel(operation)
-            def run(self,turn):self.turns.append(turn);return original.run(turn)
-        host=RecordingHost()
+        # Opt-in real adapter only through S01; no startup probe gate.
+        host=RecordingSubmission(ProcessHost(json.loads(os.environ['IOALAB_REAL_BUSINESS_COMMAND']),os.environ['IOALAB_REAL_BUSINESS_DATA_DIR'],model=os.environ.get('IOALAB_REAL_BUSINESS_MODEL')))
     tools=ConfiguredTools([{'factory':'calendar','profile':'personal','options':options(calendar,capture.port)}],
                           ({'key':'personal','role':'assistant','name':'owner'},),home=tmp_path/'receiver/state',base_dir=tmp_path)
     try:
@@ -174,9 +167,9 @@ def test_resident_meeting_conflict_retry_same_uuid_session_and_real_smtp_capture
                 assert second['state']=='completed' and second['interactionRef']==first['interactionRef']
                 assert second['result']['output']['status']=='invite_submitted' and second['result']['output']['calendar']=='awaiting_acceptance'
                 assert host.turns[0].session_id is None and host.turns[1].session_id
-                # The SDK may ask a completed round to finish its missing structured reply.
-                # It must keep the same job/Session and cannot produce another effect.
-                assert len({turn.operation_id for turn in host.turns})==2
+                # The SDK may ask a completed round to finish its missing structured reply
+                # (another S01 operation of the same job/Session) and cannot produce another effect.
+                assert len({turn.job_id for turn in host.turns})==2
                 assert {turn.interaction_id for turn in host.turns}=={first['interactionRef']}
                 assert {turn.session_id for turn in host.turns[1:]}=={host.turns[1].session_id}
                 wait_for(lambda:len(capture.messages)==1)
@@ -205,19 +198,19 @@ def test_resident_meeting_conflict_retry_same_uuid_session_and_real_smtp_capture
                         ('src/client/sdk/ioalab_sdk/assistant/role.py',role))}
                     Path(os.environ['IOALAB_REAL_BUSINESS_REPORT']).write_text(json.dumps({
                         'scope':'Original Jiuwen, actual installed calendar factory, HTTP/WS resident roles and real loopback SMTP; scripted local-browser user confirmation',
-                        'model':host.capabilities()['model'],'interactionId':first['interactionRef'],'sessionId':record['context']['sessionId'],
+                        'model':host.host.model,'interactionId':first['interactionRef'],'sessionId':record['context']['sessionId'],
                         'first':first['result']['output'],'second':second['result']['output'],'smtpMessages':len(capture.messages),
                         'originalToolReceipts':{'first':conflict['result'],'second':record['result']},
                         'reservationState':record['state'],'invitationReceipt':record['receipt'],'sources':sources,
-                        'hostRounds':len(host.turns),'messageJobs':len({turn.operation_id for turn in host.turns}),
+                        'hostRounds':len(host.turns),'messageJobs':len({turn.job_id for turn in host.turns}),
                         'limits':['No external email delivery','No Outlook acceptance','No native web menu or new film proof']},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     finally:tools.close();capture.close()
 
 
 
-@pytest.mark.parametrize('available',[True,False])
-def test_resident_assembly_probes_before_tools_and_closes_runtime_first(monkeypatch,tmp_path,available):
-    """Every explicit application/product caller uses the SDK assembly resource lifecycle."""
+@pytest.mark.parametrize('state',['available','unavailable'])
+def test_resident_assembly_starts_tools_without_host_gate_and_closes_runtime_first(monkeypatch,tmp_path,state):
+    """Every explicit application/product caller uses the SDK assembly resource lifecycle; S02 is never a start gate."""
     from types import SimpleNamespace
     import ioalab_sdk.access as module
     events=[]
@@ -228,21 +221,18 @@ def test_resident_assembly_probes_before_tools_and_closes_runtime_first(monkeypa
         def status(self):return {}
         def start(self):events.append('tools.start')
         def close(self):events.append('tools.close')
-    class Host:
-        def capabilities(self):return {'available':available}
-        def probe(self):events.append('probe');return {'available':available}
+    class Host(ScriptedSubmission):
+        def check(self):events.append('check');return {'state':state}
     class Runtime:
-        def __init__(self,config,*,modules,host_status,assembly,host_registry):events.append(('runtime',len(modules),assembly))
+        def __init__(self,config,*,modules,host_status,assembly,host_registry,**_):events.append(('runtime',len(modules),assembly))
         def run(self):events.append('runtime.run')
         def close(self):events.append('runtime.close')
     monkeypatch.setattr('ioalab_sdk.runtime.ResidentRuntime',Runtime)
     tools=Tools()
     with module.assembled(config,Host(),tools=tools,resources={'explicit':tools},assembly='ioalab-jiuwen') as assembly:
         assert assembly.config is config
-        if available:assembly.run()
-        else:
-            with pytest.raises(RuntimeFault,match='probe') as caught:assembly.run()
-            assert caught.value.code=='not_ready'
+        assembly.run()
     assert ('profile','personal') in events and ('runtime',2,'ioalab-jiuwen') in events
-    tail=events[events.index('probe'):]
-    assert tail==(['probe','tools.start','runtime.run','runtime.close','tools.close'] if available else ['probe','runtime.close','tools.close'])
+    assert 'check' not in events
+    tail=events[events.index('tools.start'):]
+    assert tail==['tools.start','runtime.run','runtime.close','tools.close']

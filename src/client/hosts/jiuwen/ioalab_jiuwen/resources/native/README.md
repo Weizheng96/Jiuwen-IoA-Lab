@@ -1,0 +1,15 @@
+# 九问原生入口资源
+
+本目录由SDK P07附在两角色Skill的native目录中；entry-binding.json仅含SDK导出的非秘密绑定，不要放账号凭据或grant。
+
+通过原版公开extensions.import导入整个目录（目录名须ASCII标识符，保留现有同名目录）；该目录必须包含rail.py、entry.py、worker.py、turn.py及entry-binding.json。再在闲置测试实例通过extensions.toggle启用。Rail支持原生热加载；已开的其他会话是否加载必须分别核，不重启或覆盖用户安装。
+
+个人助手使用ioa_assistant_entry，服务方使用ioa_provider_entry。参数仅operation、原operationId和arguments；宿主会话、目录、profile及grant由本轮原生工具上下文和SDK私有描述取得，不能填写或复制到聊天。controls只走同一caller且contextRef为null，不自动启动客户端或读取grant。
+
+setupOperation接受空arguments，通过原公共caller建立SDK显式intent；适配资源再经SDK原trusted control取得claim，原子保存固定原生归属与稳定receipt，最后complete。普通来源/poll没有intent时不保存绑定。已保存归属或安装不同准确拒绝，不覆盖；ACK丢失沿原claim/receipt恢复。
+
+worker保留原生Runtime及事件循环，仅使用既有SDK私有native-control；不另开服务器。当前notice的S01已接真实SessionCreate、原SID排队与原request/execution/generation快照，公开request只在真实echo后成立，P28精确ACK后才允许SDK回调。prepare_session_create本身已会写原生会话，放在原SDK claim之后；未知不重建/重投。快照缺失、取消受理、chat.final及afterinvoke均不当机器终态。
+
+业务最小切片：仅原instructions+1个SDK工具、无文件/提案的HostExecution。worker在send前取实际per-SID Agent只做冲突核与预留，并以公开load_plugin_ability挂本请求守卫Rail；原lane before_invoke精确核实际SID/request/Agent后才装冻结section与SDK工具。nativeToolsEnabled非True时普通工具改到自有拒绝工具，只返回一次错误；SDK回调须原snapshot与P28 bindingAck为True后才入场。其他execution仍提交前not_submitted，不fallback Process。
+
+本资源尚未完成原生安装/模型/Web可见与续聊验收；守卫Rail只经边界替身测试，真实Agent解析与权限rail交互待原生窗口实证。既有九问原生权限及用户设置保持由宿主执行。

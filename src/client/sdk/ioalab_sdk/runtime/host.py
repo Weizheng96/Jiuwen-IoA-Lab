@@ -1,7 +1,7 @@
 """Small host contracts. Role code owns business rules, not the host adapter."""
 import copy
 from dataclasses import dataclass,field
-from typing import Callable,Protocol
+from typing import Callable
 
 from jsonschema import Draft202012Validator,FormatChecker
 from referencing import Registry,Resource
@@ -90,35 +90,3 @@ class AgentDefinition:
     tools: tuple[ToolBinding,...]
     skills: tuple=()
     native_tools: tuple[tuple[str,str],...]=()
-
-
-@dataclass(frozen=True)
-class HostTurn:
-    operation_id: str
-    actor: str
-    interaction_id: str
-    definition: AgentDefinition
-    input: str
-    workspace: str
-    timeout_seconds: float=300
-    session_id: str|None=None
-    on_session: Callable|None=field(default=None,repr=False)
-    on_interaction: Callable|None=field(default=None,repr=False)
-    on_tool: Callable|None=field(default=None,repr=False)
-    on_event: Callable|None=field(default=None,repr=False)
-    allow_native_tools: bool=False
-
-
-@dataclass(frozen=True)
-class HostResult:
-    status: str
-    session_id: str|None
-    usage: dict
-    error: dict|None=None
-    request_id: str|None=None
-
-
-class AgentHost(Protocol):
-    def capabilities(self)->dict:...
-    def run(self,turn:HostTurn)->HostResult:...
-    def cancel(self,operation_id:str)->bool:...

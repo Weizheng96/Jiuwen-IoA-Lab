@@ -1,299 +1,168 @@
-"""Native event public Store/Scheduler/registry seams; no model or shared ports."""
+"""Original-source notices through the one S01/P20 Store/Scheduler path."""
+from dataclasses import replace
 from pathlib import Path
-import tempfile,time,threading
+import threading,time
 from types import SimpleNamespace
-from ioalab_sdk.runtime import native_events as events, scheduling, host_registry as hosts, store as store_module
-from ioalab_sdk.runtime.protocol import RuntimeFault,encode
+import pytest
+from ioalab_sdk.runtime import (NativeEvents,NativeEventTarget,HostRegistry,HostContext,HostRegistration,
+    SubmissionResult,SubmissionEvent,SubmissionError,MachineTerminal,BindingAck,RuntimeStore,RuntimeFault,encode)
+from ioalab_sdk.runtime.scheduling import Scheduler
+from conftest import wait_for
 
-def until(check):
-    deadline=time.monotonic()+4
-    while time.monotonic()<deadline:
-        if check():return
-        time.sleep(.01)
-    raise AssertionError('Boundary condition did not converge')
 
 class Transport:
-    def __init__(self,ref='host'):self.ref=ref;self.sent=[];self.handled=set();self.queries={};self.execution_attempts={}
-    def prepare_delivery(self,sid):return {'ready':True,'receiptStoreId':'boundary-store'}
-    def deliver(self,op,sid,message,*,attempt=None):
-        self.sent.append((op,sid));self.execution_attempts[op]=attempt
-        return hosts.DeliveryReceipt(op,self.ref,sid,'accepted','queue-'+op)
-    def delivery_status(self,op,sid,reference,*,expected_receipt_store_id=None):
-        self.queries[op]=self.queries.get(op,0)+1
-        attempt=self.execution_attempts.get(op)
-        evidence=hosts.NativeExecutionEvidence(op,self.ref,sid,'request-'+op,attempt.nonce,attempt.receipt_store_id,'completed','machine-event-'+op) if op in self.handled and attempt else None
-        return hosts.DeliveryReceipt(op,self.ref,sid,'handled' if op in self.handled else 'accepted',reference,evidence)
+    registration=HostRegistration('fixture','1',('get_request',))
+    def __init__(self,ref='host'):
+        self.ref=ref;self.sent=[];self.receipts={};self.queries={};self.finished={};self.ack_only=False;self.not_ready=False;self.attempts=[]
+    def submit(self,op,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
+        assert execution is None and input.attempt.actor=='actor' and input.attempt.profile=='personal'
+        self.attempts.append(input.attempt)
+        if self.not_ready:return SubmissionResult(op,input.attempt.nonce,'waiting',session_id,error=SubmissionError('not_ready','native_transport','not_submitted','fixture not dispatched'))
+        self.sent.append((op,session_id))
+        receipt=SubmissionResult(op,input.attempt.nonce,'accepted',session_id,'request-'+op,'handled' if self.ack_only else 'accepted')
+        assert on_event(SubmissionEvent(input.attempt.nonce+':session','session',receipt))==BindingAck(session_id,receipt.request_id)
+        self.receipts[receipt.request_id]=receipt
+        return receipt
+    def get_request(self,request):
+        self.queries[request]=self.queries.get(request,0)+1
+        receipt=self.receipts[request]
+        state=self.finished.get(receipt.operation_id)
+        if not state:return receipt
+        terminal=MachineTerminal(receipt.operation_id,receipt.attempt_id,receipt.session_id,request,state,'machine-end-'+receipt.operation_id)
+        return replace(receipt,state=state,terminal=terminal,delivery='handled' if state=='completed' else receipt.delivery)
+
+
+def assemble(store,hosts,*,default='host',max_models=2,budget=.04):
+    registry=HostRegistry(hosts,default);registry.bind(store,identities=[SimpleNamespace(agent_id='actor',profile='personal')])
+    runtime=SimpleNamespace(store=store,closing=threading.Event(),native_entry_required=False)
+    service=NativeEvents(runtime,registry,poll_budget=budget,poll_interval=.01)
+    runtime.scheduler=Scheduler(store,service.handlers(),max_models=max_models)
+    registry.scheduler=runtime.scheduler
+    return registry,runtime,service
+
+
+def publish(registry,service,root,mid,*,host='host',sid=None):
+    registry.record_origin('actor',mid,HostContext(host,sid or 'sid-'+mid,str(root)))
+    target=NativeEventTarget('actor',mid,'host-origins',encode(['actor',mid]))
+    result=service.publish(target,'result:'+mid,'business.result',{'outcome':'completed'},evidence_ref=mid,business_operation='original-'+mid)
+    return target,result['eventRef']
+
+
+def finish(runtime):runtime.closing.set();runtime.scheduler.close()
 
 
 def test_permits_survive_restart_and_origin_target_does_not_become_iid(tmp_path):
-    work=tmp_path
-    with tempfile.TemporaryDirectory(dir=work) as directory:
-        directory=Path(directory)
-        store=store_module.RuntimeStore(directory/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-        transport=Transport();registry=hosts.HostRegistry({'host':transport},'host');registry.bind(store)
-        runtime=SimpleNamespace(store=store,closing=threading.Event())
-        service=events.NativeEvents(runtime,registry,poll_budget=.06,poll_interval=.01)
-        runtime.scheduler=scheduling.Scheduler(store,service.handlers(),max_models=2).start()
-        targets=[]
-        try:
-            for index in range(4):
-                mid='mid-'+str(index)
-                registry.record_origin('actor',mid,hosts.HostContext('host','sid-'+str(index),str(directory)))
-                target=hosts.NativeEventTarget('actor',mid,'host-origins',encode(['actor',mid]));targets.append(target)
-                service.publish(target,'result:'+mid,'message.result',{'outcome':'completed'},evidence_ref=mid,business_operation='original-'+mid)
-            until(lambda:len(transport.sent)==2)
-            until(lambda:runtime.scheduler.status()['states'].get('unknown')==2)
-            time.sleep(.1)
-            assert len(transport.sent)==2,'Unknown accepted native work released global permits'
-            runtime.closing.set();runtime.scheduler.close();store.close()
-            store=store_module.RuntimeStore(directory/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-            registry.bind(store);runtime.store=store;runtime.closing=threading.Event()
-            service=events.NativeEvents(runtime,registry,poll_budget=.06,poll_interval=.01)
-            runtime.scheduler=scheduling.Scheduler(store,service.handlers(),max_models=2).start()
-            time.sleep(.1)
-            assert len(transport.sent)==2,'Restart released uncertain native model permits'
-            recovery_clock=[time.time()+60];service.clock=lambda:recovery_clock[0]
-            service.recover();query_counts=dict(transport.queries);service.recover()
-            assert transport.queries==query_counts,'Unknown recovery ignored durable machine-query backoff'
-            recovery_clock[0]+=60
-            first=transport.sent[0][0];transport.handled.add(first);service.recover()
-            until(lambda:len(transport.sent)==3)
-            service.publish(targets[0],'result:mid-0','message.result',{'outcome':'completed'},evidence_ref='mid-0',business_operation='original-mid-0')
-            assert sum(op==first for op,sid in transport.sent)==1,'Replay sent again'
-            # Origin targets have no protocol interaction and cannot drift to the current default.
-            target_first=next(target for target in targets if store.checkpoint('native-events',encode(['actor',first]))['target']['business_ref']==target.business_ref)
-            original_mid=target_first.business_ref
-            assert store.interaction(origin=original_mid) is None
-            store.prepare('actor','message.send',{'messageId':original_mid,'recipient':'peer','kind':'message.request','body':{'interfaceName':'echo','revision':1}},'business-op')
-            store.recover_link('actor',{'interactionId':'real-iid','sender':'actor','recipient':'peer','originMessageId':original_mid,'interfaceName':'echo','revision':1,'deadline':'2099-01-01T00:00:00Z','maxRequests':8})
-            assert registry.origin_delivery_status(target_first,first,'queue-'+first,interaction='real-iid').status=='handled'
-            assert sum(op==first for op,sid in transport.sent)==1
-            bad=hosts.NativeEventTarget('another','mid-0','host-origins',encode(['actor','mid-0']))
-            try:registry.origin_context(bad)
-            except RuntimeFault:pass
-            else:raise AssertionError('Cross-actor source accepted')
-            external='external'
-            store.record_host_origin('actor',external,{'hostRef':'host','sessionId':'external-sid','workspace':str(directory),'source':'external'})
-            try:registry.origin_context(hosts.NativeEventTarget('actor',external,'host-origins',encode(['actor',external])))
-            except RuntimeFault:pass
-            else:raise AssertionError('External source double-delivered')
-        finally:
-            runtime.closing.set();runtime.scheduler.close();store.close()
+    path=tmp_path/'runtime.sqlite';store=RuntimeStore(path,'http://local',['actor'],owner_id='owner');host=Transport()
+    registry,runtime,service=assemble(store,{'host':host});runtime.scheduler.start()
+    try:
+        targets=[publish(registry,service,tmp_path,'mid-'+str(index)) for index in range(4)]
+        wait_for(lambda:runtime.scheduler.status()['states'].get('unknown')==2)
+        assert len(host.sent)==2
+        finish(runtime);store.close();store=RuntimeStore(path,'http://local',['actor'],owner_id='owner')
+        registry,runtime,service=assemble(store,{'host':host});runtime.scheduler.start()
+        first=host.sent[0][0];host.finished[first]='completed'
+        service.clock=lambda:time.time()+60;service.recover()
+        # A new process has no actual old callback drain proof; machine end alone
+        # does not recreate the missing scope or allow a second wave of models.
+        assert len(host.sent)==2 and runtime.scheduler.status()['states'].get('unknown')==2
+        target=next(t for t,op in targets if op==first)
+        original=store.checkpoint('native-events',encode(['actor',first]))
+        service.publish(target,'result:'+target.business_ref,'business.result',{'outcome':'completed'},evidence_ref=target.business_ref,business_operation='original-'+target.business_ref)
+        assert store.interaction(origin=target.business_ref) is None
+        assert store.checkpoint('native-events',encode(['actor',first]))==original
+        assert sum(op==first for op,_ in host.sent)==1
+    finally:finish(runtime);store.close()
+
 
 def test_same_sid_unknown_blocks_without_blocking_other_hosts(tmp_path):
-    work=tmp_path
-    with tempfile.TemporaryDirectory(dir=work) as directory:
-        directory=Path(directory)
-        store=store_module.RuntimeStore(directory/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-        first,other=Transport(),Transport('other')
-        registry=hosts.HostRegistry({'host':first,'other':other},'host');registry.bind(store)
-        runtime=SimpleNamespace(store=store,closing=threading.Event())
-        service=events.NativeEvents(runtime,registry,poll_budget=.05,poll_interval=.01)
-        runtime.scheduler=scheduling.Scheduler(store,service.handlers(),max_models=4).start()
-        try:
-            for index,host in enumerate(['host','host','other']):
-                mid='same-'+str(index)
-                registry.record_origin('actor',mid,hosts.HostContext(host,'same-sid',str(directory)))
-                target=hosts.NativeEventTarget('actor',mid,'host-origins',encode(['actor',mid]))
-                service.publish(target,'terminal:'+mid,'message.result',{'outcome':'completed'},evidence_ref=mid,business_operation=mid)
-            until(lambda:len(first.sent)==1 and len(other.sent)==1)
-            until(lambda:runtime.scheduler.status()['states'].get('unknown')==2)
-            time.sleep(.1)
-            assert len(first.sent)==1,'Same native session bypassed its unresolved event'
-            assert len(other.sent)==1,'Other host with equal SID was incorrectly blocked'
-        finally:runtime.closing.set();runtime.scheduler.close();store.close()
-
-def test_not_started_resumes_original_operation(tmp_path):
-    work=tmp_path
-    with tempfile.TemporaryDirectory(dir=work) as directory:
-        directory=Path(directory)
-        store=store_module.RuntimeStore(directory/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-        class Preparing(Transport):
-            ready=False
-            reject_once=True
-            attempts=[]
-            preparations=0
-            def prepare_delivery(self,sid):
-                self.preparations+=1
-                return {'ready':self.ready,'receiptStoreId':'boundary-store'}
-            def deliver(self,op,sid,message,*,attempt=None):
-                self.attempts.append(attempt)
-                if self.reject_once:
-                    self.reject_once=False
-                    raise hosts.DeliveryNotStarted(op,sid,attempt)
-                self.handled.add(op)
-                receipt=super().deliver(op,sid,message,attempt=attempt)
-                return self.delivery_status(op,sid,receipt.reference,expected_receipt_store_id=attempt.receipt_store_id)
-        transport=Preparing();registry=hosts.HostRegistry({'host':transport},'host');registry.bind(store)
-        runtime=SimpleNamespace(store=store,closing=threading.Event())
-        service=events.NativeEvents(runtime,registry,poll_budget=.05,poll_interval=.005)
-        runtime.scheduler=scheduling.Scheduler(store,service.handlers(),max_models=1).start()
-        try:
-            registry.record_origin('actor','prepare-mid',hosts.HostContext('host','sid',str(directory)))
-            target=hosts.NativeEventTarget('actor','prepare-mid','host-origins',encode(['actor','prepare-mid']))
-            event=service.publish(target,'prepare-terminal','message.result',{'outcome':'completed'},evidence_ref='mid',business_operation='business')
-            assert not transport.attempts and not transport.sent
-            preparation_count=transport.preparations
-            service.recover();assert transport.preparations==preparation_count,'Readiness scan ignored persisted backoff'
-            assert not transport.attempts
-            transport.ready=True;clock=[time.time()+60];service.clock=lambda:clock[0];service.recover()
-            until(lambda:runtime.scheduler.status()['states'].get('waiting')==1)
-            assert not transport.sent,'Machine-proven not_started was dispatched'
-            original=event['eventRef'];reference=runtime.scheduler.reference('actor',service.handler,original)
-            clock[0]+=60;service.recover()
-            until(lambda:runtime.scheduler.get(reference)['status']=='completed')
-            assert len(transport.sent)==1 and transport.sent[0][0]==original
-            assert transport.attempts[0].nonce!=transport.attempts[1].nonce
-            assert transport.attempts[0].target_digest==transport.attempts[1].target_digest
-        finally:runtime.closing.set();runtime.scheduler.close();store.close()
-
-def test_changed_receipt_store_cannot_wash_unknown(tmp_path):
-    work=tmp_path
-    with tempfile.TemporaryDirectory(dir=work) as directory:
-        directory=Path(directory)
-        store=store_module.RuntimeStore(directory/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-        class Uncertain(Transport):
-            identity='boundary-store'
-            calls=0
-            def prepare_delivery(self,sid):return {'ready':True,'receiptStoreId':self.identity}
-            def deliver(self,op,sid,message,*,attempt=None):
-                self.calls+=1
-                raise TimeoutError('Queue write result is uncertain')
-        transport=Uncertain();registry=hosts.HostRegistry({'host':transport},'host');registry.bind(store)
-        runtime=SimpleNamespace(store=store,closing=threading.Event())
-        service=events.NativeEvents(runtime,registry,poll_budget=.03,poll_interval=.005)
-        runtime.scheduler=scheduling.Scheduler(store,service.handlers(),max_models=1).start()
-        try:
-            registry.record_origin('actor','uncertain-mid',hosts.HostContext('host','sid',str(directory)))
-            target=hosts.NativeEventTarget('actor','uncertain-mid','host-origins',encode(['actor','uncertain-mid']))
-            event=service.publish(target,'uncertain-terminal','message.result',{'outcome':'completed'},evidence_ref='mid',business_operation='business')
-            until(lambda:runtime.scheduler.status()['states'].get('unknown')==1)
-            transport.identity='new-empty-store';service.clock=lambda:time.time()+60
-            try:service.recover()
-            except RuntimeFault:pass
-            assert transport.calls==1,'New empty receipt store washed an uncertain claim'
-            service.publish(target,'uncertain-terminal','message.result',{'outcome':'completed'},evidence_ref='mid',business_operation='business')
-            assert transport.calls==1
-        finally:runtime.closing.set();runtime.scheduler.close();store.close()
-
-# Host receipt ACK and native machine termination are deliberately distinct facts.
-def test_handled_without_machine_terminal_keeps_model_permit(tmp_path):
-    from dataclasses import replace
-    class AckOnly(Transport):
-        terminal=False
-        def deliver(self,op,sid,message,*,attempt=None):
-            value=super().deliver(op,sid,message,attempt=attempt);self.handled.add(op)
-            return hosts.DeliveryReceipt(op,self.ref,sid,'handled',value.reference)
-        def delivery_status(self,op,sid,reference,*,expected_receipt_store_id=None):
-            value=super().delivery_status(op,sid,reference,expected_receipt_store_id=expected_receipt_store_id)
-            return value if self.terminal else replace(value,execution=None)
-    store=store_module.RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-    host=AckOnly();registry=hosts.HostRegistry({'host':host},'host');registry.bind(store)
-    runtime=SimpleNamespace(store=store,closing=threading.Event())
-    service=events.NativeEvents(runtime,registry,poll_budget=.03,poll_interval=.005)
-    runtime.scheduler=scheduling.Scheduler(store,service.handlers(),max_models=1).start()
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner');first,other=Transport(),Transport('other')
+    registry,runtime,service=assemble(store,{'host':first,'other':other},max_models=4);runtime.scheduler.start()
     try:
-        for index in range(2):
-            mid='mid-'+str(index);registry.record_origin('actor',mid,hosts.HostContext('host','sid-'+str(index),str(tmp_path)))
-            service.publish(hosts.NativeEventTarget('actor',mid,'host-origins',encode(['actor',mid])),mid,'message.result',{'outcome':'completed'},evidence_ref=mid,business_operation=mid)
-        until(lambda:runtime.scheduler.status()['states'].get('unknown')==1)
+        for index,ref in enumerate(('host','host','other')):publish(registry,service,tmp_path,'mid-'+str(index),host=ref,sid='same-sid')
+        wait_for(lambda:len(first.sent)==len(other.sent)==1)
+        wait_for(lambda:runtime.scheduler.status()['states'].get('unknown')==2)
+        assert runtime.scheduler.status()['states'].get('queued')==1
+    finally:finish(runtime);store.close()
+
+
+def test_not_submitted_resumes_original_operation_and_attempt_history(tmp_path):
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner');host=Transport();host.not_ready=True
+    registry,runtime,service=assemble(store,{'host':host});runtime.scheduler.start()
+    try:
+        _,op=publish(registry,service,tmp_path,'mid')
+        job=runtime.scheduler.reference('actor',service.handler,op)
+        wait_for(lambda:runtime.scheduler.get(job)['status']=='waiting')
+        assert not host.sent and len(host.attempts)==1
+        service.recover();assert len(host.attempts)==1
+        host.not_ready=False;service.clock=lambda:time.time()+60;service.recover()
+        wait_for(lambda:len(host.sent)==1)
+        assert host.sent[0][0]==op and len(host.attempts)==2
+        assert host.attempts[0].nonce!=host.attempts[1].nonce
+        assert host.attempts[0].scope_digest==host.attempts[1].scope_digest
+    finally:finish(runtime);store.close()
+
+
+def test_handled_without_machine_terminal_keeps_model_permit(tmp_path):
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner');host=Transport();host.ack_only=True
+    registry,runtime,service=assemble(store,{'host':host},max_models=1);runtime.scheduler.start()
+    try:
+        _,first=publish(registry,service,tmp_path,'first');publish(registry,service,tmp_path,'second')
+        job=runtime.scheduler.reference('actor',service.handler,first)
+        wait_for(lambda:runtime.scheduler.get(job)['status']=='unknown')
         assert len(host.sent)==1
-        op=host.sent[0][0]
-        receipt=store.checkpoint('host-deliveries',encode(['actor',op]))['receipt']
-        assert receipt['status']=='handled' and receipt['execution'] is None
-        runtime.closing.set();runtime.scheduler.close();store.close()
-        store=store_module.RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-        registry.bind(store);runtime.store=store;runtime.closing=threading.Event()
-        service=events.NativeEvents(runtime,registry,poll_budget=.03,poll_interval=.005)
-        runtime.scheduler=scheduling.Scheduler(store,service.handlers(),max_models=1).start()
-        service.clock=lambda:time.time()+60;service.recover()
-        assert len(host.sent)==1
-        host.terminal=True;service.clock=lambda:time.time()+120;service.recover()
-        until(lambda:len(host.sent)==2)
-    finally:runtime.closing.set();runtime.scheduler.close();store.close()
+        receipt=runtime.scheduler.get(job)['data']['receipt']
+        assert receipt['delivery']=='handled' and receipt['terminal'] is None
+        host.finished[first]='completed';service.clock=lambda:time.time()+60;service.recover()
+        wait_for(lambda:len(host.sent)==2)
+        assert runtime.scheduler.get(job)['status']=='completed'
+    finally:finish(runtime);store.close()
+
+
+@pytest.mark.parametrize('terminal',['failed','cancelled'])
+def test_machine_failure_releases_notice_permit_without_claiming_handled_or_business_success(tmp_path,terminal):
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner');host=Transport()
+    registry,runtime,service=assemble(store,{'host':host},max_models=1);runtime.scheduler.start()
+    try:
+        _,op=publish(registry,service,tmp_path,'first');publish(registry,service,tmp_path,'second')
+        job=runtime.scheduler.reference('actor',service.handler,op)
+        wait_for(lambda:runtime.scheduler.get(job)['status']=='unknown')
+        host.finished[op]=terminal;service.clock=lambda:time.time()+60;service.recover()
+        wait_for(lambda:len(host.sent)==2)
+        result=runtime.scheduler.get(job)
+        assert result['status']=='failed' and result['data']['reason']=='native_'+terminal
+        assert result['data']['receipt']['delivery']=='accepted'
+        assert store.checkpoint('native-events',encode(['actor',op]))['notice']['facts']=={'outcome':'completed'}
+        service.recover();assert sum(sent==op for sent,_ in host.sent)==1
+    finally:finish(runtime);store.close()
 
 
 def test_machine_queries_use_bounded_exponential_backoff(tmp_path):
-    class Clock:
-        now=0.
-        waits=[]
-        def wait(self,seconds):self.waits.append(seconds);self.now+=seconds;return False
-    clock=Clock();store=store_module.RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-    host=Transport();registry=hosts.HostRegistry({'host':host},'host');registry.bind(store)
-    runtime=SimpleNamespace(store=store,closing=clock)
-    service=events.NativeEvents(runtime,registry,poll_budget=70)
-    service.monotonic=lambda:clock.now;service.clock=lambda:clock.now
-    runtime.scheduler=scheduling.Scheduler(store,service.handlers(),max_models=1)
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner');host=Transport()
+    registry,runtime,service=assemble(store,{'host':host},budget=.08);runtime.scheduler.start()
     try:
-        registry.record_origin('actor','mid',hosts.HostContext('host','sid',str(tmp_path)))
-        target=hosts.NativeEventTarget('actor','mid','host-origins',encode(['actor','mid']))
-        event=service.publish(target,'terminal','message.result',{'outcome':'completed'},evidence_ref='mid',business_operation='mid')
-        outcome=service.handlers()[service.handler].run({'actor':'actor','payload':{'eventRef':event['eventRef']}})
-        assert outcome.state=='unknown'
-        assert clock.waits==[1.,2.,4.,8.,16.,30.,9.]
-        assert host.queries[event['eventRef']]==6
-        assert len(host.sent)==1
-    finally:runtime.scheduler.close();store.close()
+        _,op=publish(registry,service,tmp_path,'mid');job=runtime.scheduler.reference('actor',service.handler,op)
+        wait_for(lambda:runtime.scheduler.get(job)['status']=='unknown')
+        assert 1<=sum(host.queries.values())<=3 and len(host.sent)==1
+        service.clock=lambda:time.time()+60;service.recover();count=dict(host.queries)
+        service.recover();assert host.queries==count
+    finally:finish(runtime);store.close()
 
-import pytest
-from dataclasses import replace
 
-@pytest.mark.parametrize('field',['nonce','receipt_store_id','target_digest'])
-def test_wrong_not_started_attempt_never_permits_retry(tmp_path,field):
-    class InvalidProof(Transport):
-        attempts=0
-        def deliver(self,op,sid,message,*,attempt=None):
-            self.attempts+=1
-            raise hosts.DeliveryNotStarted(op,sid,replace(attempt,**{field:'another-attempt'}))
-    store=store_module.RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-    host=InvalidProof();registry=hosts.HostRegistry({'host':host},'host');registry.bind(store)
+def test_missing_adapter_is_visible_without_claim_and_recovers_original_event(tmp_path):
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
+    registry,runtime,service=assemble(store,{'host':object()});runtime.scheduler.start()
     try:
-        registry.record_origin('actor','mid',hosts.HostContext('host','sid',str(tmp_path)))
-        target=hosts.NativeEventTarget('actor','mid','host-origins',encode(['actor','mid']))
-        with pytest.raises(RuntimeFault):registry.deliver_origin(target,'original','facts')
-        assert registry.deliver_origin(target,'original','facts').status=='unknown'
-        assert host.attempts==1
-    finally:store.close()
+        _,op=publish(registry,service,tmp_path,'mid')
+        assert service.status()=={'pending':1,'diagnosticSamples':[{'eventRef':op,'code':'not_ready'}]}
+        assert store.checkpoint('host-deliveries',encode(['actor',op])) is None
+        host=Transport();registry.hosts['host']=host;service.clock=lambda:time.time()+60;service.recover()
+        wait_for(lambda:len(host.sent)==1)
+        assert host.sent[0][0]==op and not service.status()['diagnosticSamples']
+    finally:finish(runtime);store.close()
 
 
-@pytest.mark.parametrize('field',['attempt_nonce','receipt_store_id','session_id'])
-def test_wrong_machine_execution_proof_never_upgrades_receipt(tmp_path,field):
-    class InvalidMachineProof(Transport):
-        calls=0
-        def deliver(self,op,sid,message,*,attempt=None):
-            self.calls+=1
-            proof=hosts.NativeExecutionEvidence(op,self.ref,sid,'request',attempt.nonce,attempt.receipt_store_id,'completed','machine-event')
-            return hosts.DeliveryReceipt(op,self.ref,sid,'handled','queue',replace(proof,**{field:'unrelated'}))
-    store=store_module.RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-    host=InvalidMachineProof();registry=hosts.HostRegistry({'host':host},'host');registry.bind(store)
-    try:
-        registry.record_origin('actor','mid',hosts.HostContext('host','sid',str(tmp_path)))
-        target=hosts.NativeEventTarget('actor','mid','host-origins',encode(['actor','mid']))
-        with pytest.raises(RuntimeFault):registry.deliver_origin(target,'original','facts')
-        assert registry.deliver_origin(target,'original','facts').status=='unknown'
-        assert host.calls==1
-    finally:store.close()
-
-
-def test_machine_request_reference_is_immutable(tmp_path):
-    class Finished(Transport):
-        def deliver(self,op,sid,message,*,attempt=None):
-            super().deliver(op,sid,message,attempt=attempt);self.handled.add(op)
-            return self.delivery_status(op,sid,'queue',expected_receipt_store_id=attempt.receipt_store_id)
-    store=store_module.RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-    host=Finished();registry=hosts.HostRegistry({'host':host},'host');registry.bind(store)
-    try:
-        registry.record_origin('actor','mid',hosts.HostContext('host','sid',str(tmp_path)))
-        target=hosts.NativeEventTarget('actor','mid','host-origins',encode(['actor','mid']))
-        original=registry.deliver_origin(target,'original','facts')
-        query=host.delivery_status
-        def changed(op,sid,reference,*,expected_receipt_store_id):
-            receipt=query(op,sid,reference,expected_receipt_store_id=expected_receipt_store_id)
-            return replace(receipt,execution=replace(receipt.execution,request_ref='new-request'))
-        host.delivery_status=changed
-        with pytest.raises(RuntimeFault):registry.origin_delivery_status(target,'original','queue')
-        assert registry.deliver_origin(target,'original','facts').execution==original.execution
-    finally:store.close()
+from ioalab_sdk.runtime import native_events as events, scheduling, host_registry as hosts, store as store_module
+until=wait_for
 
 def test_request_evidence_and_checkpoint_pages_are_bounded(tmp_path):
     store=store_module.RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
@@ -327,10 +196,10 @@ def test_inactive_flow_receipt_recovers_after_callback_interruption_without_hist
     from ioalab_sdk.runtime import FlowJournal
     path=tmp_path/'runtime.sqlite'
     store=store_module.RuntimeStore(path,'http://local',['actor'],owner_id='owner')
-    host=Transport();registry=hosts.HostRegistry({'host':host},'host');registry.bind(store)
-    runtime=SimpleNamespace(store=store,closing=threading.Event())
+    host=Transport();registry=hosts.HostRegistry({'host':host},'host');registry.bind(store,identities=[SimpleNamespace(agent_id="actor",profile="personal")])
+    runtime=SimpleNamespace(store=store,closing=threading.Event(),native_entry_required=False)
     service=events.NativeEvents(runtime,registry,poll_budget=.02,poll_interval=.01)
-    runtime.scheduler=scheduling.Scheduler(store,service.handlers())
+    runtime.scheduler=scheduling.Scheduler(store,service.handlers());registry.scheduler=runtime.scheduler
     registry.record_origin('actor','mid',hosts.HostContext('host','sid',str(tmp_path)))
     target=hosts.NativeEventTarget('actor','mid','host-origins',encode(['actor','mid']))
     state=['waiting'];seen=[]
@@ -352,8 +221,8 @@ def test_inactive_flow_receipt_recovers_after_callback_interruption_without_hist
         store.checkpoint_update(journal.namespace,{'history-'+str(i):{'active':False} for i in range(800)})
         runtime.scheduler.close();store.close()
         store=store_module.RuntimeStore(path,'http://local',['actor'],owner_id='owner');runtime.store=store
-        registry.bind(store);service=events.NativeEvents(runtime,registry,poll_budget=.02,poll_interval=.01)
-        runtime.scheduler=scheduling.Scheduler(store,service.handlers())
+        registry.bind(store,identities=[SimpleNamespace(agent_id="actor",profile="personal")]);service=events.NativeEvents(runtime,registry,poll_budget=.02,poll_interval=.01)
+        runtime.scheduler=scheduling.Scheduler(store,service.handlers());registry.scheduler=runtime.scheduler
         recovered=FlowJournal(runtime,'actor','messaging',advance,on_async_receipt=project)
         work=[0]
         def bounded():work[0]+=1;return work[0]>100
@@ -367,25 +236,24 @@ def test_inactive_flow_receipt_recovers_after_callback_interruption_without_hist
     finally:runtime.closing.set();runtime.scheduler.close();store.close()
 
 
-def test_preparation_failure_is_visible_without_claim_and_recovers_original_event(tmp_path):
-    class Preparing(Transport):
-        ready=False
-        def prepare_delivery(self,sid):
-            if not self.ready:raise OSError('fixture private transport failure must not appear in status')
-            return super().prepare_delivery(sid)
-    store=store_module.RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
-    host=Preparing();registry=hosts.HostRegistry({'host':host},'host');registry.bind(store)
-    runtime=SimpleNamespace(store=store,closing=threading.Event())
-    service=events.NativeEvents(runtime,registry,poll_budget=.02,poll_interval=.01)
-    runtime.scheduler=scheduling.Scheduler(store,service.handlers()).start()
+
+def test_early_wakeup_does_not_advance_machine_queries_or_reset_capped_backoff(tmp_path):
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner');now=[0.];queried=[]
+    class Machine(Transport):
+        def get_request(self,request):queried.append(now[0]);return super().get_request(request)
+    class EarlyWake:
+        early=True
+        def wait(self,duration):
+            if self.early:self.early=False;now[0]+=duration/2
+            else:now[0]+=duration
+            return False
+        def set(self):pass
+    host=Machine();registry,runtime,service=assemble(store,{'host':host})
+    runtime.closing=EarlyWake();service.monotonic=lambda:now[0];service.poll_budget=90;service.poll_interval=1.
+    runtime.scheduler.start()
     try:
-        registry.record_origin('actor','mid',hosts.HostContext('host','sid',str(tmp_path)))
-        target=hosts.NativeEventTarget('actor','mid','host-origins',encode(['actor','mid']))
-        result=service.publish(target,'original-result','message.result',{'outcome':'completed'},evidence_ref='mid',business_operation='original')
-        operation=result['eventRef']
-        assert service.status()=={'pending':1,'diagnosticSamples':[{'eventRef':operation,'code':'not_ready'}]}
-        assert store.checkpoint('host-deliveries',encode(['actor',operation])) is None and not host.sent
-        host.ready=True;service.clock=lambda:time.time()+60;service.recover()
-        until(lambda:len(host.sent)==1)
-        assert host.sent[0][0]==operation and not service.status()['diagnosticSamples']
-    finally:runtime.closing.set();runtime.scheduler.close();store.close()
+        _,op=publish(registry,service,tmp_path,'mid');job=runtime.scheduler.reference('actor',service.handler,op)
+        wait_for(lambda:runtime.scheduler.get(job)['status']=='unknown')
+        assert queried==[1.,3.,7.,15.,31.,61.]
+        assert len(host.sent)==1 and now[0]==90.
+    finally:finish(runtime);store.close()

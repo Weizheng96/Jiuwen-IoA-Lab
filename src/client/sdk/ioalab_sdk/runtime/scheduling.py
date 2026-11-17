@@ -13,6 +13,7 @@ import uuid
 from .protocol import RuntimeFault,encode
 
 CURRENT_JOB=ContextVar('ioa-current-job',default=None)
+_CALLBACK_MODEL_SCOPE=ContextVar('ioa-p20-callback-model-scope',default=None)
 
 
 SCHEMA='''CREATE TABLE IF NOT EXISTS runtime_jobs(
@@ -62,6 +63,8 @@ class Scheduler:
         self.error=None
         self._pool=ThreadPoolExecutor(max_workers=max_workers,thread_name_prefix='ioa-role')
         with store.lock:store.db.executescript(SCHEMA)
+        with store.lock:store.db.execute("CREATE INDEX IF NOT EXISTS runtime_submit_jobs ON runtime_checkpoints(json_extract(value,'$.jobId'),json_extract(value,'$.released')) WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2")
+        with store.lock:store.db.execute("CREATE INDEX IF NOT EXISTS runtime_pending_submissions ON runtime_checkpoints(json_extract(value,'$.jobId'),key) WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2 AND json_extract(value,'$.released')=0")
         with store.transaction() as conn:
             if 'model_waiting' not in {row[1] for row in conn.execute('PRAGMA table_info(runtime_jobs)')}:
                 conn.execute('ALTER TABLE runtime_jobs ADD COLUMN model_waiting INTEGER NOT NULL DEFAULT 0')
@@ -97,7 +100,7 @@ class Scheduler:
             if self._draining:raise RuntimeFault('closed','Runtime is draining; no new jobs are accepted')
             if not conn.execute('SELECT 1 FROM runtime_cursors WHERE actor=?',(actor,)).fetchone():
                 raise RuntimeFault('forbidden','Job identity is outside this instance')
-            count=conn.execute("SELECT COUNT(*) FROM runtime_jobs WHERE state IN ('queued','running','waiting','unknown')").fetchone()[0]
+            count=conn.execute("SELECT count(*) FROM (SELECT id FROM runtime_jobs WHERE state IN ('queued','running','waiting','unknown') UNION SELECT json_extract(value,'$.jobId') FROM runtime_checkpoints WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2 AND json_extract(value,'$.released')=0 AND json_extract(value,'$.jobId') IS NOT NULL)").fetchone()[0]
             if count>=self.max_pending and not admitted:raise RuntimeFault('quota_exceeded','Local pending queue is full','wait_for_capacity')
             conn.execute('INSERT INTO runtime_jobs(id,actor,interaction,session,handler,revision,payload,fingerprint,state,created,deadline,result,continuation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
                          (job,actor,interaction,session,handler,revision,encode(payload),fingerprint,
@@ -118,7 +121,7 @@ class Scheduler:
             if self.handlers[row['handler']].control:raise RuntimeFault('forbidden','A protocol control handler cannot bind or execute a host session')
             if row['session'] and row['session']!=session:raise RuntimeFault('identity_conflict','Host session changed')
             scope=self.store.session_scope(row['actor'],row['interaction'],session)
-            conflicts=[other for other in conn.execute("SELECT actor,session,handler,interaction FROM runtime_jobs WHERE id!=? AND state IN ('running','waiting','unknown')",(job,)).fetchall() if self.store.session_scope(other['actor'],other['interaction'],other['session'])==scope]
+            conflicts=[other for other in self._held(conn) if other['id']!=job and self.store.session_scope(other['actor'],other['interaction'],other['session'])==scope]
             if any(other['interaction']!=row['interaction'] or other['handler'] not in self.handlers or not self.handlers[other['handler']].control for other in conflicts):
                 raise RuntimeFault('not_ready','Another unresolved job owns this host session')
             conn.execute('UPDATE runtime_jobs SET session=? WHERE id=?',(session,job))
@@ -211,16 +214,25 @@ class Scheduler:
         current=CURRENT_JOB.get()
         if not current or current[0] is not self:return False
         with self._condition,self.store.lock:
-            if current[1] not in self._active:return False
-            row=self.store.db.execute('SELECT state,model_waiting FROM runtime_jobs WHERE id=?',(current[1],)).fetchone()
-            return bool(row and row['state']=='running' and not row['model_waiting'])
+            row=self.store.db.execute('SELECT actor,interaction,state,model_waiting FROM runtime_jobs WHERE id=?',(current[1],)).fetchone()
+            running=bool(current[1] in self._active and row and row['state']=='running' and not row['model_waiting'])
+        if running:return True
+        callback=_CALLBACK_MODEL_SCOPE.get()
+        from .host_registry import HostRegistry
+        return bool(row and not row['model_waiting'] and isinstance(callback,tuple) and len(callback)==2 and
+                    isinstance(callback[0],HostRegistry) and callback[0].scheduler is self and
+                    callback[0]._callback_permit(callback[1],current[1],row['actor'],row['interaction']))
 
     def require_model(self,actor,interaction):
         current=CURRENT_JOB.get()
         if not current or current[0] is not self:raise RuntimeFault('forbidden','Model observations require the current local model job')
         with self.store.lock:row=self.store.db.execute('SELECT actor,interaction,handler,state,model_waiting FROM runtime_jobs WHERE id=?',(current[1],)).fetchone()
         handler=self.handlers.get(row['handler']) if row else None
-        if not row or row['actor']!=actor or row['interaction']!=interaction or row['state']!='running' or row['model_waiting'] or not handler or not handler.uses_model or handler.control:
+        callback=_CALLBACK_MODEL_SCOPE.get()
+        from .host_registry import HostRegistry
+        trusted=bool(isinstance(callback,tuple) and len(callback)==2 and isinstance(callback[0],HostRegistry)
+                     and callback[0].scheduler is self and callback[0]._callback_permit(callback[1],current[1],actor,interaction))
+        if not row or row['actor']!=actor or row['interaction']!=interaction or (row['state']!='running' and not trusted) or row['model_waiting'] or not handler or not handler.uses_model or handler.control:
             raise RuntimeFault('forbidden','This job has no model permit for the requested identity and interaction')
         return current[1]
 
@@ -303,18 +315,43 @@ class Scheduler:
         conn.execute('UPDATE runtime_jobs SET state=?,result=?,session=?,model_waiting=0 WHERE id=?',
                      (outcome.state,encode(outcome.data),outcome.session or row['session'],row['id']))
 
+    def _held(self,conn):
+        rows=[dict(row) for row in conn.execute("SELECT id,actor,interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')")]
+        # Business completion does not attest to native execution ending. This is
+        # the original ledger's remaining obligation, not a new business state.
+        pending=conn.execute("SELECT j.id,j.actor,j.interaction,j.session,j.handler,j.state,j.model_waiting,c.value FROM runtime_checkpoints AS c JOIN runtime_jobs AS j ON j.id=json_extract(c.value,'$.jobId') WHERE c.namespace='host-deliveries' AND json_extract(c.value,'$.format')=2 AND json_extract(c.value,'$.released')=0").fetchall()
+        for row in pending:
+            record=json.loads(row['value']);receipt=record.get('receipt') or {}
+            interaction=record['target'][1]
+            if record.get('kind')=='observation':
+                # A nested observation is its parent business job's native obligation:
+                # same-interaction controls may still receive facts, business never bypasses.
+                interaction=(json.loads(record['parameters']).get('execution') or {}).get('business_ref') or interaction
+            rows.append({**{key:row[key] for key in ('id','actor','interaction','session','handler','state','model_waiting')},
+                         'interaction':interaction,'session':receipt.get('session_id') or row['session'],'nativeHeld':True})
+        return rows
+
     def _model_permits(self,conn):
-        rows=conn.execute("SELECT handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','unknown')").fetchall()
+        held=self._held(conn);retained={row['id'] for row in held if row.get('nativeHeld')}
+        rows={row['id']:row for row in held}.values()
+        # Query only current jobs through the partial expression index, never walk
+        # every historical submission on the dispatcher's periodic wakeup.
+        submitted=set()
+        for row in rows:
+            if row['state']!='unknown':continue
+            arguments=(row['id'],)
+            prefix="SELECT 1 FROM runtime_checkpoints WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2 AND json_extract(value,'$.jobId')=?"
+            if conn.execute(prefix+' LIMIT 1',arguments).fetchone():submitted.add(row['id'])
         return sum(bool(handler and handler.uses_model and
-                        (row['state']=='running' and not row['model_waiting'] or
-                         row['state']=='unknown' and handler.retain_model_on_unknown))
+                        (not row['model_waiting'] if row['state']=='running' else
+                         row['id'] in retained or row['state']=='unknown' and handler.retain_model_on_unknown and row['id'] not in submitted))
                    for row in rows for handler in (self.handlers.get(row['handler']),))
 
     def _next(self):
         with self.store.transaction() as conn:
-            held=conn.execute("SELECT id,actor,interaction,session,handler,state,model_waiting FROM runtime_jobs WHERE state IN ('running','waiting','unknown')").fetchall()
+            held=self._held(conn)
             models=self._model_permits(conn)
-            business_threads=sum(not self.handlers[r['handler']].control for r in held if r['id'] in self._active and r['handler'] in self.handlers)
+            business_threads=len({r['id'] for r in held if r['id'] in self._active and r['handler'] in self.handlers and not self.handlers[r['handler']].control})
             for row in conn.execute("SELECT * FROM runtime_jobs WHERE state='queued' ORDER BY created,id").fetchall():
                 handler=self.handlers.get(row['handler'])
                 if row['deadline'] is not None and row['deadline']<=time.time():

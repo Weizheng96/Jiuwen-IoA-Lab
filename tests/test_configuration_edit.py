@@ -52,7 +52,9 @@ def arguments(tmp_path,path,changes,*,expected=None,name='changes.json'):
 
 def test_offline_inspection_and_validation_do_not_read_tools_start_hosts_or_create_state(tmp_path,monkeypatch,capsys):
     path,original=settings(tmp_path);before=path.read_bytes()
-    monkeypatch.setattr('ioalab_jiuwen.process.ProcessHost.probe',lambda *_:pytest.fail('Setup started a host'))
+    # Design 196 removed probe: offline inspection must not reach the adapter's S02 check or S01 submit either.
+    for method in ('check','submit'):
+        monkeypatch.setattr('ioalab_jiuwen.process.ProcessHost.'+method,lambda *_a,**_k:pytest.fail('Setup started a host'))
     monkeypatch.setattr('ioalab_jiuwen.tools.ConfiguredTools',lambda *_a,**_k:pytest.fail('Setup loaded private tools'))
     for name in ('configuration','validate'):
         code,result=command(capsys,name,path)

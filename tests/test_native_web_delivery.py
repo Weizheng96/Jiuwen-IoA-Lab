@@ -7,7 +7,7 @@ import uuid
 import pytest
 from conftest import wait_for
 from ioalab_jiuwen.tools import ConfiguredTools
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult, ScriptedSubmission
 from test_assistant_role import runtime_at, user_decision, send_and_read
 
 
@@ -18,16 +18,15 @@ def test_platform_forward_reaches_original_native_session_once(platform, tmp_pat
     options = original['host']['business_tools'][0]['options']
     tools = ConfiguredTools([{'factory': 'jiuwen-web', 'profile': 'personal', 'options': options}],
                             ({'key': 'personal', 'role': 'assistant'},), home=tmp_path / 'receiver/state', base_dir=config_path.parent)
-    class ForwardHost:
-        def capabilities(self): return {'available': True, 'explicitModelDouble': True}
+    class ForwardHost(ScriptedSubmission):
         def cancel(self, operation): return True
-        def run(self, turn):
+        def execute(self, turn):
             turn.on_session(turn.session_id or 'explicit-forward-model-double-' + uuid.uuid4().hex)
             incoming = json.loads(turn.input.split('\n', 1)[1])['input']
             receipt = turn.on_tool('owner.notify', incoming, 'original-notice-call')
             assert turn.on_tool('owner.notify', incoming, 'original-notice-call') == receipt
             turn.on_tool('ioa_reply', {'output': receipt}, 'original-reply')
-            return HostResult('completed', turn.session_id, {'explicitModelDouble': True})
+            return FixtureResult('completed', turn.session_id, {'explicitModelDouble': True})
     host = ForwardHost()
     try:
         with runtime_at(platform, tmp_path / 'sender') as (sender, outgoing, _, sender_user):

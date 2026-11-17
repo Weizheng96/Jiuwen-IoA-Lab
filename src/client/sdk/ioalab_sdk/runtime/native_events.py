@@ -3,7 +3,7 @@ from dataclasses import asdict
 import json
 import time
 import uuid
-from .host_registry import NativeEventTarget, DeliveryNotStarted, source_value
+from .host_registry import NativeEventTarget, source_value
 from .protocol import RuntimeFault, encode
 from .scheduling import JobHandler, JobOutcome
 
@@ -39,18 +39,19 @@ class NativeEvents:
         self._submit(record)
         return {'eventRef':operation,'state':'queued'}
 
+    def _route(self,record,target):
+        context=self.registry.origin_context(target)
+        return encode(['native-origin',asdict(target),context.workspace])
+
     def _submit(self,record):
         reference=self.runtime.scheduler.reference(record['actor'],self.handler,record['operation'])
         try:self.runtime.scheduler.get(reference);return
         except RuntimeFault:pass
         if not self._claim_recovery(record):return
+        from .host_submission import HostRegistration
         host=self.registry.hosts[record['context']['hostRef']]
-        # A missing transport has no side effect and cannot consume a model permit.
-        if not callable(getattr(host,'deliver',None)) or not callable(getattr(host,'delivery_status',None)):
+        if not isinstance(getattr(host,'registration',None),HostRegistration) or not callable(getattr(host,'submit',None)):
             self._diagnose(record,'not_ready');return
-        try:self.registry.origin_readiness(NativeEventTarget(**record['target']))
-        except RuntimeFault as exc:
-            self._diagnose(record,exc.code);return
         self.runtime.scheduler.submit(record['actor'],record['operation'],self.handler,
                                       {'eventRef':record['operation']},operation_id=record['operation'],
                                       session=record['context']['sessionId'])
@@ -78,34 +79,39 @@ class NativeEvents:
             raise RuntimeFault('identity_conflict','Original notice native source changed')
         return record,target
 
+    def _outcome(self,record,receipt):
+        saved=self.store.checkpoint('host-deliveries',encode([record['actor'],record['operation']]))
+        if not receipt.terminal or not saved or not saved.get('released'):return None
+        data={'eventRef':record['operation'],'receipt':asdict(receipt)}
+        if receipt.terminal.state in ('failed','cancelled'):
+            return JobOutcome('failed',{**data,'reason':'native_'+receipt.terminal.state},receipt.session_id)
+        if receipt.delivery=='handled':return JobOutcome('completed',data,receipt.session_id)
+        return None
+
     def run(self,job):
+        from .host_submission import HostInput
         record,target=self._record(job['actor'],job['payload']['eventRef'])
-        try:receipt=self.registry.deliver_origin(target,record['operation'],encode(record['notice']))
-        except RuntimeFault as exc:
-            if exc.code!='not_ready' or self.store.checkpoint('host-deliveries',encode([record['actor'],record['operation']])):
-                raise
-            # _delivery_to swallows callback faults into unknown receipts; this path
-            # is exclusively a readiness failure before the first durable claim/RPC.
-            self.store.checkpoint_set('native-event-preparation',encode([record['actor'],record['operation']]),{'notStarted':True})
+        route=self._route(record,target)
+        receipt=self.registry.submit(record['actor'],route,record['operation'],HostInput(encode(record['notice'])),origin=target)
+        if receipt.error and receipt.error.dispatch=='not_submitted':
             self._diagnose(record,'not_ready')
-            return JobOutcome('waiting',{'eventRef':record['operation'],'reason':'native_preparation'},record['context']['sessionId'])
-        except DeliveryNotStarted:
-            self._diagnose(record,'not_ready')
-            return JobOutcome('waiting',{'eventRef':record['operation'],'reason':'native_not_started'},record['context']['sessionId'])
+            return JobOutcome('waiting',{'eventRef':record['operation'],'reason':'native_not_submitted'},receipt.session_id)
         self._clear_diagnostic(record)
-        deadline=self.monotonic()+self.poll_budget
-        # Do not return waiting after accepted: the native queue may start a model later.
-        # Retain this Scheduler model permit through machine-only queries and uncertain exit.
-        delay=self.poll_interval
-        while receipt.status!='handled' or receipt.execution is None:
-            remaining=deadline-self.monotonic()
-            if remaining<=0 or self.runtime.closing.wait(min(delay,remaining)):
+        deadline=self.monotonic()+self.poll_budget;delay=self.poll_interval
+        next_query=self.monotonic()+delay
+        while True:
+            outcome=self._outcome(record,receipt)
+            if outcome:return outcome
+            now=self.monotonic()
+            if now>=deadline or self.runtime.closing.wait(max(0.,min(next_query,deadline)-now)):
                 return JobOutcome('unknown',{'eventRef':record['operation'],'receipt':asdict(receipt)},receipt.session_id)
-            if self.monotonic()>=deadline:
+            now=self.monotonic()
+            if now>=deadline:
                 return JobOutcome('unknown',{'eventRef':record['operation'],'receipt':asdict(receipt)},receipt.session_id)
-            receipt=self.registry.origin_delivery_status(target,record['operation'],receipt.reference)
+            if now<next_query:continue  # Early/spurious wakeup is not permission to query.
+            receipt=self.registry.get_submission(record['actor'],route,record['operation'])
             delay=min(30.,delay*2)
-        return JobOutcome('completed',{'eventRef':record['operation'],'receipt':asdict(receipt)},receipt.session_id)
+            next_query=self.monotonic()+delay
 
     def _claim_recovery(self,record):
         key=encode([record['actor'],record['operation']]);now=self.clock()
@@ -138,34 +144,21 @@ class NativeEvents:
         try:job=self.runtime.scheduler.get(ref)
         except RuntimeFault:
             self._submit(record);return
-        if job['status']=='completed':
+        if job['status'] in ('completed','failed'):
+            # The Scheduler outcome commits before removing the recovery pointer.
             self.store.checkpoint_delete('native-event-pending',encode([record['actor'],record['operation']]))
-            self._clear_diagnostic(record)
-            return
+            self._clear_diagnostic(record);return
         if job['status'] not in ('waiting','unknown') or self.runtime.scheduler.is_executing(ref):return
-        if job['status']=='unknown':
-            saved=self.store.checkpoint('host-deliveries',encode([record['actor'],record['operation']]))
-            if saved and saved['receipt']['status']=='handled' and saved['receipt'].get('execution'):
-                self.runtime.scheduler.resolve(ref,JobOutcome('completed',{'eventRef':record['operation'],'receipt':saved['receipt']},saved['receipt']['session_id']))
-                return
         if not self._claim_recovery(record):return
-        if job['status']=='waiting':
-            saved=self.store.checkpoint('host-deliveries',encode([record['actor'],record['operation']]))
-            preparation=self.store.checkpoint('native-event-preparation',encode([record['actor'],record['operation']]))
-            if saved and saved.get('dispatchState')=='not_started' or not saved and preparation and preparation.get('notStarted'):
-                try:self.registry.origin_readiness(NativeEventTarget(**record['target']))
-                except RuntimeFault as exc:
-                    self._diagnose(record,exc.code);return
-                self._clear_diagnostic(record)
-                self.runtime.scheduler.resume(ref,{'ready':True})
-            return
-        if job['status']!='unknown' or self.runtime.scheduler.is_executing(ref):return
         _,target=self._record(record['actor'],record['operation'])
-        saved=self.store.checkpoint('host-deliveries',encode([record['actor'],record['operation']]))
-        if not saved:return
-        receipt=self.registry.origin_delivery_status(target,record['operation'],saved['receipt']['reference'])
-        if receipt.status=='handled' and receipt.execution is not None:
-            self.runtime.scheduler.resolve(ref,JobOutcome('completed',{'eventRef':record['operation'],'receipt':asdict(receipt)},receipt.session_id))
+        receipt=self.registry.get_submission(record['actor'],self._route(record,target),record['operation'])
+        if job['status']=='waiting':
+            if receipt.error and receipt.error.dispatch=='not_submitted':
+                self.runtime.scheduler.resume(ref,{'sameOperation':record['operation']})
+            return
+        outcome=self._outcome(record,receipt)
+        if outcome:self.runtime.scheduler.resolve(ref,outcome)
+
 
 def flow_native_notice(journal,record,receipt):
     service=getattr(journal.runtime,'native_events',None)

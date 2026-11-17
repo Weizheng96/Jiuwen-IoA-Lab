@@ -6,7 +6,7 @@ import tempfile
 import zipfile
 
 from .layout import binding, configuration_path
-from .skills import export_skills, skill_manifest
+from .skills import export_skills, skill_manifest, entry_summary
 
 NAMES = ('ioalab-delegate', 'ioalab-provider')
 HOSTS = ('jiuwen', 'codex', 'claude_code')
@@ -42,12 +42,13 @@ def checked(path, expected):
     except (OSError, ValueError): return False
 
 
-def install(host, *, config=None, output=None, source=None, python=None, host_ref=None):
+def install(host, *, config=None, output=None, source=None, python=None, host_ref=None, public_summary=None):
     adapter = owner(host)
     native = adapter.destination()
     target = native
     config = configuration_path(config)
-    packages = export_skills(output or config.parent/'role-skills'/(host_ref or host), source=source, python=python, config=config, host=host, host_ref=host_ref or host)
+    if public_summary is None:public_summary=entry_summary(config)
+    packages = export_skills(output or config.parent/'role-skills'/(host_ref or host), source=source, python=python, config=config, host=host, host_ref=host_ref or host, public_summary=public_summary)
     results = []
     for name, package in zip(NAMES, packages):
         item = {'name': name, 'package': str(package), 'path': str(target/name) if target else None,

@@ -9,6 +9,7 @@ from ioalab_sdk.provider import EDITABLE_SERVICE_FIELDS, validate_provider
 from ioalab_sdk.runtime import RuntimeConfig, RuntimeFault, configure_stdio, public_error, setup_command
 
 HOSTS = {'jiuwen': 'ioalab_jiuwen', 'codex': 'ioalab_codex', 'claude_code': 'ioalab_claude_code'}
+NATIVE_FACTORIES={kind:(module,'native_adapter') for kind,module in HOSTS.items()}
 HOST_FIELDS = {'default', 'registrations'}
 
 
@@ -37,16 +38,24 @@ def selected(config, *, required=True):
     return value['registrations'][value['default']]['type'] if value['default'] else None
 
 
-def validate(config, *, base_dir):
-    from dataclasses import replace
+def validate(config, *, base_dir, resource_port=None):
     validate_provider(config.provider, config.identities)
     hosts={}
     for ref,item in registry(config.host, required=False)['registrations'].items():
         try:
-            owner = importlib.import_module(HOSTS[item['type']])
+            module,name=NATIVE_FACTORIES[item['type']]
+            owner = importlib.import_module(module)
         except ImportError:
             raise RuntimeFault('not_ready', 'Install the registered host adapter dependency', 'install_host') from None
-        hosts[ref]=owner.validate_host(replace(config, host=item), base_dir=base_dir)
+        factory=getattr(owner,name,None)
+        if not callable(factory):
+            raise RuntimeFault('not_ready','The selected native adapter has not supplied its S01 factory','install_host')
+        root=(config.home/'roles'/'native-adapters'/ref).resolve()
+        resources={'resource_factory':resource_port.for_host(ref)} if resource_port is not None else {}
+        bundle=factory(host_ref=ref,resource_root=root,plugin_directory=root/'extension',**resources)
+        if not isinstance(bundle,dict) or set(bundle)!={'host','native_handlers','native_resources'}:
+            raise RuntimeFault('invalid_input','Native factory must provide explicit host, handlers and resources')
+        hosts[ref]=bundle
     return hosts
 
 
@@ -78,13 +87,11 @@ def merge_host(current, changes):
             raise RuntimeFault('invalid_input', 'Select a supported host type')
         if prior and prior['type'] != kind:
             raise RuntimeFault('identity_conflict', 'Keep the type of an existing host registration')
-        try:
-            owner = importlib.import_module(HOSTS[kind])
-        except ImportError:
-            raise RuntimeFault('not_ready', 'Install the registered adapter', 'install_host') from None
         update = {k: v for k, v in fields.items() if k != 'type'}
         base = {k: v for k, v in prior.items() if k != 'type'}
-        entries[ref] = {**(owner.merge_host(base, update) if update else base), 'type': kind}
+        if set(update)-{'business_tools'}:
+            raise RuntimeFault('invalid_input','Native host selection accepts only the provided adapter and business resource bindings')
+        entries[ref] = {**base,**copy.deepcopy(update), 'type': kind}
     default = changes.get('default', original['default'] or next(iter(entries), None))
     return registry({'default': default, 'registrations': entries})
 

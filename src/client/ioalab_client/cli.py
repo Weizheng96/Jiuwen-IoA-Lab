@@ -24,7 +24,10 @@ def main(argv=None):
     result = installation.prepare()
     if result['status'] == 'completed' and args.command == 'skills':
         if args.output is None: parser.error('skills requires --output')
-        try: result['data']['files'] = [str(path) for path in export_skills(args.output, config=args.config, host=args.host, host_ref=args.host_ref)]
+        try:
+            from .skills import entry_summary
+            result['data']['files'] = [str(path) for path in export_skills(args.output, config=args.config, host=args.host, host_ref=args.host_ref,
+                public_summary=entry_summary(args.config) if args.host else None)]
         except (OSError, ValueError, RuntimeError) as error:
             result = {'status': 'rejected', 'data': None,
                       'error': {'code': 'export_failed', 'message': str(error)}}

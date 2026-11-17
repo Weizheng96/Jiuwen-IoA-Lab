@@ -3,7 +3,7 @@
 **阻塞于：** 27、28、33公共基础切片
 
 **目标行为：** 公共层只经S01向Claude Code新建或已有原生会话提交；主动业务沿发起原会话，外部每笔委托／每次私人交互独立新建可见、可继续的原生会话，后续复用原绑定。保留用户已有模型、认证、原生工具与权限，忙碌默认排队。
-**状态：** claimed（196方案已定，实施暂停；既有成果保留，新契约迁移及原生验收未完成）。
+**状态：** claimed（198接入保存、实际CLI／扩展定位及最小私人消息S01共38项确定性用例已过；首个真实native proof_echo专项准备中，未启动窗口／模型。完整业务execution、文件交接与原生验收未完成）。
 **依赖：** 27收敛S01—S05与公共调用／引用／事件；28公共Skill及宿主包装消费；29完整安装资源交付；33公共工具桥、定义快照、文件契约及结果归一。26提供公开能力证据；35消费S02；36负责三宿主四流程与跨宿主统一验收。
 **范围：** [ClaudeCode适配](../ClaudeCode适配/接口.md)、本适配随包原生资源与公开接缝定向测试。公共契约归[共用运行时](../共用运行时/接口/本地执行与恢复.md)，不在本票重复定义业务规则。
 **专题：** [一句话接入与三宿主全流程](../../../工程/专题/一句话接入与三宿主全流程.md)。
@@ -29,13 +29,14 @@
 
 | 已有成果 | 保留价值与限制 |
 |---|---|
-| 正式Agent SDK后台适配 | 已有固定工具、原Session先绑定、同ID续接、取消和unknown不重发及独立应用装配基础；当前源码仍要求command/model，run依赖probe，tools/skills/settings/plugins受限。不能把其后台结果计为用户原聊天或新的原生可见会话 |
+| 正式Agent SDK后台适配 | 16已将显式SDK应用迁到S01／静态登记和运行期check，保留SDK专用配置／生产诊断；不作为产品native失败fallback。其固定工具及后台结果不计用户原聊天或新的原生可见会话 |
 | Python stdio开发Channel | CLI2.1.325、SDK0.2.181下，自有ROG会话busy/idle各一次实际入站、MCP ack、独立handled；说明本机机制可行，不证明业务完成、用户已读或原请求最终结束。自定义baseURL环境未核官方组织政策；开发flag的本机确认不等于下载产品通用发行资格 |
 | 原生历史与关闭恢复 | 自有测试会话在原ID恢复和默认resume列表可见、可看历史并进入输入；恢复后另一输入遇外部502，消费未知。已有用户原聊天、客户端重启恢复与同窗真人继续尚未完成验收 |
 | Stop终态反例 | 原投递→真实ack工具调用ID可核，但显示final/API end_turn/首Stop之后仍可继续；不能据这些事件构造完整原生最终终态。/bg实验改变ID且通道继承未过，不作主链 |
 | 公开Mods加载与submit | 新自有可见窗口真实加载，实际生成2.1.325公开types，用户进入普通输入界面；唯一$.prompt.submit返回未drop，并有core turn.start。无Channel/devflag/asUser/业务MCP |
 | 真实晚到失败 | Mods原turn约193秒后core turn.complete(reason=error)及StopFailure。用户报告外部中转API503模型路由不可用；与插件输入采集不足分账，不能归为插件错误。初90秒unknown保留，原operation→该turn的精确因果未证，execution仍None；没有重投或暗换模型／凭据／代理 |
 | 清理与LINK2候选 | 用户已正常退出旧窗口，机器核自有CLI33124／原测试进程退出已机器核验（原始编号见temp证据）。新LINK2已接机器origin、append前后UUID／全文摘要、同generation与turn事件；11资产已冻结，零模型校验通过，但未launch／未arm／未推理，继续PAUSED |
+| 196 A正式代码边界 | 新增NativeClaudeHost、同resident私有control handler、原生进程／文件基础及6项完整随包资源；已有SID须P28 ACK后才可poll，poll后不自动重放，只报告accepted／unknown，不签机器终态。新增7项边界及4light通过；没有独立prehash，不宣称输入前后字节证明或实机通过 |
 
 开发证据留在temp/ticket30；正式收口仅搬运脱敏摘要及可复核证据，不提交私人运行数据。既有16的SDK生产终态与诊断范围仍由原票维护；本票不将其历史通过数扩成原生验收。
 
@@ -116,14 +117,26 @@
 | 维度 | 当前事实 | 完成要求 |
 |---|---|---|
 | 文档／目标 | 本轮完整改票候选；正式唯一owner尚需同步接口与专题 | S01—S05及静态资源、配置和P调用关系一致，文档检查通过 |
-| 实现 | 正式仍是既有SDK路径；原生候选仅temp，新LINK2未launch | 新契约落盘，旧公共分叉和启动门槛退出，必要资源随包 |
-| 测试 | 旧正式与temp局部结果有各自输入范围；不计本轮复测 | 正常／拒绝／恢复公开接缝及受影响公共回归通过 |
+| 实现 | 正式native模块／6资源及显式native_adapter工厂，16已迁原SDK应用S01；B2严格因果、角色隔离及SDK工具运输／实际排空已落，公开execution仍拒绝。配置继承、共用caller、文件交接与真实新窗口仍待集成；新LINK2未launch | 新契约完整落盘，旧公共分叉和启动门槛退出，必要资源随包 |
+| 测试 | B2为16项及4light／exit0；B3共同core5本票18项及4light通过、整体81pass／1fail／exit1，双hash无漂移。其后sourceOperations及嵌套标志改动待验。旧7资产零模型CLI validate成功、test进程exit0但计数guard exit1，原记录不追改；无真实native／模型 | 正常／拒绝／恢复公开接缝及受影响公共回归通过 |
 | 提交／发布 | 本票原生S01实现未提交／未发布；历史基础单列 | 主集成按本票实际diff登记提交；host wheel及离仓资源发布证据另记 |
 | 原生／业务验收 | Channel/Mods局部有效；完整原输入因果、工具、文件与四流程待验 | 本票host维度实测，36再覆盖三宿主四流程及跨宿主，不以脚本或后台日志代替 |
-| 当前执行 | 原生PAUSED，仅文档修订 | 用户恢复且主集成给新范围后才继续，不重放旧未知op |
+| 当前执行 | B源码开发；真实来源因果／配置继承仍待验，原生／模型PAUSED | 原生仅在主集成另给新范围后继续，不重放旧未知op |
 
 未全满足不收票。正式落盘后随本任务更新接口／实现页及票据／工程进展，保留真实证据边界；提交、发布与原生验收各自登记，不因文档采纳标为功能完成。
 
-## 197隔离只读调用（目标，尚未实现）
+## 197隔离只读调用（部分代码，原生未验）
 
-按[只读观察](../共用运行时/接口/宿主提交.md#只读观察)实现business_session内部初始化和真实隔离API调用。现离线代码仅有无prompt启动与session.start读取实际SID的机制，未证明真实授权/窗口可继续或只读RPC闭包；旧execution_bridge拒绝不当已完成。真实API无上游ID时只用可核闭包回执，不冒chat turn；父SID缺失不借onboarding/recent，创建未知不重建。普通业务SDK工具/专业定义/文件/原生因果要求不因此降低。
+按[只读观察](../共用运行时/接口/宿主提交.md#只读观察)实现business_session内部初始化和真实隔离API调用。现代码已有独立ObservationLane、实际SDK绑定ACK、`$.session.model()`及`$.model.complete()`闭包返回与私有journal，S01同步等真实结果；原聊天忙／外层工具等待时的Mods物理并发、新建窗口真实权限及完整恢复仍未验，静态readonly_context继续unavailable。真实API无上游ID时只用可核闭包回执，不冒chat turn；父SID缺失不借onboarding/recent，创建未知不重建。普通业务SDK工具/专业定义/文件/原生因果要求不因此降低。
+
+## 198接入capture及最小私人消息执行（部分已测，当前新输入待测）
+
+- 公共P07第五键setupOperation复用SDK唯一声明，原四个profile字段不变。只有显式setup的空参数调用执行ensure／fresh source和同公共caller；普通控制仍null context、不ensure／采集／读取grant。
+- 固定helper只定位原CLI、项目目录、CLAUDE_CONFIG_DIR的set／unset目录指针；原CLI改为Win32自有helper父链image／creation证据，不能从PATH或resident环境猜。固定Mods实际$.plugin.root补入同一targetDigest。两种定位的真实原生适用性未验；不保存模型名、密钥、认证环境值或设置正文。SDK注入受信entry_control闭包；control包不能自报claimRef取得保存许可。
+- NativeLaunchStore经SDK pending／claim后，在host自有目录OS锁内原子保存capture＋原claim＋原save receipt，保存后complete。已有receipt的恢复只complete，可使用新boot的已认证scope且无需原接入聊天；hello不能mint／claim或覆盖项目。
+- NativeProcesses可以从该已保存定位新建可见原生终端，不要求旧接入聊天常驻；已有SID不修改cwd。CLI自然加载现有持久设置，不冻结旧model。一次性认证环境在原进程消失后的继承、原生实际加载／信任、客户端重启的原writer恢复仍未验证。
+- integration2本票31项全过，新增A5覆盖SDK许可→保存→ACK、无intent／错cwd拒绝、裸claim拒绝、跨boot保原receipt、新launch参数及Node setup编排。整体188pass／1fail／1skip、4light通过、1167输入无漂移；35 fixture失败另修，不记共同全绿。历史core11结果不追改。
+- 此后最小private execution已从一律execution_bridge拒绝推进到正式S01：冻结definition／SDK tools仅本轮prompt，None真实hello／P28后交付，同S01等原SDK reply工具及强因果core terminal；reply ACK不当终态。真实terminal先journal、实际callback返回后才drain，丢consumer单列错误保原终态。未poll超时禁原item后续dispatch；已poll则unknown保原引用不重投。新组合／失败／原CLI父链用例与当前输入尚未检查。
+- refs／proposal／false原生阶段仍具体not_submitted；P26 per-submit reader／sink由公共owner提供，本票实际授权bytes映射／回取未完成。A/B代码不等于整票、发布或真实原生验收。
+
+integration3真实exit0，共同61项及4light通过；本票全38项通过，P16正常回归／SDK受信闭包一并过，1169 source／assets前后无漂移。此后只追平文档与准备独立temp实机harness，不以确定性事件fixture当真实原生事件。首个专项限定新隔离账号／本机平台、零业务proof_echo、原S01/P28/强终态，实际启动仍须主集成核具体argv／资产／窗口后授权；旧LINK2及unknown op不重放。

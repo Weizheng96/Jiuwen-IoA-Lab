@@ -3,7 +3,7 @@
 **阻塞于：** 27；原生入口实施30、31、32及交付29
 
 **目标行为：** 用户向 Claude Code CLI、Codex 桌面版或九问 Swarm 提供 README_AGENT 后完成一句话接入；在 Windows 本机连接远程平台的新聊天中，原生发现角色 Skill，直接复用原客户端、账号和真实发起会话。个人助手、服务方各一份不同职责的 Skill；同一角色的正文及引用跨宿主一致，四流程共用公共操作和回执。
-**状态：** claimed（196方案已定，实施暂停；既有成果保留，新契约迁移及原生验收未完成）。
+**状态：** claimed（196公共调用器与完整入口资源迁移实施中；既有成果保留，原生验收未完成）。
 **实施前置：** 27落实统一契约、原绑定及旧来源数据迁移；安装资源与29对接，真实原生入口由30—32分别交付，整体验收由36收口。
 **范围：** 公共角色内容、完整资源导出、P10/P14调用包装与分派、P44绑定定位；消费P11唯一ensure-running及既有SDK流程。接口编号用于职责映射，不据此新增空函数。
 
@@ -14,6 +14,8 @@
 - 保留原flow／operation／task／mid来源与异步interaction关联、检查点、原引用恢复、真实确认及unknown不重投能力。旧 `contextRef` 格式和公共宿主运行方法按27迁移，不能把保留历史数据理解为保留旧执行链。
 - 191本地提交为 `54f01fc00f81a2d7ccfc3bc25e286650ac4b4d85`（`v0.0.191.1`，`design-v0.0.191`同指向）。原票“待本地提交”应追平为已提交；本票新目标没有完成发布或原生验收的证据。
 - 191对应输入：`ticket28-review-targeted` 93 passed／exit0；`ticket28-configuration-fixed` 30 passed／exit0；`ticket28-fast-verified` 1851 passed、41 skipped、518 deselected、14 subtests passed／exit0；交付轻量检查exit0。均为当时实现证据，不证明本轮新契约已实施或复测。BOM用例为真实SDK CLI→IPC，不称产品CLI或原生宿主验收。
+
+- 199联合fast（`temp/checks/joint199-fast2`）中归28的19例已逐例分类（工作区，未提交）：native_context_transport 11例与client_hosts 3例为旧测试未迁（前者仍用已禁止的宿主`resolve_context`，后者仍在登记中写command/model），已按私有native-source descriptor→entryRef及仅type登记迁移；onboarding配置用例迁为“仅SDK解析、坏配置无写入、秘密不入安装件”；公共export修复适配拒绝绑定时RuntimeFault逃出CLI。定向`t28-199-r1` 12 passed／exit0，`t28-199-r3` 29 passed、4 failed／exit1。余下3例中jiuwen安装与skill_location[jiuwen]由32修九问空profiles后通过；三宿主同文用例原比较全部.md，含按宿主各异的`native/README.md`，按[接入交付](../共用运行时/接口/接入交付.md#固定交付摘要)、[宿主提交](../共用运行时/接口/宿主提交.md)与两角色产品技能页“相同正文/公共引用、宿主专属包装随适配包交付”收窄为SKILL.md与references逐字节相同，并断言各包含native/entry-binding.json，native内容归各适配测试；接入交付该句作事实修正（不升版）。`t28-199-r5`（onboarding、skill_location、client_hosts、native_context_transport）44 passed、1 failed／exit1，失败为不在本票的codex resident旧契约例（归31/27）；交接见[专项进展1](../../../工程/专题/一句话接入与三宿主全流程/专项进展1/28-原生入口绑定迁移.md)。
 
 ## 当前差距与迁移目标
 

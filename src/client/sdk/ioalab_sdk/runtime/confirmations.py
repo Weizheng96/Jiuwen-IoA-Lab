@@ -1,5 +1,7 @@
 """Typed user decisions, bound to actual objects and one original operation."""
 import hashlib
+import base64
+import binascii
 import hmac
 import json
 import math
@@ -186,6 +188,41 @@ class Confirmations:
     def list(self):
         with self.store.lock:
             return [self._public(row,detail=True) for row in self.store.db.execute('SELECT * FROM runtime_confirmations ORDER BY created DESC LIMIT 100').fetchall()]
+
+    def page(self,*,view='pending',cursor=None):
+        """Bounded browser projection, never a new decision or expiry source."""
+        if view not in ('pending','history'):
+            raise RuntimeFault('invalid_input','Choose pending or history')
+        after=None
+        if cursor is not None:
+            try:
+                if not isinstance(cursor,str) or not 1<=len(cursor)<=1024:raise ValueError()
+                raw=base64.b64decode(cursor+'='*(-len(cursor)%4),altchars=b'-_',validate=True)
+                value=json.loads(raw)
+                if (not isinstance(value,list) or len(value)!=3 or value[0]!=view
+                    or type(value[1]) not in (int,float) or not math.isfinite(value[1])
+                    or not isinstance(value[2],str) or not 1<=len(value[2])<=256):raise ValueError()
+                after=value[1:]
+            except (ValueError,TypeError,binascii.Error,UnicodeError,RecursionError):
+                raise RuntimeFault('invalid_input','Invalid confirmation page cursor') from None
+        now=self.clock()
+        pending="state='pending' AND (expires IS NULL OR expires>?)"
+        where=pending if view=='pending' else 'NOT ('+pending+')'
+        with self.store.lock:
+            count=self.store.db.execute('SELECT COUNT(*) FROM runtime_confirmations WHERE '+where,(now,)).fetchone()[0]
+            pending_count=self.store.db.execute('SELECT COUNT(*) FROM runtime_confirmations WHERE '+pending,(now,)).fetchone()[0]
+            args=[now]
+            if after is not None:
+                where='('+where+') AND (created>? OR (created=? AND id>?))'
+                args.extend((after[0],after[0],after[1]))
+            rows=self.store.db.execute('SELECT * FROM runtime_confirmations WHERE '+where+' ORDER BY created,id LIMIT 51',args).fetchall()
+            selected=rows[:50]
+            next_cursor=None
+            if len(rows)>50:
+                last=selected[-1]
+                next_cursor=base64.urlsafe_b64encode(encode([view,last['created'],last['id']]).encode()).decode().rstrip('=')
+            return {'confirmations':[self._public(row,detail=True) for row in selected],
+                    'page':{'view':view,'nextCursor':next_cursor,'total':count,'pendingCount':pending_count,'size':50}}
 
     def user_channel(self):
         """Only the local UI controller holds this authority; never put it in RPC."""

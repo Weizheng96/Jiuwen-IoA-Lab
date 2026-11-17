@@ -76,11 +76,14 @@ class Messaging:
                 if relation:
                     original=registry.context(self.role.identity.agent_id,relation['id'])
                     if not original:raise RuntimeFault('not_ready','Explicitly recover the original interaction host','migrate_host')
-                    source=source_context(original) if original['source']=='native' else None
+                    source=source_context(original,actor=self.role.identity.agent_id) if original['source']=='native' else None
                 else:
-                    source=native_source()
-                    if source is None:raise RuntimeFault('not_ready','Verified native source is required','connect_native_context')
+                    source=native_source(self.role.identity.agent_id)
+                    if self.role.runtime.native_entry_required and source is None:raise RuntimeFault('not_ready','Verified native source is required','connect_native_context')
                 if source is not None:registry.record_origin(self.role.identity.agent_id,mid,source)
+                elif not self.role.runtime.native_entry_required:
+                    registry.record_application_origin(self.role.identity.agent_id,mid,
+                        host_ref=original['hostRef'] if relation else registry.default,interaction=relation['id'] if relation else None)
             reference={'kind':'delivery','agentId':self.role.identity.agent_id,'operation':'message.send','operationId':operation}
             record={'fingerprint':fingerprint,'messageId':mid,'operationRef':reference,'interface':interface,'envelope':envelope,
                     'noticeOwner':self.role.store.checkpoint('native-notice-owners',encode([self.role.identity.agent_id,operation]))}

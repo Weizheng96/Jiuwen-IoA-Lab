@@ -18,7 +18,7 @@ from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.files import private_json,read_json
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult,ScriptedSubmission,bound_runtime
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.adapters.endpoint import EndpointSession
 from ioalab_sdk.templates import template_from_definition
@@ -31,20 +31,20 @@ from test_agent_delivery import Peer
 def uid():return str(uuid.uuid4())
 
 
-class QuoteHost:
+class QuoteHost(ScriptedSubmission):
     def __init__(self):self.turns=[];self.verifier=None;self.wait=None
-    def capabilities(self):return {'available':True,'testDouble':True}
     def cancel(self,op):
         if self.wait:self.wait.set()
         return True
-    def run(self,turn):
+    def execute(self,turn):
+        assert turn.allow_native_tools is False
         self.turns.append(turn);turn.on_session(turn.session_id or 'isolated-provider-'+uid())
         if self.wait:assert self.wait.wait(15),'test host was not released'
         if json.loads(turn.input)['phase']=='quote':
             args={'acceptance':{'result':{'verifiers':{getattr(self,'verifier_kind','script'):self.verifier},'notCovered':[]}},'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}}
             turn.on_tool('provider.task.quote',args,'isolated-call')
         else:turn.on_tool('provider.task.decision',{'approved':True},'isolated-call')
-        return HostResult('completed',turn.session_id,{'testDouble':True})
+        return FixtureResult('completed',turn.session_id,{'testDouble':True})
 
 
 @contextmanager
@@ -52,12 +52,12 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
-    private_json(pconfig,value);host=agent_host or QuoteHost();prole=ProviderRole(host,provider_tools)
+    private_json(pconfig,value);host=agent_host or QuoteHost()
     provider=(provider_factory(RuntimeConfig.load(pconfig),host,provider_tools) if provider_factory else
-              ResidentRuntime(RuntimeConfig.load(pconfig),modules=(prole,),host_status=host.capabilities)).start()
+              bound_runtime(RuntimeConfig.load(pconfig),host,lambda selected:ProviderRole(selected,provider_tools))).start()
     prole=provider.modules[0]
-    aconfig,_=configuration(platform,tmp_path/'assistant',service=False);avalue=read_json(aconfig);avalue['max_model_runs']=models;private_json(aconfig,avalue);arole=AssistantRole(assistant_host)
-    assistant=ResidentRuntime(RuntimeConfig.load(aconfig),modules=(arole,)).start()
+    aconfig,_=configuration(platform,tmp_path/'assistant',service=False);avalue=read_json(aconfig);avalue['max_model_runs']=models;private_json(aconfig,avalue)
+    assistant=bound_runtime(RuntimeConfig.load(aconfig),assistant_host,lambda selected:AssistantRole(selected)).start()
     try:
         wait_for(lambda:provider.connection.connected and assistant.connection.connected)
         source=verifier_source or "def verify(ctx):\n    return {'status': 'pass'}\n"
@@ -95,9 +95,9 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
         published=prpc.call('provider.publish',args,operation_id=operation);assert published['status']=='completed',published
         template=published['data']['publicationReceipt']['templates'][0]
         # Apply the saved professional configuration by the normal runtime restart.
-        provider.close();prole=ProviderRole(host,provider_tools)
+        provider.close()
         provider=(provider_factory(RuntimeConfig.load(pconfig),host,provider_tools) if provider_factory else
-                  ResidentRuntime(RuntimeConfig.load(pconfig),modules=(prole,),host_status=host.capabilities)).start()
+                  bound_runtime(RuntimeConfig.load(pconfig),host,lambda selected:ProviderRole(selected,provider_tools))).start()
         prole=provider.modules[0]
         wait_for(lambda:provider.connection.connected)
         try:wait_for(lambda:prole.ready('service'))
@@ -169,7 +169,7 @@ def test_zero_fee_proposal_still_commits_capacity_and_gets_original_market_endor
 
 def test_quote_can_correct_wrong_package_kind_in_the_same_host_turn_before_signing(platform,tmp_path):
     class CorrectingHost(QuoteHost):
-        def run(self,turn):
+        def execute(self,turn):
             self.turns.append(turn);turn.on_session('isolated-correcting-session')
             args={'acceptance':{'result':{'verifiers':{'skill':{**self.verifier,'disputeModels':['test-model']}},'notCovered':[]}},
                   'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}}
@@ -177,7 +177,7 @@ def test_quote_can_correct_wrong_package_kind_in_the_same_host_turn_before_signi
             assert invalid['status']=='rejected' and 'kind' in invalid['error']['message']
             args['acceptance']['result']['verifiers']={'script':self.verifier}
             assert turn.on_tool('provider.task.quote',args,'corrected-kind')['status']=='recorded'
-            return HostResult('completed','isolated-correcting-session',{'testDouble':True})
+            return FixtureResult('completed','isolated-correcting-session',{'testDouble':True})
     with participants(platform,tmp_path,agent_host=CorrectingHost()) as (provider,assistant,host,template,task):
         started,_=request(assistant,provider,template,task);ref=started['data']['quoteRef']
         wait_for(lambda:terminal(assistant,ref));result=terminal(assistant,ref)
@@ -255,7 +255,7 @@ def test_lost_market_reply_recovers_original_signatures_without_repeating_model_
         original_session=provider.store.interaction(interaction_id=iid)['session']
         psettings,asettings=provider.config,assistant.config
         provider.close();assistant.close()
-        fresh_host=QuoteHost();fresh_provider=ResidentRuntime(psettings,modules=(ProviderRole(fresh_host),),host_status=fresh_host.capabilities).start()
+        fresh_host=QuoteHost();fresh_provider=bound_runtime(psettings,fresh_host,lambda selected:ProviderRole(selected)).start()
         fresh_assistant=ResidentRuntime(asettings,modules=(AssistantRole(),)).start()
         try:
             wait_for(lambda:fresh_provider.connection.connected and fresh_assistant.connection.connected)
@@ -313,7 +313,7 @@ def test_unknown_host_is_reported_without_faking_failure_or_reexecuting_it(platf
         def unknown(turn):
             calls.append(turn.operation_id);turn.on_session('isolated-unknown-session')
             raise RuntimeFault('unknown_result','test host lost its actual result')
-        monkeypatch.setattr(host,'run',unknown)
+        monkeypatch.setattr(host,'execute',unknown)
         started,_=request(assistant,provider,template,task);ref=started['data']['quoteRef']
         wait_for(lambda:terminal(assistant,ref));result=terminal(assistant,ref)
         assert result['status']=='unknown' and len(calls)==1,result

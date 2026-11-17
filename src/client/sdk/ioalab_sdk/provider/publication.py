@@ -51,6 +51,15 @@ class ProviderRole:
         if self.execution:self.execution.close()
     def ready(self,profile):return bool(self.execution and self.execution.ready(profile))
 
+    def host_health(self,host_ref,state):
+        if self.execution is None:return
+        for identity in self.identities.values():
+            try:
+                self.execution.admission_policy.system_health(identity,host_ref,state,
+                    recovery_ready=getattr(self.execution,'recovery_ready',None))
+            except RuntimeFault as exc:
+                self.execution.errors['health:'+identity.profile]={'code':exc.code,'recovery':exc.recovery}
+
     def _identity(self, profile):
         identity = self.identities.get(profile) if isinstance(profile, str) else None
         if identity is None:

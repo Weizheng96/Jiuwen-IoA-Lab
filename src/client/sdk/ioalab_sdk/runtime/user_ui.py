@@ -8,7 +8,7 @@ import secrets
 import subprocess
 import threading
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit,parse_qs
 import uuid
 import webbrowser
 
@@ -19,8 +19,13 @@ from .confirmation_view import present
 class UserUi:
     page_name='user.html'
 
-    def snapshot(self):
-        return {'confirmations':[present(item) for item in self.confirmations.list()]}
+    def snapshot(self,*,view='pending',cursor=None,reference=None):
+        if reference is not None:
+            if not isinstance(reference,str) or not 1<=len(reference)<=256:
+                raise RuntimeFault('invalid_input','Original confirmation reference required')
+            return {'confirmation':present(self.confirmations.get(reference,detail=True))}
+        result=self.confirmations.page(view=view,cursor=cursor)
+        return {**result,'confirmations':[present(item) for item in result['confirmations']]}
 
     def decision(self,body,session):
         if set(body)-{'reference','bindingDigest','decision','answers'}:raise RuntimeFault('invalid_input','Unknown user decision fields')
@@ -90,7 +95,7 @@ class UserUi:
         if not path.path.startswith('/user'):return False
         try:
             origin=self.origin
-            if request.headers.get('Host')!=urlsplit(origin).netloc or path.query:
+            if request.headers.get('Host')!=urlsplit(origin).netloc or (path.query and not (request.command=='GET' and path.path=='/user/api')):
                 raise RuntimeFault('forbidden','User page Host must match the local listener')
             supplied=request.headers.get('Origin')
             if supplied is not None and supplied!=origin:raise RuntimeFault('forbidden','User actions must come from the local page')
@@ -119,7 +124,13 @@ class UserUi:
                 return True
             session=self._session(request)
             if request.command=='GET' and path.path=='/user/api':
-                request.reply(200,{'csrf':session['csrf'],**self.snapshot()})
+                try:
+                    query=parse_qs(path.query,strict_parsing=True,max_num_fields=3,keep_blank_values=True)
+                    if (set(query)-{'view','cursor','reference'} or any(len(v)!=1 or not v[0] for v in query.values())
+                        or ('reference' in query and len(query)!=1)):raise ValueError()
+                except ValueError:
+                    raise RuntimeFault('invalid_input','Invalid confirmation page query') from None
+                request.reply(200,{'csrf':session['csrf'],**self.snapshot(**{key:value[0] for key,value in query.items()})})
                 return True
             if request.command=='POST' and path.path=='/user/decision':
                 if supplied!=origin or not hmac.compare_digest(request.headers.get('X-Ioa-Csrf','').encode(),session['csrf'].encode()):

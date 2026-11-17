@@ -69,7 +69,7 @@ class FlowJournal:
                 if action in ('observe', 'resume'):
                     raise RuntimeFault('invalid_input', 'An original flowRef is required')
                 ref = flow_key(self.kind, self.actor, operation)
-                record = {'flowRef': ref, 'context': {}, 'action': None, 'results': {}, 'active': False, 'nativeSource': None, 'sourcePending': getattr(self.runtime,'host_registry',None) is not None}
+                record = {'flowRef': ref, 'context': {}, 'action': None, 'results': {}, 'active': False, 'nativeSource': None, 'sourcePending': getattr(self.runtime,'native_entry_required',False)}
             if not original and action not in ('observe', 'resume'):
                 if record['active']:
                     raise RuntimeFault('not_ready', 'Resume the pending action before supplying a new business decision')
@@ -81,7 +81,7 @@ class FlowJournal:
 
     def drive(self, record, advance=None, *, notify=True):
         try:
-            with source_scope(source_context(record.get('nativeSource')) or pending_source()):
+            with source_scope(source_context(record.get('nativeSource'),actor=self.actor) or pending_source()):
                 result=self._drive(record,advance)
         except RuntimeFault:
             result=record.get('receipt')
@@ -133,10 +133,10 @@ class FlowJournal:
         child = flow_key(record['flowRef'], record['operation'], key)
         entry = record['results'].get(key)
         if entry is None:
-            if getattr(self.runtime,'host_registry',None) is not None and CATALOG[name].effect != 'read' and not record.get('nativeSource'):
+            if getattr(self.runtime,'native_entry_required',False) and CATALOG[name].effect != 'read' and not record.get('nativeSource'):
                 if not record.get('sourcePending'):
                     raise RuntimeFault('not_ready','Explicitly recover the original historical source before a new effect','migrate_host')
-                verified=native_source()
+                verified=native_source(self.actor)
                 if verified is None:raise RuntimeFault('not_ready','Verified native source context is required for a new local effect','connect_native_context')
                 record['nativeSource']=source_value(verified);record['sourcePending']=False
                 self.save(record)
@@ -154,7 +154,7 @@ class FlowJournal:
                 conn.execute('INSERT OR IGNORE INTO runtime_checkpoints VALUES(?,?,?)',('native-notice-owners',owner_key,encode(owner)))
         result = entry.get('result')
         if not result or result['status'] not in ('completed', 'rejected', 'failed', 'unknown'):
-            with source_scope(source_context(record.get("nativeSource")) or pending_source()):
+            with source_scope(source_context(record.get("nativeSource"),actor=self.actor) or pending_source()):
                 result = invoke(name, child, args)
             data = result.get('data') or {}
             job = data.get('job') if isinstance(data, dict) else None

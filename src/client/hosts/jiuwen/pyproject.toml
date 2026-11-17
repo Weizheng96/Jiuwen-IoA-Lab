@@ -22,4 +22,4 @@ version = {file = "VERSION"}
 include = ["ioalab_jiuwen*"]
 
 [tool.setuptools.package-data]
-ioalab_jiuwen = ["resources/ioa-notifications/*.py", "resources/ioa-notifications/*.yaml"]
+ioalab_jiuwen = ["resources/ioa-notifications/*.py", "resources/ioa-notifications/*.yaml", "resources/native/*.py", "resources/native/*.md"]

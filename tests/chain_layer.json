@@ -148,16 +148,6 @@
   "tests/test_cli_encoding.py": [
    "test_chinese_validation_is_utf8_without_terminal_or_environment_assumptions"
   ],
-  "tests/test_codex_host.py": [
-   "test_bound_tool_round_and_new_host_resume_keep_the_original_session",
-   "test_lost_result_keeps_session_and_never_retries",
-   "test_changed_definition_and_missing_original_binding_are_rejected",
-   "test_cancel_returns_actual_terminal_and_cannot_claim_no_effect",
-   "test_native_tools_and_unprobed_rounds_fail_before_start",
-   "test_selected_skills_are_frozen_and_cannot_be_replaced_on_resume",
-   "test_unbound_namespace_cannot_reach_the_role_callback",
-   "test_unresponsive_child_cannot_block_the_turn_deadline_while_writing"
-  ],
   "tests/test_configuration_boundary.py": [
    "test_bom_configuration_and_arguments_cross_sdk_cli_and_ipc",
    "test_business_configuration_mismatch_has_no_effect_or_argument_rewrite",
@@ -408,7 +398,7 @@
    "test_contract_user_rejection_or_expiry_does_not_sign_or_reserve_counter",
    "test_full_value_rejection_never_creates_slot_one",
    "test_lost_signed_result_recovers_original_user_signature_without_repeating_review",
-   "test_original_native_tool_manifest_is_frozen_and_denied_tools_block_new_service",
+   "test_original_native_tool_manifest_is_frozen_and_native_requirements_are_checked_at_submission",
    "test_real_original_jiuwen_and_trusted_user_form_one_contract",
    "test_two_concurrent_user_choices_cannot_sign_two_cards_in_one_scope",
    "test_wrong_phase_tool_returns_precise_error_and_can_correct_in_original_review"

@@ -1,10 +1,29 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>IoA Lab · 本机用户确认</title><style>
 :root{font-family:"Microsoft YaHei",system-ui,sans-serif;color:#17253a;background:#f3f6fb}body{max-width:1050px;margin:36px auto;padding:0 24px}h1{font-size:28px}p{line-height:1.7;color:#516176}.card{background:white;border:1px solid #dce4f0;border-radius:18px;padding:24px;margin:20px 0;box-shadow:0 6px 24px #243a6710}header{display:flex;justify-content:space-between;align-items:center;gap:20px}.state{background:#edf2fb;padding:7px 12px;border-radius:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f8fd;padding:18px;border-radius:12px;line-height:1.6;max-height:470px;overflow:auto}button{border:0;border-radius:10px;padding:12px 26px;font:inherit;font-weight:600;cursor:pointer;background:#175fe6;color:white;margin:10px 12px 0 0}.reject{background:#e9eef6;color:#31445f}button:disabled{opacity:.5;cursor:default}label{display:block;margin:12px 0}textarea,select{box-sizing:border-box;width:100%;border:1px solid #c9d5e6;border-radius:8px;padding:10px;font:inherit}#error,.decision-error{color:#a52c36}small{color:#66778c}
-</style><h1>本机用户确认</h1><p>请核对具体对象、处理范围和工具后再决定。此页面的决定仅适用于显示的原操作。</p><p id="error"></p><main id="cards"></main>
+</style><h1>本机用户确认</h1><p>请核对具体对象、处理范围和工具后再决定。此页面的决定仅适用于显示的原操作。</p><nav aria-label="确认列表分页"><button id="pending-view">待办</button><button id="history-view" class="reject">历史</button><button id="previous-page" class="reject">上一页</button><button id="next-page" class="reject">下一页</button><span id="page-status" aria-live="polite"></span></nav><p id="error"></p><main id="cards"></main>
 <script>
 let csrf='',refreshVersion=0,refreshing=false,refreshQueued=false;
 const cards=document.getElementById('cards'),records=new Map(),drafts=new Map(),finals=new Map(),submitting=new Set();
+const hidden=new Map();
+let pageState={view:'pending',cursor:null,previous:[]},targetPage=null,nextCursor=null;
+const pendingView=document.getElementById('pending-view'),historyView=document.getElementById('history-view'),previousPage=document.getElementById('previous-page'),nextPage=document.getElementById('next-page'),pageStatus=document.getElementById('page-status');
+function pagePath(page){return page.view==='pending'&&!page.cursor?'/user/api':'/user/api?view='+page.view+(page.cursor?'&cursor='+encodeURIComponent(page.cursor):'')}
+function navigation(){
+  const busy=refreshing||submitting.size>0;
+  pendingView.disabled=busy;historyView.disabled=busy;
+  previousPage.disabled=busy||!pageState.previous.length;nextPage.disabled=busy||!nextCursor;
+}
+function changePage(action){
+  if(submitting.size)return;
+  if(action==='pending'||action==='history')targetPage={view:action,cursor:null,previous:[]};
+  else if(action==='next'&&nextCursor)targetPage={view:pageState.view,cursor:nextCursor,previous:[...pageState.previous,pageState.cursor]};
+  else if(action==='previous'&&pageState.previous.length)targetPage={view:pageState.view,cursor:pageState.previous.at(-1),previous:pageState.previous.slice(0,-1)};
+  else return;
+  refreshVersion++;void refresh();
+}
+pendingView.addEventListener('click',()=>changePage('pending'));historyView.addEventListener('click',()=>changePage('history'));
+previousPage.addEventListener('click',()=>changePage('previous'));nextPage.addEventListener('click',()=>changePage('next'));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={pending:'等待您的决定',approved:'已允许',rejected:'已拒绝',answered:'已答复',expired:'已过期',cancelled:'已取消'};
 const keyOf=item=>JSON.stringify([item.reference,item.bindingDigest]);
@@ -71,9 +90,13 @@ function reconcile(items){
   const retained=new Set(),ordered=[];
   for(const incoming of items){
     const key=keyOf(incoming),item={...incoming};retained.add(key);
+    for(const map of [records,hidden,drafts,finals])for(const old of map.keys())if(old!==key&&JSON.parse(old)[0]===item.reference){
+      if(map===records)map.get(old).node.remove();map.delete(old);
+    }
     if(item.status==='pending'&&finals.has(key))item.status=finals.get(key);
     if(item.status!=='pending'){finals.set(key,item.status);drafts.delete(key)}
-    let record=records.get(key);
+    let record=records.get(key)||hidden.get(key);
+    hidden.delete(key);
     if(!record){
       const node=document.createElement('section');node.className='card';
       node.dataset.key=key;node.dataset.ref=item.reference;node.dataset.digest=item.bindingDigest;
@@ -82,9 +105,13 @@ function reconcile(items){
       if(record.unknown&&item.status!=='pending')record.error='';
       record.unknown=false;record.item=item;
     }
+    records.set(key,record);
     draw(record);ordered.push(record.node);
   }
-  for(const [key,record] of records)if(!retained.has(key)){record.node.remove();records.delete(key);drafts.delete(key)}
+  for(const [key,record] of records)if(!retained.has(key)){
+    record.node.remove();records.delete(key);
+    if(record.unknown||record.error)hidden.set(key,record);
+  }
   let cursor=cards.firstElementChild;
   for(const node of ordered){if(node===cursor)cursor=cursor.nextElementSibling;else cards.insertBefore(node,cursor)}
   for(const node of [...cards.children])if(!ordered.includes(node))node.remove();
@@ -94,15 +121,32 @@ function reconcile(items){
     if(selection)active.setSelectionRange(...selection);
   }
 }
+async function verifyUnknown(record){
+  if(!record.unknown||record.verifying)return;
+  record.verifying=true;
+  try{
+    const data=await api('/user/api?reference='+encodeURIComponent(record.item.reference)),item=data.confirmation;
+    if(!item||keyOf(item)!==record.key)throw Error('原确认绑定已变化，请刷新列表核对');
+    if(record.submitting||!record.unknown)return;
+    record.unknown=false;record.item=item;
+    if(item.status!=='pending'){finals.set(record.key,item.status);drafts.delete(record.key);record.error='';hidden.delete(record.key)}
+    else record.error='原确认仍待决定，请核对后手动提交；不会自动重发。';
+    draw(record);
+  }catch(error){record.error='原提交结果仍未核实，不会自动重发。 '+error.message;formState(record)}
+  finally{record.verifying=false}
+}
 async function refresh(){
   if(refreshing){refreshQueued=true;return}
-  refreshing=true;const version=refreshVersion;
+  refreshing=true;navigation();const version=refreshVersion,requested=targetPage||pageState;
   try{
-    const data=await api('/user/api');
+    const data=await api(pagePath(requested));
     if(version!==refreshVersion||submitting.size)return;
-    csrf=data.csrf;reconcile(data.confirmations);document.getElementById('error').textContent='';
+    csrf=data.csrf;pageState=requested;targetPage=null;nextCursor=data.page.nextCursor;
+    pageStatus.textContent=(pageState.view==='pending'?'待办':'历史')+' · 第 '+(pageState.previous.length+1)+' 页 · '+data.page.total+' 项（待办 '+data.page.pendingCount+' 项）';
+    reconcile(data.confirmations);document.getElementById('error').textContent='';
+    for(const record of [...records.values(),...hidden.values()])if(record.unknown)void verifyUnknown(record);
   }catch(error){if(version===refreshVersion)document.getElementById('error').textContent=error.message}
-  finally{refreshing=false;if(refreshQueued){refreshQueued=false;void refresh()}}
+  finally{refreshing=false;navigation();if(refreshQueued){refreshQueued=false;void refresh()}}
 }
 for(const eventName of ['input','change'])cards.addEventListener(eventName,event=>{
   const card=event.target.closest('.card'),record=card&&records.get(card.dataset.key);
@@ -115,6 +159,7 @@ cards.addEventListener('click',async event=>{
   const body={reference:record.item.reference,bindingDigest:record.item.bindingDigest,decision:button.dataset.decision};
   if(body.decision==='answer')body.answers=capture(record);
   record.submitting=true;record.error='';submitting.add(record.key);refreshVersion++;formState(record);
+  navigation();
   try{
     const result=await api('/user/decision',body);
     if(result.reference!==body.reference||result.bindingDigest!==body.bindingDigest||!result.status||result.status==='pending')throw Error('尚未核实原确认的提交结果');
@@ -123,7 +168,7 @@ cards.addEventListener('click',async event=>{
     record.unknown=!(error.httpStatus>=400&&error.httpStatus<500);
     record.error=record.unknown?'提交结果尚未确认，正在核对原确认记录；不会自动重发。 '+error.message:error.message;
   }finally{
-    record.submitting=false;submitting.delete(record.key);refreshVersion++;draw(record);void refresh();
+    record.submitting=false;submitting.delete(record.key);refreshVersion++;draw(record);navigation();void refresh();
   }
 });
 (async()=>{try{const token=location.hash.slice(1);history.replaceState(null,'','/user');if(token)await api('/user/session',{token});await refresh();setInterval(refresh,1500)}catch(error){document.getElementById('error').textContent=error.message}})();

@@ -70,7 +70,8 @@ HELPER_CASES = {
 }
 # Files outside every module: exact owners override directory fallbacks; directory rules do not accumulate.
 FILE_RULES = {
-    'tools/verification/codex_host.py': ('codex_host',),
+    'tools/verification/codex_host.py': ('codex_host', 'verification_s01_driver'),
+    'tools/verification/s01_driver.py': ('verification_s01_driver', 'codex_host', 'model_messaging'),
     'tools/container_images.py': ('container_images',),
     'tools/check_docs.py': ('check_docs',),
     'tools/check_modules.py': ('check_modules', 'check_scope', 'reading_budget'),

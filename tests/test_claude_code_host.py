@@ -1,7 +1,9 @@
-"""Public AgentHost contract at the official SDK external boundary."""
+"""Explicit SDK S01 at the public external SDK boundary; no native CLI/model."""
 import asyncio
 from dataclasses import replace
+from datetime import datetime,timedelta,timezone
 import json
+import hashlib
 from pathlib import Path
 import sys
 import threading
@@ -10,238 +12,330 @@ from types import SimpleNamespace
 import pytest
 import claude_agent_sdk as sdk
 from ioalab_claude_code import ClaudeCodeHost
-from ioalab_sdk.runtime import AgentDefinition, HostTurn, ToolBinding, RuntimeFault
-
+from ioalab_sdk.runtime import RuntimeFault
+from ioalab_sdk.runtime import (BindingAck,HostDefinition,HostExecution,HostInput,
+    HostRegistration,HostResource,HostToolDeclaration,HostToolResult,SubmissionAttempt)
 
 @pytest.fixture
 def boundary(monkeypatch):
-    state=SimpleNamespace(mode='normal',calls=[],clients=[],options=[],terminal=None,tool_results=[])
+    state=SimpleNamespace(mode='normal',clients=[],options=[],calls=[],results=[],queries=[],version_calls=[],
+        interrupt_mode='ack',interrupt_started=threading.Event(),interrupt_release=threading.Event(),
+        interrupt_acked=threading.Event(),terminal_release=None,interrupt_calls=0,structured=None,
+        text='I delivered it (content only)')
     class Client:
-        def __init__(self, options):self.options=options;self.interrupted=asyncio.Event();state.options.append(options)
+        def __init__(self,options):self.options=options;self.interrupted=asyncio.Event();state.options.append(options)
         async def __aenter__(self):state.clients.append(self);return self
         async def __aexit__(self,*args):pass
-        async def get_server_info(self):return {'privateConfiguration':'private-sentinel','models':[{'value':'test-model','resolvedModel':'test-model','displayName':'Test'}, {'value':'default','resolvedModel':'test-model','displayName':'Default (recommended)'}]}
-        async def query(self,prompt):self.prompt=prompt
-        async def interrupt(self):self.interrupted.set()
+        async def get_server_info(self):return {'private':'SECRET_CONFIG','models':[{'value':'test-model'}]}
+        async def query(self,prompt):
+            self.prompt=[v async for v in prompt][0];state.queries.append(self.prompt)
+            self.options.stderr('502 SECRET_KEY PRIVATE_USER_BODY')
+        async def interrupt(self):
+            state.interrupt_calls+=1;state.interrupt_started.set()
+            if state.interrupt_mode=='error':raise OSError('control response lost')
+            if state.interrupt_mode=='pending':
+                while not state.interrupt_release.is_set():await asyncio.sleep(.005)
+            state.interrupt_acked.set();self.interrupted.set()
         async def receive_response(self):
             sid=self.options.resume or 'original-session'
             yield sdk.SystemMessage(subtype='init',data={'session_id':sid})
-            if state.mode=='wait':await self.interrupted.wait()
-            elif state.mode=='drop':raise OSError('lost stream')
+            if state.mode!='no-echo':
+                yield sdk.UserMessage(content=self.prompt['message']['content'],uuid=self.prompt['uuid'],
+                    parent_tool_use_id='parent' if state.mode=='nested-echo' else None,
+                    origin={'kind':'task-notification'} if state.mode=='injected-echo' else None)
+            if state.mode=='drop':raise OSError('SECRET_PROVIDER_BODY')
+            if state.mode=='wait':
+                await self.interrupted.wait()
+                while state.terminal_release is not None and not state.terminal_release.is_set():await asyncio.sleep(.005)
             else:
                 tool=self.options.mcp_servers['ioa_sdk']['tools'][0]
                 name='mcp__ioa_sdk__'+tool.name
                 if state.mode=='foreign':name='Bash'
                 attempts=[('call-original',{'text':'hello'})]
-                if state.mode=='schema-retry':attempts=[('call-invalid',{'text':42}),('call-corrected',{'text':'hello'})]
+                if state.mode=='schema-retry':attempts=[('invalid',{'text':42}),('corrected',{'text':'hello'})]
                 hook=self.options.hooks['PreToolUse'][0].hooks[0]
-                for call,arguments in attempts:
-                    result=await hook({'tool_name':name,'tool_input':arguments,'tool_use_id':call,
-                                       'session_id':sid},call,{})
-                    state.calls.append(result)
-                    if result['hookSpecificOutput']['permissionDecision']=='allow':
-                        try:
-                            state.terminal=await tool.handler(arguments)
-                            state.tool_results.append(state.terminal)
+                for call,args in attempts:
+                    decision=await hook({'session_id':sid,'tool_name':name,'tool_use_id':call,'tool_input':args},call,{})
+                    state.calls.append(decision)
+                    if decision['hookSpecificOutput']['permissionDecision']=='allow':
+                        try:state.results.append(await tool.handler(args))
                         except Exception:
                             if state.mode!='swallow':raise
+            if state.mode=='lost-terminal':return
             yield sdk.ResultMessage(subtype='error_during_execution' if state.mode=='wait' else 'success',
-                duration_ms=1,duration_api_ms=1,is_error=state.mode=='wait',num_turns=1,session_id=sid,
-                usage={'input_tokens':3},stop_reason=None if state.mode=='wait' else 'end_turn',
-                terminal_reason='aborted_streaming' if state.mode=='wait' else None)
+                duration_ms=1,duration_api_ms=1,is_error=state.mode=='wait',num_turns=1,
+                session_id='foreign-session' if state.mode=='wrong-sid' else sid,usage={'input_tokens':3},
+                result=state.text,structured_output=state.structured,uuid=None if state.mode=='no-result-id' else 'result-uuid',
+                origin={'kind':'task-notification'} if state.mode=='injected-result' else None,
+                terminal_reason=None if state.mode=='end-turn-only' else 'aborted_streaming' if state.mode=='wait' else 'completed',
+                stop_reason='end_turn')
     monkeypatch.setattr(sdk,'ClaudeSDKClient',Client)
     monkeypatch.setattr(sdk,'create_sdk_mcp_server',lambda **kwargs:kwargs)
-    original_run = __import__('subprocess').run
-    monkeypatch.setattr('ioalab_claude_code.host.subprocess.run',lambda args,**kwargs: SimpleNamespace(returncode=0,stdout='2.test (Claude Code)') if args[-1]=='--version' else original_run(args,**kwargs))
+    original_run=__import__('subprocess').run
+    def version(args,**kwargs):
+        if args==[sys.executable,'--version']:
+            state.version_calls.append(args);return SimpleNamespace(returncode=0,stdout='2.test (Claude Code)')
+        return original_run(args,**kwargs)
+    monkeypatch.setattr('ioalab_claude_code.host.subprocess.run',version)
     return state
 
-
 def host():return ClaudeCodeHost([sys.executable],model='test-model')
-def turn(tmp_path,**kwargs):
-    tool=ToolBinding('local.notice','Return actual JSON',{'type':'object','properties':{'text':{'type':'string'}},'required':['text'],'additionalProperties':False},lambda *_:None)
-    return HostTurn('operation','actor','interaction',AgentDefinition('test','Only local.notice',(tool,)),'Call local.notice',str(tmp_path),**kwargs)
+def execution(path):
+    tool=HostToolDeclaration('local.notice','Return actual JSON',{'type':'object','properties':{'text':{'type':'string'}},'required':['text'],'additionalProperties':False})
+    return HostExecution('actor','profile','business','interaction','job',HostDefinition('fixed','1','digest','Only local.notice'),tools=(tool,),workspace=str(path))
+def input(attempt='attempt',text='Call local.notice'):return HostInput(text,attempt=SubmissionAttempt(attempt,'scope','actor','profile'))
+def ack(event):return BindingAck(event.result.session_id,event.result.request_id) if event.kind=='session' else None
 
-
-def test_original_session_is_bound_before_tool_and_resumed_with_fixed_permissions(boundary,tmp_path):
-    h=host();assert h.probe()['available'];sessions=[];calls=[]
-    def invoke(name,args,call):
-        assert sessions==['original-session'];assert json.loads((tmp_path/'claude-session.json').read_text())['sessionId']==sessions[0]
-        calls.append((name,args,call));return {'receipt':'actual-json','status':'completed'}
-    request=turn(tmp_path,on_session=sessions.append,on_tool=invoke)
-    first=h.run(request);assert first.status=='completed'
-    sessions.clear();h=host();h.probe()
-    second=h.run(replace(request,session_id=first.session_id,allow_native_tools=True));assert second.status=='completed'
-    assert calls==[('local.notice',{'text':'hello'},'call-original')]*2
-    assert json.loads(boundary.terminal['content'][0]['text'])=={'receipt':'actual-json','status':'completed'}
+def test_submit_has_static_registration_no_probe_gate_and_no_legacy_methods(boundary,tmp_path):
+    h=host();effects=[]
+    result=h.submit('operation',input(),execution=execution(tmp_path),on_event=ack,on_tool=lambda c:effects.append(c) or HostToolResult({'receipt':1}))
+    assert isinstance(h.registration,HostRegistration) and result.state=='completed' and result.terminal
+    assert h.registration.readonly_context=='isolated_session'
+    assert result.request_id==boundary.queries[0]['uuid'] and result.request_id!='result-uuid'
+    assert result.terminal.request_id==result.request_id and len(effects)==1 and not boundary.version_calls
+    assert not any(hasattr(h,name) for name in ('run','probe','capabilities','model_catalog'))
+    assert result.output=='I delivered it (content only)' and result.proposal is None
     options=boundary.options[-1]
-    assert options.tools==[] and options.skills==[] and options.setting_sources==[] and options.strict_mcp_config
-    assert options.permission_mode=='dontAsk' and options.plugins==[] and options.fallback_model is None
-    assert options.resume=='original-session' and options.continue_conversation is False
+    assert options.tools==[] and options.skills==[] and options.setting_sources==[] and options.plugins==[]
+    assert options.strict_mcp_config and options.fallback_model is None and options.permission_mode=='dontAsk'
+    assert options.extra_args=={'replay-user-messages':None}
 
+def test_binding_ack_before_callback_and_same_session_resume(boundary,tmp_path):
+    h=host();events=[];calls=[]
+    def bind(event):events.append(event);return ack(event)
+    def tool(call):assert events[0].kind=='session';calls.append(call);return HostToolResult({'receipt':len(calls)})
+    first=h.submit('one',input(),execution=execution(tmp_path),on_event=bind,on_tool=tool)
+    second=h.submit('two',input('second'),first.session_id,execution=execution(tmp_path),on_event=ack,on_tool=lambda c:HostToolResult({'receipt':2}))
+    assert first.state==second.state=='completed' and second.session_id==first.session_id
+    assert boundary.options[-1].resume==first.session_id and len(boundary.queries)==2
+    assert first.request_id!=second.request_id
 
-def test_native_tool_hook_denies_even_without_permission_callback(boundary,tmp_path):
-    boundary.mode='foreign';h=host();h.probe();calls=[]
-    result=h.run(turn(tmp_path,on_tool=lambda *args:calls.append(args)))
-    assert result.status=='completed' and not calls
-    assert boundary.calls[-1]['hookSpecificOutput']['permissionDecision']=='deny'
+@pytest.mark.parametrize('mode',['no-echo','wrong-sid','no-result-id','end-turn-only','lost-terminal','drop',
+                                  'injected-result','injected-echo','nested-echo'])
+def test_missing_real_request_or_terminal_stays_unknown(boundary,tmp_path,mode):
+    boundary.mode=mode;calls=[]
+    result=host().submit('op',input(),execution=execution(tmp_path),on_event=ack,on_tool=lambda c:calls.append(c) or HostToolResult(1))
+    assert result.state=='unknown' and result.terminal is None
+    if mode in ('no-echo','injected-echo','nested-echo'):assert result.request_id is None and not calls
 
+@pytest.mark.parametrize('bad_ack',[None,BindingAck('other','other')])
+def test_no_binding_ack_denies_effect(boundary,tmp_path,bad_ack):
+    calls=[]
+    result=host().submit('op',input(),execution=execution(tmp_path),on_event=lambda e:bad_ack,on_tool=lambda c:calls.append(c))
+    assert result.state=='unknown' and not calls
 
-def test_missing_binding_definition_change_and_unknown_round_are_not_retried(boundary,tmp_path):
-    h=host();h.probe();request=turn(tmp_path,on_tool=lambda *_:{'receipt':1})
-    result=h.run(request)
-    with pytest.raises(RuntimeFault,match='original Claude Session'):
-        h.run(replace(request,session_id=result.session_id,definition=replace(request.definition,instructions='changed')))
+def test_schema_rejection_before_effect_allows_new_call(boundary,tmp_path):
+    boundary.mode='schema-retry';calls=[]
+    result=host().submit('op',input(),execution=execution(tmp_path),on_event=ack,on_tool=lambda c:calls.append(c) or HostToolResult({'receipt':1}))
+    assert result.state=='completed' and [c.call_id for c in calls]==['corrected']
+    assert json.loads(boundary.results[0]['content'][0]['text'])['error']['code']=='invalid_input'
+
+def test_callback_unknown_is_separate_from_real_query_terminal(boundary,tmp_path):
+    boundary.mode='swallow'
+    def callback(c):raise OSError('SECRET_EFFECT')
+    result=host().submit('op',input(),execution=execution(tmp_path),on_event=ack,on_tool=callback)
+    assert result.state=='completed' and result.terminal.state=='completed' and result.error.code=='tool_unknown'
+
+def test_unknown_and_changed_operation_not_redispatched(boundary,tmp_path):
+    boundary.mode='drop';h=host();ex=execution(tmp_path)
+    one=h.submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    two=h.submit('op',input('other-attempt'),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert one==two and len(boundary.queries)==1
+    with pytest.raises(RuntimeFault):h.submit('op',input(text='changed'),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+
+def test_actual_interrupt_tracks_original_request(boundary,tmp_path):
+    boundary.mode='wait';h=host();bound=threading.Event();reference=[];results=[]
+    def event(e):
+        if e.kind=='session':reference.append(e.result.request_id);bound.set()
+        return ack(e)
+    worker=threading.Thread(target=lambda:results.append(h.submit('op',input(),execution=execution(tmp_path),on_event=event,on_tool=lambda c:HostToolResult(1))))
+    worker.start();assert bound.wait(3);assert h.cancel(reference[0]) in (None,True);worker.join(3)
+    assert not worker.is_alive() and results[0].state=='cancelled' and results[0].terminal
+    assert h.get_request(reference[0])==results[0] and not h.cancel('op')
+
+def test_static_configuration_and_check_do_not_submit_model(boundary,tmp_path):
+    h=host();assert not boundary.clients
+    assert h.check()['state']=='available' and not boundary.queries
+    assert 'SECRET_CONFIG' not in json.dumps(h.check())
+    assert ClaudeCodeHost.from_config({'command':[sys.executable],'model':'test-model'},base_dir=tmp_path).model=='test-model'
+
+@pytest.mark.parametrize('bad',[[],False,'',0])
+def test_bad_skill_sources_rejected_without_cli(boundary,bad):
+    with pytest.raises(RuntimeFault):ClaudeCodeHost([sys.executable],model='test-model',skill_directories=bad)
+
+def test_unsupported_resources_and_expired_deadline_are_honestly_not_submitted(boundary,tmp_path):
+    h=host();ex=execution(tmp_path)
+    resource=HostResource('r','x','text/plain',None,'scope','remote:unmapped')
+    result=h.submit('op',replace(input(),resources=(resource,)),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert result.error.dispatch=='not_submitted' and result.error.phase=='resources'
+    ex=replace(ex,deadline=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat())
+    result=h.submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert result.error.code=='expired' and not boundary.queries
+
+def test_stderr_is_content_free_private_diagnostic(boundary,tmp_path):
+    result=host().submit('op',input(),execution=execution(tmp_path),on_event=ack,on_tool=lambda c:HostToolResult(1))
+    saved=json.loads((tmp_path/'runs'/(hashlib.sha256(b'op').hexdigest()+'.json')).read_text())
+    assert saved['diagnostics']['stderrSignals']==['observed_numeric_502']
+    assert 'SECRET_KEY' not in json.dumps(saved) and 'PRIVATE_USER_BODY' not in json.dumps(saved)
+    assert saved['terminalEvidence']['requestId']==result.request_id
+
+def test_deadline_does_not_stop_running_callback_or_invent_terminal(boundary,tmp_path):
+    calls=[]
+    def callback(c):time.sleep(1.25);calls.append(c);return HostToolResult({'receipt':1})
+    ex=replace(execution(tmp_path),deadline=(datetime.now(timezone.utc)+timedelta(seconds=1)).isoformat())
+    started=time.monotonic()
+    result=host().submit('op',input(),execution=ex,on_event=ack,on_tool=callback)
+    assert result.state=='unknown' and result.terminal is None and len(calls)==1
+    assert time.monotonic()-started>=1.25
+    saved=json.loads((tmp_path/'runs'/(hashlib.sha256(b'op').hexdigest()+'.json')).read_text())
+    events=saved['diagnostics']['events']
+    assert next(e['elapsedMs'] for e in events if e['kind']=='timeout') < next(e['elapsedMs'] for e in events if e['kind']=='tool_return')
+
+def test_restart_cannot_replay_original_unknown_operation(boundary,tmp_path):
+    boundary.mode='drop';ex=execution(tmp_path)
+    result=host().submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert result.state=='unknown'
+    with pytest.raises(RuntimeFault):
+        host().submit('op',input('new-attempt'),result.session_id,execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert len(boundary.queries)==1
+
+def test_observation_uses_same_submit_and_retains_scope(boundary,tmp_path):
+    calls=[];ex=replace(execution(tmp_path),kind='observation')
+    result=host().submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:calls.append(c) or HostToolResult(1))
+    assert result.state=='completed' and calls[0].operation_id=='op' and calls[0].attempt_id=='attempt'
+
+def test_frozen_definition_change_and_missing_binding_do_not_resume(boundary,tmp_path):
+    ex=execution(tmp_path)
+    result=host().submit('one',input(),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    changed=replace(ex,definition=replace(ex.definition,instructions='changed'))
+    with pytest.raises(RuntimeFault):host().submit('two',input('second'),result.session_id,execution=changed,on_event=ack,on_tool=lambda c:HostToolResult(1))
     (tmp_path/'claude-session.json').unlink()
-    with pytest.raises(RuntimeFault,match='Restore'):
-        h.run(replace(request,session_id=result.session_id))
-    other=tmp_path/'dropped';boundary.mode='drop';lost=h.run(replace(request,workspace=str(other)))
-    assert lost.status=='unknown' and lost.session_id=='original-session'
-    with pytest.raises(RuntimeFault,match='original operation'):h.run(replace(request,workspace=str(other)))
+    with pytest.raises(RuntimeFault):host().submit('two',input('second'),result.session_id,execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert len(boundary.queries)==1
 
+def test_sdk_owned_attempt_rejects_cross_role_execution_before_dispatch(boundary,tmp_path):
+    result=host().submit('op',input(),execution=replace(execution(tmp_path),profile='other-role'),on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert result.error.dispatch=='not_submitted' and result.error.code=='identity_conflict' and not boundary.queries
 
-def test_real_interrupt_waits_for_original_terminal(boundary,tmp_path):
-    boundary.mode='wait';h=host();h.probe();bound=threading.Event();results=[]
-    worker=threading.Thread(target=lambda:results.append(h.run(turn(tmp_path,on_session=lambda _:bound.set()))))
-    worker.start();assert bound.wait(5)
-    assert h.cancel('operation') is True
-    worker.join(5);assert not worker.is_alive()
-    assert results[0].status=='cancelled' and results[0].session_id=='original-session'
-    assert h.cancel('operation') is False
+def test_running_query_and_callback_still_own_session_resources(boundary,tmp_path):
+    h=host();entered=threading.Event();release=threading.Event();results=[];reference=[]
+    def callback(c):reference.append(c.request_id);entered.set();assert release.wait(3);return HostToolResult(1)
+    worker=threading.Thread(target=lambda:results.append(h.submit('one',input(),execution=execution(tmp_path),on_event=ack,on_tool=callback)))
+    worker.start()
+    try:
+        assert entered.wait(3)
+        assert h.check()['state']=='busy'
+        pending=h.get_request(reference[0]);assert pending.terminal is None and pending.state=='running'
+        blocked=h.submit('two',input('second'),pending.session_id,execution=execution(tmp_path),on_event=ack,on_tool=lambda c:HostToolResult(1))
+        assert blocked.error.code=='busy' and blocked.error.dispatch=='not_submitted' and len(boundary.queries)==1
+    finally:release.set();worker.join(3)
+    assert not worker.is_alive() and results[0].state=='completed'
 
+def test_terminal_event_delivery_failure_does_not_erase_machine_fact(boundary,tmp_path):
+    def event(e):
+        if e.kind=='terminal':raise OSError('lost event acknowledgement')
+        return ack(e)
+    result=host().submit('op',input(),execution=execution(tmp_path),on_event=event,on_tool=lambda c:HostToolResult(1))
+    assert result.state=='completed' and result.terminal and result.error.code=='event_reporting_unknown'
 
-def test_unprobed_round_is_rejected_without_files(boundary,tmp_path):
-    with pytest.raises(RuntimeFault):host().run(turn(tmp_path))
-    assert not list(tmp_path.iterdir())
+@pytest.mark.parametrize('interrupt_mode',['pending','error','ack'])
+def test_cancel_ack_is_separate_from_local_request_and_machine_end(boundary,tmp_path,interrupt_mode):
+    boundary.mode='wait';boundary.interrupt_mode=interrupt_mode;boundary.terminal_release=threading.Event()
+    h=host();bound=threading.Event();reference=[];results=[]
+    def event(e):
+        if e.kind=='session':reference.append(e.result.request_id);bound.set()
+        return ack(e)
+    ex=replace(execution(tmp_path),deadline=(datetime.now(timezone.utc)+timedelta(seconds=2)).isoformat())
+    worker=threading.Thread(target=lambda:results.append(h.submit('op',input(),execution=ex,on_event=event,on_tool=lambda c:HostToolResult(1))))
+    worker.start()
+    try:
+        assert bound.wait(3)
+        assert h.cancel(reference[0]) in (None,True)
+        assert boundary.interrupt_started.wait(1)
+        if interrupt_mode=='pending':
+            assert h.cancel(reference[0]) is None
+            boundary.interrupt_release.set();assert boundary.interrupt_acked.wait(1)
+        elif interrupt_mode=='error':
+            assert h.cancel(reference[0]) is None
+        else:assert boundary.interrupt_acked.wait(1)
+        if interrupt_mode!='error':
+            until=time.monotonic()+1
+            while h.cancel(reference[0]) is None and time.monotonic()<until:time.sleep(.005)
+            assert h.cancel(reference[0]) is True
+        assert h.get_request(reference[0]).terminal is None and h.check()['state']=='busy'
+        assert boundary.interrupt_calls==1
+    finally:
+        boundary.interrupt_release.set();boundary.terminal_release.set();worker.join(3)
+    assert not worker.is_alive()
+    assert results[0].state==('unknown' if interrupt_mode=='error' else 'cancelled')
 
+PROPOSAL={'type':'object','properties':{'ok':{'type':'boolean'}},'required':['ok'],'additionalProperties':False}
 
-@pytest.mark.parametrize('enabled',[False,True])
-@pytest.mark.parametrize('resumed',[False,True])
-@pytest.mark.parametrize('permission',['allow','ask'])
-def test_actual_native_permissions_are_rejected_before_files_or_effects(boundary,tmp_path,enabled,resumed,permission):
-    h=host();h.probe();effects=[]
-    request=turn(tmp_path,on_tool=lambda *a:effects.append(a) or {'receipt':'actual'})
-    if resumed:
-        first=h.run(request);assert first.status=='completed'
-        request=replace(request,session_id=first.session_id)
-    before={p.relative_to(tmp_path):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
-    prior_effects=list(effects);prior_calls=len(boundary.calls);prior_clients=len(boundary.clients)
-    request=replace(request,allow_native_tools=enabled,definition=replace(request.definition,native_tools=(('Bash',permission),)))
-    with pytest.raises(RuntimeFault,match='native production tools are not supported'):h.run(request)
-    assert effects==prior_effects and len(boundary.calls)==prior_calls and len(boundary.clients)==prior_clients
-    assert {p.relative_to(tmp_path):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}==before
+def test_real_structured_output_uses_original_schema_and_is_separate_from_text(boundary,tmp_path):
+    boundary.structured={'ok':True};boundary.text='{"ok":false}'
+    ex=replace(execution(tmp_path),proposal_schema=PROPOSAL)
+    result=host().submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert boundary.options[-1].output_format=={'type':'json_schema','schema':PROPOSAL}
+    assert boundary.options[-1].output_format['schema'] is not PROPOSAL
+    assert result.terminal and result.state=='completed' and result.error is None
+    assert result.proposal=={'ok':True} and result.output=='{"ok":false}'
 
+@pytest.mark.parametrize('structured,code',[(None,'proposal_missing'),({'ok':'yes'},'proposal_invalid'),
+    ({'ok':True,'extra':1},'proposal_invalid'),([],'proposal_invalid')])
+def test_missing_or_invalid_proposal_keeps_real_machine_terminal(boundary,tmp_path,structured,code):
+    boundary.structured=structured
+    result=host().submit('op',input(),execution=replace(execution(tmp_path),proposal_schema=PROPOSAL),
+        on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert result.state=='completed' and result.terminal and result.proposal is None and result.error.code==code
+    saved=json.loads((tmp_path/'runs'/(hashlib.sha256(b'op').hexdigest()+'.json')).read_text())
+    assert saved['proposalError']==code and saved['structuredOutput']==structured
 
-def test_sdk_cannot_bypass_frozen_skill_reader(boundary,tmp_path):
-    source=tmp_path/'source';source.mkdir();(source/'SKILL.md').write_text('Business rules')
-    h=ClaudeCodeHost([sys.executable],model='test-model',skill_directories={'business':str(source)});h.probe();calls=[]
-    request=turn(tmp_path/'round',on_tool=lambda *a:calls.append(a));request=replace(request,definition=replace(request.definition,skills=('business',)))
-    result=h.run(request)
-    assert result.status=='completed' and not calls
-    assert json.loads(boundary.terminal['content'][0]['text'])['error']['code']=='read_business_skill'
+def test_unsolicited_structured_output_is_not_a_business_proposal(boundary,tmp_path):
+    boundary.structured={'ok':True}
+    result=host().submit('op',input(),execution=execution(tmp_path),on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert result.terminal and result.proposal is None and result.error.code=='proposal_unrequested'
 
+@pytest.mark.parametrize('schema',[{'$ref':'https://invalid.example/schema'}, {'$ref':'#/missing'},
+    {'type':'unknown'}, {'type':'string','format':'unknown-private-format'}, {'description':'x'*16385},False])
+def test_invalid_unbounded_or_remote_proposal_schema_is_not_dispatched(boundary,tmp_path,schema):
+    result=host().submit('op',input(),execution=replace(execution(tmp_path),proposal_schema=schema),
+        on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert result.error.code=='invalid_proposal_schema' and result.error.dispatch=='not_submitted'
+    assert not boundary.clients and not boundary.queries and not list(tmp_path.iterdir())
 
-@pytest.mark.parametrize('failure',['io','validation'])
-def test_callback_failure_stays_unknown_even_if_sdk_returns_success(boundary,tmp_path,failure):
-    boundary.mode='swallow';h=host();h.probe();effects=[]
-    def invoke(*args):
-        effects.append(args)
-        if failure=='validation':
-            from jsonschema.exceptions import ValidationError
-            raise ValidationError('callback may already have changed external state')
-        raise OSError('effect result was lost')
-    result=h.run(turn(tmp_path,on_tool=invoke))
-    assert result.status=='unknown' and result.error['code']=='host_unknown' and len(effects)==1
-    with pytest.raises(RuntimeFault):h.run(turn(tmp_path,on_tool=invoke))
-    assert len(effects)==1
+def test_changed_proposal_schema_cannot_replay_original_operation(boundary,tmp_path):
+    boundary.structured={'ok':True};h=host();ex=replace(execution(tmp_path),proposal_schema=PROPOSAL)
+    h.submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    with pytest.raises(RuntimeFault):
+        h.submit('op',input(),execution=replace(ex,proposal_schema={'type':'object'}),on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert len(boundary.queries)==1
 
+def test_proposal_and_event_failure_do_not_erase_terminal(boundary,tmp_path):
+    def event(e):
+        if e.kind=='terminal':raise OSError('event receipt lost')
+        return ack(e)
+    result=host().submit('op',input(),execution=replace(execution(tmp_path),proposal_schema=PROPOSAL),
+        on_event=event,on_tool=lambda c:HostToolResult(1))
+    assert result.terminal and result.state=='completed' and result.proposal is None
+    saved=json.loads((tmp_path/'runs'/(hashlib.sha256(b'op').hexdigest()+'.json')).read_text())
+    assert saved['proposalError']=='proposal_missing'
 
-def test_selected_output_contract_is_enforced_after_actual_tool_effect(boundary,tmp_path):
-    boundary.mode='swallow';h=host();h.probe();request=turn(tmp_path,on_tool=lambda *_:{'unexpected':'value'})
-    original=request.definition.tools[0]
-    checked=replace(original,output_schema={'type':'object','properties':{'receipt':{'type':'string'}},'required':['receipt'],'additionalProperties':False})
-    result=h.run(replace(request,definition=replace(request.definition,tools=(checked,))))
-    assert result.status=='unknown' and result.error['code']=='host_unknown'
+def test_tool_unknown_and_proposal_error_are_recorded_separately(boundary,tmp_path):
+    boundary.mode='swallow'
+    def tool(c):raise OSError('effect unknown')
+    result=host().submit('op',input(),execution=replace(execution(tmp_path),proposal_schema=PROPOSAL),on_event=ack,on_tool=tool)
+    assert result.terminal and result.error.code=='tool_unknown' and result.proposal is None
+    saved=json.loads((tmp_path/'runs'/(hashlib.sha256(b'op').hexdigest()+'.json')).read_text())
+    assert saved['proposalError']=='proposal_missing'
 
+@pytest.mark.parametrize('level',['allow','ask','unknown'])
+def test_unsupported_native_permission_is_honestly_not_dispatched(boundary,tmp_path,level):
+    ex=replace(execution(tmp_path),authorization={'nativeTools':{'Bash':level}})
+    result=host().submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:HostToolResult(1))
+    assert result.error.code=='constraint_unsupported' and result.error.dispatch=='not_submitted' and not boundary.queries
 
-@pytest.mark.parametrize('invalid',[[], '', 0, False])
-def test_invalid_empty_skill_sources_are_not_coerced_to_mapping(invalid):
-    with pytest.raises(RuntimeFault):ClaudeCodeHost([sys.executable],model='test-model',skill_directories=invalid)
-
-
-def test_model_catalog_exposes_public_default_alias_without_private_initialization(boundary):
-    h=host();assert h.model_catalog()=={'models':[],'default':None}
-    h.probe();catalog=h.model_catalog()
-    assert catalog['default']=='default' and catalog['models'][0]['resolvedModel']=='test-model'
-    assert 'private-sentinel' not in json.dumps(catalog)
-    catalog['models'].clear();assert h.model_catalog()['models']
-
-
-def test_probe_reports_valid_skill_sources_to_provider_readiness(boundary,tmp_path):
-    from types import SimpleNamespace
-    from ioalab_sdk.provider.execution import ProviderExecution
-    source=tmp_path/'source';source.mkdir();(source/'SKILL.md').write_text('private-skill-content',encoding='utf-8')
-    refs=source/'references';refs.mkdir();(refs/'flow.md').write_text('Reference rules',encoding='utf-8')
-    h=ClaudeCodeHost([sys.executable],model='test-model',skill_directories={'selected':str(source),'missing':str(tmp_path/'missing')})
-    caps=h.probe()
-    assert caps['available'] and caps['skillSources']=={'selected':True,'missing':False}
-    assert caps['skillSourceErrors']=={'missing':'Restore the selected business skill source'}
-    execution=SimpleNamespace(host=h,configs={'service':{'skills':['selected','missing','unconfigured']}})
-    assert ProviderExecution.skill_errors(execution,'service')==['missing','unconfigured']
-    assert 'private-skill-content' not in json.dumps(caps)
-    caps['skillSources']['selected']=False
-    assert h.capabilities()['skillSources']['selected'] is True
-    (source/'SKILL.md').unlink()
-    assert h.probe()['skillSources']=={'selected':False,'missing':False}
-    assert ProviderExecution.skill_errors(execution,'service')==['selected','missing','unconfigured']
-
-
-@pytest.mark.parametrize('invalid',['missing_main','empty','non_utf8','linked_root','linked_references','linked_document'])
-def test_probe_keeps_invalid_skill_sources_unavailable(boundary,tmp_path,invalid):
-    source=tmp_path/'source';source.mkdir();(source/'SKILL.md').write_text('Business rules',encoding='utf-8')
-    if invalid=='missing_main':(source/'SKILL.md').unlink()
-    elif invalid=='empty':(source/'SKILL.md').write_bytes(b'')
-    elif invalid=='non_utf8':(source/'SKILL.md').write_bytes(b'\xff')
-    else:
-        import subprocess
-        target=tmp_path/'target';target.mkdir();(target/'SKILL.md').write_text('Target rules',encoding='utf-8')
-        if invalid=='linked_root':link=tmp_path/'linked';destination=source;source=link
-        elif invalid=='linked_references':link=source/'references';destination=target
-        else:
-            link=source/'SKILL.md';link.unlink();destination=target/'SKILL.md'
-        directory=invalid!='linked_document'
-        try:link.symlink_to(destination,target_is_directory=directory)
-        except OSError:
-            if sys.platform!='win32' or not directory:pytest.skip('Local environment cannot create this link')
-            result=subprocess.run(['cmd','/c','mklink','/J',str(link),str(destination)],capture_output=True)
-            if result.returncode:pytest.skip('Local environment cannot create directory links')
-    h=ClaudeCodeHost([sys.executable],model='test-model',skill_directories={'selected':str(source)})
-    caps=h.probe()
-    assert caps['available'] and caps['skillSources']=={'selected':False}
-    assert caps['skillSourceErrors']=={'selected':'Restore the selected business skill source'}
-
-
-def test_failed_host_reprobe_clears_previous_skill_availability(boundary,tmp_path,monkeypatch):
-    source=tmp_path/'source';source.mkdir();(source/'SKILL.md').write_text('Business rules',encoding='utf-8')
-    h=ClaudeCodeHost([sys.executable],model='test-model',skill_directories={'selected':str(source)})
-    assert h.probe()['skillSources']=={'selected':True}
-    def unavailable(*args,**kwargs):raise OSError('CLI unavailable')
-    monkeypatch.setattr('ioalab_claude_code.host.subprocess.run',unavailable)
-    caps=h.probe()
-    assert not caps['available'] and caps['skillSources']=={} and caps['skillSourceErrors']=={}
-    assert h.capabilities()['skillSources']=={}
-
-
-def test_invalid_tool_arguments_can_be_corrected_in_the_same_bound_round(boundary,tmp_path):
-    boundary.mode='schema-retry';h=host();h.probe();effects=[];sessions=[]
-    def invoke(name,args,call):
-        assert sessions==['original-session']
-        effects.append((name,args,call));return {'receipt':'actual-valid-result'}
-    request=turn(tmp_path,on_session=sessions.append,on_tool=invoke)
-    checked=replace(request.definition.tools[0],output_schema={'type':'object','properties':{'receipt':{'type':'string'}},'required':['receipt'],'additionalProperties':False})
-    result=h.run(replace(request,definition=replace(request.definition,tools=(checked,))))
-    assert result.status=='completed' and result.session_id=='original-session'
-    assert effects==[('local.notice',{'text':'hello'},'call-corrected')]
-    rejected=json.loads(boundary.tool_results[0]['content'][0]['text'])
-    assert rejected['status']=='rejected' and rejected['error']['code']=='invalid_input'
-    assert 'callback was not invoked' in rejected['error']['message']
-    assert json.loads(boundary.tool_results[1]['content'][0]['text'])=={'receipt':'actual-valid-result'}
+def test_native_deny_is_enforced_in_sdk_scope(boundary,tmp_path):
+    boundary.mode='foreign';calls=[]
+    ex=replace(execution(tmp_path),authorization={'nativeTools':{'Bash':'deny'}})
+    result=host().submit('op',input(),execution=ex,on_event=ack,on_tool=lambda c:calls.append(c) or HostToolResult(1))
+    assert result.terminal and not calls and boundary.calls[-1]['hookSpecificOutput']['permissionDecision']=='deny'

@@ -1,6 +1,8 @@
 """Task-scoped production tools on the original host/session and A2C Provider."""
-from ..runtime import for_interaction
+from ..runtime import HostInput,execution_snapshot,stamp,NativeSubmissionPending,submission_succeeded
 import base64
+from dataclasses import asdict,replace
+import hashlib
 from pathlib import Path
 import time
 
@@ -10,8 +12,7 @@ from a2c.common import Reply
 from a2c.template import acceptance_of,deliverable_of
 from a2c.verifier.acceptance import run_target
 from jsonschema import Draft202012Validator
-from ..runtime import HostTurn,ToolBinding,validate_output
-from ..runtime import native_answer
+from ..runtime import ToolBinding,validate_output
 from ..runtime import JobOutcome
 from ..runtime import RuntimeFault,encode
 from ..adapters import stable
@@ -85,7 +86,11 @@ class Production:
             handler='provider.production';reference=self.runtime.scheduler.reference(endpoint.identity.agent_id,handler,operation)
             try:
                 job=self.runtime.scheduler.get(reference)
-                if job['status']=='waiting':self.runtime.scheduler.resume(reference,{'stepAnswer':record['steps'][-1]['answer']})
+                if job['status']=='waiting':
+                    pending=(job.get('data') or {}).get('nativeSubmission')
+                    if pending:
+                        if self.execution.host.pending_retry(pending,reference,claim=True):self.runtime.scheduler.resume(reference,{'nativeSubmission':pending})
+                    elif record.get('steps'):self.runtime.scheduler.resume(reference,{'stepAnswer':record['steps'][-1]['answer']})
             except RuntimeFault as exc:
                 if exc.code!='not_ready':raise
                 self.runtime.scheduler.submit(endpoint.identity.agent_id,endpoint.interaction,handler,{'profile':meta['profile'],'cardDigest':cd,'period':accepted+1},operation_id=operation,session=relation['session'],admitted=True)
@@ -100,11 +105,42 @@ class Production:
         if relation['details'].get('definitionDigest')!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original production agent definition')
         self.execution.tasks.production.require_continuation(identity,job)
         business=self.execution.business_tools(identity.profile,provider.policy.config.get('businessTools',[]),interaction=relation['id'],actor=identity.agent_id)
-        state={'outcome':None,'toolError':None}
+        state={'outcome':None,'toolError':None,'session':relation['session']}
+        period=job['payload']['period']
         def session(value):
             self.runtime.store.bind_session(relation['id'],value,definition_hash);self.runtime.scheduler.bind_session(job['id'],value)
+            state['session']=value
+        def deliver(args):
+            # The sole delivery owner for both the native SDK tool and a typed
+            # proposal: one card+period effect key, original bytes, original gates.
+            self.runtime.require_execution()
+            values=self.files(args,workspace)
+            content=digest({name:{'mediaType':media,'contentDigest':'sha256:'+hashlib.sha256(data).hexdigest()} for name,(data,media) in values.items()})
+            key='delivery:'+cd+':'+str(period);operation=stable('production-delivery',cd,str(period))
+            with endpoint.lock,provider.transport.operation(operation):
+                old=endpoint.store.get('production_calls',key)
+                if old:
+                    if old.get('contentDigest')!=content:raise RuntimeFault('id_conflict','The original period delivery cannot change')
+                    if 'result' not in old:raise RuntimeFault('unknown_result','Reconcile the original delivery without repeating it')
+                    state['outcome']=state['outcome'] or 'completed'
+                    return old['result']
+                if state['outcome']:return {'status':'rejected','error':{'code':'forbidden','message':'本轮已交付或等待授权，请结束本轮'}}
+                current=provider.store.get('cards',cd)
+                if current.get('state')!='started' or self.execution.rulings.ruled(endpoint):return {'status':'rejected','error':{'code':'closed','message':'本合同已停止履约，不再发起新的生产动作'}}
+                if any(item['answer'] is None or not item['answer'].get('granted') for item in current.get('steps',[])):
+                    return {'status':'rejected','error':{'code':'forbidden','message':'用户尚未同意当前受保护环节'}}
+                context={'operationId':operation,'agentId':identity.agent_id,'messageId':job['payload'].get('messageId') or provider.store.get('production',cd)['messageId'],
+                         'interactionId':relation['id'],'sessionId':relation['session'],'contractRef':cd,'period':period,'peerAgentId':relation['peer']}
+                name='provider.task.deliver'
+                endpoint.store.put('production_calls',key,{'fingerprint':digest({'name':name,'args':args}),'name':name,'args':args,'contentDigest':content,'cardDigest':cd,'context':context})
+                endpoint.store.put('production_files',key,{file:{'bytesBase64':base64.b64encode(data).decode(),'mediaType':media} for file,(data,media) in values.items()})
+                result={'status':'delivered','card':provider.deliver(cd,values)};state['outcome']='completed'
+                saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
+                self.sync(endpoint,cd)
+                return result
         def invoke(name,args,call):
             self.runtime.require_execution()
+            if name=='provider.task.deliver':return deliver(args)
             if state['outcome']:return {'status':'rejected','error':{'code':'forbidden','message':'本轮已交付或等待授权，请结束本轮'}}
             if name not in ({tool.name for tool in tools()}|set(business)):return {'status':'rejected','error':{'code':'forbidden','message':'当前为production阶段，仅可调用本单生产工具'}}
             key=job['id']+':'+call;fingerprint=digest({'name':name,'args':args})
@@ -132,11 +168,7 @@ class Production:
                 elif name.endswith('request_step'):
                     if next(Draft202012Validator(STEP).iter_errors(args),None):raise RuntimeFault('invalid_input','Use a declared step name')
                     result={'status':'waiting','stepRequest':provider.request_step(cd,args['step'])};state['outcome']='waiting'
-                else:
-                    values=self.files(args,workspace)
-                    if not name.endswith('selftest'):
-                        endpoint.store.put('production_files',key,{name:{'bytesBase64':base64.b64encode(data).decode(),'mediaType':media} for name,(data,media) in values.items()})
-                        delivered=provider.deliver(cd,values);result={'status':'delivered','card':delivered};state['outcome']='completed'
+                else:values=self.files(args,workspace)
                 if not tool and not name.endswith('selftest'):
                     saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
                     self.sync(endpoint,cd)
@@ -158,7 +190,7 @@ class Production:
                         endpoint.store.put('production_calls',key,{**saved,'state':'unknown',**({'error':problem} if problem else {})})
                     state['outcome']='unknown'
                     state['toolError']=problem
-                    self.execution.host.cancel(job['id'])
+                    self.execution.host.cancel_submission(identity.agent_id,relation['id'],native_operation)
                     raise
                 with endpoint.lock:
                     saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
@@ -170,15 +202,50 @@ class Production:
             return result
         prompt=encode({'phase':'production','card':card,'period':job['payload']['period'],'artifactDirectory':str(workspace/'artifacts'),'materials':{name:base64.b64encode(data).decode() for name,data in provider.materials(cd).items()},'steps':provider.store.get('cards',cd).get('steps',[]),
                        'instruction':'按合同和已配置业务能力生产。需要用户批准的环节先调用provider.task.request_step并结束本轮；交付前可selftest，deliver取得回执后结束本轮。不得把文字当交付或自行批准环节。'})
-        round_record=self.execution.tasks.production.begin(identity,job,relation,definition_hash)
+        native_operation=self.execution.tasks.production.native_operation(identity,job,relation)
+        round_record=self.execution.tasks.production.begin(identity,job,relation,definition_hash,native_operation=native_operation)
         self.execution.active.add(job['id'])
-        try:result=for_interaction(self.execution.host,identity.agent_id,relation['id']).run(HostTurn(job['id'],identity.agent_id,relation['id'],definition,prompt,str(workspace),300,relation['session'],session,lambda value:native_answer(self.runtime,identity.agent_id,job['id'],value,self.execution.stop),invoke,allow_native_tools=True))
+        bound=[None]
+        def event(value):
+            actual=value.result.session_id
+            if actual and bound[0]!=actual:session(actual);bound[0]=actual
+        try:
+            execution=execution_snapshot(identity,relation['id'],job['id'],definition,definition_digest=definition_hash,
+                version=relation['revision'],deadline=stamp(job['deadline']) if job.get('deadline') else None,workspace=str(workspace),native_tools_enabled=True)
+            execution=replace(execution,proposal_schema=FILES)
+            result=self.execution.host.submit(identity.agent_id,relation['id'],native_operation,HostInput(prompt),execution=execution,
+                on_event=event,on_tool=lambda call:invoke(call.name,call.arguments,call.transport_reference))
+        except NativeSubmissionPending as pending:
+            return JobOutcome('waiting',{'cardDigest':cd,'period':job['payload']['period'],'reason':'native_not_submitted','nativeSubmission':pending.reference,'error':pending.details},relation['session'])
         finally:self.execution.active.discard(job['id'])
+        proposal_error=None
+        # A typed delivery proposal is business data only after a real, matching
+        # machine end of this original round; it never retries another path.
+        if (result.proposal is not None and submission_succeeded(result) and result.operation_id==native_operation
+                and not state['toolError'] and state['outcome']!='waiting'):
+            try:
+                if result.session_id!=state['session']:raise RuntimeFault('identity_conflict','The proposal session differs from the original binding')
+                value=deliver(result.proposal)
+                if value.get('status')=='rejected':proposal_error=dict(value['error'])
+            except RuntimeFault as exc:proposal_error={'code':exc.code,'message':str(exc),'recovery':exc.recovery}
         self.execution.tasks.production.finish(identity,job,round_record,result)
         if state['toolError']:
             return JobOutcome('unknown',{'cardDigest':cd,'period':job['payload']['period'],'error':state['toolError']},relation['session'])
-        if provider.store.get('cards',cd).get('state')=='terminated' and result.status in ('completed','failed'):
+        delivered=state['outcome']=='completed'
+        if result.error is not None and state['outcome']!='waiting':
+            # A whole-round error is never success: keep any real delivery receipt
+            # and the machine facts, without another round, signature or payment.
+            return JobOutcome('unknown',{'cardDigest':cd,'period':period,'delivered':delivered,
+                'error':{**asdict(result.error),'source':'submission'}},relation['session'])
+        if proposal_error:
+            return JobOutcome('unknown',{'cardDigest':cd,'period':period,'delivered':delivered,'error':{**proposal_error,'source':'proposal'}},relation['session'])
+        if provider.store.get('cards',cd).get('state')=='terminated' and result.terminal and result.state in ('completed','failed'):
             incomplete=any(item.get('cardDigest')==cd and 'result' not in item for item in endpoint.store.all('production_calls').values())
-            if not incomplete:return JobOutcome('rejected',{'cardDigest':cd,'reason':'contract_terminated','hostStatus':result.status},relation['session'])
-        if result.status!='completed' or state['outcome'] is None:raise RuntimeFault('unknown_result','Inspect original production; do not rerun unknown business')
+            if not incomplete:return JobOutcome('rejected',{'cardDigest':cd,'reason':'contract_terminated','hostStatus':result.state},relation['session'])
+        if state['outcome']=='waiting':
+            # The protected step really exists even if its native turn is still
+            # ending. P19 keeps that original model/SID obligation; an early
+            # authorized answer queues this same job until actual native drain.
+            return JobOutcome('waiting',{'cardDigest':cd,'period':job['payload']['period']},relation['session'])
+        if result.state!='completed' or state['outcome'] is None:raise RuntimeFault('unknown_result','Inspect original production; do not rerun unknown business')
         return JobOutcome(state['outcome'],{'cardDigest':cd,'period':job['payload']['period']},relation['session'])

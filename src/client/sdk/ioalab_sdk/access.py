@@ -7,23 +7,30 @@ from contextlib import contextmanager
 
 class Assembly:
     """Compose injected hosts/resources; never discover or construct a concrete adapter."""
-    def __init__(self,config,host,*,tools=None,resources=None,assembly=None):
+    def __init__(self,config,host,*,tools=None,resources=None,assembly=None,native_handlers=None,native_resources=None,native_entry_required=False,resource_port=None):
         from .assistant import AssistantRole
         from .provider import ProviderRole
-        from .runtime import HostRegistry,ResidentRuntime
-        self.config,self.host,self.tools=config,host,tools
+        from .runtime import HostRegistry,ResidentRuntime,SubmissionResourcePort
+        if resource_port is not None and not isinstance(resource_port,SubmissionResourcePort):
+            raise ValueError('Use the SDK-owned submission resource port')
+        self.config,self.tools=config,tools
+        self.host=host if isinstance(host,HostRegistry) else HostRegistry({'application':host},'application',tools={'application':tools} if tools else None)
+        host=self.host
         self.resources=dict(resources or {})
+        self.resources.update({'native:'+ref:value for ref,value in (native_resources or {}).items()})
         personal=next((item['key'] for item in config.identities if item['role']=='assistant'),None)
-        status=lambda:{**host.capabilities(),**({'businessTools':tools.status()} if tools else {})}
+        status=lambda:{**host.status_snapshot(),**({'businessTools':tools.status()} if tools else {})}
         self.runtime=ResidentRuntime(config,modules=(AssistantRole(host,tools.for_profile(personal) if tools else {}),
                                       ProviderRole(host,tools.by_profile if tools else {})),host_status=status,assembly=assembly,
-                                      host_registry=host if isinstance(host,HostRegistry) else None)
+                                      host_registry=host,native_handlers=native_handlers,native_resources=native_resources,native_entry_required=native_entry_required)
+        self.resource_port=resource_port or SubmissionResourcePort()
+        try:self.resource_port.bind(host._resources_for)
+        except Exception:
+            self.runtime.close()
+            raise
 
     def run(self):
         from .runtime import RuntimeFault
-        result=self.host.probe()
-        if not result.get('defaultAvailable',result.get('available')):
-            raise RuntimeFault('not_ready','Host model/capability probe did not pass','configure_host')
         for ref,resource in self.resources.items():
             try:resource.start()
             except Exception as exc:
@@ -32,17 +39,18 @@ class Assembly:
 
 
 @contextmanager
-def assembled(config,host,*,tools=None,resources=None,assembly=None):
+def assembled(config,host,*,tools=None,resources=None,assembly=None,native_handlers=None,native_resources=None,native_entry_required=False,resource_port=None):
     """Single role/runtime/resource lifecycle for explicit application and product callers."""
     from .runtime import RuntimeFault
     value=None
     try:
-        value=Assembly(config,host,tools=tools,resources=resources,assembly=assembly)
+        value=Assembly(config,host,tools=tools,resources=resources,assembly=assembly,native_handlers=native_handlers,native_resources=native_resources,native_entry_required=native_entry_required,resource_port=resource_port)
         yield value
     finally:
         if value:value.runtime.close()
         failed=[]
-        for ref,resource in reversed(list((resources or {}).items())):
+        owned={**dict(resources or {}),**{'native:'+ref:value for ref,value in (native_resources or {}).items()}}
+        for ref,resource in reversed(list(owned.items())):
             try:resource.close()
             except Exception:failed.append(ref)
         if failed:raise RuntimeFault('not_ready','Inspect resource shutdown: '+', '.join(failed),'inspect_business_resources')

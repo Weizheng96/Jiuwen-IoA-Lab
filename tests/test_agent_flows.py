@@ -5,7 +5,7 @@ import uuid
 import pytest
 
 from conftest import wait_for
-from ioalab_sdk.runtime import LocalClient, ToolBinding, HostResult
+from ioalab_sdk.runtime import LocalClient, ToolBinding
 from test_assistant_role import user_decision, runtime_at, ScriptedHost, INPUT, OUTPUT
 from test_resident_delegation import participants
 from test_resident_fulfillment import ProductionHost, VERIFIER, configure_template

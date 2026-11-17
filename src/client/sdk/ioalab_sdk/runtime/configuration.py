@@ -9,7 +9,7 @@ from .files import private_json,prepare_home,read_arguments
 from .protocol import RuntimeFault,encode
 
 
-COMMON_FIELDS={'identities','provider','max_model_runs','max_pending_requests','user_browser'}
+COMMON_FIELDS={'identities','provider','max_model_runs','max_pending_requests','user_browser','host_unavailable_shutdown_seconds'}
 
 
 def inspect_config(path,*,validate=None,host_fields=()):
@@ -21,7 +21,7 @@ def inspect_config(path,*,validate=None,host_fields=()):
 def _public(config,host_fields):
     return {**config.public_summary(),'configuredServices':sorted(config.provider.get('services',{})),
             'hostFields':sorted(config.host),
-            'editableFields':['identities','provider.services','max_model_runs','max_pending_requests','user_browser',
+            'editableFields':['identities','provider.services','max_model_runs','max_pending_requests','user_browser','host_unavailable_shutdown_seconds',
                               *('host.'+field for field in sorted(host_fields))]}
 
 
@@ -30,7 +30,7 @@ def merge_common(document,changes,*,service_fields,host_update=None):
             or set(changes)-(COMMON_FIELDS|({'host'} if host_update else set()))):
         raise RuntimeFault('invalid_input','Use only the declared non-credential configuration fields','correct_input')
     updated=copy.deepcopy(document)
-    for field in ('max_model_runs','max_pending_requests','user_browser'):
+    for field in ('max_model_runs','max_pending_requests','user_browser','host_unavailable_shutdown_seconds'):
         if field in changes:updated[field]=copy.deepcopy(changes[field])
     if 'identities' in changes:
         profiles=changes['identities']

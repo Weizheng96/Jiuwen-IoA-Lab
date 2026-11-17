@@ -2,6 +2,10 @@
 
 两份Skill已由程序绑定同一个客户端及配置，不要求用户提供路径或密码。用本技能脚本调用`runtime.binding`可取得非秘密的实际程序和配置位置；已有客户端先查`runtime.status`，不重复安装或注册。
 
+接入结束前先按[宿主接入](host-setup.md#明确入口绑定)从当前真实原生入口执行一次零参数`runtime.entry.bind`；需要人工信任/启用时准确保留待办，unknown沿原接入操作恢复。重复接入保留原项目，不因当前聊天不同而重绑。
+
+`runtime.onboarding`始终只是只读摘要，不创建接入意图、不自动选择启动项目，也不由普通hello或P10来源成功推定已绑定。入口绑定成功、模型可用和三宿主四流程验收分别记录。
+
 接入结束必须生成固定交付摘要。创建仅含当前调用宿主的独立UTF-8参数文件，例如`{"host":"codex"}`（九问为jiuwen，Claude Code为claude_code），调用`runtime.onboarding --args-file <该文件>`。按回执的固定顺序展示：
 
 账号页取消或配置尚未创建时，先用`runtime.binding`取得绑定的python和configurationFile，由智能体执行`<绑定python> -I -m ioalab_client onboarding --host <当前调用宿主> --config <绑定configurationFile>`，仍可生成待完成摘要，不要求用户提供路径或凭据。程序尚未安装成功时，按以下相同顺序列实际已知位置、失败原因与未配置项。

@@ -15,7 +15,7 @@ from a2c.jws import Signer
 from a2c import objects
 from a2c.slots import verify_card
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from ioalab_sdk.runtime.host import HostResult
+from submission_fixture import FixtureResult
 from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.protocol import stamp
 from test_resident_delegation import participants,QuoteHost
@@ -43,27 +43,22 @@ def verify(ctx):
 
 
 class ProductionHost(QuoteHost):
-    def run(self,turn):
-        try:return self.execute(turn)
-        except Exception as exc:
-            self.failure={'type':type(exc).__name__,'message':str(exc)}
-            raise
-
     def execute(self,turn):
         data=json.loads(turn.input)
-        if data['phase']!='production':return super().run(turn)
+        if data['phase']!='production':return super().execute(turn)
+        assert turn.allow_native_tools is True
         self.turns.append(turn);turn.on_session(turn.session_id)
         if not data['steps']:
-            result=turn.on_tool('provider.task.request_step',{'step':'real_name'},'step')
+            result=turn.on_tool('provider.task.request_step',{'step':'real_name'},'same-native-call')
             assert result['status']=='waiting',result
         else:
             assert data['steps'][-1]['answer']['granted']
             files={'result.json':{'text':'{"delivered":"actual file bytes"}','mediaType':'application/json'}}
-            tested=turn.on_tool('provider.task.selftest',{'files':files},'selftest')
+            tested=turn.on_tool('provider.task.selftest',{'files':files},'same-native-call')
             assert tested['status']=='pass',tested
             result=turn.on_tool('provider.task.deliver',{'files':files},'delivery')
             assert result['status']=='delivered',result
-        return HostResult('completed',turn.session_id,{'explicitProductionHostDouble':True})
+        return FixtureResult('completed',turn.session_id,{'explicitProductionHostDouble':True})
 
 
 def configure_template(monkeypatch):
@@ -73,6 +68,45 @@ def configure_template(monkeypatch):
         value['pricing']['deposit']='1'
         return original(value,**kwargs)
     monkeypatch.setattr(assembly,'template_from_definition',definition)
+
+
+def test_early_step_answer_queues_original_job_until_actual_native_terminal_and_drain(platform,tmp_path,monkeypatch):
+    from ioalab_sdk.runtime import SubmissionEvent,MachineTerminal
+    class LateTerminal(ProductionHost):
+        def execute(self,turn):
+            result=super().execute(turn)
+            if json.loads(turn.input)['phase']=='production' and not json.loads(turn.input)['steps']:
+                return replace(result,status='accepted')
+            return result
+        def submit(self,operation_id,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
+            result=super().submit(operation_id,input,session_id,execution=execution,on_event=on_event,on_tool=on_tool)
+            if result.state=='accepted':self.original,self.original_event=result,on_event
+            return result
+    configure_template(monkeypatch);host=LateTerminal()
+    with participants(platform,tmp_path,agent_host=host,verifier_source=VERIFIER,models=1) as (provider,assistant,host,template,task):
+        quote=candidate(assistant,provider,template,task);selected,_,_=confirm(assistant,quote);ref=selected['data']['contractRef']
+        wait_for(lambda:status(assistant,ref) and status(assistant,ref)['data']['formed'])
+        action,_=invoke(assistant,ref,'start');wait_for(lambda:operation(assistant,ref,action))
+        wait_for(lambda:status(assistant,ref)['data']['stepRequest'])
+        def production():return provider.scheduler.records(provider.identities[0].agent_id,('provider.production',))[0]
+        wait_for(lambda:production()['state']=='waiting')
+        original=production()['id'];step=status(assistant,ref)['data']['stepRequest']
+        answer,pending=invoke(assistant,ref,'answer_step',stepRequestDigest=objects.object_digest(step))
+        user_decision(assistant,pending['data']['confirmationRef'],decision='answer',answers=[{'selected_options':['allow']}])
+        LocalClient(assistant.config.home).call('assistant.delegation.answer_step',{'contractRef':ref,'stepRequestDigest':objects.object_digest(step)},operation_id=answer)
+        wait_for(lambda:production()['state']=='queued')
+        assert [turn.operation_id for turn in host.turns if json.loads(turn.input)['phase']=='production']==[original]
+        receipt=host.original
+        proof=MachineTerminal(receipt.operation_id,receipt.attempt_id,receipt.session_id,receipt.request_id,'completed','real-late-terminal')
+        host.original_event(SubmissionEvent('actual-late-machine-end','terminal',replace(receipt,state='completed',terminal=proof)))
+        wait_for(lambda:status(assistant,ref)['data']['availablePeriods']==1)
+        wait_for(lambda:production()['state']=='completed')
+        turns=[turn for turn in host.turns if json.loads(turn.input)['phase']=='production']
+        assert len(turns)==2 and turns[0].operation_id!=turns[1].operation_id
+        assert {turn.session_id for turn in turns}=={receipt.session_id} and production()['id']==original
+        fetched,_=invoke(assistant,ref,'fetch',period=1)
+        wait_for(lambda:operation(assistant,ref,fetched) and operation(assistant,ref,fetched)['status']=='completed')
+        assert status(assistant,ref)['data']['card']['signatures']['4']
 
 
 def operation(assistant,reference,key):
@@ -369,13 +403,13 @@ def test_full_contract_with_actual_user_step_delivery_wasm_payment_close_and_rep
 
 def test_actual_bad_delivery_fails_wasm_and_never_signs_acceptance_or_pays(platform,tmp_path):
     class BadHost(QuoteHost):
-        def run(self,turn):
+        def execute(self,turn):
             data=json.loads(turn.input)
-            if data['phase']!='production':return super().run(turn)
+            if data['phase']!='production':return super().execute(turn)
             self.turns.append(turn);turn.on_session(turn.session_id)
             result=turn.on_tool('provider.task.deliver',{'files':{'result.json':{'text':'{"delivered":"wrong value"}','mediaType':'application/json'}}},'bad-delivery')
             assert result['status']=='delivered'
-            return HostResult('completed',turn.session_id,{'explicitBadHost':True})
+            return FixtureResult('completed',turn.session_id,{'explicitBadHost':True})
     with participants(platform,tmp_path,agent_host=BadHost(),verifier_source=VERIFIER) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task);selected,_,_=confirm(assistant,quote);ref=selected['data']['contractRef']
         wait_for(lambda:status(assistant,ref))

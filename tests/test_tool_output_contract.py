@@ -1,5 +1,6 @@
 """Public tool output contracts preserve receipts and stop unknown business effects."""
 from dataclasses import replace
+from types import SimpleNamespace
 import json
 
 import pytest
@@ -7,7 +8,9 @@ from jsonschema import FormatChecker
 
 from a2c.codec import digest
 from ioalab_jiuwen.process import ProcessHost
-from ioalab_sdk.runtime.host import AgentDefinition,HostResult,HostTurn,ToolBinding,validate_output
+from ioalab_sdk.runtime import (AgentDefinition,ToolBinding,validate_output,BindingAck,HostInput,
+    SubmissionAttempt,execution_snapshot)
+from submission_fixture import FixtureResult
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from test_assistant_role import INPUT,ScriptedHost,publish,runtime_at,send_and_read
 from test_resident_delegation import QuoteHost,participants
@@ -98,18 +101,22 @@ def test_native_host_keeps_supported_fields_exposes_output_in_description_and_ha
             requests.append(request)
             for declaration in request['host_tools']:
                 assert set(declaration)=={'name','description','input_schema'}
-            await callbacks['on_event']({'session_id':'session-'+str(len(requests))})
-            return {'status':'completed','session_id':'session-'+str(len(requests))}
-    host=ProcessHost(['original-process'],tmp_path);host._capabilities={'available':True}
+            await callbacks['on_event']({'request_id':request['request_id'],'session_id':'session-'+str(len(requests))})
+            return {'type':'result','request_id':request['request_id'],'status':'completed','session_id':'session-'+str(len(requests)),'exit_code':0}
+    host=ProcessHost(['original-process'],tmp_path)
     monkeypatch.setattr(host,'_client',lambda **kwargs:Native())
     tool=binding()
     for index,selected in enumerate((tool,replace(tool,output_schema={'type':'object'}))):
         definition=AgentDefinition('business','Use real outputs',(selected,))
-        result=host.run(HostTurn('op'+str(index),'actor','interaction',definition,'input',str(tmp_path/str(index))))
-        assert result.status=='completed'
+        execution=execution_snapshot(SimpleNamespace(agent_id='actor',profile='personal'),'interaction','job',definition,
+            definition_digest=digest({'tools':[item.policy() for item in definition.tools]}),version='1',workspace=str(tmp_path/str(index)))
+        result=host.submit('op'+str(index),HostInput('input',attempt=SubmissionAttempt('attempt'+str(index),'scope'+str(index),'actor','personal')),
+            execution=execution,on_event=lambda event:BindingAck(event.result.session_id,event.result.request_id),on_tool=lambda _:None)
+        assert result.state=='completed' and result.terminal
     description=requests[0]['host_tools'][0]['description']
     assert json.dumps(OUTPUT,ensure_ascii=False,sort_keys=True,separators=(',',':')) in description
-    records=[json.loads(next((tmp_path/str(index)/'runs').glob('*.json')).read_text()) for index in (0,1)]
+    records=[next(json.loads(path.read_text()) for path in (tmp_path/str(index)/'runs').glob('*.json')
+                  if 'definitionDigest' in json.loads(path.read_text())) for index in (0,1)]
     assert records[0]['definitionDigest']!=records[1]['definitionDigest']
     assert tool.input_schema=={'type':'object'}
 
@@ -117,14 +124,14 @@ def test_native_host_keeps_supported_fields_exposes_output_in_description_and_ha
 def test_assistant_preserves_invalid_receipt_poisoned_session_and_confirmed_contract(platform,tmp_path):
     effects=[];original={'status':'invented'}
     class Host(ScriptedHost):
-        def run(self,turn):
+        def execute(self,turn):
             self.turns.append(turn);turn.on_session('actual-output-session')
             with pytest.raises(RuntimeFault) as error:turn.on_tool('reserve_slot',{'slot':'first'},'original')
             assert error.value.code=='invalid_tool_output'
             for name,args in [('reserve_slot',{'slot':'second'}),('ioa_reply',{'output':{'status':'actual'}})]:
                 with pytest.raises(RuntimeFault) as blocked:turn.on_tool(name,args,'new-call')
                 assert blocked.value.code=='unknown_result'
-            return HostResult('completed','actual-output-session',{})
+            return FixtureResult('completed','actual-output-session',{})
     host=Host()
     def reserve(args,context):effects.append(context);return original
     tool=ToolBinding('reserve_slot','Preserve output',INPUT,reserve,'reservation',output_schema=OUTPUT)
@@ -156,15 +163,15 @@ def test_provider_preserves_invalid_receipt_and_blocks_delivery_without_reexecut
     def execute(args,context):effects.append(context);return original
     tool=binding(invoke=execute)
     class Host(QuoteHost):
-        def run(self,turn):
-            if json.loads(turn.input)['phase']!='production':return super().run(turn)
+        def execute(self,turn):
+            if json.loads(turn.input)['phase']!='production':return super().execute(turn)
             self.turns.append(turn);turn.on_session(turn.session_id)
             with pytest.raises(RuntimeFault) as error:turn.on_tool(tool.name,{},'original')
             assert error.value.code=='invalid_tool_output'
             blocked=turn.on_tool('provider.task.deliver',{'files':{'result.txt':{'text':'not delivered','mediaType':'text/plain'}}},'after-invalid')
             assert blocked['status']=='rejected'
             assert turn.on_tool(tool.name,{},'retry-with-new-id')['status']=='rejected'
-            return HostResult('completed',turn.session_id,{})
+            return FixtureResult('completed',turn.session_id,{})
     with participants(platform,tmp_path,agent_host=Host(),provider_tools={'service':{tool.name:tool}}) as (provider,assistant,host,template,task):
         quote=candidate(assistant,provider,template,task);selected,_,_=confirm(assistant,quote);ref=selected['data']['contractRef']
         wait_for(lambda:status(assistant,ref));assert status(assistant,ref)['data']['formed']

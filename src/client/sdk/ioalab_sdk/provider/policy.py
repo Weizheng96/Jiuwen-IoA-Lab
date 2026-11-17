@@ -1,5 +1,5 @@
 """Business decisions from the configured host, before original A2C signs anything."""
-from ..runtime import for_interaction
+from ..runtime import HostInput,execution_snapshot,stamp
 import time
 from a2c.codec import digest,parse_duration,parse_time
 from a2c.card import build_proposal_card,validate_card
@@ -10,9 +10,8 @@ from a2c.template import verifier_refs
 from a2c.verifier.package import load
 from jsonschema import Draft202012Validator
 
-from ..runtime import AgentDefinition,HostTurn,ToolBinding
+from ..runtime import AgentDefinition,ToolBinding
 from ..runtime import RuntimeFault,encode
-from ..runtime import native_answer
 from ..adapters import stable
 from .verifiers import TASK_SCHEMA
 
@@ -141,23 +140,30 @@ class HostPolicy(DefaultPolicy):
         # Actual original protocol deadlines include queueing and model execution.
         request_signature=subject['signature'] if phase=='quote' else subject['signatures']['1']
         respond=parse_time(header_of(request_signature)['a2c-ts'])+parse_duration(template['deadlines']['respondWithin'])
-        remaining=min(300,parse_time(template['validUntil']).timestamp()-time.time(),respond.timestamp()-time.time())
+        deadline=min(parse_time(template['validUntil']).timestamp(),respond.timestamp())
+        remaining=deadline-time.time()
         if remaining<=0:raise A2CError(OUT_OF_ORDER,'Template expired before the business decision')
-        deadline=time.time()+remaining
         if phase=='quote':prompt['preparedVerifiers']=self.execution.role.verifiers.prepared(self.identity,self.job['id'])
         remaining=deadline-time.time()
         if remaining<=0:raise A2CError(OUT_OF_ORDER,'Template expired while preparing the original verifier')
         prompt=encode(prompt)
+        native_operation=self.execution.tasks.native_operation(self.identity,self.job)
         self.execution.tasks.clear(self.identity,self.job['id'])
         self.execution.active.add(self.job['id'])
+        bound=[None]
+        def event(value):
+            actual=value.result.session_id
+            if actual and bound[0]!=actual:on_session(actual);bound[0]=actual
         try:
-            result=for_interaction(self.execution.host,self.identity.agent_id,relation['id']).run(HostTurn(self.job['id'],self.identity.agent_id,relation['id'],definition,prompt,str(workspace),remaining,
-                    state['session'],on_session,lambda record:native_answer(self.runtime,self.identity.agent_id,self.job['id'],record,self.execution.stop),on_tool))
+            execution=execution_snapshot(self.identity,relation['id'],self.job['id'],definition,definition_digest=definition_hash,
+                version=relation['revision'],deadline=stamp(deadline),workspace=str(workspace),native_tools_enabled=False)
+            result=self.execution.host.submit(self.identity.agent_id,relation['id'],native_operation,HostInput(prompt),execution=execution,
+                on_event=event,on_tool=lambda call:on_tool(call.name,call.arguments,call.transport_reference))
         finally:self.execution.active.discard(self.job['id'])
         if state['uploadUnknown']:
-            if result.status in ('completed','failed') and result.session_id==state['session']:
-                self.execution.tasks.wait(self.identity,self.job,state['session'],definition_hash,result.status)
+            if result.terminal and result.state in ('completed','failed') and result.session_id==state['session']:
+                self.execution.tasks.wait(self.identity,self.job,state['session'],definition_hash,result.state,native_operation=native_operation)
             raise RuntimeFault('unknown_result','Resolve the original task verifier before continuing','resume_original')
-        if result.status!='completed' or state['decision'] is None:
+        if result.state!='completed' or state['decision'] is None:
             raise RuntimeFault('unknown_result','Inspect the original host decision; do not repeat it automatically')
         return state['decision']

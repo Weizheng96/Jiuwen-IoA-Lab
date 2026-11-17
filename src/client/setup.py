@@ -8,7 +8,7 @@ import tempfile
 import tomllib
 import zipfile
 
-from setuptools import find_packages, setup
+from setuptools import find_packages, find_namespace_packages, setup
 from setuptools.command.build_py import build_py
 from packaging.requirements import Requirement
 from packaging.markers import Marker
@@ -22,21 +22,45 @@ PROJECTS = {'a2c': REPO/'src/a2c', 'ioalab-sdk': ROOT/'sdk', 'ioalab-jiuwen': RO
 # project so setuptools never publishes an absolute or out-of-project path.
 (ROOT/'build').mkdir(exist_ok=True)
 a2c_snapshot = tempfile.TemporaryDirectory(prefix='a2c-source-', dir=ROOT/'build')
-a2c_package = Path(a2c_snapshot.name)/'a2c'
-shutil.copytree(REPO/'src/a2c/a2c', a2c_package,
-                ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'build', '*.egg-info'))
 dependencies = set()
 packages = ['ioalab_client']
 directories = {'ioalab_client': 'ioalab_client'}
+package_data = {}
 versions = {'ioalab-client': (ROOT/'VERSION').read_text().strip().removeprefix('v')}
 for name, project in PROJECTS.items():
     versions[name] = (project/'VERSION').read_text().strip().removeprefix('v')
     config = tomllib.loads((project/'pyproject.toml').read_text())
     dependencies.update(value for value in config['project']['dependencies']
                         if not value.startswith(('ioalab-sdk', 'a2c', 'jiuwenswarm-process-sdk')))
-    for package in find_packages(str(project)):
+    component = config.get('tool', {}).get('setuptools', {})
+    declared_data = component.get('package-data', {})
+    discovery = component.get('packages', {}).get('find', {})
+    finder = find_namespace_packages if discovery.get('namespaces', True) else find_packages
+    component_packages = {}
+    for where in discovery.get('where', ['.']):
+        source = (project/where).resolve()
+        if not source.is_relative_to(project.resolve()):
+            raise ValueError('Component package source escapes its project: '+name)
+        for package in finder(str(source), include=discovery.get('include', ['*']),
+                              exclude=discovery.get('exclude', [])):
+            if package in directories or package in component_packages:
+                raise ValueError('Duplicate component package: '+package)
+            component_packages[package] = source/Path(*package.split('.'))
+    for package in sorted(component_packages, key=lambda item: (item.count('.'), item)):
+        source = component_packages[package]
+        if name == 'a2c':
+            target = Path(a2c_snapshot.name)/source.relative_to(project.resolve())
+            if not target.exists():
+                shutil.copytree(source, target,
+                                ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'build', '*.egg-info'))
+            source = target
         packages.append(package)
-        directories[package] = ((a2c_package/Path(*package.split('.')[1:])) if name == 'a2c' else (project/Path(*package.split('.')))).relative_to(ROOT).as_posix()
+        directories[package] = source.relative_to(ROOT).as_posix()
+        # TOML's '*' (or setup's '') belongs only to this component's packages.
+        patterns = [*declared_data.get('*', []), *declared_data.get('', []),
+                    *declared_data.get(package, [])]
+        if patterns:
+            package_data[package] = list(dict.fromkeys(patterns))
 vendor = json.loads((REPO/'vendor/SOURCES.json').read_text(encoding='utf-8'))
 wheels = []
 for item in vendor['components']:
@@ -108,7 +132,6 @@ class BuildClient(build_py):
 
 setup(options={'egg_info': {'egg_base': 'build'}}, version=versions['ioalab-client'], install_requires=sorted(base_requirements), extras_require={host: sorted(values) for host,values in host_requirements.items()}, packages=packages,
       package_dir=directories, cmdclass={'build_py': BuildClient},
-      package_data={'a2c': ['**/*.py', '**/*.json', '**/*.md', '**/*.png', '**/*.zip'], 'ioalab_sdk': ['runtime/web/*.html', 'runtime/trust/*.json', 'runtime/trust/*.pem'],
-                    'ioalab_jiuwen': ['resources/ioa-notifications/*.py', 'resources/ioa-notifications/*.yaml']})
+      package_data=package_data)
 
 a2c_snapshot.cleanup()

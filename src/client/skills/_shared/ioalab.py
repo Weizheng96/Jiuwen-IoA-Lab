@@ -9,7 +9,7 @@ CLIENT_CONFIG = __IOALAB_CONFIG__
 CLIENT_HOST_TYPE = __IOALAB_HOST_TYPE__
 CLIENT_HOST_REF = __IOALAB_HOST_REF__
 if __name__ == '__main__':
-    if any(value in ('--config','--host-ref','--host-type') or value.startswith(('--config=','--host-ref=','--host-type=')) for value in sys.argv[1:]):
+    if any(value in ('--config','--host-ref','--host-type','--entry-ref','--context-ref','--native-input') or value.startswith(('--config=','--host-ref=','--host-type=','--entry-ref=','--context-ref=','--native-input=')) for value in sys.argv[1:]):
         print(json.dumps({'status': 'rejected', 'data': None, 'error': {'code': 'identity_conflict',
             'message': 'This skill is bound to its client configuration; omit --config', 'recovery': 'use_bound_client'}}))
         raise SystemExit(1)

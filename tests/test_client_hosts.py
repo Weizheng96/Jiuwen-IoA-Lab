@@ -24,7 +24,7 @@ def test_codex_configures_without_jiuwen_fields_and_preserves_account(tmp_path, 
     assert before['hostType'] is None and before['supportedHostTypes'] == ['jiuwen', 'codex', 'claude_code']
     changes = tmp_path/'changes.json'
     changes.write_text(json.dumps({'expectedDigest': before['configurationDigest'], 'changes': {
-        'host': {'registrations': {'codex': {'type': 'codex', 'command': [sys.executable], 'model': 'test-model'}}}}}))
+        'host': {'registrations': {'codex': {'type': 'codex'}}}}}))
     assert main(['configure', '--config', str(path), '--args-file', str(changes)]) == 0
     output = capsys.readouterr().out
     assert 'private-test-value' not in output
@@ -66,8 +66,8 @@ def test_codex_resident_connects_binds_both_roles_and_closes_original_runtime(pl
     from conftest import wait_for
     path, _ = configuration(platform, tmp_path)
     value = json.loads(path.read_text())
-    value['host'] = {'default':'codex','registrations':{'codex':{'type': 'codex', 'command': [sys.executable, '-u',
-        str(Path(__file__).with_name('_codex_process.py'))], 'model': 'test-model'}}}
+    # Unified product registration selects only the packaged native adapter.
+    value['host'] = {'default':'codex','registrations':{'codex':{'type': 'codex'}}}
     path.write_text(json.dumps(value))
     with assembled(path) as assembly:
         running = threading.Thread(target=assembly.run)
@@ -82,12 +82,12 @@ def test_codex_resident_connects_binds_both_roles_and_closes_original_runtime(pl
                     return None
             wait_for(ready, timeout=15)
             status = client.call('runtime.status')['data']
-            assert status['host']['available'] is True
+            # Startup is not gated on S02 and never falls back to the explicit SDK driver.
+            assert status['host']['configured'] and status['host']['adapterId'] == 'codex'
+            assert status['host']['state'] == 'unknown' and status['host']['available'] is False
             assert {identity['role'] for identity in status['identities']} == {'assistant', 'service'}
             assert all(identity['bound'] for identity in status['identities'])
             assert status['installation']['assembly'] == 'ioalab-client'
-            assert status['host']['features']['native_tools'] is False
-            assert status['host']['features']['interaction_callback'] is False
         finally:
             try:
                 latest = client.call('runtime.status')['data']
@@ -111,7 +111,7 @@ def test_registry_addition_keeps_default_and_explicit_migration_is_single_author
     before=json.loads(capsys.readouterr().out)['data']
     changes=tmp_path/'migration.json'
     changes.write_text(json.dumps({'expectedDigest':before['configurationDigest'],'changes':{'host':{
-        'registrations':{'claude':{'type':'claude_code','command':[sys.executable],'model':'test-model'}}}}}))
+        'registrations':{'claude':{'type':'claude_code'}}}}}))
     assert main(['configure','--config',str(path),'--args-file',str(changes)])==0
     capsys.readouterr()
     host=json.loads(path.read_text())['host']
@@ -147,7 +147,7 @@ def test_interrupted_configuration_migration_preserves_original_session_owner(tm
     digest=json.loads(capsys.readouterr().out)['data']['configurationDigest']
     changes=tmp_path/'migration.json'
     changes.write_text(json.dumps({'expectedDigest':digest,'changes':{'host':{'default':'claude','registrations':{
-        'claude':{'type':'claude_code','command':[sys.executable],'model':'test-model'}}}}}))
+        'claude':{'type':'claude_code'}}}}}))
     write=configuration_module.private_json
     def interrupted(*args):raise OSError('interrupted settings replacement')
     monkeypatch.setattr(configuration_module,'private_json',interrupted)

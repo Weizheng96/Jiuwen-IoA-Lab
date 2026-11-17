@@ -24,6 +24,7 @@ from ioalab_sdk.runtime.ipc import LocalClient
 from ioalab_sdk.runtime.protocol import RuntimeFault
 from ioalab_sdk.runtime.resident import ResidentRuntime
 from conftest import wait_for
+from submission_fixture import ScriptedSubmission,bound_runtime
 
 
 def uid():return str(uuid.uuid4())
@@ -40,17 +41,16 @@ def deployment(platform,tmp_path,monkeypatch):
     return Deployment(path)
 
 
-class UnusedHost:
-    def capabilities(self):return {'available':True,'testDouble':True}
+class UnusedHost(ScriptedSubmission):
     def cancel(self,*_):return True
-    def run(self,*_):raise AssertionError('Publication never starts model production')
+    def execute(self,*_):raise AssertionError('Publication never starts model production')
 
 
 @contextmanager
 def active(deployment):
     account=deployment.domains[0]['account'];path=deployment.config_path(account)
     config=RuntimeConfig.load(path);host=UnusedHost()
-    runtime=ResidentRuntime(config,modules=(ProviderRole(host),),host_status=host.capabilities,assembly='ioalab-jiuwen').start()
+    runtime=bound_runtime(config,host,lambda selected:ProviderRole(selected),assembly='ioalab-jiuwen').start()
     try:
         wait_for(lambda:runtime.connection.connected)
         yield runtime,LocalClient(config.home),account

@@ -387,6 +387,14 @@ class RuntimeStore:
         with self.lock:
             return [json.loads(row[0]) for row in self.db.execute('SELECT frame FROM runtime_inbox WHERE actor=? ORDER BY seq',(actor,)).fetchall()]
 
+    def message(self,actor,message_id):
+        """Original role recovery by its exact inbox reference, without history scans."""
+        with self.lock:
+            if not self.db.execute('SELECT 1 FROM runtime_cursors WHERE actor=?',(actor,)).fetchone():
+                raise RuntimeFault('forbidden','Inbox identity is outside this instance')
+            row=self.db.execute('SELECT frame FROM runtime_inbox WHERE actor=? AND message=?',(actor,message_id)).fetchone()
+            return json.loads(row['frame']) if row else None
+
     def close(self):
         with self.lock:
             self.db.close()

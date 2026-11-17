@@ -10,6 +10,7 @@ import uuid
 import pytest
 from conftest import wait_for
 from test_official_deployment import deployment,prepare,active,UnusedHost
+from submission_fixture import bound_runtime
 from ioalab_services import coordinator
 from ioalab_services.lifecycle import Shutdown,released,serve,stop
 from ioalab_sdk.runtime.lease import Lease
@@ -25,7 +26,7 @@ from ioalab_sdk.runtime.scheduling import JobHandler,JobOutcome
 @contextmanager
 def running(deployment,jobs):
     account=deployment.domains[0]['account'];config=RuntimeConfig.load(deployment.config_path(account));host=UnusedHost()
-    runtime=ResidentRuntime(config,modules=(ProviderRole(host),),host_status=host.capabilities,jobs=jobs,assembly='ioalab-jiuwen')
+    runtime=bound_runtime(config,host,lambda selected:ProviderRole(selected),jobs=jobs,assembly='ioalab-jiuwen')
     errors=[]
     def work():
         try:runtime.run()
