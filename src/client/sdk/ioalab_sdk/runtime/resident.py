@@ -32,7 +32,7 @@ class ResidentRuntime:
         self.native_entry_bindings=None
         self.health=None
         self.installation=current_installation(assembly)
-        self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=None
+        self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=self.user_ui=None
         self.identities=[]
         self.operations=dict(operations or {})
         self.host_status=host_status or (lambda:{'available':False,'reason':'Host adapter is not configured'})
@@ -116,6 +116,8 @@ class ResidentRuntime:
         self.connection.start(wait=False)
         for module in self.modules:module.start()
         self.ipc.start()
+        # P36 background reminder needs the listening page origin.
+        self.user_ui.reminders.start()
         return self
 
     def _host_health(self,host_ref,state):
@@ -153,6 +155,7 @@ class ResidentRuntime:
                 'host':host,'scheduler':scheduler,'delivery':self.store.summary(),
                 'roleErrors':[module.error for module in self.modules if getattr(module,'error',None)],
                 'stopping':self.stop_requested.is_set()}
+        result['userPending']=self.user_ui.reminders.status()
         if self.native_events is not None:result['nativeEvents']=self.native_events.status()
         if self.health is not None:result['hostHealth']=self.health.snapshot()
         if self.native_entry_bindings is not None:
@@ -270,6 +273,8 @@ class ResidentRuntime:
         if self._closed:return
         self.stop_requested.set()
         self.closing.set()
+        # No new browser opening during drain; joined before IPC and store close.
+        if self.user_ui is not None:self.user_ui.reminders.close()
         # Keep the DB and OS ownership until all actual work/RPC threads stop.
         if self.scheduler:self.scheduler.drain()
         for module in self.modules:

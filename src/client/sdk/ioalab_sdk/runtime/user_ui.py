@@ -14,6 +14,7 @@ import webbrowser
 
 from .protocol import RuntimeFault
 from .confirmation_view import present
+from .user_pending import UserPending
 
 
 class UserUi:
@@ -37,6 +38,8 @@ class UserUi:
         self._authority=confirmations.user_channel() if confirmations is not None else None
         self._entries={};self._sessions={};self._lock=threading.RLock()
         self.origin=None
+        # The sole background reminder; the assembly starts it after IPC listens.
+        self.reminders=UserPending(confirmations,lambda:self.open()) if confirmations is not None else None
 
     def entry_url(self):
         if not self.origin:raise RuntimeFault('not_ready','Local user page is not listening')
@@ -49,17 +52,19 @@ class UserUi:
 
     def open(self):
         url=self.entry_url()
+        # Manual opens are not rate-limited; rows already on the page are not re-reminded.
+        latest=self.reminders.marker() if self.reminders else None
         try:
             if self.browser:
                 subprocess.Popen([self.browser,url],shell=False,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,close_fds=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-                return True
-            if not webbrowser.open(url):
+            elif not webbrowser.open(url):
                 raise RuntimeFault('not_ready','The local user browser could not be opened','configure_browser')
-            return True
         except (OSError,webbrowser.Error):
             # OS errors can contain the one-time URL; never return them over RPC.
             raise RuntimeFault('not_ready','The local user browser could not be opened','configure_browser') from None
+        if self.reminders:self.reminders.covered(latest)
+        return True
 
     def _cookie_name(self):
         # Browser cookies do not isolate ports; this origin comes from our listener.

@@ -53,6 +53,12 @@ def wait_for(predicate,timeout=20):
         time.sleep(.05)
     raise AssertionError('Timed out waiting for a participant')
 
+@pytest.fixture(autouse=True)
+def no_real_user_browser(monkeypatch):
+    """The background pending reminder never launches a real system browser in tests;
+    a test that exercises opening installs its own explicit double over this one."""
+    monkeypatch.setattr('webbrowser.open',lambda *args,**kwargs:False)
+
 @pytest.fixture(scope='session')
 def platform(tmp_path_factory):
     import uvicorn

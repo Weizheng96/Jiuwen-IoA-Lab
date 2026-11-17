@@ -87,20 +87,26 @@ class DeliveryWatch:
                     evidence_ref={'contractRef':ref,'period':period},business_operation=operation,interaction=contract['interactionId'])
                 r['active']=False
                 return j.receipt(r,'completed','user_acceptance',notification=notice)
+            # Without an original session owner.notify is an optional reminder;
+            # its absence or failure never blocks this delivery record.
             tool = self.role.tools.get('owner.notify')
-            if tool is None:
-                return j.receipt(r,reason='host_unavailable',required=('owner.notify',))
             if 'notification' not in r:
-                # Stable source and immutable text let the existing receipt queue deduplicate crashes.
-                notice = {'title':'委托成果待验收','text': '流程 '+flow['flowRef']+'，合同 '+ref+'，第 '+str(period)+
-                          ' 期已领取。文件：'+str(fetched['files'])+'；验收预览：'+str(verified['report'])+
-                          '。请审阅后独立确认验收；尚未签署验收或付款。'}
-                source = {'operationId':operation,'agentId':journal.actor,'messageId':operation,
-                          'interactionId':contract['interactionId'],'peerAgentId':contract['service']}
-                self.role.runtime.require_execution()
-                result = tool.invoke(notice,source)
-                validate_output(tool,result)
-                r['notification'] = result
+                if tool is None:
+                    r['notification'] = {'status':'unavailable'}
+                else:
+                    # Stable source and immutable text let the existing receipt queue deduplicate crashes.
+                    notice = {'title':'委托成果待验收','text': '流程 '+flow['flowRef']+'，合同 '+ref+'，第 '+str(period)+
+                              ' 期已领取。文件：'+str(fetched['files'])+'；验收预览：'+str(verified['report'])+
+                              '。请审阅后独立确认验收；尚未签署验收或付款。'}
+                    source = {'operationId':operation,'agentId':journal.actor,'messageId':operation,
+                              'interactionId':contract['interactionId'],'peerAgentId':contract['service']}
+                    try:
+                        self.role.runtime.require_execution()
+                        result = tool.invoke(notice,source)
+                        validate_output(tool,result)
+                    except RuntimeFault as exc:
+                        result = {'status':'unknown' if exc.code in ('unknown_result','result_unknown') else 'unavailable','code':exc.code}
+                    r['notification'] = result
                 j.save(r)
             r['active'] = False
             return j.receipt(r,'completed','user_acceptance',notification=r['notification'])

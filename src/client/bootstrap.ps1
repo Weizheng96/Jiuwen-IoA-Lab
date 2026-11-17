@@ -74,6 +74,9 @@ function Save-VerifiedDownload($Asset, [string]$Archive) {
     throw ('Official and registered mirror downloads failed ('+($failed -join ', ')+'); supply an explicit -Proxy and retry; checksums stay enforced')
 }
 function Get-PortableTool($Asset) {
+    # A Python parent can pass PowerShell 7's module paths to Windows PowerShell 5.1.
+    # Prefer this process's matching system modules for checksum verification.
+    $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
     if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { throw 'This portable tool manifest covers Windows x64; preserve the installation and use the official tool for this architecture' }
     New-Item -ItemType Directory -Force -Path $tools | Out-Null
     $archive = Join-Path $tools $Asset.name

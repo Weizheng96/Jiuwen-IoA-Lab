@@ -48,6 +48,7 @@ class Confirmations:
     def __init__(self,store,*,clock=time.time):
         self.store,self.clock=store,clock
         self._authority=secrets.token_urlsafe(32)
+        self._created=[]
         with store.transaction() as conn:
             conn.execute(SCHEMA)
             fields=conn.execute('PRAGMA table_info(runtime_confirmations)').fetchall()
@@ -112,6 +113,7 @@ class Confirmations:
         if len(serialized.encode())>96*1024:raise RuntimeFault('invalid_input','Confirmation preview is too large')
         fingerprint=hashlib.sha256(serialized.encode()).hexdigest()
         cid=str(uuid.uuid5(uuid.NAMESPACE_URL,encode(['ioa-confirm',binding['actor'],binding['operationId'],binding['stage'],binding['action'],kind])))
+        inserted=False
         with self.store.transaction() as conn:
             if not conn.execute('SELECT 1 FROM runtime_cursors WHERE actor=?',(binding['actor'],)).fetchone():
                 raise RuntimeFault('forbidden','Confirmation identity is outside this instance')
@@ -127,7 +129,31 @@ class Confirmations:
                 conn.execute('INSERT INTO runtime_confirmations VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                              (cid,binding['actor'],binding['operationId'],kind,serialized,fingerprint,expiry,'pending',None,None,None,now))
                 row=conn.execute('SELECT * FROM runtime_confirmations WHERE id=?',(cid,)).fetchone()
-            return self._public(row)
+                inserted=True
+            result=self._public(row)
+        # Only after commit; a listener is a non-blocking wake, never a decision path.
+        if inserted:
+            for listener in tuple(self._created):listener()
+        return result
+
+    def on_created(self,listener):
+        """Wake a local reminder after a new original pending row commits."""
+        self._created.append(listener)
+
+    def pending_marker(self,*,after=None):
+        """Bounded counts over the original pending rows; no preview or decision data.
+
+        `after` is a (created,id) high-water mark from an earlier marker.
+        """
+        now=self.clock()
+        pending="state='pending' AND (expires IS NULL OR expires>?)"
+        with self.store.lock:
+            count=self.store.db.execute('SELECT COUNT(*) FROM runtime_confirmations WHERE '+pending,(now,)).fetchone()[0]
+            latest=self.store.db.execute('SELECT created,id FROM runtime_confirmations WHERE '+pending+' ORDER BY created DESC,id DESC LIMIT 1',(now,)).fetchone()
+            fresh=count if after is None else self.store.db.execute(
+                'SELECT COUNT(*) FROM runtime_confirmations WHERE '+pending+' AND (created>? OR (created=? AND id>?))',
+                (now,after[0],after[0],after[1])).fetchone()[0]
+        return {'count':count,'fresh':fresh,'latest':(latest['created'],latest['id']) if latest else None}
 
     def _public(self,row,*,detail=False):
         value=json.loads(row['binding'])

@@ -188,13 +188,8 @@ class FlowJournal:
             record['active'] = False
         reason = ('confirmation' if isinstance(result.get('data'), dict) and result['data'].get('confirmationRef') else
                   'unknown_result' if result['status'] == 'unknown' else 'external_processing')
-        if reason == 'confirmation' and not entry.get('uiAttempted'):
-            entry['uiAttempted'] = True
-            try:
-                entry['uiOpened'] = bool(self.runtime.user_ui.open())
-            except RuntimeFault:
-                pass
-            self.save(record)
+        # The sole background reminder opens the page for every new pending row;
+        # old entry uiAttempted/uiOpened fields stay as history only.
         raise FlowWait(self.receipt(record, result['status'] if result['status'] in ('rejected', 'failed', 'unknown') else 'waiting', reason,
                             evidence=result.get('data')))
 
