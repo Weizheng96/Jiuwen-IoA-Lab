@@ -14,6 +14,8 @@
 
 ## 保留成果与实证边界
 
+2026-11-17 v208新聊天 `01a1e9c8-d2f5-7ad1-8489-ea024a1876a8`：两份Skill可发现，配置绑定及安装状态查询正常；普通沙箱配置读取拒绝。原生控制入口runtime.status进一步因SDK在校验request-stdin前读配置，早期失败operationId=null，被严格relay转为unknown／操作编号不匹配，遮蔽原错误。主协调沿原两份参数及原operationId，以获准权限只读重查均completed、同runtimeId `b2ae263e-0cb6-40be-ac6f-1f7cb9b34624`、平台已连接；Hook已有真实PreToolUse运行元数据，runtime.status本不采集source，不由此宣称Hook未加载或来源绑定成功。原生entry binding仍intent/unknown，业务未验。修复中：先完整验证native包，再在提交前失败中保原ID与原因；不放宽relay错ID拒绝、不把已提交未知误称未提交。
+
 保留公开CLI queue与实际桌面原聊天排队消费的局部证据，及旧纯SDK生产/交付记录（17）。现有stdio后台、动态SDK工具或取消能力不自动证明实际桌面原生新会话/可继续/真实终态。
 
 ## 依赖与实施安排
@@ -21,6 +23,8 @@
 27契约、28包装及33公共基础；原生完成后返回33完整集成。本票由独立owner分切片实施，检查与真实原生窗口由root串行授权；已完成的SDK检查及原生探针见下文，不能将旧阶段“只改规范/未运行”当当前事实。
 
 ## 拒绝与恢复
+
+公共权限/回执修复已完成源实现及最简测试：先完整验证限长native envelope，再读取配置；只对已验证且原业务未提交的本地失败关联原ID及not_submitted，RPC后未知仍unknown。严格relay及三个适配均未放宽，Codex/九问/Claude真实固定wrapper共同验证，不按宿主名称或模型文字识别错误。11个不同case通过，真实原生入口绑定与业务继续待验；在原本地已配置客户端测试通过前不合main。
 
 原request/queue关联、实际turn及终态逐项证明；queue消失/interrupted/null completedAt/取消受理均不猜结束。原生权限请求仍原用户通道或SDK受控路径，不自动拒绝全部，也不绕确认。
 

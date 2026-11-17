@@ -23,6 +23,8 @@ def configuration_snapshot(path):
     try:
         raw=Path(path).read_bytes()
         value=json.loads(raw.decode('utf-8-sig'))
+    except PermissionError:
+        raise RuntimeFault('invalid_input','Permission denied while reading the existing configuration; use an authorized local access path without replacing the account','inspect_configuration_permissions') from None
     except (OSError,ValueError):
         raise RuntimeFault('invalid_input','Use a readable UTF-8 JSON configuration object','configure') from None
     if not isinstance(value,dict):raise RuntimeFault('invalid_input','Configuration must be an object','configure')

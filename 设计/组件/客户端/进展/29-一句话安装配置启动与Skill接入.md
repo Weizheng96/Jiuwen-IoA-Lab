@@ -13,6 +13,10 @@
 
 ### 本轮原生验收发现（2026-11-17）
 
+**用户最新阶段确认：一句话接入已验收成功。** 下述权限/回执问题归已配置客户端的新会话调用与后续业务测试，不重新打开下载注册接入验收。后续会话直接交付本地已配置客户端、沿原账号测试；修复先最简定向检查及本地复验，通过后再合main，不再先合main再一句话接入。公共修复须同时适配Codex/九问/Claude Code；当前九问/Claude配置由用户接手，未因无模型测试而恢复它们。
+
+v208新会话后续阻断：两角色runtime.binding/install.status正常，普通沙箱runtime.status因配置访问权限不足被误报invalid_input／UTF-8 JSON不可读；同一命令获准提升后completed，原账号认证及平台连接正常，排除配置损坏。onboarding捕获该失败后误给未注册账号待办。共用修复已实现：配置权限拒绝单独给明确原因及inspect_configuration_permissions恢复分类；摘要保accountName=null并给agent授权访问步骤，不生成注册待办，不改账号/权限。两轮最简定向8通过及4通过（摘要重验，11个不同case），均exit0；三真实宿主包装共同验证原回执保留、错/缺ID仍unknown。报告为temp/checks/20261117T141449Z-0c0f9888及20261117T141906Z-4461000c。现待原本地客户端候选更新和真实业务复验，不提前合main。
+
 本轮修复已实现：skills-install回执附现有onboarding/1摘要与actor/verify步骤，区分当前智能体动作和用户动作，支持Markdown展示；登记给实际host/ref、type-only参数及configurationDigest来源，保已有默认；原生安装/setup给当前入口说明。Codex信任要求改未知null，移除固定“去设置审阅信任”指引。首轮118通过/2资源装配失败（exit1），仅修测试资源装配后两新增用例重跑2通过（exit0，74.43秒），合计覆盖120项；失败报告保留。本轮未解决账号页无响应观察差异，也未完成修复版正式来源接入。用户明确要求跳过剩余发布前检查直接同步：未执行本轮full、自检及实际打包验证，不以定向结果代替。
 
 **已复现接入阻断：** 同一干净安装注册成功后，runtime.configuration为hostType=null、hostFields=[]，runtime.start返回not_ready／`Register a default host before starting`／recovery=configure_host。安装回执未给host-setup.md所要求的公开字段采集步骤，测试智能体未猜填模型/会话，也未使用旧配置绕过。Hook安装回执nativeTrustRequired=true、nativeLoaded=false，但用户确认设置中已出现Hook且未要求信任；不得把该字段当成实际用户待办。原始脱敏证据在新聊天工作目录 `outputs/acceptance-record.json`、`outputs/startup-receipt.json`、`outputs/native-hook-receipt.json`；开发与当前设计存在偏离，先核公共安装与Codex适配登记职责，补齐原定接入链及回执，拒绝增加第二启动链。修复和正式来源复验均未完成。
