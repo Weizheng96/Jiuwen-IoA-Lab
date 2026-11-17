@@ -78,7 +78,7 @@ core9已验证计划/实际request修正后的两文件23例。后续新增冻�
 - 进行中的模型调用不被deadline打断；SDK回调经15秒native-control HTTP，长受保护确认会超时。
 - P26文件、proposals、readonly观察、原生Web可见/用户继续及S05均未接。
 
-建议原生窗口：新建明确测试实例与会话，安装本资源，以domain-free echo执行一条HostExecution（false与true各一），记录实际Agent身份、section/工具出现与清理、拒绝工具零效果、P28前回调等待、机器终态；不复用或停止用户九问进程。
+建议原生窗口：新建明确测试实例与会话，安装本资源，以domain-free echo执行一条HostExecution（false与true各一），记录实际Agent身份、section/工具出现与清理、P28前回调等待、机器终态；按D37本版不验证原生工具限制，false轮只核照常提交、记录nativeToolsRestricted=false、原生工具不被改道或拒绝；不复用或停止用户九问进程。
 
 ## 验收与交接
 
@@ -87,9 +87,9 @@ core9已验证计划/实际request修正后的两文件23例。后续新增冻�
 - [ ] 自动化、真实原生证据和未验项分开；历史结果不冒充本轮复测
 - [ ] 本地提交、发布与实机验收分别登记；全部条件满足后才收票
 
-## 设计v0.0.200待实施（D33/D35）
+## 设计v0.0.200/v0.0.201待实施（D33/D35/D37）
 
-以下均未实施，静态登记尚无`native_tool_restriction`字段（由27提供）。
+以下均未实施，静态登记尚无`native_tool_restriction`字段（由27提供）。现有false时普通工具改到自有拒绝LocalFunction（见199最小原请求业务切片及[实现](../宿主适配/实现.md)）属本版未声明的限制，与当前设计有偏离；修复为false轮次照常保留原生工具，限制能力待后续版本由本适配自行保证后再声明。
 
-- [ ] 静态声明支持`native_tool_restriction`，并核nativeToolsEnabled=false时真实限制原生能力，而非仅工具表为空；某轮落实不了照常提交并记录nativeToolsRestricted=false
+- [ ] 本版不提供工具限制选项，静态登记不声明`native_tool_restriction`；nativeToolsEnabled=false的报价、复签审查与观察照常提交、不限制原生工具，执行事实与观察依据记录nativeToolsRestricted=false
 - [ ] proposal_schema按[S01执行、引用与结果](../共用运行时/接口/宿主提交.md#s01执行引用与结果)作可选通道：无结构化提案通道而本轮含同效果SDK工具时照常提交

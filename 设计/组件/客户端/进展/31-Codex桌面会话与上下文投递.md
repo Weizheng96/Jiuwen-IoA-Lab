@@ -100,6 +100,6 @@ S02仅运行期；S03/S04/S05按真实支持分别声明。断线unknown沿原�
 - [ ] A3 排队提交：原SID或新SID经公开队列带原clientUserMessageId，受理只算accepted，unknown只查不重投
 - [ ] A4 关联与终态：queue→clientId→唯一turn，仅completed且completedAt非空为机器终态
 - [ ] A5 冻结定义、工具声明与受控引用渲染进排队正文，不含秘密；SDK工具只经固定入口+窄hook
-- [ ] A6 静态声明不支持`native_tool_restriction`、readonly_context=business_session；报价、复签审查、观察照常排入并记录`nativeToolsRestricted=false`（登记字段由27提供）
+- [ ] A6 静态登记不声明`native_tool_restriction`（本版三适配均不提供，D37）、readonly_context=business_session；报价、复签审查、观察照常排入并记录`nativeToolsRestricted=false`（登记字段由27提供）
 - [ ] A7 S04、S05不出现在静态登记，公共层保unknown／等自然结束
 - [ ] A8 收口：实现页、接口页测试列及本票、工程进展追平
