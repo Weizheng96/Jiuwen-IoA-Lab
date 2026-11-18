@@ -9,6 +9,7 @@
 - create/send在受理回包丢失、异步clientThreadId建立期间、进程退出后的原操作恢复；官方工具无幂等key时，未知不盲重发，不按标题或最近会话猜效果。
 - 原客户端重启后恢复watcher、SDK工具作用域和准确原SID/turn，证明机器终态后才释放原模型名额；S04/S05分别经真实支持与设计声明后开放。
 - 排空与未知名额恢复：本轮旧watcher无法闭合时，正常stop等待原作业而未进入适配排空；已独立核实际轮次终态与SDK未提交，按公开PID/boot及安装映像只停止归属明确的旧客户端进程后原位升级，保原数据。两条旧unknown仍保守占模型名额；为串行新业务实测，经公开配置临时将max_model_runs从2改3，不删除未知作业或伪造终态。须补原操作核实、排空顺序及名额恢复。
+- 2026-11-18进一步实证：两条旧assistant.message和一条runtime.native_event各有released=0的原生提交，合计占满3名额，杭州decision已入站仍queued。通过公开配置临时加至4后，同runtime重启使已排队provider.a2c依赖的EndpointSession.deferred内存续处理丢失，报unknown_result/original deferred endpoint needs reconciliation，尚无模型Session。queued不等于可安全停止；排空须计入已持久化但依赖内存的原协议延续，并提供受控恢复，不能删作业或重投合同。
 - 桌面忙碌时保证排队不steer、原生审批等待/撤回及用户继续操作时的竞争；不能兑现时保持未提交或unknown。
 - 跨宿主通知和业务会话文件可达性继续沿原模块票，不借本次本机通过扩大支持范围。
 
