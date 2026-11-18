@@ -89,7 +89,7 @@ def test_withdrawn_template_rejects_original_quote_without_host_payment_or_repla
 
 @pytest.mark.parametrize('fee,expired',[(1,False),(1,True),(0,False)])
 def test_late_reservation_recovers_original_prepared_quote_once(platform,tmp_path,monkeypatch,fee,expired):
-    import time
+    from a2c.codec import parse_time
     from ioalab_sdk.adapters import stable
     with participants(platform,tmp_path,fee=fee) as (provider,assistant,host,template,task):
         trading=assistant.modules[0].trading;connection=assistant.connection
@@ -115,7 +115,9 @@ def test_late_reservation_recovers_original_prepared_quote_once(platform,tmp_pat
         original=copy.deepcopy(record['subject'])
         sent=assistant.store.operation(trading.identity.agent_id,'message.send',stable('quote-intent',ref))
         assert sent['response']['ok'] is True
-        if expired:monkeypatch.setattr(platform.admissions,'clock',lambda:time.time()+121)
+        if expired:
+            deadline = parse_time(lost[0][1]['holdUntil']).timestamp()
+            monkeypatch.setattr(platform.admissions,'clock',lambda:deadline+1)
         permit.set()
         def reconciled():
             result=terminal(assistant,ref)
