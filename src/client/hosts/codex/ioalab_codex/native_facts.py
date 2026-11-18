@@ -1,7 +1,7 @@
 """Route A machine correlation from persisted history; never from reply text.
 
-A complete typed official delegation input echo identifies exactly one turn. Only that same turn persisted as completed with a concrete
-completedAt is a machine terminal. interrupted/failed without proof, a vanished
+A complete typed official delegation input echo identifies exactly one turn. Only that same turn persisted as ended with a concrete
+completedAt is a machine terminal. interrupted/failed without end proof, a vanished
 queue item, the latest turn or an ordinal never substitute for this chain.
 """
 import hashlib
@@ -47,9 +47,9 @@ def correlate_delegation(turns, digest, excluded=()):
 
 
 def terminal(turn):
-    """Only completed with a persisted completedAt is a machine end."""
+    """Only an ended machine status with a persisted completedAt is an end."""
     completed = turn.get('completedAt')
-    return turn.get('status') == 'completed' and isinstance(completed, int) and not isinstance(completed, bool)
+    return turn.get('status') in ('completed','failed','interrupted') and isinstance(completed, int) and not isinstance(completed, bool)
 
 
 def output(turn):

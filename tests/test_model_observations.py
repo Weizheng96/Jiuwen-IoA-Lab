@@ -6,16 +6,17 @@ import pytest
 
 from ioalab_sdk.runtime import (BindingAck,HostContext,HostRegistration,HostRegistry,
     HostToolCall,MachineTerminal,RuntimeFault,RuntimeStore,SubmissionEvent,
-    SubmissionResult,model_port)
+    SubmissionResult,SubmissionError,model_port)
 from ioalab_sdk.runtime.scheduling import JobHandler,JobOutcome,Scheduler
 from conftest import wait_for
 
 
 class ObservationAdapter:
-    def __init__(self,mode,*,output=None,callbacks=(),disconnect=False,skip_ack=False):
+    def __init__(self,mode,*,output=None,callbacks=(),disconnect=False,skip_ack=False,error=None):
         self.registration=HostRegistration('observation-boundary','1',readonly_context=mode)
         self.output,self.callbacks,self.disconnect,self.skip_ack=output,callbacks,disconnect,skip_ack
         self.calls=[];self.effects=[]
+        self.error=error
 
     def submit(self,operation_id,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
         self.calls.append((operation_id,input,session_id,execution))
@@ -31,7 +32,7 @@ class ObservationAdapter:
             self.effects.append(on_tool(HostToolCall(operation_id,input.attempt.nonce,sid,receipt.request_id,
                 'result-'+str(index),'verifier.observe',args)))
         terminal=MachineTerminal(operation_id,input.attempt.nonce,sid,receipt.request_id,'completed','actual-api-completion')
-        return replace(receipt,state='completed',terminal=terminal,output=self.output)
+        return replace(receipt,state='completed',terminal=terminal,output=self.output,error=self.error)
 
 
 @pytest.fixture
@@ -150,3 +151,14 @@ def test_new_business_session_requires_p28_and_unknown_creation_never_dispatches
     result,registry=observe(disconnected,parent_sid=None,repeat_on_error=True)
     assert result['status']=='unknown' and len(disconnected.calls)==1
     assert registry.context('actor','business')['sessionId']=='real-business-created'
+
+
+@pytest.mark.parametrize('source',['output','callback'])
+def test_completed_round_with_submission_error_never_becomes_an_observation(observe,source):
+    body={'observation':{'fact':42}}
+    adapter=ObservationAdapter('isolated_session',output=body if source=='output' else None,
+        callbacks=(body,) if source=='callback' else (),
+        error=SubmissionError('native_guard_failed','native_definition','accepted','Original round guard failed'))
+    result,_=observe(adapter)
+    assert result['status']=='unknown' and result['data']['errors']==['native_guard_failed']
+    assert len(adapter.calls)==1

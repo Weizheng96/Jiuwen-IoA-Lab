@@ -65,7 +65,7 @@ class RecordingSubmission:
     """Opt-in real adapter seen only through S01; records the original submitted references."""
     def __init__(self,host):self.host=host;self.turns=[];self.registration=host.registration
     def check(self):return self.host.check()
-    def get_request(self,request_id):return self.host.get_request(request_id)
+    def get_request(self,query):return self.host.get_request(query)
     def cancel(self,request_id):return self.host.cancel(request_id)
     def submit(self,operation_id,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
         self.turns.append(SimpleNamespace(operation_id=operation_id,session_id=session_id,input=input.text,

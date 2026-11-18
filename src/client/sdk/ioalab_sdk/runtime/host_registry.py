@@ -41,7 +41,7 @@ import copy
 import threading
 import time
 from .host_submission import (HostRegistration, HostInput, HostExecution, SubmissionAttempt,
-    SubmissionResult, SubmissionEvent, SubmissionError, MachineTerminal, HostResource,
+    SubmissionResult, SubmissionQuery, SubmissionEvent, SubmissionError, MachineTerminal, HostResource,
     BindingAck, HostToolCall)
 from .host_submission import HostToolResult,NativeSubmissionPending,native_tools_restricted
 from .sdk_tool_callbacks import SdkToolCallbacks
@@ -96,6 +96,11 @@ class HostRegistry:
         self._submission_scopes={}
         self._resource_controls_closed=False
         self._boot_id=str(uuid.uuid4())
+        self._owner_lease=None
+        self._reconcile_after=0
+        self._reconcile_cursor=""
+        self._reconcile_worker=None
+        self._reconcile_closed=False
 
     def bind(self, store, *, identities=None):
         self.store = store
@@ -103,6 +108,46 @@ class HostRegistry:
             mapping={item.agent_id:item.profile for item in identities}
             if len(mapping)!=len(identities):raise RuntimeFault('identity_conflict','SDK profiles must have unambiguous actors')
             self.identities=mapping
+
+    def recover_under_lease(self,lease):
+        """The resident supplies its acquired directory lease, never an empty scope proof."""
+        from .lease import Lease
+        if not isinstance(lease,Lease) or lease.file.closed:
+            raise RuntimeFault('not_ready','Acquire the original instance lease before recovery')
+        if self.store is None or lease.file.name!=str(self.store.path.parent/'client.lock'):
+            raise RuntimeFault('identity_conflict','Recovery lease belongs to another runtime')
+        self._owner_lease=lease
+        with self.store.lock:
+            self.store.db.execute("CREATE INDEX IF NOT EXISTS runtime_unreleased_native ON runtime_checkpoints(key) WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2 AND json_extract(value,'$.released')=0")
+
+    def reconcile_submissions(self):
+        """Bounded original-query work; changes native occupancy only, never role outcomes."""
+        if self._reconcile_closed or time.monotonic()<self._reconcile_after:return
+        if self._reconcile_worker is not None and self._reconcile_worker.is_alive():return
+        self._reconcile_after=time.monotonic()+1
+        self._reconcile_worker=threading.Thread(target=self._reconcile_one,daemon=True)
+        self._reconcile_worker.start()
+
+    def close_reconciliation(self):
+        self._reconcile_closed=True
+        worker=self._reconcile_worker
+        if worker is not None:worker.join(.1)
+        return worker is None or not worker.is_alive()
+
+    def _reconcile_one(self):
+        with self._store().lock:
+            rows=self.store.db.execute("SELECT key,value FROM runtime_checkpoints WHERE namespace='host-deliveries' AND json_extract(value,'$.format')=2 AND json_extract(value,'$.released')=0 AND key>? ORDER BY key LIMIT 1",(self._reconcile_cursor,)).fetchall()
+        if not rows:self._reconcile_cursor='';return
+        self._reconcile_cursor=rows[-1]['key']
+        for row in rows:
+            record=json.loads(row['value'])
+            if record.get('legacyUnverified'):continue
+            retry=self.store.checkpoint('host-query-backoff',row['key']) or {}
+            if retry.get('due',0)>time.time():continue
+            try:self.get_submission(*record['target'][:2],record['receipt']['operation_id'])
+            except Exception:pass # Uncertainty never releases or replays a business job.
+            delay=min(30,max(1,retry.get('delay',0)*2))
+            self.store.checkpoint_set('host-query-backoff',row['key'],{'due':time.time()+delay,'delay':delay})
 
     def _store(self):
         if self.store is None:
@@ -605,7 +650,20 @@ class HostRegistry:
         if not receipt.terminal and not not_started:return False
         with self._event_locks_guard:
             scope=self._submission_scopes.get(key)
-            if not scope or scope['attempt']!=attempt_id or not scope['returned']:return False
+            if not scope:
+                lease=self._owner_lease
+                # An acquired OS lease excludes the old owner. Its process-local callbacks
+                # cannot survive; the native request must independently be proven ended.
+                if (not (receipt.terminal or not_started) or not record.get('bootId') or record['bootId']==self._boot_id or
+                        lease is None or lease.file.closed):return False
+                with self.store.transaction() as conn:
+                    current=json.loads(conn.execute('SELECT value FROM runtime_checkpoints WHERE namespace=? AND key=?',('host-deliveries',key)).fetchone()['value'])
+                    if current['attempt']['nonce']!=attempt_id or current.get('bootId')!=record['bootId']:return False
+                    current['released']=True
+                    current['settledEvidence']={'kind':'prior_owner_lease_ended','recoveredBy':self._boot_id,'terminal':asdict(receipt.terminal) if receipt.terminal else None,'notSubmitted':bool(not_started)}
+                    conn.execute('UPDATE runtime_checkpoints SET value=? WHERE namespace=? AND key=?',(encode(current),'host-deliveries',key))
+                return True
+            if scope['attempt']!=attempt_id or not scope['returned']:return False
             scope['sealed']=True
             active=bool(scope['active'])
         # No scope/global/store lock spans callback draining. In particular a
@@ -657,17 +715,22 @@ class HostRegistry:
     def get_submission(self,actor,interaction,operation_id):
         """P22 exception recovery; absence of S04 or an ID never starts another turn."""
         record,binding,receipt=self._submission_record(actor,interaction,operation_id)
-        if receipt.terminal or not receipt.request_id:
+        if receipt.terminal or (receipt.error and receipt.error.dispatch=='not_submitted' and not receipt.request_id and not record.get('toolEntered')):
             self._settle_submission(actor,interaction,operation_id,receipt.attempt_id)
+            return receipt
+        # Receipt migration preserves historical references, but cannot create
+        # the original submission provenance needed for an ID-less S04 query.
+        if not receipt.request_id and 'legacy' in record:
             return receipt
         host=self.hosts[binding['hostRef']];registration=getattr(host,'registration',None)
         if not isinstance(registration,HostRegistration) or 'get_request' not in registration.optional_methods:
             return receipt
-        try:result=host.get_request(receipt.request_id)
+        try:result=host.get_request(SubmissionQuery(operation_id,receipt.attempt_id,receipt.session_id,receipt.request_id))
         except Exception as exc:
             self.store.checkpoint_set('host-submit-errors',encode([actor,operation_id]),{'phase':'get_request','type':type(exc).__name__[:128],'code':'unknown_result'})
             # A lost query proves nothing; return the strongest receipt persisted meanwhile, not this call's stale snapshot.
             return self._submission_record(actor,interaction,operation_id)[2]
+        if result is None:return self._submission_record(actor,interaction,operation_id)[2]
         result=self._accept_submission(actor,interaction,operation_id,result)
         self._settle_submission(actor,interaction,operation_id,result.attempt_id)
         return result

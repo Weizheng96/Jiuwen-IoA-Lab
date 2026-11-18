@@ -60,6 +60,7 @@ class ResidentRuntime:
                 from .sdk_tool_callbacks import CallbackPool
                 self.callback_pool=CallbackPool(config.max_model_runs)
                 host_registry.bind(self.store,identities=self.identities)
+                host_registry.recover_under_lease(self._lease)
                 host_registry.callback_pool=self.callback_pool
             self.connection=AgentConnection(config.platform,self.account.bearer,actors,self.store,network=self.account.network)
             self.confirmations=Confirmations(self.store)
@@ -256,6 +257,7 @@ class ResidentRuntime:
                 if self.stop_requested.is_set():
                     self.scheduler.drain()
                     if self.scheduler.idle:break
+                if self.host_registry is not None:self.host_registry.reconcile_submissions()
                 if self.health is not None and not self.stop_requested.is_set():self.health.poll()
                 time.sleep(.1)
         finally:
@@ -287,6 +289,8 @@ class ResidentRuntime:
         # P34's bounded S02 unit belongs to this lifecycle and stops with P13 drain.
         if self.health is not None and not self.health.close():
             raise RuntimeFault('not_ready','Keep host resources until the bounded health sample ends')
+        if self.host_registry is not None and not self.host_registry.close_reconciliation():
+            raise RuntimeFault("not_ready","Keep host resources until original request queries end")
         if self.scheduler:self.scheduler.close()
         for module in self.modules:module.close()
         if self.host_registry is not None and not self.host_registry._close_resource_controls():

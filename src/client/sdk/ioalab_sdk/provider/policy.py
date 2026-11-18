@@ -1,5 +1,5 @@
 """Business decisions from the configured host, before original A2C signs anything."""
-from ..runtime import HostInput,execution_snapshot,stamp
+from ..runtime import HostInput,execution_snapshot,stamp,submission_succeeded
 import time
 from a2c.codec import digest,parse_duration,parse_time
 from a2c.card import build_proposal_card,validate_card
@@ -89,8 +89,17 @@ class HostPolicy(DefaultPolicy):
     def decide(self,phase,template,subject,materials):
         store=self.provider.store;key='decision:'+self.job['payload']['messageId']
         previous=store.get('business',key)
-        if previous:return previous['decision']
         relation=self.runtime.store.interaction(interaction_id=self.relation['id'])
+        if previous:
+            original=previous.get('nativeOperation')
+            if not isinstance(original,str) or not original or not previous.get('session'):
+                raise RuntimeFault('unknown_result','The original decision lacks its native submission reference','inspect_original_request')
+            result=self.execution.host.get_submission(self.identity.agent_id,relation['id'],original)
+            if result.error is not None:
+                raise RuntimeFault(result.error.code,result.error.message,result.error.action or 'inspect_original_request')
+            if not submission_succeeded(result) or result.session_id!=previous['session'] or result.session_id!=relation['session']:
+                raise RuntimeFault('unknown_result','The original decision round has not completed successfully','inspect_original_request')
+            return previous['decision']
         schema=quote_schema(template);definition=self.definition(template);tools=definition.tools
         definition_hash=definition_digest(definition)
         if relation['details'].get('definitionDigest',definition_hash)!=definition_hash:raise RuntimeFault('identity_conflict','Restore the original service skill and tool definition')
@@ -126,7 +135,7 @@ class HostPolicy(DefaultPolicy):
                 except A2CError as exc:return {'status':'rejected','error':{'code':exc.code,'message':exc.message}}
             old=store.get('business',key)
             if old and old['decision']!=args:raise RuntimeFault('id_conflict','The original business decision is already saved')
-            if not old:store.put('business',key,{'decision':args,'session':state['session'],'hostCall':call})
+            if not old:store.put('business',key,{'decision':args,'session':state['session'],'hostCall':call,'nativeOperation':native_operation})
             state['decision']=args
             return {'status':'recorded','notice':'业务决定已保存；签署和平台回执由SDK处理'}
         workspace=self.runtime.config.home/'roles'/self.identity.profile/'sessions'/relation['id']
@@ -159,9 +168,11 @@ class HostPolicy(DefaultPolicy):
                 on_event=event,on_tool=lambda call:on_tool(call.name,call.arguments,call.transport_reference))
         finally:self.execution.active.discard(self.job['id'])
         if state['uploadUnknown']:
-            if result.terminal and result.state in ('completed','failed') and result.session_id==state['session']:
+            if result.terminal and result.state in ('completed','failed','cancelled') and result.session_id==state['session']:
                 self.execution.tasks.wait(self.identity,self.job,state['session'],definition_hash,result.state,native_operation=native_operation)
             raise RuntimeFault('unknown_result','Resolve the original task verifier before continuing','resume_original')
+        if result.error is not None:
+            raise RuntimeFault(result.error.code,result.error.message,result.error.action or 'inspect_original_request')
         if result.state!='completed' or state['decision'] is None:
             raise RuntimeFault('unknown_result','Inspect the original host decision; do not repeat it automatically')
         return state['decision']

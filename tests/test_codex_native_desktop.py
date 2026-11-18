@@ -186,9 +186,9 @@ def test_s02_enumeration_failure_or_missing_location_is_unknown(adapter):
 def test_registration_declares_business_session_and_no_optional_or_restriction():
     registration = NativeCodexHost.registration
     assert registration.readonly_context == 'business_session'
-    assert registration.optional_methods == ()
+    assert registration.optional_methods == ('get_request',)
     assert getattr(registration, 'native_tool_restriction', False) is False
-    assert not hasattr(NativeCodexHost, 'get_request') and not hasattr(NativeCodexHost, 'cancel')
+    assert hasattr(NativeCodexHost, 'get_request') and not hasattr(NativeCodexHost, 'cancel')
 
 
 # --- Official desktop create/send/read, P28 and SDK effects -------------------------
@@ -335,3 +335,25 @@ def test_deadline_expiring_during_desktop_snapshot_prevents_send(adapter, monkey
                                  execution=execution(deadline=soon(30)), on_event=Events(), on_tool=lambda c: None)
     assert result.error.code == 'expired' and result.error.dispatch == 'not_submitted'
     assert result.session_id == 'original' and 'send_message_to_thread' not in methods(adapter.desktop)
+
+
+@pytest.mark.parametrize('status,expected',[('completed','completed'),('failed','failed'),('interrupted','cancelled')])
+def test_original_query_after_adapter_restart_tracks_one_turn_without_resubmission(adapter,status,expected):
+    from ioalab_sdk.runtime import SubmissionQuery
+    # Complete send while its acknowledgement is lost: no native turn ID was returned.
+    adapter.desktop.on_send=lambda sid,request: (_ for _ in ()).throw(WireError('lost response'))
+    result=adapter.host.submit('recover-op',HostInput('original',attempt=attempt()),'user-sid',on_event=Events())
+    assert result.terminal is None and result.request_id is None
+    turn=adapter.desktop.chats['user-sid'][0]
+    turn.update(status=status,completedAt=1700000001)
+    restored=NativeCodexHost(host_ref='codex',root=adapter.host.root,launch_store=adapter.store,
+        server_factory=adapter.host.server_factory,enumerate_processes=adapter.host.enumerate)
+    before=[call for call in adapter.desktop.calls if call[0] in ('create_thread','send_message_to_thread')]
+    query=SubmissionQuery('recover-op','attempt-1','user-sid')
+    turn['completedAt']=None
+    assert restored.get_request(query).terminal is None
+    turn['completedAt']=1700000001
+    actual=restored.get_request(query)
+    assert actual.state==expected and actual.terminal.state==expected and actual.request_id==turn['id']
+    assert before==[call for call in adapter.desktop.calls if call[0] in ('create_thread','send_message_to_thread')]
+    with pytest.raises(RuntimeFault):restored.get_request(replace(query,request_id='other-turn'))

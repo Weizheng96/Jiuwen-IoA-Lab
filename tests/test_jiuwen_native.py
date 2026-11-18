@@ -1,3 +1,4 @@
+from ioalab_sdk.runtime import SubmissionQuery
 """Native product/control boundary, actual SDK setup ledger; no host or model."""
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -207,11 +208,11 @@ def test_native_new_session_actual_request_p28_terminal_and_no_second_dispatch(t
             report(handler,command,{'stage':'snapshot','snapshot':snapshot(command,state='succeeded')})
             result=future.result(timeout=2)
         assert result.terminal.state=='completed' and result.request_id==command['plannedRequestId']
-        assert host.get_request(result.request_id).terminal==result.terminal
+        assert host.get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id)).terminal==result.terminal
         assert host.submit('operation',input,on_event=event).terminal==result.terminal
         assert handler(poll)['command'] is None
         report(handler,command,{'stage':'snapshot','snapshot':snapshot(command,state='running')})
-        assert host.get_request(result.request_id).terminal==result.terminal
+        assert host.get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id)).terminal==result.terminal
 
 
 def test_native_same_session_wrong_request_is_not_binding_and_unknown_never_requeues(tmp_path):
@@ -300,7 +301,7 @@ def test_native_real_machine_terminal_survives_sdk_event_failure(tmp_path):
             result=future.result(timeout=2)
         assert result.state=='completed' and result.terminal.state=='completed'
         assert result.error.code=='event_reporting_unknown'
-        assert bundle['host'].get_request(result.request_id).terminal==result.terminal
+        assert bundle['host'].get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id)).terminal==result.terminal
 
 
 @pytest.mark.parametrize('event_failure',[False,True])
@@ -326,13 +327,13 @@ def test_native_guard_late_failure_keeps_real_terminal_and_sdk_error_together(tm
         assert result.error.code=='native_guard_failed' and result.error.dispatch=='accepted'
         assert result.output is None and not effects
         assert seen[-1].result.error.code=='native_guard_failed'
-        assert bundle['host'].get_request(result.request_id).error==result.error
+        assert bundle['host'].get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id)).error==result.error
         if event_failure:assert 'SDK event reporting is unknown' in result.error.message
         bundle['native_resources']['host'].close()
         restored=native_adapter(host_ref='host',resource_root=tmp_path/'native')
         restored['native_resources']['host'].start()
         try:
-            recovered=restored['host'].get_request(result.request_id)
+            recovered=restored['host'].get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id))
             assert recovered==result
             assert (recovered.session_id,recovered.request_id)==('business-sid',command['plannedRequestId'])
             assert recovered.terminal==result.terminal and recovered.error==result.error
@@ -360,8 +361,8 @@ def test_native_original_request_missing_receipt_restores_unknown_without_dispat
         restored=native_adapter(host_ref='host',resource_root=tmp_path/'native')
         restored['native_resources']['host'].start()
         try:
-            assert restored['host'].get_request(result.request_id) is None
-            assert restored['host'].get_request('not-an-actual-request') is None
+            assert restored['host'].get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id)) is None
+            assert restored['host'].get_request(SubmissionQuery('operation','attempt','source-sid','not-an-actual-request')) is None
             assert restored['host'].check()['state']=='unknown'
         finally:restored['native_resources']['host'].close()
 
@@ -395,7 +396,7 @@ def test_native_restored_request_index_conflicts_remain_unknown(tmp_path,fault):
         restored=native_adapter(host_ref='host',resource_root=tmp_path/'native')
         restored['native_resources']['host'].start()
         try:
-            assert restored['host'].get_request(result.request_id) is None
+            assert restored['host'].get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id)) is None
             assert restored['host'].check()['state']=='unknown'
         finally:restored['native_resources']['host'].close()
 
@@ -413,7 +414,7 @@ def test_native_restored_nonterminal_snapshot_is_not_fresh_running_claim(tmp_pat
         restored=native_adapter(host_ref='host',resource_root=tmp_path/'native')
         restored['native_resources']['host'].start()
         try:
-            known=restored['host'].get_request(original.request_id)
+            known=restored['host'].get_request(SubmissionQuery(original.operation_id,original.attempt_id,original.session_id,original.request_id))
             assert known.state=='unknown' and known.terminal is None
             assert known.error.dispatch=='unknown'
             assert (known.session_id,known.request_id)==(original.session_id,command['plannedRequestId'])

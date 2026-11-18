@@ -1,3 +1,4 @@
+from ioalab_sdk.runtime import SubmissionQuery
 """Explicit SDK S01 at the public external SDK boundary; no native CLI/model."""
 import asyncio
 from dataclasses import replace
@@ -154,7 +155,7 @@ def test_actual_interrupt_tracks_original_request(boundary,tmp_path):
     worker=threading.Thread(target=lambda:results.append(h.submit('op',input(),execution=execution(tmp_path),on_event=event,on_tool=lambda c:HostToolResult(1))))
     worker.start();assert bound.wait(3);assert h.cancel(reference[0]) in (None,True);worker.join(3)
     assert not worker.is_alive() and results[0].state=='cancelled' and results[0].terminal
-    assert h.get_request(reference[0])==results[0] and not h.cancel('op')
+    assert h.get_request(SubmissionQuery('op','attempt',None,reference[0]))==results[0] and not h.cancel('op')
 
 def test_static_configuration_and_check_do_not_submit_model(boundary,tmp_path,monkeypatch):
     monkeypatch.setenv('CLAUDE_CONFIG_DIR',str(tmp_path))
@@ -232,7 +233,7 @@ def test_running_query_and_callback_still_own_session_resources(boundary,tmp_pat
     try:
         assert entered.wait(3)
         assert h.check()['state']=='busy'
-        pending=h.get_request(reference[0]);assert pending.terminal is None and pending.state=='running'
+        pending=h.get_request(SubmissionQuery('one','attempt',None,reference[0]));assert pending.terminal is None and pending.state=='running'
         blocked=h.submit('two',input('second'),pending.session_id,execution=execution(tmp_path),on_event=ack,on_tool=lambda c:HostToolResult(1))
         assert blocked.error.code=='busy' and blocked.error.dispatch=='not_submitted' and len(boundary.queries)==1
     finally:release.set();worker.join(3)
@@ -269,7 +270,7 @@ def test_cancel_ack_is_separate_from_local_request_and_machine_end(boundary,tmp_
             until=time.monotonic()+1
             while h.cancel(reference[0]) is None and time.monotonic()<until:time.sleep(.005)
             assert h.cancel(reference[0]) is True
-        assert h.get_request(reference[0]).terminal is None and h.check()['state']=='busy'
+        assert h.get_request(SubmissionQuery('op','attempt',None,reference[0])).terminal is None and h.check()['state']=='busy'
         assert boundary.interrupt_calls==1
     finally:
         boundary.interrupt_release.set();boundary.terminal_release.set();worker.join(3)

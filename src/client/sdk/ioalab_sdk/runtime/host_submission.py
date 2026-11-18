@@ -194,6 +194,25 @@ class MachineTerminal:
 
 
 @dataclass(frozen=True)
+class SubmissionQuery:
+    """Original submission identity; missing native IDs never authorize dispatch."""
+    operation_id: str
+    attempt_id: str
+    session_id: str|None=None
+    request_id: str|None=None
+
+    def __post_init__(self):
+        for name in ('operation_id','attempt_id'):_reference(getattr(self,name),name)
+        for name in ('session_id','request_id'):_reference(getattr(self,name),name,optional=True)
+
+    def matches(self,result):
+        return bool(isinstance(result,SubmissionResult) and
+            (self.operation_id,self.attempt_id)==(result.operation_id,result.attempt_id) and
+            (self.session_id is None or self.session_id==result.session_id) and
+            (self.request_id is None or self.request_id==result.request_id))
+
+
+@dataclass(frozen=True)
 class SubmissionResult:
     operation_id: str
     attempt_id: str

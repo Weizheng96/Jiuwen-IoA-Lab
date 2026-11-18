@@ -102,8 +102,9 @@ def interrupted(platform, tmp_path, *, native=False, host_status='failed', faile
 
 
 @pytest.mark.parametrize('restart', [False, True])
-def test_verified_production_resumes_same_contract_session_and_completes_payment(platform, tmp_path, restart):
-    with interrupted(platform, tmp_path) as (provider, assistant, host, contract, original):
+@pytest.mark.parametrize('host_status',['failed','cancelled'])
+def test_verified_production_resumes_same_contract_session_and_completes_payment(platform, tmp_path, restart,host_status):
+    with interrupted(platform, tmp_path,host_status=host_status) as (provider, assistant, host, contract, original):
         assert original['canResume'] and original['recoveryMode'] == 'runtime_verified', original
         assert not original['requiresConfirmation']
         failed = copy.deepcopy(host.failed_reports)

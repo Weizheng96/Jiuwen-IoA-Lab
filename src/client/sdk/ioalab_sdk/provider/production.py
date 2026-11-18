@@ -240,7 +240,7 @@ class Production:
                 'error':{**asdict(result.error),'source':'submission'}},relation['session'])
         if proposal_error:
             return JobOutcome('unknown',{'cardDigest':cd,'period':period,'delivered':delivered,'error':{**proposal_error,'source':'proposal'}},relation['session'])
-        if provider.store.get('cards',cd).get('state')=='terminated' and result.terminal and result.state in ('completed','failed'):
+        if provider.store.get('cards',cd).get('state')=='terminated' and result.terminal and result.state in ('completed','failed','cancelled'):
             incomplete=any(item.get('cardDigest')==cd and 'result' not in item for item in endpoint.store.all('production_calls').values())
             if not incomplete:return JobOutcome('rejected',{'cardDigest':cd,'reason':'contract_terminated','hostStatus':result.state},relation['session'])
         if state['outcome']=='waiting':

@@ -273,7 +273,17 @@ class ClaudeCodeHost:
             error=SubmissionError('stream_ended','sdk_result','unknown',
             'SDK stream ended without attributable terminal','inspect_original_request'))
 
-    def get_request(self,request_id):
+    def get_request(self,query):
+        from ioalab_sdk.runtime import SubmissionQuery
+        if not isinstance(query,SubmissionQuery):
+            raise RuntimeFault('invalid_input','Use the original submission query')
+        if query.request_id is None:return None
+        result=self._request_state(query.request_id)
+        if result is not None and not query.matches(result):
+            raise RuntimeFault('identity_conflict','Original request query changed its submission')
+        return result
+
+    def _request_state(self,request_id):
         with self._lock:
             s=self._requests.get(request_id)
             if s is None:raise RuntimeFault('unknown_result','Original SDK request unavailable; do not resubmit')

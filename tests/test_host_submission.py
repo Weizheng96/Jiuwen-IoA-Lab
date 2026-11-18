@@ -24,6 +24,49 @@ class Adapter:
         return replace(result,state='completed',delivery='handled',terminal=proof)
 
 
+def test_periodic_original_query_releases_permit_without_resolving_or_resending_business(tmp_path):
+    from conftest import wait_for
+    from ioalab_sdk.runtime.lease import Lease
+    from ioalab_sdk.runtime.scheduling import Scheduler,JobHandler,JobOutcome
+    querying=threading.Event();ended=threading.Event()
+    class MissingEvent(Adapter):
+        registration=HostRegistration('fixture','1',('get_request',))
+        def submit(self,operation_id,input,session_id=None,**callbacks):
+            self.calls.append(operation_id)
+            self.receipt=SubmissionResult(operation_id,input.attempt.nonce,'accepted','original-session','original-request','accepted')
+            callbacks['on_event'](SubmissionEvent('session','session',self.receipt))
+            return self.receipt
+        def get_request(self,query):
+            assert query.matches(self.receipt)
+            querying.set();assert ended.wait(10)
+            terminal=MachineTerminal(query.operation_id,query.attempt_id,query.session_id,query.request_id,'failed','original-machine-end')
+            return replace(self.receipt,state='failed',terminal=terminal)
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
+    adapter=MissingEvent();registry=HostRegistry({'host':adapter},'host')
+    registry.bind(store,identities=[SimpleNamespace(agent_id='actor',profile='assistant')])
+    def original(job):
+        registry.submit('actor','original','operation',HostInput('original request'))
+        return JobOutcome('unknown',{'businessEffect':'must reconcile original receipt'})
+    queue=Scheduler(store,{'original':JobHandler(original,'1'),'independent':JobHandler(lambda job:JobOutcome('completed',{}),'1')},max_models=1)
+    registry.scheduler=queue
+    with Lease(tmp_path/'client.lock',timeout=0) as lease:
+        registry.recover_under_lease(lease);queue.start()
+        try:
+            first=queue.submit('actor','original','original',{},operation_id='original-job')['reference']
+            wait_for(lambda:queue.get(first)['status']=='unknown')
+            assert adapter.calls==['operation']
+            second=queue.submit('actor','independent','independent',{},operation_id='next-job')['reference']
+            registry.reconcile_submissions()
+            assert querying.wait(10)
+            assert queue.get(second)['status']=='queued' and queue.get(first)['status']=='unknown'
+            ended.set()
+            wait_for(lambda:queue.get(second)['status']=='completed')
+            assert queue.get(first)['status']=='unknown' and adapter.calls==['operation']
+        finally:
+            ended.set();wait_for(registry.close_reconciliation)
+            queue.close();store.close()
+
+
 def test_submit_binds_before_tools_and_replays_original_receipt(tmp_path):
     store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
     adapter=Adapter();registry=HostRegistry({'first':adapter,'other':Adapter()},'first');registry.bind(store,identities=[SimpleNamespace(agent_id="actor",profile="assistant")])
@@ -131,7 +174,8 @@ def test_optional_query_reconciles_original_failed_request_and_cancel_never_inve
             on_event(SubmissionEvent('session','session',self.receipt));return self.receipt
         def cancel(self,request):
             assert request=='request';return {'accepted':True}  # Unrecognized result is uncertain, not a rejection.
-        def get_request(self,request):
+        def get_request(self,query):
+            request=query.request_id
             assert request=='request'
             proof=MachineTerminal(self.receipt.operation_id,self.receipt.attempt_id,'session',request,'failed','machine-failure')
             return replace(self.receipt,state='failed',delivery='delivered',terminal=proof)
@@ -216,9 +260,10 @@ def test_authenticated_source_fills_only_unknown_workspace_for_original_session(
     finally:store.close()
 
 
+@pytest.mark.parametrize('terminal_state',['completed','failed','cancelled'])
 @pytest.mark.parametrize('observer',[False,True])
 @pytest.mark.parametrize('business_state',['unknown','completed','failed'])
-def test_unknown_job_retains_one_permit_until_machine_and_actual_callbacks_end(tmp_path,observer,business_state):
+def test_unknown_job_retains_one_permit_until_machine_and_actual_callbacks_end(tmp_path,observer,business_state,terminal_state):
     from ioalab_sdk.runtime.scheduling import Scheduler,JobHandler,JobOutcome
     from ioalab_sdk.runtime.sdk_tool_callbacks import CallbackPool
     from conftest import wait_for
@@ -232,9 +277,10 @@ def test_unknown_job_retains_one_permit_until_machine_and_actual_callbacks_end(t
             self.worker=threading.Thread(target=lambda:on_tool(HostToolCall(operation_id,input.attempt.nonce,self.receipt.session_id,'request','call','verifier.observe' if observer else 'echo',{'observation':7} if observer else {})))
             self.worker.start();assert entered.wait(5)
             return self.receipt
-        def get_request(self,request):
-            terminal=MachineTerminal(self.receipt.operation_id,'wrong-attempt' if getattr(self,'wrong',False) else self.receipt.attempt_id,self.receipt.session_id,request,'failed','real-machine-end')
-            return replace(self.receipt,state='failed',terminal=terminal)
+        def get_request(self,query):
+            request=query.request_id
+            terminal=MachineTerminal(self.receipt.operation_id,'wrong-attempt' if getattr(self,'wrong',False) else self.receipt.attempt_id,self.receipt.session_id,request,terminal_state,'real-machine-end')
+            return replace(self.receipt,state=terminal_state,terminal=terminal)
     store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
     host=Async();registry=HostRegistry({'original':host,'other':Adapter()},'original');registry.bind(store,identities=[SimpleNamespace(agent_id='actor',profile='assistant')])
     registry.callback_pool=CallbackPool(1)
@@ -261,7 +307,7 @@ def test_unknown_job_retains_one_permit_until_machine_and_actual_callbacks_end(t
         assert queue.get(second)['status']=='queued'
         host.wrong=False
         failed=registry.get_submission('actor',route,'operation')
-        assert failed.state=='failed' and failed.delivery=='accepted'
+        assert failed.state==terminal_state and failed.delivery=='accepted'
         assert queue.get(second)['status']=='queued'
         release.set();assert exited.wait(5);host.worker.join(5)
         registry.get_submission('actor',route,'operation')
@@ -351,7 +397,8 @@ def test_completed_business_keeps_native_sid_and_pending_admission_until_origina
         def submit(self,op,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
             self.receipt=SubmissionResult(op,input.attempt.nonce,'running',session_id,'request','accepted')
             on_event(SubmissionEvent('bound','session',self.receipt));return self.receipt
-        def get_request(self,request):
+        def get_request(self,query):
+            request=query.request_id
             terminal=MachineTerminal(self.receipt.operation_id,self.receipt.attempt_id,self.receipt.session_id,request,'failed','machine-end')
             return replace(self.receipt,state='failed',terminal=terminal)
     store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner');host=Running()
@@ -588,3 +635,82 @@ def test_submission_success_requires_the_same_original_machine_request(field):
 def test_handled_or_completed_text_cannot_replace_original_machine_success(state):
     assert submission_succeeded(SubmissionResult('op','attempt',state,'sid','request','handled',output='completed')) is False
     assert submission_succeeded(SubmissionResult('op','attempt','completed','sid','request','handled')) is False
+
+
+@pytest.mark.parametrize('ending',['completed','failed','cancelled'])
+def test_restart_releases_only_proven_original_round_under_owned_lease(tmp_path,ending):
+    from ioalab_sdk.runtime import SubmissionQuery
+    from ioalab_sdk.runtime.lease import Lease
+    class Original(Adapter):
+        registration=HostRegistration('fixture','1',('get_request',))
+        def submit(self,op,input,session_id=None,**kwargs):
+            self.calls.append(op)
+            self.original=SubmissionResult(op,input.attempt.nonce,'unknown',session_id)
+            return self.original
+        def get_request(self,query):
+            assert isinstance(query,SubmissionQuery)
+            terminal=MachineTerminal(query.operation_id,query.attempt_id,'real-session','original-turn',ending,'original-host-end')
+            return replace(self.original,state=ending,session_id='real-session',request_id='original-turn',terminal=terminal)
+    host=Original();store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
+    first=HostRegistry({'host':host},'host');first.bind(store,identities=[SimpleNamespace(agent_id='actor',profile='assistant')])
+    execution=HostExecution('actor','assistant','business','interaction','original-job',HostDefinition('rule','1','digest','frozen'))
+    first.submit('actor','interaction','operation',HostInput('original'),execution=execution)
+    restored=HostRegistry({'host':host},'host');restored.bind(store)
+    try:
+        restored.get_submission('actor','interaction','operation')
+        assert not restored.original_execution_ended('actor','interaction','operation',None)
+        with Lease(tmp_path/'client.lock',timeout=0) as lease:
+            restored.recover_under_lease(lease)
+            actual=restored.get_submission('actor','interaction','operation')
+            assert actual.state==ending and restored.original_execution_ended('actor','interaction','operation',None)
+        assert host.calls==['operation']
+    finally:store.close()
+
+
+def test_restart_recovers_proven_not_submitted_without_inventing_terminal(tmp_path):
+    import subprocess,sys,os,json
+    from ioalab_sdk.runtime.lease import Lease
+    from ioalab_sdk.runtime.scheduling import Scheduler,JobHandler,JobOutcome
+    from conftest import wait_for
+    script="""
+import sys,os,time
+from pathlib import Path
+from types import SimpleNamespace
+from ioalab_sdk.runtime import *
+from ioalab_sdk.runtime.lease import Lease
+from ioalab_sdk.runtime.scheduling import Scheduler,JobHandler
+root=Path(sys.argv[1]);lease=Lease(root/'client.lock',timeout=0)
+store=RuntimeStore(root/'runtime.sqlite','http://local',['actor'],owner_id='owner')
+class Host:
+    registration=HostRegistration('fixture','1')
+    def submit(self,op,input,session_id=None,**kwargs):
+        (root/'submission-count').write_text('1')
+        result=SubmissionResult(op,input.attempt.nonce,'waiting',error=SubmissionError('not_ready','native','not_submitted','not sent'))
+        kwargs['on_event'](SubmissionEvent('unsent','error',result))
+        os._exit(23)
+host=Host();registry=HostRegistry({'host':host},'host');registry.bind(store,identities=[SimpleNamespace(agent_id='actor',profile='assistant')]);registry.recover_under_lease(lease)
+queue=Scheduler(store,{'model':JobHandler(lambda job:registry.submit('actor','interaction','operation',HostInput('original')),'1',True)},max_models=1)
+registry.scheduler=queue
+queue.submit('actor','interaction','model',{},operation_id='first')
+queue.start()
+time.sleep(10)
+os._exit(99)
+"""
+    env={**os.environ,'PYTHONPATH':os.pathsep.join(sys.path)}
+    result=subprocess.run([sys.executable,'-c',script,str(tmp_path)],env=env,capture_output=True,timeout=15)
+    assert result.returncode==23,result.stderr.decode(errors='replace')
+    with Lease(tmp_path/'client.lock',timeout=0) as lease:
+        store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
+        registry=HostRegistry({'host':Adapter()},'host');registry.bind(store);registry.recover_under_lease(lease)
+        queue=Scheduler(store,{'model':JobHandler(lambda job:JobOutcome('completed',{}),'1',True)},max_models=1)
+        registry.scheduler=queue;queue.start()
+        try:
+            original=queue.records('actor',('model',))[0]
+            second=queue.submit('actor','other','model',{},operation_id='second')['reference']
+            assert queue.get(second)['status']=='queued'
+            receipt=registry.get_submission('actor','interaction','operation')
+            assert receipt.terminal is None and receipt.error.dispatch=='not_submitted'
+            wait_for(lambda:queue.get(second)['status']=='completed')
+            assert queue.get(original['id'])['status']=='unknown'
+            assert (tmp_path/'submission-count').read_text()=='1'
+        finally:queue.close();store.close()

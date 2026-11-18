@@ -5,8 +5,8 @@ chat first receives harmless bootstrap context, then P28 binds its real SID
 before any business is sent. Exact typed delegation input echoes correlate
 the unique turn; machine completedAt proves its end. Acceptance is only
 acceptance; SDK tools arrive through the fixed entry and narrow hook
-as native control calls. Native approvals stay in the desktop UI. S04/S05 are
-not declared and native tool restriction is not declared (D37).
+as native control calls. S04 only queries the exact original submission; S05
+and native tool restriction remain undeclared. Native approvals stay in the desktop UI.
 """
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
@@ -22,7 +22,7 @@ import uuid
 from jsonschema import Draft202012Validator
 from ioalab_sdk.runtime import (HostRegistration, HostResource, HostInput, HostExecution, HostToolCall,
                                HostToolResult, BindingAck, MachineTerminal, RuntimeFault,
-                               SubmissionResult, SubmissionError, SubmissionEvent, private_json)
+                               SubmissionResult, SubmissionQuery, SubmissionError, SubmissionEvent, private_json)
 from . import native_facts
 from .native_desktop import DesktopHealth, current_cli, windows_processes
 from .native_hook import entry_binding, load_config
@@ -43,8 +43,8 @@ def _registration():
         version = metadata.version('ioalab-codex')
     except metadata.PackageNotFoundError:
         version = 'uninstalled'
-    # No optional S04/S05 and no native_tool_restriction: route A cannot prove them (D32/D37).
-    return HostRegistration('codex', version, readonly_context='business_session', resources=tuple(
+    # S04 reads the original operation; S05 and native tool restriction remain unsupported.
+    return HostRegistration('codex', version, ('get_request',), readonly_context='business_session', resources=tuple(
         HostResource('codex-native:'+name, name, 'application/octet-stream', None, 'installation',
                      'package:ioalab_codex/resources/native/'+name) for name in NATIVE_FILES))
 
@@ -99,6 +99,45 @@ class NativeCodexHost:
         self.entries, self.watchers = {}, set()
         self.tool_calls = 0
         self.closing = threading.Event()
+
+    def get_request(self, query):
+        if not isinstance(query,SubmissionQuery):
+            raise RuntimeFault('invalid_input','Use the original submission query')
+        path=self._record_path(query.operation_id,query.attempt_id)
+        with self.condition:entry=self.entries.get((query.operation_id,query.attempt_id))
+        try:
+            if entry is not None:
+                with entry.lock:record=copy.deepcopy(entry.record)
+            else:record=json.loads(path.read_text(encoding='utf-8'))
+        except (OSError,ValueError):return None
+        if (record.get('operation'),record.get('attempt'))!=(query.operation_id,query.attempt_id):
+            raise RuntimeFault('identity_conflict','Original desktop submission changed')
+        sid=record.get('sessionId')
+        if not sid or query.session_id is not None and query.session_id!=sid:
+            return None
+        capture=self._launch()
+        with self._server(capture) as server:
+            turns,complete=server.turns(sid,deadline=time.monotonic()+STEP_SECONDS)
+        if not complete:return None
+        turn=native_facts.correlate_delegation(turns,record.get('delegationDigest'),record.get('beforeTurnIds',()))
+        if turn is None:return None
+        request=turn['id']
+        if (query.request_id is not None and query.request_id!=request or
+                record.get('requestId') is not None and record['requestId']!=request):
+            raise RuntimeFault('identity_conflict','Original desktop request changed')
+        result=SubmissionResult(query.operation_id,query.attempt_id,'running',sid,request,'delivered')
+        if native_facts.terminal(turn):
+            status={'completed':'completed','failed':'failed','interrupted':'cancelled'}[turn['status']]
+            terminal=MachineTerminal(query.operation_id,query.attempt_id,sid,request,status,native_facts.evidence(turn))
+            result=replace(result,state=status,delivery='handled',output=native_facts.output(turn),terminal=terminal)
+        # Query never repairs reporting failures or changes the original business effects.
+        failure=record.get('resultError')
+        if failure:result=replace(result,error=SubmissionError(**failure))
+        if entry is not None:
+            with entry.lock:
+                if entry.result.terminal:return entry.result
+                if entry.result.error:result=replace(result,error=entry.result.error)
+        return result
 
     # --- S02 -----------------------------------------------------------------------
 
@@ -345,7 +384,7 @@ class NativeCodexHost:
                                                          'Original queue item is kept; event reporting failed: '+type(exc).__name__,
                                                          'inspect_original_request'))
             entry.finished = True
-            entry.record.update(phase='unknown', failure={'code': 'event_reporting', 'type': type(exc).__name__})
+            entry.record.update(phase='unknown', resultError=asdict(entry.result.error), failure={'code': 'event_reporting', 'type': type(exc).__name__})
             private_json(entry.path, entry.record)
         with self.condition:
             self.condition.notify_all()
@@ -366,17 +405,19 @@ class NativeCodexHost:
 
     def _finish(self, entry, turn):
         with entry.lock:
-            terminal = MachineTerminal(entry.operation_id, entry.attempt, entry.sid, entry.request, 'completed',
+            terminal = MachineTerminal(entry.operation_id, entry.attempt, entry.sid, entry.request, {'completed':'completed','failed':'failed','interrupted':'cancelled'}[turn['status']],
                                        native_facts.evidence(turn))
-            result = replace(entry.result, state='completed', delivery='handled', output=native_facts.output(turn),
+            result = replace(entry.result, state=terminal.state, delivery='handled', output=native_facts.output(turn),
                              terminal=terminal)
             entry.result = result
-            entry.record.update(phase='completed', turn=native_facts.summary(turn))
+            entry.record.update(phase=terminal.state, turn=native_facts.summary(turn))
             private_json(entry.path, entry.record)
             try:
                 self._publish(entry, 'terminal', result)
             except Exception as exc:
                 entry.result = replace(result, error=SubmissionError('host_event_error', 'event_callback', 'accepted', type(exc).__name__))
+                entry.record['resultError']=asdict(entry.result.error)
+                private_json(entry.path,entry.record)
             entry.finished = True
 
     def _poll(self, entry, capture):
@@ -413,7 +454,7 @@ class NativeCodexHost:
                         entry.result = replace(entry.result, state='unknown', error=SubmissionError(
                             'unknown_result', 'native_correlation', 'accepted', 'Persisted history does not prove one original turn: '+str(conflict),
                             'inspect_original_request'))
-                        entry.record.update(phase='unknown', failure={'code': 'native_correlation', 'reason': str(conflict)})
+                        entry.record.update(phase='unknown',resultError=asdict(entry.result.error), failure={'code': 'native_correlation', 'reason': str(conflict)})
                         private_json(entry.path, entry.record)
                         entry.finished = True
                     break

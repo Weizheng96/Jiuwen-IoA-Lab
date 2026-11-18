@@ -1,3 +1,4 @@
+from ioalab_sdk.runtime import SubmissionQuery
 """S01 boundary against the external Process SDK; no native/model acceptance."""
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -32,7 +33,7 @@ def test_original_machine_result_and_exit_contract_is_required(tmp_path,monkeypa
     monkeypatch.setattr(host,'_client',lambda **_:Process())
     result=host.submit('op',payload(),execution=scope(tmp_path/'work'),on_event=ack)
     assert result.terminal and result.state=='completed' and result.session_id=='real-session'
-    assert host.get_request(result.request_id)==result
+    assert host.get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id))==result
     assert host.submit('op',payload(),execution=scope(tmp_path/'work'),on_event=ack)==result
     assert len(requests)==1
 
@@ -95,7 +96,7 @@ def test_no_protocol_echo_keeps_planned_request_private_and_never_resubmits(tmp_
     class Process:
         async def run(self,request,**callbacks):
             requests.append(request)
-            assert host.get_request(request['request_id']) is None
+            assert host.get_request(SubmissionQuery('op','attempt',None,request['request_id'])) is None
             raise OSError('Connection lost without a protocol echo')
     monkeypatch.setattr(host,'_client',lambda **_:Process())
     result=host.submit('op',payload(),execution=scope(tmp_path/'work'),on_event=lambda event:events.append(event))
@@ -135,7 +136,7 @@ def test_exact_protocol_echo_then_disconnect_retains_only_original_actual_reques
     assert result.state=='unknown' and result.request_id==requests[0]['request_id']
     assert result.session_id=='actual-session' and result.terminal is None
     assert bindings==[('actual-session',requests[0]['request_id'])]
-    assert host.get_request(result.request_id)==result
+    assert host.get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id))==result
     assert host.submit('op',payload(),execution=scope(tmp_path/'work'))==result and len(requests)==1
 
 

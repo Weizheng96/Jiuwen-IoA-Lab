@@ -232,7 +232,7 @@ class ProductionRecovery:
         if round_record and any(round_record.get(key) != value for key, value in binding.items()):
             raise RuntimeFault('identity_conflict', 'Original production round binding changed')
         verified = bool(proof and proof.get('source') == 'runtime_host_result'
-                        and proof.get('state') in ('completed', 'failed') and proof.get('requestId')
+                        and proof.get('state') in ('completed', 'failed','cancelled') and proof.get('requestId')
                         and round_record and all(proof.get(key) == value for key, value in round_record.items())
                         and proof.get('effectsDigest') == digest(original_calls))
         diagnostic = round_record or self.diagnostics(identity, job, relation)

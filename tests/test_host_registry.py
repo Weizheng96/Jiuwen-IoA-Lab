@@ -19,7 +19,7 @@ class Host:
         assert on_event(SubmissionEvent('session','session',result))==BindingAck(sid,request)
         if not self.pending:result=replace(result,state='completed',terminal=MachineTerminal(op,input.attempt.nonce,sid,request,'completed','machine:'+request))
         self.receipts[request]=result;return result
-    def get_request(self,request):return self.receipts[request]
+    def get_request(self,query):return self.receipts[query.request_id]
     def cancel(self,request):return False
 
 

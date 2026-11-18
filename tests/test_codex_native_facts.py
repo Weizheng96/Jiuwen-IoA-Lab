@@ -31,9 +31,9 @@ def test_duplicate_echoes_are_ambiguous(values):
 
 @pytest.mark.parametrize('status,completed,expected', [
     ('completed', 1700000000, True), ('completed', None, False), ('interrupted', None, False),
-    ('interrupted', 1700000000, False), ('failed', 1700000000, False), ('inProgress', None, False),
+    ('interrupted', 1700000000, True), ('failed', 1700000000, True), ('inProgress', None, False),
     ('completed', True, False)])
-def test_only_completed_with_persisted_completed_at_is_terminal(status, completed, expected):
+def test_only_ended_status_with_persisted_completed_at_is_terminal(status, completed, expected):
     assert terminal(turn(status=status, completed=completed)) is expected
 
 

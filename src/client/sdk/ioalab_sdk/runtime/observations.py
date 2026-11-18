@@ -122,6 +122,8 @@ def model_port(runtime,host,identity,interaction):
             restricted=host.native_tools_restricted(identity.agent_id,reference)
             if restricted is not None:save({'nativeToolsRestricted':restricted})
             if material and result.error and result.error.dispatch=='not_submitted':journal.pending(owner,reference)
+            if result.error is not None:
+                raise RuntimeFault(result.error.code,result.error.message,result.error.action or 'inspect_original_request')
             if result.output is not None:
                 try:value=observation_output(result.output)
                 except RuntimeFault:
