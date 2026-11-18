@@ -21,14 +21,16 @@ from .policy import definition_digest
 from .material_files import material_files, artifact_directory
 
 
-FILE={'type':'object','properties':{'mediaType':{'type':'string'},'text':{'type':'string'},'bytesBase64':{'type':'string'},'artifactPath':{'type':'string'}},'required':['mediaType'],'oneOf':[{'required':[key]} for key in ('text','bytesBase64','artifactPath')],'additionalProperties':False}
+FILE={'type':'object','properties':{'mediaType':{'type':'string'},'text':{'type':'string'},'bytesBase64':{'type':'string'},
+    'artifactPath':{'type':'string','description':'本单 artifactDirectory 内的相对路径，如 sql.json。先将文件写入该目录。'}},
+    'required':['mediaType'],'oneOf':[{'required':[key]} for key in ('text','bytesBase64','artifactPath')],'additionalProperties':False}
 FILES={'type':'object','properties':{'files':{'type':'object','minProperties':1,'additionalProperties':FILE}},'required':['files'],'additionalProperties':False}
 STEP={'type':'object','properties':{'step':{'type':'string'}},'required':['step'],'additionalProperties':False}
 
 
 def tools():
     return (ToolBinding('provider.task.request_step','请求合同声明的用户授权环节，收到等待结果后结束本轮',STEP,lambda *_:None),
-            ToolBinding('provider.task.selftest','在原WASM沙箱自测本单交付文件',FILES,lambda *_:None),
+            ToolBinding('provider.task.selftest','在原WASM沙箱自测本单交付文件。status=pass 表示通过；status=error 时按 errors 修正后重新调用。',FILES,lambda *_:None),
             ToolBinding('provider.task.deliver','提交真实文件，取得签4/5后结束本轮',FILES,lambda *_:None))
 
 
@@ -43,9 +45,14 @@ class Production:
         for name,item in args['files'].items():
             if not name or len(name)>200 or any(char in name for char in ('/','\\','\x00')) or name in ('.','..'):raise RuntimeFault('invalid_input','Use a plain delivery filename')
             if 'artifactPath' in item:
+                if not item['artifactPath'] or '\x00' in item['artifactPath']:
+                    raise RuntimeFault('invalid_input','artifactPath 必须是本单 artifactDirectory 内的非空相对文件路径。')
                 relative=Path(item['artifactPath']);source=root/relative
                 if relative.is_absolute() or '..' in relative.parts or not root.resolve().is_relative_to(workspace.resolve()) or not source.resolve().is_relative_to(root.resolve()) or any(part.is_symlink() for part in (source,*source.parents) if part!=workspace.parent):raise RuntimeFault('forbidden','Artifact is outside this task workspace')
-                with source.open('rb') as stream:data=stream.read(16*1024*1024+1)
+                try:
+                    with source.open('rb') as stream:data=stream.read(16*1024*1024+1)
+                except (FileNotFoundError, NotADirectoryError, IsADirectoryError, PermissionError):
+                    raise RuntimeFault('invalid_input',f'无法读取交付文件 {name}。将文件写入本单 artifactDirectory，再传对应的相对路径。') from None
             else:
                 try:data=item['text'].encode('utf-8') if 'text' in item else base64.b64decode(item['bytesBase64'],validate=True)
                 except (ValueError,AttributeError,TypeError):raise RuntimeFault('invalid_input','Invalid delivery bytes') from None
@@ -169,7 +176,16 @@ class Production:
                 elif name.endswith('request_step'):
                     if next(Draft202012Validator(STEP).iter_errors(args),None):raise RuntimeFault('invalid_input','Use a declared step name')
                     result={'status':'waiting','stepRequest':provider.request_step(cd,args['step'])};state['outcome']='waiting'
-                else:values=self.files(args,workspace)
+                else:
+                    try:
+                        values=self.files(args,workspace)
+                    except RuntimeFault as exc:
+                        result={'status':'error','notBefore':None,
+                                'errors':[f'{exc.code}: {exc} 请检查 files；artifactPath 使用本单 artifactDirectory 内的相对路径。'],
+                                'checks':[]}
+                        saved=endpoint.store.get('production_calls',key)
+                        endpoint.store.put('production_calls',key,{**saved,'result':result})
+                        return result
                 if not tool and not name.endswith('selftest'):
                     saved=endpoint.store.get('production_calls',key);endpoint.store.put('production_calls',key,{**saved,'result':result})
                     self.sync(endpoint,cd)
