@@ -732,6 +732,7 @@
     "shop": "演示工作室",
     "open": 10,
     "close": 20,
+    "capacity": 2,
     "mode": "booking",
     "services": [
      {
@@ -756,6 +757,7 @@
     "shop": "演示工作室",
     "open": 10,
     "close": 20,
+    "capacity": 2,
     "service1Name": "项目一",
     "service1Minutes": 60,
     "service2Name": "项目二",
@@ -891,6 +893,7 @@
     "shop": "演示工作室",
     "open": 10,
     "close": 20,
+    "capacity": 2,
     "mode": "booking",
     "services": [
      {
@@ -915,6 +918,7 @@
     "shop": "演示工作室",
     "open": 10,
     "close": 20,
+    "capacity": 2,
     "service1Name": "项目一",
     "service1Minutes": 60,
     "service2Name": "项目二",
@@ -1051,6 +1055,7 @@
     "shop": "演示工作室",
     "open": 10,
     "close": 20,
+    "capacity": 2,
     "mode": "booking",
     "services": [
      {
@@ -1075,6 +1080,7 @@
     "shop": "演示工作室",
     "open": 10,
     "close": 20,
+    "capacity": 2,
     "service1Name": "项目一",
     "service1Minutes": 60,
     "service2Name": "项目二",
@@ -1211,6 +1217,7 @@
     "shop": "演示工作室",
     "open": 10,
     "close": 20,
+    "capacity": 2,
     "mode": "booking",
     "services": [
      {
@@ -1236,6 +1243,7 @@
     "shop": "演示工作室",
     "open": 10,
     "close": 20,
+    "capacity": 2,
     "service1Name": "项目一",
     "service1Minutes": 60,
     "service2Name": "项目二",
