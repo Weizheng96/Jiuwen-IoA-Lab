@@ -26,4 +26,5 @@
 - [x] 本机定向首轮：`test_jiuwen_resources.py`、`test_jiuwen_submission.py`、`test_submission_resource_scopes.py` 和 `test_business_skills.py` 合计 44 通过、1 真实模型用例跳过，Process 协议使用边界替身。报告为本地 `temp/checks/ticket43-targeted/report.json`。
 - [x] 常规提交夹具细化后的定向回归仍通过。先前快速回归中断时观察到的 A2C 旧期次付款恢复失败已独立复跑通过，发布检查结果另记。
 - [x] 服务器安装验收：固定 GitCode 来源与实际安装文件字节匹配，六个受管单元就绪，官方 SQL 已开放接单。来源、发行及实例证据见[部署发行](../../实施资料/部署发行.md#process-资源与接单窗口内测)。
+- [x] 服务器实装 S01 模型探针：空显式资源且无 resource_io，资源工厂调用0次，6.899秒获得原生终态，实际 Session/request 与模型回显均有证据。
 - [ ] 服务器实单：通过可信确认发起一笔获授权的新官方 SQL 委托，核到 `decision` 的实际原生请求、会话、终态，以及平台的服务方复签和成约状态。若本次实单进入生产，单独记录真实轮次及交付回执。
