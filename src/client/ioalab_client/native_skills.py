@@ -4,11 +4,12 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sys
 import tempfile
 import zipfile
 
 from .layout import binding, configuration_path
-from .skills import export_skills, skill_manifest, entry_summary
+from .skills import export_skills, skill_manifest, entry_summary, native_entry_binding
 
 NAMES = ('ioalab-delegate', 'ioalab-provider')
 HOSTS = ('jiuwen', 'codex', 'claude_code')
@@ -136,7 +137,11 @@ def install(host, *, config=None, output=None, source=None, python=None, host_re
                 'installed': False, 'replaced': False, 'newSessionVerified': False}
         item['entry'] = adapter.entry(name)
         if target is None:
-            item.update(status='manual_required', instructions=adapter.manual_steps(package,name))
+            if getattr(adapter, 'bind_before_skill_import', False):
+                item.update(status='exported', instructions=[
+                    '角色包已导出。完成原生入口绑定后，按接入摘要处理这份角色包。'])
+            else:
+                item.update(status='manual_required', instructions=adapter.manual_steps(package,name))
             results.append(item); continue
         try:
             if any(parent.is_symlink() for parent in [target, *target.parents]):
@@ -161,9 +166,15 @@ def install(host, *, config=None, output=None, source=None, python=None, host_re
         except (OSError, ValueError, RuntimeError, zipfile.BadZipFile) as error:
             item.update(status='manual_required', reason=str(error), instructions=adapter.manual_steps(package,name))
         results.append(item)
-    return {'host': host, 'hostRef': host_ref or host, 'binding': owned['binding'], 'skills': results, 'exportsReplaced': exports_replaced,
-            'reloadRequired': any(item.get('reloadRequired', False) for item in results),
-            'installed': all(item['installed'] for item in results), 'newSessionVerified': False}
+    result = {'host': host, 'hostRef': host_ref or host, 'binding': owned['binding'], 'skills': results, 'exportsReplaced': exports_replaced,
+              'reloadRequired': any(item.get('reloadRequired', False) for item in results),
+              'installed': all(item['installed'] for item in results), 'newSessionVerified': False}
+    install_extension = getattr(adapter, 'install_extension', None)
+    if callable(install_extension):
+        extension_binding = native_entry_binding(python=python or sys.executable, config=config,
+                                               host_ref=host_ref or host, summary=public_summary)
+        result['nativeExtension'] = install_extension(packages[0], extension_binding, config)
+    return result
 
 
 def status(host, *, config=None, python=None, host_ref=None):

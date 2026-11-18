@@ -39,7 +39,8 @@ def main(argv=None):
                 from .native_skills import install
                 data = install(args.host, config=args.config, output=args.output, host_ref=args.host_ref)
                 from .onboarding import summary
-                data['onboarding'] = summary(args.host, config=args.config, python=result['data']['python'], host_ref=args.host_ref)['data']
+                data['onboarding'] = summary(args.host, config=args.config, python=result['data']['python'],
+                                             host_ref=args.host_ref, native_extension=data.get('nativeExtension'))['data']
                 result = {'status': 'completed' if data['installed'] else 'waiting', 'data': data, 'error': None}
             elif args.verify:
                 from .onboarding import verify
