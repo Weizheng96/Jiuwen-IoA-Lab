@@ -22,7 +22,7 @@ class ProviderTasks:
     def namespace(identity):return 'provider-recovery:'+identity.agent_id
 
     def wait(self,identity,job,session,definition,host_status,*,native_operation):
-        if host_status not in ('completed','failed'):raise ValueError('A known terminal host result is required')
+        if host_status not in ('completed','failed','cancelled'):raise ValueError('A known terminal host result is required')
         proof={'roundId':str(uuid.uuid4()),'messageId':job['payload']['messageId'],
                'sessionId':session,'definitionDigest':definition,'hostStatus':host_status,'nativeOperation':native_operation}
         self.runtime.store.checkpoint_set(self.namespace(identity),job['id'],proof)
@@ -45,7 +45,7 @@ class ProviderTasks:
             return pending['operation']
         proof=self.proof(identity,job['id'])
         if (continuation.get('kind')!='provider.verifier' or not proof or continuation.get('proof')!=proof
-            or proof.get('hostStatus') not in ('completed','failed') or not proof.get('roundId')):
+            or proof.get('hostStatus') not in ('completed','failed','cancelled') or not proof.get('roundId')):
             raise RuntimeFault('identity_conflict','Restore the original verifier continuation proof')
         if not self.execution.host.original_execution_ended(identity.agent_id,job['interaction'],proof.get('nativeOperation',job['id']),job['id']):
             raise RuntimeFault('unknown_result','The original native execution has not ended and drained')
@@ -71,7 +71,7 @@ class ProviderTasks:
     def eligible(self,identity,job):
         if job['state']!='unknown':return False,'not_unknown',None
         proof=self.proof(identity,job['id'])
-        if not proof or proof.get('hostStatus') not in ('completed','failed'):return False,'original_model_result_unknown',None
+        if not proof or proof.get('hostStatus') not in ('completed','failed','cancelled'):return False,'original_model_result_unknown',None
         relation,message=self.source(identity,job)
         if job['handler']!='provider.a2c' or message['body']['op']!='request.submit':return False,'wrong_phase',None
         if (proof['messageId']!=message['messageId'] or proof['sessionId']!=relation['session']
@@ -102,14 +102,18 @@ class ProviderTasks:
             allowed,reason,_=self.eligible(identity,job)
         except RuntimeFault as exc:allowed,reason=False,exc.code
         phase={'provider.production':'production','provider.settlement':'termination'}.get(job['handler'],'unknown')
+        result=json.loads(job['result']) if job['result'] else None
         if phase=='unknown':
             try:
-                _,message=self.source(identity,job)
+                relation,message=self.source(identity,job)
                 phase={'request.submit':'quote','card.countersign':'decision'}.get(message['body']['op'],'control')
+                if phase=='decision' and ((result or {}).get('error') or {}).get('code')=='expired':
+                    window=self.execution.review_window(identity,relation,message)
+                    if window.elapsed():result={**result,'error':window.expired('queue').to_payload('card.countersign')['error']}
             except RuntimeFault:pass
         return {'taskRef':job['id'],'phase':phase,'status':job['state'],'interactionId':job['interaction'],
                 'sessionId':job['session'],'canResume':allowed,'resumeReason':reason,
-                'result':json.loads(job['result']) if job['result'] else None}
+                'result':result}
 
     def get(self,identity,reference=None):
         return {'items':[self.snapshot(identity,job) for job in self.records(identity,reference)]}
@@ -160,7 +164,7 @@ class ProviderTasks:
             return message['body']['op']
         proof=self.proof(identity,job['id'])
         if (set(continuation)!={'kind','proof'} or continuation['kind']!='provider.verifier' or not proof
-                or continuation['proof']!=proof or proof.get('hostStatus') not in ('completed','failed') or proof['messageId']!=message['messageId']
+                or continuation['proof']!=proof or proof.get('hostStatus') not in ('completed','failed','cancelled') or proof['messageId']!=message['messageId']
                 or proof['sessionId']!=relation['session'] or proof['definitionDigest']!=relation['details'].get('definitionDigest')
                 or job['handler']!='provider.a2c' or message['body']['op']!='request.submit'):
             raise RuntimeFault('identity_conflict','Restore the original verified quote continuation')

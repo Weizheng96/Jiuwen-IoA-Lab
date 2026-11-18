@@ -158,6 +158,26 @@ class EndpointSession:
                 'bytes':{name:base64.b64encode(value).decode() for name,value in reply.files.items()},
                 'taskBytes':{name:base64.b64encode(value).decode() for name,value in (task.files if task else {}).items()}}
 
+    def reject_deferred_countersign(self,message,error):
+        """Close a prepared review whose original job cannot dispatch again."""
+        with self.lock:
+            mid=message['messageId'];record=self.store.get('calls',mid)
+            fingerprint=digest(message['body'])
+            if (message['body']['op']!='card.countersign' or not record or record['fingerprint']!=fingerprint):
+                raise RuntimeFault('identity_conflict','Restore the original prepared countersign')
+            if record.get('reply') is not None:return self.publish(message,record['reply'])
+            task=self.provider.tasks.get(stable('task',mid))
+            if not task or task.op!='card.countersign' or task.state!='working' or record['state'] not in ('executing','pending_native','pending_material'):
+                raise RuntimeFault('unknown_result','Reconcile the original countersign before reporting its outcome')
+            failure=error.to_payload(task.op)
+            task.state='failed'
+            task.artifacts.append({'error':failure['error']})
+            self.save_tasks()
+            packed=self.pack(Reply(failure,task_id=task.id,state=task.state))
+            self.store.put('calls',mid,{**record,'state':'finished','reply':packed})
+            self.deferred.pop(mid,None)
+            return self.publish(message,packed)
+
     def recover(self,message):
         """Consume already signed facts. Never replay the original model/callback."""
         with self.lock:
@@ -216,4 +236,6 @@ class EndpointSession:
             record={'envelope':envelope,'operationId':stable('result-send',envelope['messageId'])}
             self.store.put('results',mid+key,record)
         result=self.runtime.connection.call(self.identity.agent_id,'message.send',record['envelope'],operation_id=record['operationId'])
-        return {'messageRef':mid,'replyReceipt':result,'state':packed['reply'].get('state') or 'completed'}
+        receipt={'messageRef':mid,'replyReceipt':result,'state':packed['reply'].get('state') or 'completed'}
+        if 'error' in packed['reply']['body']:receipt['error']=packed['reply']['body']['error']
+        return receipt

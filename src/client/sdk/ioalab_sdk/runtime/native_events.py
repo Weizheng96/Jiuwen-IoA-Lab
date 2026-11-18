@@ -85,6 +85,8 @@ class NativeEvents:
         data={'eventRef':record['operation'],'receipt':asdict(receipt)}
         if receipt.terminal.state in ('failed','cancelled'):
             return JobOutcome('failed',{**data,'reason':'native_'+receipt.terminal.state},receipt.session_id)
+        if receipt.error is not None:
+            return JobOutcome('unknown',{**data,'reason':'native_submission_error','error':asdict(receipt.error)},receipt.session_id)
         if receipt.delivery=='handled':return JobOutcome('completed',data,receipt.session_id)
         return None
 

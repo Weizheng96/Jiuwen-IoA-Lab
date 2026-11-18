@@ -90,8 +90,9 @@ def test_all_official_profiles_fit_one_client_with_shared_model_limit(platform,t
     deployment=Deployment(path)
     assert len(deployment.domains)==8 and len(deployment.accounts)==1
     config=RuntimeConfig.from_mapping(deployment.config_path('ISP_001'),deployment.base(deployment.accounts[0]))
-    assert config.username=='ISP_001' and config.max_model_runs==4
+    assert config.username=='ISP_001' and config.max_model_runs==10
     assert len(config.identities)==52 and len({p['key'] for p in config.identities})==52
+    assert {service['capacity'] for domain in deployment.domains for service in domain['services']}=={3}
 
 
 def test_cross_domain_services_prepare_publish_and_restart_in_one_client(platform,tmp_path,monkeypatch):
@@ -110,7 +111,7 @@ def test_cross_domain_services_prepare_publish_and_restart_in_one_client(platfor
     assert len({p['agentId'] for p in entry['identities']})==2
     authorize(deployment,admin(platform))
     with active(deployment) as (runtime,ipc,account):
-        assert runtime.scheduler.status()['maxModelRuns']==4
+        assert runtime.scheduler.status()['maxModelRuns']==10
         current=tick(deployment,launch=False)
         assert len(current['accounts'])==1 and len(current['accounts'][0]['services'])==2
         assert all(i['current']['published'] or i.get('publication',{}).get('status')=='completed'

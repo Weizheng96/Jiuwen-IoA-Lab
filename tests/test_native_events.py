@@ -23,7 +23,8 @@ class Transport:
         assert on_event(SubmissionEvent(input.attempt.nonce+':session','session',receipt))==BindingAck(session_id,receipt.request_id)
         self.receipts[receipt.request_id]=receipt
         return receipt
-    def get_request(self,request):
+    def get_request(self,query):
+        request=query.request_id
         self.queries[request]=self.queries.get(request,0)+1
         receipt=self.receipts[request]
         state=self.finished.get(receipt.operation_id)
@@ -240,7 +241,7 @@ def test_inactive_flow_receipt_recovers_after_callback_interruption_without_hist
 def test_early_wakeup_does_not_advance_machine_queries_or_reset_capped_backoff(tmp_path):
     store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner');now=[0.];queried=[]
     class Machine(Transport):
-        def get_request(self,request):queried.append(now[0]);return super().get_request(request)
+        def get_request(self,query):queried.append(now[0]);return super().get_request(query)
     class EarlyWake:
         early=True
         def wait(self,duration):

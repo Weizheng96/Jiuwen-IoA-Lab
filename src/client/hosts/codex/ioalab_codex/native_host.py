@@ -1,12 +1,12 @@
 """Route A product adapter: business turns run only in the user's own Codex desktop.
 
-Active business is queued into its original chat; external new business first
-gets a zero-model persistent chat from an owned short-lived app server, which
-exits before P28 binds the real SID and the first message is queued. Queue
-acceptance is only acceptance. Correlation and terminal come from persisted
-history (native_facts); SDK tools arrive through the fixed entry and narrow hook
-as native control calls. Native approvals stay in the desktop UI. S04/S05 are
-not declared and native tool restriction is not declared (D37).
+Business messages use the official desktop MCP create/send/read tools. A new
+chat first receives harmless bootstrap context, then P28 binds its real SID
+before any business is sent. Exact typed delegation input echoes correlate
+the unique turn; machine completedAt proves its end. Acceptance is only
+acceptance; SDK tools arrive through the fixed entry and narrow hook
+as native control calls. S04 only queries the exact original submission; S05
+and native tool restriction remain undeclared. Native approvals stay in the desktop UI.
 """
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
@@ -22,7 +22,7 @@ import uuid
 from jsonschema import Draft202012Validator
 from ioalab_sdk.runtime import (HostRegistration, HostResource, HostInput, HostExecution, HostToolCall,
                                HostToolResult, BindingAck, MachineTerminal, RuntimeFault,
-                               SubmissionResult, SubmissionError, SubmissionEvent, private_json)
+                               SubmissionResult, SubmissionQuery, SubmissionError, SubmissionEvent, private_json)
 from . import native_facts
 from .native_desktop import DesktopHealth, current_cli, windows_processes
 from .native_hook import entry_binding, load_config
@@ -30,7 +30,9 @@ from .native_process import NativeLaunchStore
 from .native_render import execution_text, notice_text
 from .native_setup import NativeSetup
 from .native_skills import NATIVE_FILES
-from .native_transport import NativeAppServer, WireError, WireRejected
+from .native_app_tools import NativeAppTools
+from .desktop_context import DesktopContextStore
+from .transport import WireError, WireRejected
 
 STEP_SECONDS = 30
 TOOL_FIELDS = {'kind', 'sessionId', 'turnId', 'callId', 'name', 'arguments'}
@@ -41,8 +43,8 @@ def _registration():
         version = metadata.version('ioalab-codex')
     except metadata.PackageNotFoundError:
         version = 'uninstalled'
-    # No optional S04/S05 and no native_tool_restriction: route A cannot prove them (D32/D37).
-    return HostRegistration('codex', version, readonly_context='business_session', resources=tuple(
+    # S04 reads the original operation; S05 and native tool restriction remain unsupported.
+    return HostRegistration('codex', version, ('get_request',), readonly_context='business_session', resources=tuple(
         HostResource('codex-native:'+name, name, 'application/octet-stream', None, 'installation',
                      'package:ioalab_codex/resources/native/'+name) for name in NATIVE_FILES))
 
@@ -69,7 +71,7 @@ def _deadline(execution):
 
 
 class _Entry:
-    """One accepted queue item; only its own watcher or tool calls change it."""
+    """One accepted desktop message; only its own watcher or tool calls change it."""
 
     def __init__(self, operation_id, attempt, actor, execution, sid, client, path, record, on_event, on_tool, deadline):
         self.operation_id, self.attempt, self.actor, self.execution = operation_id, attempt, actor, execution
@@ -85,7 +87,7 @@ class _Entry:
 class NativeCodexHost:
     registration = _registration()
 
-    def __init__(self, *, host_ref, root, launch_store, server_factory=NativeAppServer,
+    def __init__(self, *, host_ref, root, launch_store, server_factory=NativeAppTools,
                  enumerate_processes=windows_processes, poll=(2., 15.), health_samples=3):
         self.host_ref, self.root = host_ref, Path(root)
         self.launch_store = launch_store
@@ -97,6 +99,45 @@ class NativeCodexHost:
         self.entries, self.watchers = {}, set()
         self.tool_calls = 0
         self.closing = threading.Event()
+
+    def get_request(self, query):
+        if not isinstance(query,SubmissionQuery):
+            raise RuntimeFault('invalid_input','Use the original submission query')
+        path=self._record_path(query.operation_id,query.attempt_id)
+        with self.condition:entry=self.entries.get((query.operation_id,query.attempt_id))
+        try:
+            if entry is not None:
+                with entry.lock:record=copy.deepcopy(entry.record)
+            else:record=json.loads(path.read_text(encoding='utf-8'))
+        except (OSError,ValueError):return None
+        if (record.get('operation'),record.get('attempt'))!=(query.operation_id,query.attempt_id):
+            raise RuntimeFault('identity_conflict','Original desktop submission changed')
+        sid=record.get('sessionId')
+        if not sid or query.session_id is not None and query.session_id!=sid:
+            return None
+        capture=self._launch()
+        with self._server(capture) as server:
+            turns,complete=server.turns(sid,deadline=time.monotonic()+STEP_SECONDS)
+        if not complete:return None
+        turn=native_facts.correlate_delegation(turns,record.get('delegationDigest'),record.get('beforeTurnIds',()))
+        if turn is None:return None
+        request=turn['id']
+        if (query.request_id is not None and query.request_id!=request or
+                record.get('requestId') is not None and record['requestId']!=request):
+            raise RuntimeFault('identity_conflict','Original desktop request changed')
+        result=SubmissionResult(query.operation_id,query.attempt_id,'running',sid,request,'delivered')
+        if native_facts.terminal(turn):
+            status={'completed':'completed','failed':'failed','interrupted':'cancelled'}[turn['status']]
+            terminal=MachineTerminal(query.operation_id,query.attempt_id,sid,request,status,native_facts.evidence(turn))
+            result=replace(result,state=status,delivery='handled',output=native_facts.output(turn),terminal=terminal)
+        # Query never repairs reporting failures or changes the original business effects.
+        failure=record.get('resultError')
+        if failure:result=replace(result,error=SubmissionError(**failure))
+        if entry is not None:
+            with entry.lock:
+                if entry.result.terminal:return entry.result
+                if entry.result.error:result=replace(result,error=entry.result.error)
+        return result
 
     # --- S02 -----------------------------------------------------------------------
 
@@ -125,12 +166,17 @@ class NativeCodexHost:
         if cli is None:
             raise _Refused('not_ready', 'desktop_location', 'The captured desktop server is not installed and no running '
                            'desktop server of the same installation was found', 'open_codex_desktop')
-        capture['cli'] = cli  # Same installation after a desktop update; the saved receipt is unchanged.
+        capture['cli'] = cli
+        try:
+            capture['desktopContext'] = DesktopContextStore(self.root).read()
+        except (RuntimeFault, OSError, ValueError) as exc:
+            raise _Refused('not_ready', 'desktop_context', 'Refresh the desktop binding from the real fixed entry: '+str(exc), 'run_native_setup') from None
+        if capture['desktopContext'] is None:
+            raise _Refused('not_ready', 'desktop_context', 'Bind the official desktop MCP context from the fixed entry', 'run_native_setup')
         return capture
 
     def _server(self, capture):
-        return self.server_factory([capture['cli']], home_state=capture['configDirectoryState'],
-                                   home_directory=capture['configDirectory'], workspace=capture['projectDirectory'])
+        return self.server_factory(capture['desktopContext'])
 
     def _tool_entry(self, profile):
         try:
@@ -182,7 +228,7 @@ class NativeCodexHost:
                     raise _Refused('not_ready', 'sdk_tools', 'Bind the original SDK tool callback')
                 entry = self._tool_entry(input.attempt.profile)
                 if entry is None:
-                    raise _Refused('not_ready', 'sdk_tools', 'Install and trust the fixed IoA entry hook for this role',
+                    raise _Refused('not_ready', 'sdk_tools', 'Install and verify the fixed IoA entry hook for this role',
                                    'install_native_hook')
         if input.resources:
             raise _Refused('not_ready', 'resource_mapping', 'Map the original input resources before queueing', 'bind_native_files')
@@ -197,15 +243,20 @@ class NativeCodexHost:
     def _dispatch(self, operation_id, input, session_id, execution, on_event, on_tool, capture, text, deadline):
         attempt = input.attempt.nonce
         path = self._record_path(operation_id, attempt)
-        if path.exists():
-            # The SDK issues a new attempt for every legal retry; this one was already claimed.
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with path.open('x', encoding='utf-8'):
+                pass  # Exclusive durable claim; a crash keeps this attempt ambiguous.
+        except FileExistsError:
             return SubmissionResult(operation_id, attempt, 'unknown', session_id, error=SubmissionError(
-                'unknown_result', 'native_queue', 'unknown', 'The original attempt is already claimed; query it', 'inspect_original_request'))
+                'unknown_result', 'native_send', 'unknown', 'The original attempt is already claimed; inspect it', 'inspect_original_request'))
         record = {'format': 'ioalab.codex-route-a/1', 'operation': operation_id, 'attempt': attempt,
                   'kind': execution.kind if execution else 'notice', 'sessionId': session_id, 'created': session_id is None,
-                  'clientUserMessageId': str(uuid.uuid4()), 'textSha256': hashlib.sha256(text.encode()).hexdigest(),
-                  'phase': 'claimed', 'queueId': None, 'requestId': None}
-        path.parent.mkdir(parents=True, exist_ok=True)
+                  'submissionNonce': str(uuid.uuid4()), 'textSha256': hashlib.sha256(text.encode()).hexdigest(),
+                  'phase': 'claimed', 'requestId': None}
+        text = text+'\n[IoA submission '+record['submissionNonce']+'] attempt '+attempt
+        digest = native_facts.delegation_digest(capture['desktopContext']['threadId'], text)
+        record['delegationDigest'] = digest
         private_json(path, record)
         def save(**changes):
             record.update(changes)
@@ -222,10 +273,12 @@ class NativeCodexHost:
             try:
                 server.open()
             except Exception:
-                return fail('not_ready', 'native_session', 'not_submitted', 'The owned Codex app server did not start; no chat was created')
+                return fail('not_ready', 'native_session', 'not_submitted', 'The official desktop MCP connection did not open; no chat was created')
             try:
                 save(phase='creating')
-                sid, named = server.create(name, deadline=time.monotonic()+STEP_SECONDS)
+                created = server.create(name, deadline=time.monotonic()+STEP_SECONDS)
+                sid = created['threadId']
+                named = True
             except WireRejected:
                 return fail('not_ready', 'native_session', 'not_submitted', 'Codex refused to create the persistent chat')
             except Exception:
@@ -247,23 +300,56 @@ class NativeCodexHost:
         try:
             server.open()
         except Exception:
-            return fail('not_ready', 'native_queue', 'not_submitted', 'The owned Codex app server did not start; nothing was queued', sid=sid)
+            return fail('not_ready', 'native_queue', 'not_submitted', 'The official desktop MCP connection did not open; nothing was sent', sid=sid)
+        entry = _Entry(operation_id, attempt, input.attempt.actor, execution, sid, digest, path,
+                       record, on_event, on_tool, deadline)
+        send_started = False
         try:
-            save(phase='queueing')
-            queue_id = server.queue(sid, text, record['clientUserMessageId'], deadline=time.monotonic()+STEP_SECONDS)
-        except WireRejected:
-            return fail('not_ready', 'native_queue', 'not_submitted', 'Codex refused the queued message', sid=sid)
-        except Exception:
-            return fail('unknown_result', 'native_queue', 'unknown', 'Queue outcome is unknown; query the original client ID, never requeue',
+            turns, complete = server.turns(sid, deadline=time.monotonic()+STEP_SECONDS)
+            if not complete:
+                return fail('not_ready', 'native_snapshot', 'not_submitted', 'The original desktop turn snapshot is incomplete', sid=sid)
+            active = lambda: any(turn.get('status') == 'inProgress' for turn in turns)
+            if active():
+                # Finish harmless initialization; never steer it with business work.
+                until = deadline if deadline is not None else time.monotonic()+STEP_SECONDS
+                while active() and time.monotonic() < until and not self.closing.wait(.25):
+                    turns, complete = server.turns(sid, deadline=min(until, time.monotonic()+STEP_SECONDS))
+                    if not complete:
+                        break
+            if not complete or active() or self.closing.is_set():
+                return fail('not_ready', 'native_busy', 'not_submitted',
+                            'The original desktop chat is still running; no message was sent or steered', 'wait_original_chat', sid=sid)
+            save(beforeTurnIds=[turn['id'] for turn in turns], phase='sending')
+            if deadline is not None and time.monotonic() >= deadline:
+                return fail('expired', 'deadline', 'not_submitted', 'The original execution deadline passed before desktop submission', sid=sid)
+            # Register before send: native SDK calls can arrive before the MCP response.
+            with self.condition:
+                self.entries[(operation_id, attempt)] = entry
+            send_started = True
+            send_deadline = time.monotonic()+STEP_SECONDS
+            if deadline is not None:
+                send_deadline = min(send_deadline, deadline)
+            sent = server.send(sid, text, deadline=send_deadline)
+            if sent.get('threadId') != sid:
+                raise WireError('Official desktop send returned a different chat')
+        except Exception as exc:
+            with self.condition:
+                self.entries.pop((operation_id, attempt), None)
+            dispatch = 'unknown' if send_started else 'not_submitted'
+            return fail('unknown_result' if dispatch == 'unknown' else 'not_ready', 'native_send', dispatch,
+                        'Inspect the original desktop submission; do not send it again: '+type(exc).__name__,
                         'inspect_original_request', sid=sid)
         finally:
-            server.close()
-        save(phase='queued', queueId=queue_id)
-        entry = _Entry(operation_id, attempt, input.attempt.actor, execution, sid, record['clientUserMessageId'], path,
-                       record, on_event, on_tool, deadline)
-        entry.result = SubmissionResult(operation_id, attempt, 'accepted', sid, delivery='accepted')
+            server.close()  # Disconnect only; the official desktop owns the running chat.
+        with entry.lock:
+            save(phase='delivered' if entry.request else 'sent')
+        with entry.lock:
+            if entry.request is None:
+                entry.result = SubmissionResult(operation_id, attempt, 'accepted', sid, delivery='accepted')
         try:
-            self._publish(entry, 'accepted', entry.result)
+            with entry.lock:
+                if entry.request is None:
+                    self._publish(entry, 'accepted', entry.result)
         except Exception as exc:
             return self._lost(entry, exc)
         with self.condition:
@@ -298,7 +384,7 @@ class NativeCodexHost:
                                                          'Original queue item is kept; event reporting failed: '+type(exc).__name__,
                                                          'inspect_original_request'))
             entry.finished = True
-            entry.record.update(phase='unknown', failure={'code': 'event_reporting', 'type': type(exc).__name__})
+            entry.record.update(phase='unknown', resultError=asdict(entry.result.error), failure={'code': 'event_reporting', 'type': type(exc).__name__})
             private_json(entry.path, entry.record)
         with self.condition:
             self.condition.notify_all()
@@ -319,30 +405,30 @@ class NativeCodexHost:
 
     def _finish(self, entry, turn):
         with entry.lock:
-            terminal = MachineTerminal(entry.operation_id, entry.attempt, entry.sid, entry.request, 'completed',
+            terminal = MachineTerminal(entry.operation_id, entry.attempt, entry.sid, entry.request, {'completed':'completed','failed':'failed','interrupted':'cancelled'}[turn['status']],
                                        native_facts.evidence(turn))
-            result = replace(entry.result, state='completed', delivery='handled', output=native_facts.output(turn),
+            result = replace(entry.result, state=terminal.state, delivery='handled', output=native_facts.output(turn),
                              terminal=terminal)
             entry.result = result
-            entry.record.update(phase='completed', turn=native_facts.summary(turn))
+            entry.record.update(phase=terminal.state, turn=native_facts.summary(turn))
             private_json(entry.path, entry.record)
             try:
                 self._publish(entry, 'terminal', result)
             except Exception as exc:
                 entry.result = replace(result, error=SubmissionError('host_event_error', 'event_callback', 'accepted', type(exc).__name__))
+                entry.record['resultError']=asdict(entry.result.error)
+                private_json(entry.path,entry.record)
             entry.finished = True
 
     def _poll(self, entry, capture):
         """One bounded read-only pass; True when the original turn reached its machine end."""
         with self._server(capture) as server:
             deadline = time.monotonic()+STEP_SECONDS
-            turns, _ = server.turns(entry.sid, deadline=deadline)
-            turn = native_facts.correlate(turns, entry.client)
+            turns, complete = server.turns(entry.sid, deadline=deadline)
+            if not complete:
+                return False
+            turn = native_facts.correlate_delegation(turns, entry.client, entry.record.get('beforeTurnIds', ()))
             if turn is None:
-                waiting, complete = server.queued(entry.sid, deadline=deadline)
-                with entry.lock:
-                    entry.record['queueObserved'] = entry.client in waiting or (None if not complete else False)
-                    private_json(entry.path, entry.record)
                 return False
         self._bind_turn(entry, turn['id'])
         with entry.lock:
@@ -368,7 +454,7 @@ class NativeCodexHost:
                         entry.result = replace(entry.result, state='unknown', error=SubmissionError(
                             'unknown_result', 'native_correlation', 'accepted', 'Persisted history does not prove one original turn: '+str(conflict),
                             'inspect_original_request'))
-                        entry.record.update(phase='unknown', failure={'code': 'native_correlation', 'reason': str(conflict)})
+                        entry.record.update(phase='unknown',resultError=asdict(entry.result.error), failure={'code': 'native_correlation', 'reason': str(conflict)})
                         private_json(entry.path, entry.record)
                         entry.finished = True
                     break
@@ -419,13 +505,15 @@ class NativeCodexHost:
         capture = self._launch_or_fault()
         try:
             with self._server(capture) as server:
-                turns, _ = server.turns(body['sessionId'], deadline=time.monotonic()+STEP_SECONDS)
+                turns, complete = server.turns(body['sessionId'], deadline=time.monotonic()+STEP_SECONDS)
+                if not complete:
+                    raise WireError('Incomplete desktop turn history')
         except (WireError, OSError, ValueError):
             raise RuntimeFault('not_ready', 'The persisted chat turn could not be read; the SDK tool was not called') from None
         owners = []
         for entry in open_entries:
             try:
-                turn = native_facts.correlate(turns, entry.client)
+                turn = native_facts.correlate_delegation(turns, entry.client, entry.record.get('beforeTurnIds', ()))
             except native_facts.IdentityConflict:
                 continue
             if turn is not None and turn.get('id') == body['turnId']:

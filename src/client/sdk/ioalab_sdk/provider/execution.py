@@ -19,6 +19,7 @@ from ..runtime import RuntimeFault,instant,stamp,encode
 from ..runtime import JobHandler,JobOutcome
 from ..runtime import model_port
 from .policy import HostPolicy
+from .review import CountersignWindow
 
 
 class ProviderExecution:
@@ -220,12 +221,16 @@ class ProviderExecution:
             current=self.runtime.scheduler.get(reference)
             # Restore original protocol state even when every received control
             # already completed before a process restart. No new task is run.
-            self.context(identity,relation,current)
+            endpoint=self.context(identity,relation,current)
             candidates=[current]
+            business=self.runtime.scheduler.reference(identity.agent_id,'provider.a2c',message['messageId'])
             if current['status']=='completed':
-                try:candidates.append(self.runtime.scheduler.get(self.runtime.scheduler.reference(identity.agent_id,'provider.a2c',message['messageId'])))
+                try:candidates.append(self.runtime.scheduler.get(business))
                 except RuntimeFault:pass
             for candidate in candidates:
+                if (candidate['reference']==business and message['body']['op']=='card.countersign'
+                        and self.expire_review(identity,relation,message,endpoint,candidate)):
+                    continue
                 if candidate['status']=='waiting' and any((candidate.get('data') or {}).get(key) for key in ('nativeSubmission','materialObservation')):
                     self.tasks.resume_native(identity,candidate['reference'])
                 if candidate['status']=='unknown':
@@ -241,6 +246,24 @@ class ProviderExecution:
         if instant(message['expiresAt'])<=time.time():return
         self.runtime.scheduler.submit(identity.agent_id,relation['id'],handler,{'messageId':message['messageId'],'profile':identity.profile},
             operation_id=message['messageId'],session=relation['session'],deadline=instant(message['expiresAt']),admitted=True)
+
+    def review_window(self,identity,relation,message):
+        original=self.runtime.store.checkpoint('provider-inbox:'+identity.agent_id,relation['origin'])
+        return CountersignWindow.from_request(identity,relation,message,original)
+
+    def expire_review(self,identity,relation,message,endpoint,job):
+        data=job.get('data') or {}
+        waiting=job['status']=='waiting' and any(data.get(key) for key in ('nativeSubmission','materialObservation'))
+        queued_expiry=job['status']=='failed' and (data.get('error') or {}).get('code')=='expired'
+        if not (waiting or queued_expiry) or self.runtime.scheduler.is_executing(job['reference']):return False
+        window=self.review_window(identity,relation,message)
+        if not window.elapsed():return False
+        error=window.expired('queue')
+        # The original deferred endpoint has a platform start permit; no new work is submitted.
+        endpoint.reject_deferred_countersign(message,error)
+        if waiting:
+            self.runtime.scheduler.reject_wait(job['reference'],{'error':error.to_payload('card.countersign')['error']})
+        return True
 
     def context(self,identity,relation,job,*,for_execution=False):
         with self.lock:
@@ -276,7 +299,17 @@ class ProviderExecution:
         identity=self.role.identities[job['payload']['profile']]
         relation=self.runtime.store.interaction(interaction_id=job['interaction'])
         message=next(frame['message'] for frame in self.runtime.store.messages(identity.agent_id) if frame['message']['messageId']==job['payload']['messageId'])
+        window=None
+        if message['body']['op']=='card.countersign':
+            try:window=self.review_window(identity,relation,message)
+            except RuntimeFault as exc:
+                return JobOutcome('failed',{'error':{'code':exc.code,'message':str(exc),'recovery':exc.recovery}},relation['session'])
         endpoint=self.context(identity,relation,job,for_execution=True)
+        if window:
+            endpoint.provider.policy.review_window=window
+            if job['handler']=='provider.a2c' and window.elapsed():
+                result=endpoint.reject_deferred_countersign(message,window.expired('before review'))
+                return JobOutcome('completed',result,relation['session'])
         if message['body']['op']=='request.submit':endpoint.provider.transport.request=message['body']['body']['request']
         resume=self.tasks.require_continuation(identity,job,relation,message)
         try:result=endpoint.finish(message,resume_operation=resume or None) if job['handler']=='provider.a2c' else endpoint.prepare(message)
@@ -287,7 +320,10 @@ class ProviderExecution:
         except NativeSubmissionPending as pending:
             return JobOutcome('waiting',{'reason':'native_not_submitted','nativeSubmission':pending.reference,'error':pending.details},relation['session'])
         if result.get('deferred'):
-            self.runtime.scheduler.submit(identity.agent_id,relation['id'],'provider.a2c',job['payload'],operation_id=message['messageId'],
-                session=relation['session'],deadline=instant(message['expiresAt']),admitted=True)
+            if window and window.elapsed():
+                result=endpoint.reject_deferred_countersign(message,window.expired('before queueing'))
+            else:
+                self.runtime.scheduler.submit(identity.agent_id,relation['id'],'provider.a2c',job['payload'],operation_id=message['messageId'],
+                    session=relation['session'],deadline=window.deadline if window else instant(message['expiresAt']),admitted=True)
         current=self.runtime.store.interaction(interaction_id=job['interaction'])
         return JobOutcome('completed',result,current['session'])

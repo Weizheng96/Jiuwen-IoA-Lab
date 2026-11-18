@@ -216,14 +216,18 @@ class Admissions:
         policy=self.policy(conn,actor)
         if not policy['accepting']:raise LabError('service_paused','Service is not accepting new delegations',status=409)
         if policy['active']>=policy['maxActiveDelegations']:raise LabError('capacity_full','All service admission slots are occupied',status=409)
-        until=min(self.clock()+120,intent['expires'],parse_time(original['template']['validUntil']).timestamp(),parse_time(scope['expiresAt']).timestamp())
+        started=self.clock()
+        until=min(started+300,intent['expires'],parse_time(original['template']['validUntil']).timestamp(),parse_time(scope['expiresAt']).timestamp())
+        if until<=started:raise LabError('expired','Original admission eligibility has expired',status=409)
         identifier=str(uuid.uuid5(uuid.NAMESPACE_URL,'ioa-admission:'+payload['interactionId']))
         conn.execute("INSERT INTO delegation_admissions(id,interaction,origin,service,client,scope,binding,template,state,hold_until,created) VALUES(?,?,?,?,?,?,?,?,'held',?,?)",
-                     (identifier,payload['interactionId'],intent['origin'],actor,intent['sender'],intent['scope'],intent['binding'],intent['template'],until,self.clock()))
+                     (identifier,payload['interactionId'],intent['origin'],actor,intent['sender'],intent['scope'],intent['binding'],intent['template'],until,started))
         return self.receipt(self.admission(conn,identifier))
 
     def _held(self,conn,row):
-        if row['state']!='held' or row['hold_until']<=self.clock():raise LabError('expired','Original unpaid admission is no longer eligible',status=409)
+        if row['hold_until']<=self.clock():
+            raise LabError('expired',f"Admission {row['id']} expired at {stamp(row['hold_until'])}",status=409)
+        if row['state']!='held':raise LabError('expired','Original unpaid admission is no longer eligible',status=409)
         if not self.active(conn,row['service']):raise LabError('not_ready','Service execution connection is offline',status=409)
         return self._eligible(conn,self.intent(conn,row['origin']))
 

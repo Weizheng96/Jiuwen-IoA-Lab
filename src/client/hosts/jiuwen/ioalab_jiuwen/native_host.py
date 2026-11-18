@@ -64,7 +64,7 @@ class NativeJiuwenHost:
     def check(self):
         return self.entry.check()
 
-    def get_request(self,request_id):return self.entry.get_request(request_id)
+    def get_request(self,query):return self.entry.get_request(query)
 
 
 def native_adapter(*,host_ref,resource_root,plugin_directory=None,resource_factory=None):

@@ -5,6 +5,7 @@ import uuid
 from a2c.codec import digest
 from ..adapters import stable
 from ..runtime import RuntimeFault
+from .configuration import DEFAULT_MAX_ACTIVE_DELEGATIONS
 
 
 class AdmissionPolicy:
@@ -16,7 +17,7 @@ class AdmissionPolicy:
 
     def configuration(self,identity):
         config=self.execution.configs.get(identity.profile,{})
-        return {'maxActiveDelegations':config.get('max_active_delegations',1),'accepting':config.get('accepting',True)}
+        return {'maxActiveDelegations':config.get('max_active_delegations',DEFAULT_MAX_ACTIVE_DELEGATIONS),'accepting':config.get('accepting',True)}
 
     def read(self,identity):
         return self.runtime.connection.call(identity.agent_id,'admission.status',{},operation_id=str(uuid.uuid4()))

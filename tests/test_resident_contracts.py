@@ -10,6 +10,7 @@ import uuid
 
 import pytest
 from a2c.card import card_digest
+from a2c.jws import FRESHNESS,ts_of
 from a2c.client import Client
 from a2c.slots import verify_card
 from ioalab_sdk.runtime.ipc import LocalClient
@@ -184,6 +185,63 @@ def test_wrong_phase_tool_returns_precise_error_and_can_correct_in_original_revi
         wait_for(lambda:status(assistant,ref));result=status(assistant,ref)
         assert result['status']=='completed' and result['data']['formed'],result
         assert len(host.turns)==1 and platform.db.one('SELECT state FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id)['state']=='committed'
+
+
+@pytest.mark.parametrize('elapsed',[195,300])
+def test_countersign_uses_same_original_deadline_for_queue_native_review_and_effects(platform,tmp_path,monkeypatch,elapsed):
+    from ioalab_sdk.provider import review
+    from ioalab_sdk.runtime import instant
+
+    class TimedReview(QuoteHost):
+        def execute(self,turn):
+            self.turns.append(turn)
+            data=json.loads(turn.input)
+            admission=platform.db.one('SELECT * FROM delegation_admissions WHERE service=?',turn.actor)
+            deadline=min(admission['hold_until'],(ts_of(data['object']['signatures']['1'])+FRESHNESS).timestamp())
+            job=provider.scheduler.records(turn.actor,('provider.a2c',),reference=turn.job_id)[0]
+            assert admission['hold_until']-admission['created']==300
+            assert instant(turn.deadline)==job['deadline']
+            assert job['deadline']==pytest.approx(deadline,abs=1e-6,rel=0)
+            turn.on_session('timed-review')
+            clock=lambda:admission['created']+elapsed
+            monkeypatch.setattr(platform.admissions,'clock',clock)
+            monkeypatch.setattr(review,'time',clock)
+            self.callback=turn.on_tool('provider.task.decision',{'approved':True},'timed-review')
+            return FixtureResult('completed','timed-review',{'testDouble':True})
+
+    with participants(platform,tmp_path,formation='countersign',fee=0,agent_host=TimedReview()) as (provider,assistant,host,template,task):
+        started,_,_=confirm(assistant,candidate(assistant,provider,template,task))
+        reference=started['data']['contractRef']
+        wait_for(lambda:status(assistant,reference))
+        result=status(assistant,reference)
+        assert len(host.turns)==1 and hasattr(host,'callback'),getattr(host,'failure',result)
+        admission=platform.db.one('SELECT * FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id)
+        if elapsed==195:
+            assert host.callback['status']=='recorded' and admission['state']=='committed'
+            assert result['data']['formed'] and result['data']['card']['signatures']['2']
+        else:
+            assert host.callback['error']['code']=='deadline-passed'
+            assert 'decision callback' in host.callback['error']['message']
+            assert result['status']=='rejected' and not result['data']['formed'],result
+            assert result['data']['error']['code']=='deadline-passed'
+            assert admission['state']!='committed'
+
+
+def test_countersign_expiring_in_queue_returns_original_rejection_without_model(platform,tmp_path,monkeypatch):
+    with participants(platform,tmp_path,formation='countersign',fee=0) as (provider,assistant,host,template,task):
+        quote=candidate(assistant,provider,template,task)
+        # The model dispatcher remains unavailable, while the control job can prepare the real request.
+        handler=provider.scheduler.handlers['provider.a2c']
+        monkeypatch.setitem(provider.scheduler.handlers,'provider.a2c',replace(handler,ready=lambda:False))
+        monkeypatch.setattr(platform.admissions,'clock',lambda:time.time()-296)
+        started,_,_=confirm(assistant,quote);reference=started['data']['contractRef']
+        wait_for(lambda:status(assistant,reference))
+        result=status(assistant,reference)
+        assert result['status']=='rejected' and not host.turns,result
+        error=result['data']['error']
+        assert error['code']=='deadline-passed' and 'during queue' in error['message'],result
+        admission=platform.db.one('SELECT * FROM delegation_admissions WHERE service=?',provider.identities[0].agent_id)
+        assert admission['id'] in error['message'] and admission['state']!='committed'
 
 
 def test_original_native_tool_manifest_is_frozen_and_status_never_probes_native_tools(platform,tmp_path):

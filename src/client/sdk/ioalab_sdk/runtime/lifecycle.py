@@ -103,6 +103,8 @@ def run(argv,*,modules,validate,service_fields):
     call.add_argument('--request-stdin',action='store_true',help=argparse.SUPPRESS)
     args=parser.parse_args(argv)
     runtime=None
+    native_operation=None
+    native_submitted=False
     try:
         if args.command=='serve':
             from .resident import ResidentRuntime
@@ -139,20 +141,25 @@ def run(argv,*,modules,validate,service_fields):
         else:
             if args.operation not in READ_ONLY and not args.args_file and not args.request_stdin:
                 raise RuntimeFault('invalid_input','Create an arguments file before a mutating call')
-            config_path=args.config.resolve();document=read_configuration(config_path)
-            home=data_directory(config_path,document)
             packet=None
             if args.request_stdin:
                 if args.args_file or args.entry_ref:raise RuntimeFault('invalid_input','Use one native transport envelope')
                 raw=sys.stdin.read(128*1024+1)
                 if len(raw)>128*1024:raise RuntimeFault('invalid_input','Native request exceeds 128 KiB')
-                packet=json.loads(raw)
+                try:packet=json.loads(raw)
+                except ValueError:raise RuntimeFault('invalid_input','Use a UTF-8 JSON native operation envelope') from None
                 if (not isinstance(packet,dict) or set(packet)!={'operation','operationId','arguments','contextRef'} or
                     packet['operation']!=args.operation or not isinstance(packet['arguments'],dict) or 'operationId' in packet['arguments'] or
-                    not isinstance(packet['operationId'],str) or not 1<=len(packet['operationId'])<=128):
+                    not isinstance(packet['operationId'],str) or not 1<=len(packet['operationId'])<=128 or
+                    (packet['contextRef'] is not None and (not isinstance(packet['contextRef'],dict) or
+                     set(packet['contextRef'])!={'entryRef'} or not isinstance(packet['contextRef']['entryRef'],str) or
+                     not 1<=len(packet['contextRef']['entryRef'])<=8192))):
                     raise RuntimeFault('invalid_input','Use the original native operation envelope')
+                native_operation=packet['operationId']
                 values={**packet['arguments'],'operationId':packet['operationId']}
-            else:values=read_arguments(args.args_file,configuration=config_path,home=home) if args.args_file else {}
+            config_path=args.config.resolve();document=read_configuration(config_path)
+            home=data_directory(config_path,document)
+            if not args.request_stdin:values=read_arguments(args.args_file,configuration=config_path,home=home) if args.args_file else {}
             operation=values.get('operationId') or str(uuid.uuid4())
             client=LocalClient(home)
             if args.operation not in SAFE_CALLS:
@@ -165,6 +172,7 @@ def run(argv,*,modules,validate,service_fields):
             values['operationId']=operation
             if args.args_file:private_json(args.args_file,values)
             metadata=packet['contextRef'] if packet else ({'entryRef':args.entry_ref} if args.entry_ref else None)
+            native_submitted=bool(native_operation)
             result=client.call(args.operation,{key:value for key,value in values.items() if key!='operationId'},operation_id=operation,context_ref=metadata)
             if args.operation=='runtime.status' and result['status']=='completed':
                 actual=result['data'].get('installation')
@@ -173,13 +181,22 @@ def run(argv,*,modules,validate,service_fields):
         print(json.dumps(result,ensure_ascii=False))
         return 1 if result.get('status') in ('rejected','failed','unknown') else 0
     except RuntimeFault as exc:
-        print(json.dumps({'operationId':exc.operation_id,'status':'unknown' if exc.code in ('unknown_result','result_unknown') else 'rejected',
+        association=({'phase':'preflight','dispatch':'not_submitted','operationKind':'control_association'}
+                     if native_operation and not native_submitted and exc.operation_id is None else {})
+        print(json.dumps({**association,'operationId':native_operation if association else exc.operation_id,'status':'unknown' if exc.code in ('unknown_result','result_unknown') else 'rejected',
                           'data':None,'error':public_error(exc)},ensure_ascii=False))
         return 1
     except KeyboardInterrupt:return 130
     except Exception as exc:
-        print(json.dumps({'status':'failed','data':None,'error':{'code':'not_ready','message':type(exc).__name__,
-                         'recovery':'inspect_local_configuration'}},ensure_ascii=False))
+        association=({'operationId':native_operation,'phase':'preflight','dispatch':'not_submitted','operationKind':'control_association'}
+                     if native_operation and not native_submitted else {})
+        if native_submitted:
+            result={'operationId':native_operation,'status':'unknown','data':None,'error':{
+                'code':'unknown_result','message':'The original RPC result is unknown; inspect the original operation',
+                'dispatch':'unknown','recovery':'resume_original'}}
+        else:result={**association,'status':'failed','data':None,'error':{'code':'not_ready','message':type(exc).__name__,
+                    'recovery':'inspect_local_configuration'}}
+        print(json.dumps(result,ensure_ascii=False))
         return 1
     finally:
         if runtime:runtime.close()

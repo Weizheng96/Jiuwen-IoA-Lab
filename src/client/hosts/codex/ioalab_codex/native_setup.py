@@ -5,6 +5,7 @@ import threading
 import time
 from ioalab_sdk.runtime import RuntimeFault
 from .native_process import NativeLaunchStore, native_cli_from_ancestors, windows_native_ancestors
+from .desktop_context import DesktopContextStore
 
 
 def capture(workspace, extension):
@@ -23,6 +24,7 @@ class NativeSetup:
     def __init__(self, *, host_ref, home, store=None, companion=None):
         self.host_ref = host_ref
         self.store = store or NativeLaunchStore(host_ref=host_ref, home=home)
+        self.desktop_context = DesktopContextStore(self.store.home.parent)
         self.companion = companion  # Route A desktop submissions share this resource lifecycle.
         self.condition = threading.Condition(threading.RLock())
         self.closed, self.calls = False, 0
@@ -36,13 +38,22 @@ class NativeSetup:
     def exchange(self, scope, body):
         if not isinstance(scope, dict) or scope.get('hostRef') != self.host_ref or scope.get('adapterId') != 'codex':
             raise RuntimeFault('identity_conflict', 'Use the original authenticated Codex control')
-        if not isinstance(body, dict) or body.get('kind') not in ('entry_recover', 'entry_setup'):
+        if not isinstance(body, dict) or body.get('kind') not in ('entry_recover', 'entry_setup', 'entry_desktop'):
             raise RuntimeFault('invalid_input', 'Use the fixed Codex setup control envelope')
         with self.condition:
             if self.closed:
                 raise RuntimeFault('closed', 'The original setup resource is closing')
             self.calls += 1
         try:
+            if body['kind'] == 'entry_desktop':
+                if set(body) != {'kind', 'capture'}:
+                    raise RuntimeFault('invalid_input', 'Use the fixed desktop connection capture')
+                original = self.store.read()
+                if original is None:
+                    raise RuntimeFault('not_ready', 'Complete the original native setup before refreshing the desktop connection', 'run_native_setup')
+                if any(original['authority'][key] != scope.get(key) for key in ('hostRef', 'adapterId', 'accountBindingRef')):
+                    raise RuntimeFault('identity_conflict', 'The desktop connection belongs to another account or host')
+                return self.desktop_context.save(body['capture'])
             if body['kind'] == 'entry_recover':
                 if set(body) != {'kind'}:
                     raise RuntimeFault('invalid_input', 'Recover only the original saved claim')

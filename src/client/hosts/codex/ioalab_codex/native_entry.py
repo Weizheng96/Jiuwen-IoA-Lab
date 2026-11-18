@@ -28,9 +28,25 @@ class _NoRedirect(HTTPRedirectHandler):
 
 
 class _Stop(Exception):
-    def __init__(self, status, code, phase, message):
+    def __init__(self, status, code, phase, message, recovery=None):
         super().__init__(message)
         self.status, self.code, self.phase, self.message = status, code, phase, message
+        self.recovery = recovery
+
+
+def _permission(phase):
+    return _Stop('rejected', 'permission_denied', phase,
+                 'The host denied access required by the fixed IoA entry before the SDK effect was submitted. '
+                 'Request access through the host permission flow for this same fixed entry and original arguments; '
+                 'keep the original files and do not reinstall or change permissions automatically.',
+                 'request_native_entry_access')
+
+
+def _stop_error(stop):
+    error = {'code': stop.code, 'phase': stop.phase, 'dispatch': 'not_submitted', 'message': stop.message}
+    if stop.recovery is not None:
+        error['recovery'] = stop.recovery
+    return error
 
 
 def _parse(argv):
@@ -51,6 +67,8 @@ def _arguments(path):
     file = Path(path)
     try:
         value = json.loads(file.read_text(encoding='utf-8-sig'))
+    except PermissionError:
+        raise _permission('arguments') from None
     except (OSError, ValueError):
         raise _Stop('rejected', 'invalid_input', 'arguments', 'The arguments file must be a readable UTF-8 JSON object') from None
     if not isinstance(value, dict):
@@ -59,10 +77,13 @@ def _arguments(path):
     if operation_id is None:
         operation_id = str(uuid.uuid4())
         # Persist before any dispatch so a retry reuses the same business identity.
-        handle, temporary = tempfile.mkstemp(prefix='.ioalab-', dir=file.parent)
-        with os.fdopen(handle, 'w', encoding='utf-8') as stream:
-            json.dump({**value, 'operationId': operation_id}, stream, ensure_ascii=False)
-        os.replace(temporary, file)
+        try:
+            handle, temporary = tempfile.mkstemp(prefix='.ioalab-', dir=file.parent)
+            with os.fdopen(handle, 'w', encoding='utf-8') as stream:
+                json.dump({**value, 'operationId': operation_id}, stream, ensure_ascii=False)
+            os.replace(temporary, file)
+        except PermissionError:
+            raise _permission('arguments') from None
     elif not isinstance(operation_id, str) or not 1 <= len(operation_id) <= 128:
         raise _Stop('rejected', 'invalid_input', 'arguments', 'operationId must be the original 1-128 character identifier')
     return value, operation_id
@@ -109,8 +130,19 @@ def _claim(binding, role, root, invocation, reference):
                     'trusted and reloaded; do not add identity arguments.')
     try:
         record = Handoffs(state_root(binding)).claim(reference)
-    except (LookupError, ValueError):
-        raise _Stop('rejected', 'not_ready', 'native_source', 'The native handoff is missing, used or expired; run the original command again') from None
+    except PermissionError:
+        raise _permission('native_handoff') from None
+    except LookupError as error:
+        reason = 'expired while waiting for host approval' if error.args == ('native_handoff_expired',) else 'missing or already used'
+        raise _Stop('rejected', 'not_ready', 'native_source',
+                    'The native handoff is '+reason+'. Execute the original fixed entry with the unchanged arguments '
+                    'through the normal host approval flow so the real hook issues a fresh handoff. '
+                    'Do not repeat external effects or a tool whose SDK result is unknown.', 'refresh_native_handoff') from None
+    except ValueError:
+        raise _Stop('rejected', 'not_ready', 'native_source',
+                    'The native handoff is invalid. Execute the original fixed entry with unchanged arguments '
+                    'so the real hook issues a fresh handoff; do not supply identity or handoff arguments.',
+                    'refresh_native_handoff') from None
     expected = {'role': role, 'operation': invocation['operation'], 'argsFile': invocation['argsFile']}
     if ({key: record.get(key) for key in expected} != expected or
             not isinstance(record.get('entry'), str) or
@@ -125,20 +157,44 @@ def _source(binding, profile, role, root, invocation, reference):
     try:
         code, stdout = _run(profile['ensureCommand'], timeout=180)
         ready = json.loads(stdout)
+    except PermissionError:
+        raise _permission('ensure_client') from None
     except (OSError, ValueError, subprocess.TimeoutExpired):
         raise _Stop('waiting', 'not_ready', 'ensure_client', 'The bound client did not confirm startup; no business call was submitted') from None
     if code or not isinstance(ready, dict) or ready.get('status') != 'completed':
         raise _Stop('waiting', 'not_ready', 'ensure_client', 'Inspect the original client startup; no business call was submitted')
+    phase = 'native_descriptor'
     try:
         # Fresh SDK capability after every ensure; never printed or put into arguments.
         descriptor = json.loads(Path(profile['descriptorFile']).read_text(encoding='utf-8'))
         if (descriptor.get('adapterId') != 'codex' or descriptor.get('hostRef') != binding['hostRef'] or
                 descriptor.get('profile') != profile['profile'] or not descriptor.get('grant') or not descriptor.get('bootId')):
             raise ValueError('native_binding_mismatch')
-        return ({'entryRef': _post(descriptor, {'sessionId': record['sessionId'], 'workspace': record['workspace'],
-                                               'captureId': record['toolUseId']})}, record['workspace'])
+        phase = 'native_source'
+        context = {'entryRef': _post(descriptor, {'sessionId': record['sessionId'], 'workspace': record['workspace'],
+                                                 'captureId': record['toolUseId']})}
+    except PermissionError:
+        raise _permission(phase) from None
     except Exception:
         raise _Stop('rejected', 'native_entry_unavailable', 'source', 'The SDK did not accept this native source; no business call was submitted') from None
+    if invocation['operation'] != binding.get('setupOperation'):
+        _refresh_desktop(descriptor, record['sessionId'])
+    return context, record['workspace'], record['sessionId']
+
+
+def _refresh_desktop(descriptor, session_id):
+    from .desktop_context import capture_desktop
+    from ioalab_sdk.runtime import RuntimeFault
+    try:
+        captured = capture_desktop(session_id)
+        _post(descriptor, {'kind': 'entry_desktop', 'capture': captured}, control=True)
+    except RuntimeFault as error:
+        raise _Stop('rejected', error.code, 'desktop_context', str(error)) from None
+    except PermissionError:
+        raise _permission('desktop_context') from None
+    except Exception:
+        raise _Stop('rejected', 'not_ready', 'desktop_context',
+                    'Refresh the IoA desktop connection through the fixed native setup entry; no business call was submitted') from None
 
 
 def _tool(binding, profile, role, root, operation, args_file, reference):
@@ -147,6 +203,8 @@ def _tool(binding, profile, role, root, operation, args_file, reference):
         raise _Stop('rejected', 'invalid_input', 'arguments', 'SDK tools require --args-file with {"name", "arguments"}')
     try:
         value = json.loads(Path(args_file).read_text(encoding='utf-8-sig'))
+    except PermissionError:
+        raise _permission('arguments') from None
     except (OSError, ValueError):
         raise _Stop('rejected', 'invalid_input', 'arguments', 'The arguments file must be a readable UTF-8 JSON object') from None
     if (not isinstance(value, dict) or set(value) != {'name', 'arguments'} or not isinstance(value['name'], str) or
@@ -158,6 +216,8 @@ def _tool(binding, profile, role, root, operation, args_file, reference):
         if (descriptor.get('adapterId') != 'codex' or descriptor.get('hostRef') != binding['hostRef'] or
                 descriptor.get('profile') != profile['profile'] or not descriptor.get('grant') or not descriptor.get('bootId')):
             raise ValueError('native_binding_mismatch')
+    except PermissionError:
+        raise _permission('native_descriptor') from None
     except (OSError, ValueError):
         raise _Stop('rejected', 'not_ready', 'sdk_tool', 'The IoA client of this queued turn is not running; the SDK tool was not called') from None
     body = {'kind': 'tool', 'sessionId': record['sessionId'], 'turnId': record['turnId'], 'callId': record['toolUseId'],
@@ -200,10 +260,13 @@ def invoke(root, role, argv):
         arguments, operation_id = _arguments(args_file)
         if setup and arguments:
             raise _Stop('rejected', 'invalid_input', 'native_setup', 'Explicit setup takes no business arguments')
-        context, workspace = _source(binding, profile, role, root, {'operation': operation, 'argsFile': args_file}, reference) if source or setup else (None, None)
+        context, workspace, session_id = _source(binding, profile, role, root, {'operation': operation, 'argsFile': args_file}, reference) if source or setup else (None, None, None)
     except _Stop as stop:
         return 0 if stop.status == 'waiting' else 1, {'operationId': operation_id, 'status': stop.status, 'data': None,
-            'error': {'code': stop.code, 'phase': stop.phase, 'dispatch': 'not_submitted', 'message': stop.message}}
+            'error': _stop_error(stop)}
+    except PermissionError:
+        return 1, {'operationId': operation_id, 'status': 'rejected', 'data': None,
+                   'error': _stop_error(_permission('native_binding'))}
     except (OSError, ValueError, KeyError, TypeError):
         return 1, {'operationId': operation_id, 'status': 'rejected', 'data': None, 'error': {
             'code': 'native_entry_unavailable', 'phase': 'binding', 'dispatch': 'not_submitted',
@@ -230,6 +293,13 @@ def invoke(root, role, argv):
             result = json.loads(stdout)
             if not isinstance(result, dict) or result.get('operationId') != operation_id:
                 raise ValueError('caller_receipt_mismatch')
+        if setup and result.get('status') == 'completed':
+            descriptor = json.loads(Path(profile['descriptorFile']).read_text(encoding='utf-8'))
+            try:
+                _refresh_desktop(descriptor, session_id)
+            except _Stop as stop:
+                return 1, {'operationId': operation_id, 'status': stop.status, 'data': None,
+                           'error': _stop_error(stop)}
         return code, result
     except Exception:
         # A lost common-caller receipt never proves non-execution; keep the original operation.

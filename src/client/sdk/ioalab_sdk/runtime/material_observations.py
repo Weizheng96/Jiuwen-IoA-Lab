@@ -164,7 +164,7 @@ class MaterialObservations:
         if not delivery.get('released'):raise MaterialObservationBlocked('Original material model or callbacks remain active',reason='model_unsettled')
         receipt=delivery['receipt'];attempt=delivery['attempt']
         terminal=receipt.get('terminal')
-        if (terminal and terminal.get('state')=='completed' and receipt.get('state')=='completed' and
+        if (terminal and terminal.get('state')=='completed' and receipt.get('state')=='completed' and not receipt.get('error') and
             (terminal.get('operation_id'),terminal.get('attempt_id'),terminal.get('session_id'),terminal.get('request_id'))==
             (reference,attempt['nonce'],receipt.get('session_id'),receipt.get('request_id')) and
             not saved.get('observationConflict') and not saved.get('observationInvalid') and ('observation' in saved or 'observationCandidate' in saved)):
@@ -234,7 +234,7 @@ class MaterialObservations:
                 raise MaterialObservationBlocked('Original material scope is unavailable',reason='scope_missing')
             originals=[(reference,*self._original_evidence(conn,reference,owner)) for reference in group['children']]
             query=now>=group.get('nextReconcileAt',0)
-            pending=any(delivery and delivery['receipt'].get('request_id') and
+            pending=any(delivery and
                 not (delivery['receipt'].get('terminal') and delivery.get('released')) for _,_,delivery in originals)
             if query and pending:
                 delay=min(30.,max(1.,group.get('reconcileDelay',1.)))
@@ -243,7 +243,7 @@ class MaterialObservations:
         for reference,_,delivery in originals:
             if not delivery:continue
             receipt=delivery['receipt']
-            if receipt.get('request_id') and not (receipt.get('terminal') and delivery.get('released')):
+            if not (receipt.get('terminal') and delivery.get('released')):
                 if not query:continue
                 result=self.registry.get_submission(owner['actor'],reference,reference)
                 receipt=_plain(asdict(result))

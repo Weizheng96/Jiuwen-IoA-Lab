@@ -12,6 +12,7 @@ from .protocol import RuntimeFault
 from a2c.codec import digest
 
 DEFAULT_PLATFORM_URL='https://ioalab.openjiuwen.com'
+DEFAULT_MAX_MODEL_RUNS=10
 
 
 def read_configuration(path):
@@ -23,6 +24,8 @@ def configuration_snapshot(path):
     try:
         raw=Path(path).read_bytes()
         value=json.loads(raw.decode('utf-8-sig'))
+    except PermissionError:
+        raise RuntimeFault('invalid_input','Permission denied while reading the existing configuration; use an authorized local access path without replacing the account','inspect_configuration_permissions') from None
     except (OSError,ValueError):
         raise RuntimeFault('invalid_input','Use a readable UTF-8 JSON configuration object','configure') from None
     if not isinstance(value,dict):raise RuntimeFault('invalid_input','Configuration must be an object','configure')
@@ -57,7 +60,7 @@ class RuntimeConfig:
     password: str=field(repr=False)
     home: Path
     identities: tuple
-    max_model_runs: int=2
+    max_model_runs: int=DEFAULT_MAX_MODEL_RUNS
     max_pending_requests: int=128
     assistant: dict=field(default_factory=dict)
     provider: dict=field(default_factory=dict)
@@ -123,7 +126,7 @@ class RuntimeConfig:
             if not isinstance(profile['name'],str) or not 1<=len(profile['name'])<=120:invalid('A bounded identity display name is required')
             assistants+=profile['role']=='assistant'
         if assistants>1:invalid('An account has one logical personal assistant')
-        for key,default,limit in [('max_model_runs',2,64),('max_pending_requests',128,10000)]:
+        for key,default,limit in [('max_model_runs',DEFAULT_MAX_MODEL_RUNS,64),('max_pending_requests',128,10000)]:
             number=value.get(key,default)
             if type(number) is not int or not 1<=number<=limit:invalid('Invalid '+key)
         for key in ('assistant','provider','host'):
@@ -132,6 +135,6 @@ class RuntimeConfig:
         if isinstance(duration,bool) or not isinstance(duration,(int,float)) or (isinstance(duration,float) and not math.isfinite(duration)) or duration<=0:
             invalid('host_unavailable_shutdown_seconds requires a positive finite number')
         return cls(platform,value['username'].strip(),password,home.resolve(),tuple(dict(p) for p in profiles),
-                   value.get('max_model_runs',2),value.get('max_pending_requests',128),
+                   value.get('max_model_runs',DEFAULT_MAX_MODEL_RUNS),value.get('max_pending_requests',128),
                    value.get('assistant',{}),value.get('provider',{}),value.get('host',{}),user_browser=browser,
                    host_unavailable_shutdown_seconds=duration)

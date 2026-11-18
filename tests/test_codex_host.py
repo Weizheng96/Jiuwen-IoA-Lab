@@ -1,3 +1,4 @@
+from ioalab_sdk.runtime import SubmissionQuery
 """S01 Codex tests at the real adapter / explicit public-wire process boundary.
 
 Checks SDK protocol, source binding, schema and unknown recovery; no claim of
@@ -153,7 +154,7 @@ def test_terminal_event_callback_failure_preserves_machine_fact_and_replay(tmp_p
     result=host.submit('op',HostInput('call',attempt=SubmissionAttempt('attempt','scope','actor','profile')),execution=execution(tmp_path),
         on_event=event,on_tool=lambda c:HostToolResult(value={'receipt':'hello'}))
     assert result.state=='completed'and result.terminal.state=='completed'
-    assert result.error.phase=='event_callback'and host.get_request('test-turn')==result
+    assert result.error.phase=='event_callback'and host.get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,'test-turn'))==result
     replay=host.submit('op',HostInput('call',attempt=SubmissionAttempt('attempt','scope','actor','profile')),execution=execution(tmp_path),on_event=event)
     assert replay==result
 

@@ -24,7 +24,9 @@ ARGS_FLAG = '--args-file'
 ENTRY_FILES = {'assistant': 'entry-assistant.py', 'provider': 'entry-provider.py'}
 # Adapter-fixed SDK tool relay of a queued route A turn: '<role>.native.tool'.
 TOOL_SUFFIX = '.native.tool'
-HANDOFF_SECONDS = 120
+# PreToolUse runs before the host's approval UI. Keep a bounded window that
+# includes human approval latency, while preserving exact-call single use.
+HANDOFF_SECONDS = 30*60
 _OPERATION = re.compile(r'[a-z][a-z0-9_-]*(?:\.[a-z0-9_-]+)+')
 _HANDOFF = re.compile(r'[0-9a-f]{64}')
 _PUNCTUATION = set('\\/:._-')

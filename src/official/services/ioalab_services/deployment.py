@@ -76,7 +76,7 @@ class Deployment:
         return {'platform_url':self.value['platform_url'],'username':account,
                 **self.value.get('accounts',{}).get(account,{'password':account[-3:]}),
                 'data_dir':'./resident','identities':[{'key':s['id'],'role':'service','name':s['name']} for s in domain['services']],
-                'max_model_runs':self.value.get('max_model_runs',4),
+                **({'max_model_runs':self.value['max_model_runs']} if 'max_model_runs' in self.value else {}),
                 'provider':{'require_publication_authorization':True,'services':{}}}
 
     def state(self,*,prepared=False):

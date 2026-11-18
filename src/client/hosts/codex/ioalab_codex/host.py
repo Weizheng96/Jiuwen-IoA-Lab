@@ -207,7 +207,17 @@ class CodexHost:
         if value.get('terminal'):value['terminal']=MachineTerminal(**value['terminal'])
         value['resources']=tuple(HostResource(**item)for item in value.get('resources',()))
         return SubmissionResult(**value)
-    def get_request(self,request_id):
+    def get_request(self,query):
+        from ioalab_sdk.runtime import SubmissionQuery
+        if not isinstance(query,SubmissionQuery):
+            raise RuntimeFault('invalid_input','Use the original submission query')
+        if query.request_id is None:return None
+        result=self._request_state(query.request_id)
+        if result is not None and not query.matches(result):
+            raise RuntimeFault('identity_conflict','Original request query changed its submission')
+        return result
+
+    def _request_state(self,request_id):
         with self._lock:
             value=self._requests.get(request_id)
             if value is None:raise RuntimeFault('unknown_result','No machine binding for the original native request')

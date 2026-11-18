@@ -24,6 +24,36 @@ def submit(queue,interaction,*,handler='model',session=None,payload=None,operati
     return queue.submit('a',interaction,handler,payload or {},operation_id=operation or uid(),session=session,deadline=deadline)['reference']
 
 
+@pytest.mark.parametrize('fault,expected', [
+    (RuntimeFault('protocol_error','Original countersign response names another contract','inspect_original_contract'),
+     {'code':'protocol_error','message':'Original countersign response names another contract','recovery':'inspect_original_contract'}),
+    (RuntimeFault('forbidden','Original permission has expired','renew_original_permission'),
+     {'code':'forbidden','message':'Original permission has expired','recovery':'renew_original_permission'}),
+    (ValueError('private exception contents must not be exposed'), None),
+])
+def test_unknown_job_preserves_only_public_runtime_fault_cause_without_retry(store,fault,expected):
+    calls=[]
+    def run(job):
+        calls.append(job['id'])
+        raise fault
+    queue=Scheduler(store,{'model':JobHandler(run,'v1')}).start()
+    try:
+        operation=uid()
+        original=submit(queue,'original',operation=operation)
+        wait_for(lambda:queue.get(original)['status']=='unknown')
+        error=queue.get(original)['data']['error']
+        assert {key:error[key] for key in ('code','type','recovery')}=={
+            'code':'unknown_result','type':type(fault).__name__,'recovery':'reconcile_role'}
+        if expected is None:
+            assert set(error)=={'code','type','recovery'}
+            assert str(fault) not in str(error)
+        else:
+            assert error['cause']==expected
+        assert submit(queue,'original',operation=operation)==original
+        assert calls==[original] and queue.get(original)['status']=='unknown'
+    finally:queue.close()
+
+
 def test_nonmodel_business_waits_cannot_fill_control_workers_or_reject_admitted_progress(store):
     gate=threading.Event();started=[]
     def wait(job):

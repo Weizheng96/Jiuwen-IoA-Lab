@@ -66,6 +66,35 @@ def observed(host,count):
     return lambda:len(dict.fromkeys(value[0] for value in host.observations))>=count
 
 
+def test_errored_material_observation_never_allows_original_task_to_sign_or_replay(platform,tmp_path,monkeypatch):
+    monkeypatch.setenv('A2C_CACHE_DIR',str(tmp_path/'verifier-cache'))
+    def arbitration_only(*args,**kwargs):pytest.fail('Material review must not call the arbitration model')
+    monkeypatch.setitem(platform.market.market.models,'test-observation-model',arbitration_only)
+    class ErroredMaterial(MaterialHost):
+        def submit(self,*args,**kwargs):
+            result=super().submit(*args,**kwargs)
+            if kwargs['execution'].kind=='observation':
+                return replace(result,error=SubmissionError('native_guard_failed','native_definition','accepted',
+                    'Original observation guard failed'))
+            return result
+    host=ErroredMaterial();host.allowed=True
+    with participants(platform,tmp_path,formation='proposal',fee=1,agent_host=host,verifier_source=SOURCE,
+            verifier_kind='skill',template_terms=terms(platform,'proposal'),models=1) as (provider,assistant,_,template,task):
+        rpc=LocalClient(assistant.config.home);op=uid()
+        args={'taskRef':task,'service':provider.identities[0].agent_id,'templateDigest':template['templateDigest'],
+            'spec':{'result':{}},'materials':{'original':{'text':'actual original material','spec':{}}}}
+        pending=rpc.call('assistant.delegation.request',args,operation_id=op)
+        assert pending['status']=='waiting'
+        user_decision(assistant,pending['data']['confirmationRef'])
+        started=rpc.call('assistant.delegation.request',args,operation_id=op)
+        assert started['status']=='accepted'
+        original=wait_pending_job(provider,True,observed(host,1))
+        assert not original['canResume'] and len(host.observations)==1
+        refused=LocalClient(provider.config.home).call('provider.task.resume',{'profile':'service','taskRef':original['taskRef']})
+        assert refused['status'] in ('unknown','rejected')
+        assert len(host.observations)==1 and not host.turns
+
+
 def wait_pending_job(provider,crash_gap=False,ready=lambda:True):
     # Store contention may first park the job before its host child (A2C guard
     # contract); read the job only after the expected host children were entered.
@@ -202,8 +231,10 @@ def test_original_material_receipt_late_machine_end_and_data_resume_without_resu
                 assert value.error is None
             self.pending=receipt
             return receipt
-        def get_request(self,request_id):
-            assert request_id==self.pending.request_id
+        def get_request(self,query):
+            request_id=query.request_id
+            assert (query.operation_id,query.attempt_id,query.session_id,request_id)==(self.pending.operation_id,
+                self.pending.attempt_id,self.pending.session_id,self.pending.request_id)
             self.queries.append(request_id)
             if not self.ready:return self.pending
             return replace(self.pending,state='completed',

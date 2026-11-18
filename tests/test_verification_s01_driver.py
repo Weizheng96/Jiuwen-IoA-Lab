@@ -27,7 +27,7 @@ class Boundary:
             state='completed'
         self.receipts[request]=replace(accepted,state=state,terminal=MachineTerminal(op,input.attempt.nonce,sid,request,state,'machine:'+request))
         return self.receipts[request]
-    def get_request(self,request):return self.receipts[request]
+    def get_request(self,query):return self.receipts[query.request_id]
     def cancel(self,request):self.cancelled.append(request);self.gate.set();return True
 
 

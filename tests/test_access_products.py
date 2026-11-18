@@ -28,6 +28,141 @@ def bootstrap():
     value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value);return value
 
 
+def test_native_preflight_permission_failure_retains_original_id_without_dispatch(tmp_path,monkeypatch,capsys):
+    from ioalab_sdk.runtime import lifecycle
+    config=tmp_path/'existing.json'
+    read=Path.read_bytes
+    def denied(path):
+        if path==config:raise PermissionError('private OS detail must not escape')
+        return read(path)
+    monkeypatch.setattr(Path,'read_bytes',denied)
+    monkeypatch.setattr(lifecycle,'LocalClient',lambda *a,**k:pytest.fail('Preflight failure reached RPC'))
+    packet={'operation':'runtime.status','operationId':'original-read','arguments':{},'contextRef':None}
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps(packet)))
+    assert main(['call','runtime.status','--config',str(config),'--request-stdin'])==1
+    output=capsys.readouterr().out;result=json.loads(output)
+    assert result['operationId']=='original-read' and result['status']=='rejected'
+    assert result['phase']=='preflight' and result['dispatch']=='not_submitted'
+    assert result['error']['recovery']=='inspect_configuration_permissions'
+    assert 'private OS detail' not in output
+
+
+@pytest.mark.parametrize('invalid', ['bad-json','wrong-operation','bad-context'])
+def test_invalid_native_envelope_is_not_associated_or_used_to_read_configuration(tmp_path,monkeypatch,capsys,invalid):
+    config=tmp_path/'not-read.json'
+    packet={'operation':'runtime.status','operationId':'untrusted-id','arguments':{},'contextRef':None}
+    if invalid=='wrong-operation':packet['operation']='runtime.stop'
+    if invalid=='bad-context':packet['contextRef']={'entryRef':'valid','sessionId':'model-input'}
+    monkeypatch.setattr(sys,'stdin',io.StringIO('{' if invalid=='bad-json' else json.dumps(packet)))
+    monkeypatch.setattr(Path,'read_bytes',lambda *a:pytest.fail('Invalid packet read configuration'))
+    assert main(['call','runtime.status','--config',str(config),'--request-stdin'])==1
+    result=json.loads(capsys.readouterr().out)
+    assert result['status']=='rejected' and result.get('operationId') is None
+    assert 'dispatch' not in result
+
+
+def test_native_dispatched_rpc_loss_preserves_unknown_not_preflight(tmp_path,monkeypatch,capsys):
+    from ioalab_sdk.runtime import lifecycle
+    config=tmp_path/'settings.json'
+    private_json(config,{'data_dir':str(tmp_path/'home')})
+    packet={'operation':'runtime.status','operationId':'original-read','arguments':{},'contextRef':None}
+    monkeypatch.setattr(sys,'stdin',io.StringIO(json.dumps(packet)))
+    calls=[]
+    def lost(operation,*args,**kwargs):
+        calls.append((operation,kwargs['operation_id']))
+        raise OSError('response lost')
+    monkeypatch.setattr(lifecycle,'LocalClient',lambda *a,**k:SimpleNamespace(call=lost))
+    assert main(['call','runtime.status','--config',str(config),'--request-stdin'])==1
+    result=json.loads(capsys.readouterr().out)
+    assert calls==[('runtime.status','original-read')]
+    assert result['status']=='unknown' and result['operationId']=='original-read'
+    assert result.get('dispatch')!='not_submitted' and result['error']['dispatch']=='unknown'
+
+
+def test_configuration_permission_handoff_preserves_account_instead_of_registering(tmp_path,monkeypatch):
+    from ioalab_client.onboarding import summary,markdown
+    config=tmp_path/'existing.json'
+    read=Path.read_bytes
+    def denied(path):
+        if path==config:raise PermissionError('no access')
+        return read(path)
+    monkeypatch.setattr(Path,'read_bytes',denied)
+    result=summary('codex',config=config)
+    assert result['error']['recovery']=='inspect_configuration_permissions'
+    assert result['data']['accountName'] is None
+    assert [(step['id'],step['actor']) for step in result['data']['pending']]==[('configuration_permissions','agent')]
+    rendered=markdown(result)
+    assert '配置权限受限' in rendered and 'runtime.configuration' in rendered
+    assert 'account.setup' not in rendered and '生成新账号' not in result['data']['pending'][0]['instruction']
+
+
+def test_malformed_configuration_is_distinct_from_permission_denied(tmp_path):
+    from ioalab_sdk.runtime.config import read_configuration
+    config=tmp_path/'bad.json';config.write_bytes(b'{not-json')
+    with pytest.raises(RuntimeFault) as failed:read_configuration(config)
+    assert failed.value.code=='invalid_input' and failed.value.recovery=='configure'
+    assert 'UTF-8 JSON' in str(failed.value)
+
+
+@pytest.mark.parametrize('host',['codex','jiuwen','claude_code'])
+def test_three_native_wrappers_preserve_sdk_preflight_refusal_and_reject_unrelated_receipts(tmp_path,monkeypatch,capsys,host):
+    import shutil
+    packet={'operation':'runtime.status','operationId':'original-read','arguments':{},'contextRef':None}
+    config=tmp_path/'unreadable.json';read=Path.read_bytes
+    def denied(path):
+        if path==config:raise PermissionError('fixture permission boundary')
+        return read(path)
+    with monkeypatch.context() as local:
+        local.setattr(Path,'read_bytes',denied)
+        local.setattr(sys,'stdin',io.StringIO(json.dumps(packet)))
+        assert main(['call','runtime.status','--config',str(config),'--request-stdin'])==1
+        rejected=json.loads(capsys.readouterr().out)
+    assert rejected['dispatch']=='not_submitted' and rejected['operationId']=='original-read'
+    unknown={'operationId':'original-read','status':'unknown','data':None,
+             'error':{'code':'unknown_result','dispatch':'unknown','recovery':'resume_original'}}
+    cases=[rejected,{**rejected,'operationId':'another-request'},
+           {k:v for k,v in rejected.items() if k!='operationId'},unknown]
+    response=tmp_path/'response.json';caller=tmp_path/'caller.py'
+    caller.write_text('import sys\nfrom pathlib import Path\nsys.stdout.write(Path(sys.argv[1]).read_text(encoding="utf-8"))\n',encoding='utf-8')
+    profile={'profile':'personal','descriptorFile':str(tmp_path/'never-read-descriptor'),
+             'callerCommand':[sys.executable,str(caller),str(response)],'ensureCommand':['must-not-start']}
+    binding={'format':'ioalab.native-entry/1','hostRef':'original','sourceOperations':[],
+             'setupOperation':'runtime.entry.bind','profiles':{'assistant':profile}}
+    (tmp_path/'entry-binding.json').write_text(json.dumps(binding),encoding='utf-8')
+    inputs={key:value for key,value in packet.items() if key!='contextRef'}
+    if host=='claude_code':
+        node=shutil.which('node')
+        if not node:pytest.skip('Node is a development fixture for the actual Claude wrapper')
+        module=ROOT/'src/client/hosts/claude_code/ioalab_claude_code/resources/native/wrapper.mjs'
+        script=tmp_path/'claude-wrapper.mjs'
+        script.write_text('import {invoke} from '+json.dumps(module.as_uri())+';\n'+
+            'import {spawnSync} from "node:child_process";\n'+
+            'const api={process:{run:async(argv,opt)=>{const p=spawnSync(argv[0],argv.slice(1),{input:opt.stdin,encoding:"utf8"});return {stdout:p.stdout,exitCode:p.status};}}};\n'+
+            'try {console.log(JSON.stringify(await invoke(api,'+json.dumps({**profile,'sourceOperations':[],'setupOperation':'runtime.entry.bind'})+','+json.dumps(inputs)+')));}\n'+
+            'catch(e){if(!e.submissionUnknown)throw e;console.log(JSON.stringify({status:"unknown",error:{dispatch:"unknown"}}));}\n',encoding='utf-8')
+        def invoke():
+            process=subprocess.run([node,str(script)],capture_output=True,text=True,encoding='utf-8',timeout=10)
+            assert process.returncode==0,process.stderr
+            return json.loads(process.stdout)
+    elif host=='codex':
+        from ioalab_codex.native_entry import invoke as native_invoke
+        args=tmp_path/'arguments.json';args.write_text(json.dumps({'operationId':'original-read'}),encoding='utf-8')
+        def invoke():return native_invoke(tmp_path,'assistant',['runtime.status','--args-file',str(args)])[1]
+    else:
+        path=ROOT/'src/client/hosts/jiuwen/ioalab_jiuwen/resources/native/entry.py'
+        spec=importlib.util.spec_from_file_location('jiuwen_wrapper_receipt_fixture',path)
+        native=importlib.util.module_from_spec(spec);spec.loader.exec_module(native)
+        entry=native.Entry(tmp_path)
+        def invoke():return entry.invoke('assistant',inputs,capture=lambda:pytest.fail('Control captured a source'))
+    for index,value in enumerate(cases):
+        response.write_text(json.dumps(value),encoding='utf-8')
+        actual=invoke()
+        if index in (0,3):assert actual==value
+        else:
+            assert actual['status']=='unknown'
+            assert actual.get('dispatch')!='not_submitted' and actual['error']['dispatch']=='unknown'
+
+
 def test_bound_skill_role_cannot_be_overridden_by_call_arguments(monkeypatch):
     module=bootstrap()
     monkeypatch.setattr(module,'installation',lambda:pytest.fail('Role override reached installation or RPC'))

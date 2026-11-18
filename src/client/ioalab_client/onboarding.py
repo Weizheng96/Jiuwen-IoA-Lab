@@ -32,6 +32,7 @@ def summary(host, *, config=None, python=None, host_ref=None):
             'skills': skill_status(host, config=path, python=python, host_ref=host_ref), 'connected': False,
             'newSessionVerified': False, 'pending': []}
     platform = DEFAULT_PLATFORM_URL
+    configuration_blocked = None
     try:
         configured = RuntimeConfig.load(path)
         document = read_configuration(path)
@@ -78,10 +79,20 @@ def summary(host, *, config=None, python=None, host_ref=None):
                             executionReady=bool(identity.get('executionReady')))
         except RuntimeFault:
             step(data, 'runtime', 'agent', '启动或复用原客户端：'+data['python']+' -I -X utf8 -m ioalab_client.runtime start --config '+str(path)+'；不要启动第二个实例。')
-    except RuntimeFault:
-        step(data, 'account', 'user', '请在 IoA Lab 本机账号页登录已有账号或生成新账号（页面由智能体调用绑定 Skill 的 account.setup 打开）；密码只在该页面查看，不要发到聊天。完成后告诉智能体。')
+    except RuntimeFault as exc:
+        if exc.recovery == 'inspect_configuration_permissions':
+            from ioalab_sdk.runtime import public_error
+            configuration_blocked = public_error(exc)
+            data['credentialsView'] = '先恢复对原配置的授权读取；保留原账号，不生成新账号。'
+            step(data, 'configuration_permissions', 'agent', '当前宿主读取原配置被权限拒绝：'+str(path)+
+                 '。通过宿主正常授权的本机访问方式重新执行绑定 Skill 的 runtime.configuration；'
+                 '若宿主要求批准，向用户展示实际请求。保留原配置、账号与运行实例，不重注册、不修改权限策略或绕过沙箱。')
+        else:
+            step(data, 'account', 'user', '请在 IoA Lab 本机账号页登录已有账号或生成新账号（页面由智能体调用绑定 Skill 的 account.setup 打开）；密码只在该页面查看，不要发到聊天。完成后告诉智能体。')
     data['website'] = {'home': platform, 'login': platform+'/login', 'myAgents': platform+'/workbench',
                        'instructions': '使用客户端同一账号和密码登录官网，进入“我的智能体”；SDK连接不等于浏览器已登录。'}
+    if configuration_blocked:
+        return {'status':'waiting','data':data,'error':configuration_blocked}
     for skill, folder in zip(data['skills'], ('assistant', 'provider')):
         if skill['installed']: continue
         if skill['path'] is None:
@@ -118,11 +129,12 @@ def verify(host, identifier, **options):
 
 def markdown(result):
     data = result['data']; web = data['website']
+    account = data['accountName'] or ('未能读取（配置权限受限）' if (result.get('error') or {}).get('recovery') == 'inspect_configuration_permissions' else '尚未配置')
     lines = ['IoA Lab 接入交付摘要（ioalab.onboarding/1）',
              '1. 接入状态：'+('待完成验证' if data['pending'] else '已完成'),
              '2. 客户端：'+data['clientDirectory'], '   程序：'+data['programDirectory'],
              '   数据：'+str(data['dataDirectory'] or '尚未配置'), '   配置：'+data['configurationFile'],
-             '3. 账号：'+str(data['accountName'] or '尚未配置'), '   账号/密码配置位置：'+data['credentialsLocation'],
+             '3. 账号：'+str(account), '   账号/密码配置位置：'+data['credentialsLocation'],
              '   查看方式：'+data['credentialsView'], '4. 两角色 Skill：']
     for item in data['skills']:
         lines.append('   '+item['name']+'：'+('文件已安装' if item['installed'] else '待原生安装/导入')+
