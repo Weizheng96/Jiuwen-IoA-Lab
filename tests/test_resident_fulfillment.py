@@ -61,6 +61,44 @@ class ProductionHost(QuoteHost):
         return FixtureResult('completed',turn.session_id,{'explicitProductionHostDouble':True})
 
 
+def test_production_corrects_artifact_input_errors_in_the_same_round(platform, tmp_path):
+    class ArtifactCorrectionHost(QuoteHost):
+        def execute(self, turn):
+            data = json.loads(turn.input)
+            if data['phase'] != 'production':
+                return super().execute(turn)
+            self.turns.append(turn)
+            turn.on_session(turn.session_id)
+            root = Path(data['artifactDirectory'])
+            correct = {'files': {'result.json': {'artifactPath': 'result.json', 'mediaType': 'application/json'}}}
+            absolute = copy.deepcopy(correct)
+            absolute['files']['result.json']['artifactPath'] = str(root.parent / 'result.json')
+            error = turn.on_tool('provider.task.selftest', absolute, 'absolute-path')
+            assert error['status'] == 'error' and 'artifactPath' in error['errors'][0], error
+            missing = turn.on_tool('provider.task.selftest', correct, 'missing-file')
+            assert missing['status'] == 'error' and 'result.json' in missing['errors'][0], missing
+            (root / 'result.json').write_text('{"delivered":"actual file bytes"}', encoding='utf-8')
+            assert turn.on_tool('provider.task.selftest', correct, 'missing-file') == missing
+            assert turn.on_tool('provider.task.selftest', correct, 'corrected-file')['status'] == 'pass'
+            assert turn.on_tool('provider.task.deliver', correct, 'delivery')['status'] == 'delivered'
+            return FixtureResult('completed', turn.session_id, {})
+
+    host = ArtifactCorrectionHost()
+    with participants(platform, tmp_path, agent_host=host, verifier_source=VERIFIER) as (provider, assistant, _, template, task):
+        selected, _, _ = confirm(assistant, candidate(assistant, provider, template, task))
+        ref = selected['data']['contractRef']
+        wait_for(lambda: status(assistant, ref) and status(assistant, ref)['data']['formed'])
+        start, _ = invoke(assistant, ref, 'start')
+        wait_for(lambda: operation(assistant, ref, start))
+        wait_for(lambda: status(assistant, ref)['data']['availablePeriods'] == 1)
+        fetch, _ = invoke(assistant, ref, 'fetch', period=1)
+        wait_for(lambda: operation(assistant, ref, fetch) and operation(assistant, ref, fetch)['status'] == 'completed')
+        verify, _ = invoke(assistant, ref, 'verify', period=1)
+        wait_for(lambda: operation(assistant, ref, verify))
+        assert operation(assistant, ref, verify)['data']['report']['status'] == 'pass'
+        assert len([turn for turn in host.turns if json.loads(turn.input)['phase'] == 'production']) == 1
+
+
 def configure_template(monkeypatch):
     original=assembly.template_from_definition
     def definition(value,**kwargs):
