@@ -192,7 +192,7 @@ def test_expiry_and_close_prevent_fee_after_admission(platform,client,protocol_p
         configure(receiver);binding=opened(sender,receiver,value);reserved=receiver.call('admission.reserve',binding)
         payload={'admissionId':reserved['admissionId'],'ap2':fee_body(local,service[1],template,value)}
         with monkeypatch.context() as patch:
-            patch.setattr(platform.admissions,'clock',lambda:time.time()+121)
+            patch.setattr(platform.admissions,'clock',lambda:time.time()+301)
             assert sender.call('ap2.pay',payload,ok=False)['code']=='expired'
             assert receiver.call('admission.status',{'admissionId':reserved['admissionId']})['state']=='released'
         assert platform.db.rows('SELECT * FROM transfers WHERE ref=?',value['body']['bindingDigest'])==[]

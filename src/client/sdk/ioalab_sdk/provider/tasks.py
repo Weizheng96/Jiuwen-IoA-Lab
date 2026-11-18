@@ -102,14 +102,18 @@ class ProviderTasks:
             allowed,reason,_=self.eligible(identity,job)
         except RuntimeFault as exc:allowed,reason=False,exc.code
         phase={'provider.production':'production','provider.settlement':'termination'}.get(job['handler'],'unknown')
+        result=json.loads(job['result']) if job['result'] else None
         if phase=='unknown':
             try:
-                _,message=self.source(identity,job)
+                relation,message=self.source(identity,job)
                 phase={'request.submit':'quote','card.countersign':'decision'}.get(message['body']['op'],'control')
+                if phase=='decision' and ((result or {}).get('error') or {}).get('code')=='expired':
+                    window=self.execution.review_window(identity,relation,message)
+                    if window.elapsed():result={**result,'error':window.expired('queue').to_payload('card.countersign')['error']}
             except RuntimeFault:pass
         return {'taskRef':job['id'],'phase':phase,'status':job['state'],'interactionId':job['interaction'],
                 'sessionId':job['session'],'canResume':allowed,'resumeReason':reason,
-                'result':json.loads(job['result']) if job['result'] else None}
+                'result':result}
 
     def get(self,identity,reference=None):
         return {'items':[self.snapshot(identity,job) for job in self.records(identity,reference)]}

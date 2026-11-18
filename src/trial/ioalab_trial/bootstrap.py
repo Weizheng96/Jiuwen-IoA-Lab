@@ -127,13 +127,13 @@ update_config(change)
     write(ROOT/'core/platform.json',core,10001)
     write(ROOT/'services/config.json',{'platform_url':core['runtime']['public_url'],
         'data_dir':'/epoch/services/official','host':{'command':['/opt/swarm/bin/jiuwenswarm-process'],
-        'data_dir':'/epoch/services/swarm'},'max_model_runs':1},10004)
+        'data_dir':'/epoch/services/swarm'}},10004)
     ids=json.loads(SERVICE_IDS.read_text())
     write(ROOT/'core/seed.json',public_seed(ids),10001)
     write(ROOT/'assistant/config.json',{'platform_url':core['runtime']['public_url'],
         'username':'trial-user','password':assistant,'data_dir':'/epoch/assistant/resident',
         'identities':[{'key':'personal','role':'assistant','name':'试用个人助手'}],
-        'max_model_runs':1,'assistant':{},'provider':{},
+        'assistant':{},'provider':{},
         'host':{'command':['/opt/swarm/bin/jiuwenswarm-process'],'data_dir':'/epoch/assistant/swarm'}},10002)
     # Install the built product skill into the original public skill directory;
     # no history store or original source is edited.

@@ -5,12 +5,12 @@
   "data_dir": "~/.ioalab/instances/main",
   "user_browser": null,
   "identities": [{"key": "service", "role": "service", "name": "我的专业服务"}],
-  "max_model_runs": 2,
+  "max_model_runs": 10,
   "assistant": {},
   "provider": {"services": {"service": {
     "instructions": "请填写本服务的实际业务规则、生产能力和验收要求",
     "skills": [], "native_tools": {}, "resources": {},
-    "max_active_delegations": 2, "accepting": true
+    "max_active_delegations": 3, "accepting": true
   }}},
   "host": {"type": "jiuwen", "command": ["jiuwenswarm-process"], "data_dir": "<自己的九问数据目录>", "skill_directories": {}}
 }

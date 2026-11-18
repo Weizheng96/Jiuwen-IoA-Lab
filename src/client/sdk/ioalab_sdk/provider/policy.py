@@ -43,12 +43,21 @@ def definition_digest(definition):
 class HostPolicy(DefaultPolicy):
     def __init__(self,execution,identity,relation,provider,job,config,admission):
         self.execution,self.runtime,self.identity,self.relation,self.provider,self.job,self.config,self.admission=execution,execution.runtime,identity,relation,provider,job,config,admission
+        self.review_window=None
 
     def review(self,template,card,materials):
+        window=self.review_window
+        if window is None or window.admission!=self.admission:
+            raise A2CError(OUT_OF_ORDER,'Cannot verify the original countersign admission and deadline')
+        window.require_open('before review')
         decision=self.decide('decision',template,card,materials)
+        window.require_open('before commit')
         if not decision['approved']:return decision.get('reason') or 'The service declined this card'
         try:self.runtime.connection.call(self.identity.agent_id,'admission.commit',{'admissionId':self.admission,'card':card},operation_id=stable('commit',self.admission))
-        except RuntimeFault as exc:raise A2CError(OUT_OF_ORDER,str(exc)) from None
+        except RuntimeFault as exc:
+            if exc.code=='expired' and window.elapsed():raise window.expired('admission commit') from None
+            raise A2CError(OUT_OF_ORDER,str(exc)) from None
+        window.require_open('before signing slot 2')
         return None
 
     def draft(self,template,request,materials):
@@ -87,6 +96,7 @@ class HostPolicy(DefaultPolicy):
         return definition
 
     def decide(self,phase,template,subject,materials):
+        window=self.review_window if phase=='decision' else None
         store=self.provider.store;key='decision:'+self.job['payload']['messageId']
         previous=store.get('business',key)
         relation=self.runtime.store.interaction(interaction_id=self.relation['id'])
@@ -109,6 +119,9 @@ class HostPolicy(DefaultPolicy):
             self.runtime.scheduler.bind_session(self.job['id'],session);state['session']=session
         def on_tool(name,args,call):
             self.runtime.require_execution()
+            if window and window.elapsed():
+                error=window.expired('decision callback')
+                return {'status':'rejected','error':{'code':error.code,'message':error.message}}
             store.put('tool_attempts',key+':'+call,{'name':name,'arguments':args})
             if not state['session']:raise RuntimeFault('not_ready','Save the actual host session before deciding')
             if state['uploadUnknown']:
@@ -145,13 +158,15 @@ class HostPolicy(DefaultPolicy):
         # Actual original protocol deadlines include queueing and model execution.
         request_signature=subject['signature'] if phase=='quote' else subject['signatures']['1']
         respond=parse_time(header_of(request_signature)['a2c-ts'])+parse_duration(template['deadlines']['respondWithin'])
-        deadline=min(parse_time(template['validUntil']).timestamp(),respond.timestamp())
+        deadline=window.deadline if window else min(parse_time(template['validUntil']).timestamp(),respond.timestamp())
         remaining=deadline-time.time()
+        if window:window.require_open('before original materials')
         if remaining<=0:raise A2CError(OUT_OF_ORDER,'Template expired before the business decision')
         if phase=='quote':prompt['preparedVerifiers']=self.execution.role.verifiers.prepared(self.identity,self.job['id'])
         remaining=deadline-time.time()
         if remaining<=0:raise A2CError(OUT_OF_ORDER,'Template expired while preparing the original verifier')
         prompt['materials']=material_files(workspace,{'phase':phase,'subject':digest(subject)},materials)
+        if window:window.require_open('before native submission')
         if deadline<=time.time():raise A2CError(OUT_OF_ORDER,'Template expired while preparing the original materials')
         prompt=encode(prompt)
         native_operation=self.execution.tasks.native_operation(self.identity,self.job)
@@ -167,6 +182,9 @@ class HostPolicy(DefaultPolicy):
             result=self.execution.host.submit(self.identity.agent_id,relation['id'],native_operation,HostInput(prompt),execution=execution,
                 on_event=event,on_tool=lambda call:on_tool(call.name,call.arguments,call.transport_reference))
         finally:self.execution.active.discard(self.job['id'])
+        if window and window.elapsed():
+            if result.terminal is None:self.execution.host.cancel_job(self.job['id'])
+            raise window.expired('native review')
         if state['uploadUnknown']:
             if result.terminal and result.state in ('completed','failed','cancelled') and result.session_id==state['session']:
                 self.execution.tasks.wait(self.identity,self.job,state['session'],definition_hash,result.state,native_operation=native_operation)

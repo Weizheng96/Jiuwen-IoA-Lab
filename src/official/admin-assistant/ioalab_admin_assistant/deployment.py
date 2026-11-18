@@ -91,7 +91,7 @@ class Deployment:
     def base(self):
         return {'platform_url': self.value['platform_url'], 'username':'admin', 'password':self.value['password'],
                 'data_dir':str(self.home/'resident'), 'identities':[{'key':'admin','role':'assistant','name':'管理员的个人助手'}],
-                'max_model_runs':self.value.get('max_model_runs',2)}
+                **({'max_model_runs':self.value['max_model_runs']} if 'max_model_runs' in self.value else {})}
 
     def complete(self):
         web = {'factory':'jiuwen-web','profile':'admin','options':{

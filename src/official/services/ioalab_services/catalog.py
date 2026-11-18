@@ -66,7 +66,7 @@ def materialize(s: dict, origin: str) -> dict:
     if top and s.get("generator", {}).get("system") and "顶层键必须恰好" not in s["generator"]["system"]:
         s["generator"]["system"] += f"\n输出 JSON 的顶层键必须恰好是：{'、'.join(top[0]['required'])}（不得改名、不得缩写）。"
     s.setdefault("runnable", True)
-    s.setdefault("capacity", 1 if s.get("formation") in ("countersign", "proposal") else 3)
+    s.setdefault("capacity", 3)
     if s.get("formation")=="proposal":
         note="报价约定：proposalFee仅为拟定合同的费用，不是交付总价；提交request取得服务方签署的提案后，才以合同derived.total作为正式报价。"
         if note not in s["description"]:s["description"]+=" "+note

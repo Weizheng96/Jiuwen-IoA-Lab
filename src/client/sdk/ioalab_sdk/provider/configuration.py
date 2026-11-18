@@ -7,6 +7,7 @@ from ..runtime import RuntimeFault,encode
 
 SERVICE_FIELDS={'instructions','skills','resources','native_tools','max_active_delegations','accepting'}
 EDITABLE_SERVICE_FIELDS=SERVICE_FIELDS-{'resources'}
+DEFAULT_MAX_ACTIVE_DELEGATIONS=3
 
 
 def validate_provider(value,profiles):
@@ -20,8 +21,8 @@ def validate_provider(value,profiles):
         if (key not in identities or not isinstance(config,dict) or set(config)-SERVICE_FIELDS
                 or not isinstance(config.get('instructions'),str) or not config['instructions'].strip()):
             raise RuntimeFault('invalid_input','Each service needs its local profile and professional instructions')
-        if (type(config.get('max_active_delegations',1)) is not int
-                or not 1<=config.get('max_active_delegations',1)<=1000
+        capacity=config.get('max_active_delegations',DEFAULT_MAX_ACTIVE_DELEGATIONS)
+        if (type(capacity) is not int or not 1<=capacity<=1000
                 or type(config.get('accepting',True)) is not bool):
             raise RuntimeFault('invalid_input','Configure bounded active delegations and accepting flag')
         skills=config.get('skills',[])

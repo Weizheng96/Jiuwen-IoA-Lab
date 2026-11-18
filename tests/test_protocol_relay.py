@@ -1,5 +1,6 @@
 """Actual A2C countersign over WS, with material consent and private file access."""
 import sqlite3
+import time
 from types import SimpleNamespace
 import uuid
 
@@ -78,7 +79,9 @@ def test_countersign_delivers_slot_one_before_review_and_commits_before_slot_two
         assert receiver.call('message.send',result({'op':'card.countersign','card':premature}),ok=False)['code']=='not_ready'
         if expire:
             held=platform.db.one('SELECT hold_until FROM delegation_admissions WHERE id=?',aid)
-            monkeypatch.setattr(platform.admissions,'clock',lambda:held['hold_until']+1)
+            monkeypatch.setattr(platform.admissions,'clock',lambda:held['hold_until'])
+        else:
+            monkeypatch.setattr(platform.admissions,'clock',lambda:time.time()+195)
         class Policy(DefaultPolicy):
             def review(self,t,c,materials):
                 assert materials=={'brief':data} and c==inbound['card']

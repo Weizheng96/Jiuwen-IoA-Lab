@@ -73,7 +73,9 @@ class Submission:
             return reject('identity_conflict','scope','Keep original SDK actor/profile')
         if not execution.workspace or not Path(execution.workspace).is_absolute():
             return reject('invalid_input','workspace','Original absolute SDK workspace required')
-        if (input.resources or execution.definition.resources) and not callable(self.resource_factory):
+        submission_resources=(*input.resources,*execution.definition.resources)
+        resource_factory=self.resource_factory
+        if submission_resources and not callable(resource_factory):
             return reject('not_ready','resources','Bind the original SDK per-submission resource factory')
         if execution.proposal_schema is not None and not proposal_tool_declared(execution):
             # No structured output channel: only a same-effect SDK tool lets this
@@ -106,6 +108,18 @@ class Submission:
                    'workspace':str(workspace),'path':path,'bound':False,'operation':operation_id}
             self._submissions[operation_id]=state
             self._persist(state)
+        files=None
+        resource_lock=threading.Lock()
+        def materialize(resources):
+            nonlocal files
+            # Serialize mapping within this attempt so callbacks cannot race to publish the same file.
+            with resource_lock:
+                if files is None:
+                    if not callable(resource_factory):
+                        raise RuntimeFault('not_ready','Bind the original SDK per-submission resource factory')
+                    reader,sink=resource_factory(operation_id,input.attempt)
+                    files=ProcessFiles(workspace,operation_id,input.attempt,reader,sink)
+                return files.materialize(resources)
         def bind(sid,actual_request):
             # This callback is only invoked after the Process protocol echoed
             # the exact planned request and a validated real Session together.
@@ -131,8 +145,7 @@ class Submission:
             if not isinstance(value,HostToolResult):raise RuntimeFault('invalid_tool_output','Use the structured original SDK callback receipt')
             if value.resources:
                 try:
-                    if state.get('files') is None:raise RuntimeFault('not_ready','Bind SDK resource transport before returning files')
-                    mapped=state['files'].materialize(value.resources)
+                    mapped=materialize(value.resources)
                     return {'value':value.value,'resources':mapped,'error':asdict(value.error) if value.error else None}
                 except Exception as exc:
                     # Original SDK effects/receipts already exist. Preserve the
@@ -150,20 +163,16 @@ class Submission:
                      native_tools_enabled=execution.authorization.get('nativeToolsEnabled') is True,
                      definition_digest=execution.definition.digest)
         try:
-            if callable(self.resource_factory):
+            if submission_resources:
                 try:
-                    reader,sink=self.resource_factory(operation_id,input.attempt)
-                    state['files']=ProcessFiles(workspace,operation_id,input.attempt,reader,sink)
-                    mapped=state['files'].materialize((*input.resources,*execution.definition.resources))
+                    mapped=materialize(submission_resources)
                 except Exception as exc:
                     value=reject(getattr(exc,'code','resource_mapping_failed'),'resources',
                         'Original authorized bytes could not be mapped; no native request submitted')
                     state['result']=value;self._persist(state)
                     return value
-                if mapped:
-                    # Per-turn data, never a permanent definition or a second
-                    # professional reader. Original SDK callbacks own read proof.
-                    round.input+='\nSDK authorized resource mappings (data): '+encode(mapped)
+                # Per-turn data. Original SDK callbacks own read proof.
+                round.input+='\nSDK authorized resource mappings (data): '+encode(mapped)
             result=self._execute(round)
             raw=result.native_record
             expected={'completed':(0,),'failed':(1,2),'cancelled':(130,),'timed_out':(124,)}
