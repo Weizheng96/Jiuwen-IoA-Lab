@@ -25,7 +25,7 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned -File "<clone>/src/client/bo
 ~~~
 
 - `-Channel` 默认 main，对应 GitCode 官方仓库；仅开发测试时在 GitHub develop 的下载中加 `-Channel develop`，结果不能称正式发行通过。
-- 首次可能下载私有 Git、uv、Python 3.12 与依赖并现场构建，耗时数分钟：用宿主的后台运行或最长超时执行，等待同一进程结束，不要重复启动。联网或写 `~/.ioalab`、宿主 Skill 目录需要审批时按宿主方式申请。
+- 首装或重建时，安装器先查找本机正式版 CPython 3.11 或 3.12。如果默认 Python 版本过低或过高，也会检查并存版本，缺少合适版本时自动用 uv 准备私有 3.12。工具、依赖下载及构建可能耗时数分钟，用宿主的后台运行或最长超时等待同一进程结束。联网或写 `~/.ioalab`、宿主 Skill 目录需要审批时按宿主方式申请。
 - 下载先走官方源，失败再试随源码登记的国内镜像，两者都核同一固定 SHA256；仍失败时问用户要代理并以 `-Proxy <url>` 重试，不关闭 TLS、不换非官方包。
 - 失败回执为 `status=rejected`，`data.handoff` 是固定六项摘要，`data.stage` 是失败阶段：原样报告，保留现场。`unsupported_python` 按回执的 `recoveryCommand` 执行；网络错误不当作 Python 版本问题。
 - 成功回执给出 `configurationFile`、`programDirectory`、两份 Skill 的安装结果 `nativeSkills`（`manual_required` 时含当前宿主的手动步骤，`reloadRequired` 表示需重载或新开会话）以及 `sourceClone`。
