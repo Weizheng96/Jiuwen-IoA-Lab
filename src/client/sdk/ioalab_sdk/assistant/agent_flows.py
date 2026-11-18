@@ -1,4 +1,6 @@
 """Business compositions over the existing assistant operations, without model routing."""
+from functools import partial
+
 from ..runtime import FlowJournal, RuntimeFault
 from ..runtime import flow_native_notice
 
@@ -10,7 +12,8 @@ class AssistantFlows:
 
     def __init__(self, role):
         self.role = role
-        self.delegation = FlowJournal(role.runtime, role.identity.agent_id, 'delegation', self.advance_delegation,on_async_receipt=flow_native_notice)
+        self.delegation = FlowJournal(role.runtime, role.identity.agent_id, 'delegation', self.advance_delegation,
+                                      on_async_receipt=partial(flow_native_notice,include_result=False))
         self.messaging = FlowJournal(role.runtime, role.identity.agent_id, 'messaging', self.advance_messaging,on_async_receipt=flow_native_notice)
         from .delivery_watch import DeliveryWatch
         self.deliveries = DeliveryWatch(self)

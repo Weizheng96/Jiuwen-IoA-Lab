@@ -8,6 +8,8 @@ from datetime import datetime
 import httpx
 from dataclasses import replace
 
+import pytest
+
 from conftest import wait_for
 from ioalab_sdk.assistant import AssistantRole
 from ioalab_sdk.runtime import (HostRegistry,HostRegistration,SubmissionResult,SubmissionError,SubmissionEvent,MachineTerminal,BindingAck,LocalClient,ResidentRuntime,RuntimeConfig,ToolBinding,native_source_descriptor,read_json)
@@ -16,9 +18,12 @@ from test_resident_runtime import configuration
 
 
 class NativeTransport:
-    registration=HostRegistration('native-event-boundary','1')
+    registration=HostRegistration('native-event-boundary','1',('get_request',))
     def __init__(self,workspace,driver=None):
         self.workspace=str(workspace);self.notices=[];self.lock=threading.Lock();self.ready=True;self.driver=driver
+        self.defer_operation=None
+        self.deferred=None
+        self.release_deferred=threading.Event()
     def check(self):return {'state':'unknown','reason':'Explicit native boundary'}
     def submit(self,operation,input,session_id=None,*,execution=None,on_event=None,on_tool=None):
         if execution is not None:
@@ -30,10 +35,26 @@ class NativeTransport:
                 error=SubmissionError('not_ready','native_boundary','not_submitted','No dispatch occurred'))
         request='request-'+operation
         accepted=SubmissionResult(operation,input.attempt.nonce,'accepted',session_id,request,'accepted')
+        notice=json.loads(input.text)
+        with self.lock:self.notices.append((operation,session_id,notice))
+        if notice['businessOperationRef']==self.defer_operation:
+            self.deferred=accepted
+            return replace(accepted,request_id=None)
         assert on_event(SubmissionEvent('native-session','session',accepted))==BindingAck(session_id,request)
-        with self.lock:self.notices.append((operation,session_id,json.loads(input.text)))
-        proof=MachineTerminal(operation,input.attempt.nonce,session_id,request,'completed','fixture-native-terminal-'+operation)
+        return self.complete(accepted)
+
+    @staticmethod
+    def complete(accepted):
+        operation=accepted.operation_id
+        proof=MachineTerminal(operation,accepted.attempt_id,accepted.session_id,accepted.request_id,
+                              'completed','fixture-native-terminal-'+operation)
         return replace(accepted,state='completed',delivery='handled',terminal=proof)
+
+    def get_request(self,query):
+        saved=self.deferred
+        if saved and query.operation_id==saved.operation_id and self.release_deferred.is_set():
+            return self.complete(saved)
+        return None
 
 
 @contextmanager
@@ -146,12 +167,14 @@ def test_async_flow_rejection_is_not_lost_after_real_confirmation(platform,tmp_p
         assert len(transport.notices)==1
 
 
-def test_native_flow_leaf_dedup_and_post_formation_step_result(platform,tmp_path,monkeypatch):
+@pytest.mark.parametrize('defer_candidate',[False,True],ids=['normal','unresolved-candidate-notice'])
+def test_native_flow_leaf_dedup_and_post_formation_step_result(platform,tmp_path,monkeypatch,defer_candidate):
     from test_resident_delegation import participants
     from test_resident_fulfillment import ProductionHost,VERIFIER,configure_template
     from test_assistant_role import user_decision
     configure_template(monkeypatch)
-    with participants(platform,tmp_path/'provider-fixture',agent_host=ProductionHost(),verifier_source=VERIFIER) as (provider,_,_,_,_):
+    verifier=VERIFIER+'\n# '+('<&>夙'*4000)+'\n' if defer_candidate else VERIFIER
+    with participants(platform,tmp_path/'provider-fixture',agent_host=ProductionHost(),verifier_source=verifier) as (provider,_,_,_,_):
         with native_at(platform,tmp_path/'native') as (runtime,rpc,_,_,transport):
             monkeypatch.setattr(runtime.user_ui,'open',lambda:True)
             def flow(action,*,ref=None,values=None,operation=None):
@@ -168,16 +191,38 @@ def test_native_flow_leaf_dedup_and_post_formation_step_result(platform,tmp_path
             inspected=flow('inspect',ref=ref,values={'service':provider.identities[0].agent_id})
             assert inspected['status']=='completed',inspected
             request_op=str(uuid.uuid4())
+            if defer_candidate:
+                transport.defer_operation=request_op
+                runtime.native_events.poll_budget=.1
+                runtime.native_events.poll_interval=.01
             requested=flow('request',ref=ref,values={'service':provider.identities[0].agent_id,'spec':{'result':{}}},operation=request_op)
             assert requested['status']=='waiting',requested
             wait_for(lambda:any(n[2]['businessOperationRef']==request_op for n in transport.notices))
             compared=flow('observe',ref=ref);assert compared['status']=='completed',compared
             assert len([n for n in transport.notices if n[2]['businessOperationRef']==request_op])==1
             assert not [n for n in transport.notices if n[2]['eventKind']=='business.candidate']
+            if defer_candidate:
+                event=next(n[2] for n in transport.notices if n[2]['businessOperationRef']==request_op)
+                candidate_notice_matches_codex_readback(event,compared['data']['result'],verifier)
+                notice_ref=runtime.scheduler.reference(runtime.identities[0].agent_id,runtime.native_events.handler,event['eventRef'])
+                def notice_status():
+                    return rpc.call('operations.get',{'reference':{'kind':'job','id':notice_ref}})['data']
+                wait_for(lambda:notice_status()['status']=='unknown')
+                assert notice_status()['data']['receipt']['request_id'] is None
             select_op=str(uuid.uuid4());quote=compared['data']['quoteRefs'][0]
             selected=flow('select',ref=ref,values={'quoteRef':quote},operation=select_op)
             assert selected['data']['reason']=='confirmation',selected
             user_decision(runtime,selected['data']['evidence']['confirmationRef'])
+            if defer_candidate:
+                contract_ref=selected['data']['evidence']['contractRef']
+                def work_started():
+                    contract_status=rpc.call('assistant.delegation.status',{'contractRef':contract_ref})['data']
+                    return contract_status and contract_status.get('started') and contract_status['card']['fulfillment'].get('receipt')
+                wait_for(work_started)
+                assert notice_status()['status']=='unknown'
+                assert not any(n[2]['businessOperationRef']==select_op for n in transport.notices)
+                transport.release_deferred.set()
+                wait_for(lambda:notice_status()['status']=='completed')
             wait_for(lambda:any(n[2]['businessOperationRef']==select_op for n in transport.notices))
             selected=flow('observe',ref=ref);contract=selected['data']['contractRef']
             wait_for(lambda:rpc.call('assistant.delegation.status',{'contractRef':contract})['data']['stepRequestDigest'])
@@ -194,7 +239,32 @@ def test_native_flow_leaf_dedup_and_post_formation_step_result(platform,tmp_path
             assert len(facts['card']['signatures']['6'])==1 and facts['card']['signatures']['7']==[]
             assert not [v for v in facts['vouchers'] if v.get('purpose')=='installment']
 
-import pytest
+def candidate_notice_matches_codex_readback(event,result,verifier):
+    from html import escape
+    from ioalab_codex.native_facts import correlate_delegation, delegation_digest
+    from ioalab_codex.native_render import notice_text
+    from ioalab_sdk.runtime import HostInput, encode
+
+    assert verifier in result['verifierPackages'][0]['files'].values()
+    assert event['facts']['action']=='request'
+    assert event['evidenceRef']=={'flowRef':event['businessRef']}
+    assert 'result' not in event['facts']
+    source_sid=str(uuid.uuid4())
+    suffix=f'\n[IoA submission {uuid.uuid4()}] attempt {uuid.uuid4()}'
+
+    def render(notice):
+        text=notice_text(HostInput(encode(notice)),operation_id=event['eventRef'])+suffix
+        wrapper=(f'<codex_delegation>\n  <source_thread_id>{source_sid}</source_thread_id>\n'
+                 f'  <input>{escape(text,quote=False)}</input>\n</codex_delegation>')
+        return text,wrapper
+
+    text,wrapper=render(event)
+    legacy={**event,'facts':{k:v for k,v in event['facts'].items() if k!='action'}|{'result':result}}
+    _,legacy_wrapper=render(legacy)
+    assert len(wrapper.encode('utf-8'))<2048<20000<len(legacy_wrapper)
+    turn={'id':'actual-turn','items':[{'type':'functionCallOutput','namespace':'codex_app',
+        'name':'send_message_to_thread','output':{'text':wrapper,'truncated':False}}]}
+    assert correlate_delegation([turn],delegation_digest(source_sid,text))==turn
 
 @pytest.mark.parametrize('decision',['reject','expired'])
 def test_native_provider_sync_result_and_async_decision_terminal(platform,tmp_path,monkeypatch,decision):
