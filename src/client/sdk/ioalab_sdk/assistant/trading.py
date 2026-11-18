@@ -21,6 +21,7 @@ from ..runtime import RuntimeFault,encode,ConfirmationDeadline
 from ..runtime import JobOutcome
 from ..runtime import model_port
 from .business_deadlines import ensure_original
+from .candidates import checked_candidate,source_record
 
 
 class Trading:
@@ -55,6 +56,32 @@ class Trading:
         for value in values:verify_template(value,Directory(fetch=self.public.jwks))
         return values
 
+    def save_prepared(self,key,record,**changes):
+        with self.store.lock:
+            current=self.store.checkpoint(self.namespace,key)
+            if current is not None and current['fingerprint']!=record['fingerprint']:
+                raise RuntimeFault('id_conflict','Original candidate request changed')
+            base=current if current is not None else record
+            if base['phase']!='prepared' or base.get('result') is not None:
+                return base
+            # The first preparation freezes these fields for this quote.
+            updated={**changes,**base}
+            if updated!=current:self.store.checkpoint_set(self.namespace,key,updated)
+            return updated
+
+    def quote_job(self,ref):
+        scheduler=self.runtime.scheduler
+        try:return scheduler.get(scheduler.reference(self.identity.agent_id,'assistant.quote',ref))
+        except RuntimeFault as exc:
+            if exc.code!='not_ready':raise
+            return None
+
+    @staticmethod
+    def request_receipt(record,job):
+        state=job['status']
+        return {'status':state if state in ('completed','rejected','failed','unknown') else 'accepted',
+                'data':{'quoteRef':record['quoteRef'],'taskRef':record['taskRef'],'job':job}}
+
     def request(self,operation,args):
         key='quote:'+stable(self.identity.agent_id,operation)
         record=self.store.checkpoint(self.namespace,key)
@@ -79,14 +106,17 @@ class Trading:
             else:subject=client.draft_card(template,card_id=ref,**common).card
             record={'fingerprint':fingerprint,'quoteRef':ref,'taskRef':args['taskRef'],'service':args['service'],'template':template,'subject':subject,
                     'initial':{name:initial.all(name) for name in ('templates','requests','cards')},'phase':'prepared','noticeOwner':self.store.checkpoint('native-notice-owners',encode([self.identity.agent_id,operation]))}
-            self.store.checkpoint_set(self.namespace,key,record)
+            record=self.save_prepared(key,record)
         if record.get('result') is not None:return {'status':record['status'],'data':record['result']}
         template=record['template'];ref=record['quoteRef']
         if template['formation']!='proposal':
             result={'quoteRef':ref,'taskRef':record['taskRef'],'service':record['service'],'formation':'countersign','card':record['subject'],
                     'notice':'依据有效模板的未签报价，尚待用户选择与服务方批准'}
-            self.store.checkpoint_set(self.namespace,key,{**record,'result':result,'status':'completed'})
-            return {'status':'completed','data':result}
+            record=self.save_prepared(key,record,result=result,status='completed')
+            return {'status':record['status'],'data':record['result']}
+        # A submitted quote is owned by its worker. Polls read its original receipt.
+        job=self.quote_job(ref)
+        if job is not None:return self.request_receipt(record,job)
         review=[item['name'] for item in template.get('inputs',[]) if item.get('reviewBeforeSigning') and item['name'] in record['subject']['inputs']]
         if review:
             binding={'actor':self.identity.agent_id,'operationId':operation,'subject':{'quoteRef':ref,'materials':{name:record['subject']['inputs'][name] for name in review}},
@@ -105,23 +135,21 @@ class Trading:
                 # current scope renewal cannot prove that historical expiry.
                 recover=bool(record.get('materialDeadline')) and record['phase']=='prepared' and not record.get('materialApproval'))
             if 'responseDueAt' in decision and 'materialDeadline' not in record:
-                record={**record,'materialDeadline':deadline.value()}
-                self.store.checkpoint_set(self.namespace,key,record)
+                record=self.save_prepared(key,record,materialDeadline=deadline.value())
             if decision['status']!='approved':return {'status':'waiting' if decision['status']=='pending' else 'rejected','data':{'quoteRef':ref,'confirmationRef':decision['reference']}}
             self.runtime.confirmations.claim(decision['reference'],binding)
-            record={**record,'materialApproval':{'reference':decision['reference'],'binding':binding}}
-            self.store.checkpoint_set(self.namespace,key,record)
-        record={**record,'nativeNoticeWatch':True};self.store.checkpoint_set(self.namespace,key,record)
+            record=self.save_prepared(key,record,materialApproval={'reference':decision['reference'],'binding':binding})
+        record=self.save_prepared(key,record,nativeNoticeWatch=True)
+        if record.get('result') is not None:return {'status':record['status'],'data':record['result']}
         job=self.runtime.scheduler.submit(self.identity.agent_id,ref,'assistant.quote',{'quoteRef':ref},operation_id=ref)
-        return {'status':job['status'] if job['status'] in ('completed','rejected','failed','unknown') else 'accepted','data':{'quoteRef':ref,'taskRef':record['taskRef'],'job':job}}
+        return self.request_receipt(record,job)
 
     def status(self,reference):
         if not isinstance(reference,str):raise RuntimeFault('invalid_input','Use the original quoteRef')
         record=self.store.checkpoint(self.namespace,'quote:'+reference)
         if not record:raise RuntimeFault('forbidden','Quote belongs to another local assistant')
         if record.get('result') is not None:return {'status':record['status'],'data':record['result']}
-        try:job=self.runtime.scheduler.get(self.runtime.scheduler.reference(self.identity.agent_id,'assistant.quote',reference))
-        except RuntimeFault:job=None
+        job=self.quote_job(reference)
         return {'status':job['status'] if job and job['status'] in ('completed','rejected','failed','unknown') else 'running' if job else 'waiting',
                 'data':{'quoteRef':reference,'phase':record['phase'],'job':job}}
 
@@ -246,12 +274,36 @@ class Trading:
         self.store.checkpoint_set(self.namespace,key,{**record,'phase':'finished','status':status,'result':result})
         return JobOutcome(status,result)
 
+    def restore_completed(self,key,record,result):
+        if (record['phase'] not in ('prepared','calling') or not isinstance(result,dict) or not isinstance(result.get('card'),dict)
+                or record['template']['formation']!='proposal'
+                or key!='quote:'+record['quoteRef']
+                or any(result.get(field)!=record[field] for field in ('quoteRef','taskRef','service'))):
+            return
+        refs={field:result.get(field) for field in ('interactionId','admissionId')}
+        if any(not isinstance(value,str) or not value or record.get(field,value)!=value for field,value in refs.items()):
+            return
+        relation=self.store.interaction(interaction_id=refs['interactionId'])
+        if not relation or (relation['actor'],relation['peer'],relation['name'])!=(self.identity.agent_id,record['service'],'delegation'):
+            return
+        restored={**record,**refs,'status':'completed','result':result}
+        try:
+            source=source_record(self,restored)
+            if not source:return
+            checked_candidate(self,restored,source=source,require_current=False)
+        except (A2CError,RuntimeFault,httpx.HTTPError,KeyError,TypeError,ValueError):return
+        with self.store.lock:
+            if self.store.checkpoint(self.namespace,key)==record:
+                self.finish(key,restored,'completed',result)
+
     def recover(self):
         for key,record in self.store.checkpoints(self.namespace).items():
             if not key.startswith('quote:'):continue
-            reference=self.runtime.scheduler.reference(self.identity.agent_id,'assistant.quote',record['quoteRef'])
-            try:job=self.runtime.scheduler.get(reference)
-            except RuntimeFault:continue
+            job=self.quote_job(record['quoteRef'])
+            if job is None or (job['agentId'],job['interactionId'])!=(self.identity.agent_id,record['quoteRef']):continue
+            reference=job['reference']
+            if job['status']=='completed' and record.get('result') is None:
+                self.restore_completed(key,record,job['data']);continue
             if job['status']!='unknown' or self.runtime.scheduler.is_executing(reference):continue
             if record.get('result') is not None:
                 self.runtime.scheduler.resolve(reference,JobOutcome(record['status'],record['result']));continue
