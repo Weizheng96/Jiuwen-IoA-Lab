@@ -20,9 +20,9 @@ class NativeEvents:
         self.clock=time.time
 
     def handlers(self):
-        return {self.handler:JobHandler(self.run,'native-event-v1',True,retain_model_on_unknown=True)}
+        return {self.handler:JobHandler(self.run,'native-event-v1',retain_model_on_unknown=True,native_notice=True)}
 
-    def publish(self,target,event_key,kind,facts,*,evidence_ref,business_operation,interaction=None):
+    def publish(self,target,event_key,kind,facts,*,evidence_ref,business_operation,interaction=None,legacy_facts=None):
         context=source_value(self.registry.origin_context(target,interaction=interaction))
         operation=str(uuid.uuid5(uuid.NAMESPACE_URL,encode(['native-event',target.actor,event_key])))
         notice={'version':1,'eventRef':operation,'eventKind':kind,'actor':target.actor,
@@ -33,7 +33,11 @@ class NativeEvents:
         with self.store.transaction() as conn:
             old=conn.execute('SELECT value FROM runtime_checkpoints WHERE namespace=? AND key=?',(self.namespace,key)).fetchone()
             if old and old['value']!=encode(record):
-                raise RuntimeFault('identity_conflict','Original notice facts or native source changed')
+                # A new projection cannot change the facts already frozen for this operation.
+                legacy={**record,'notice':{**notice,'facts':legacy_facts}}
+                if legacy_facts is None or old['value']!=encode(legacy):
+                    raise RuntimeFault('identity_conflict','Original notice facts or native source changed')
+                record=json.loads(old['value'])
             conn.execute('INSERT OR IGNORE INTO runtime_checkpoints VALUES(?,?,?)',(self.namespace,key,encode(record)))
             conn.execute('INSERT OR IGNORE INTO runtime_checkpoints VALUES(?,?,?)',('native-event-pending',key,encode({'actor':target.actor,'operation':operation})))
         self._submit(record)
@@ -162,11 +166,10 @@ class NativeEvents:
         if outcome:self.runtime.scheduler.resolve(ref,outcome)
 
 
-def flow_native_notice(journal,record,receipt):
+def flow_native_notice(journal,record,receipt,*,include_result=True):
     service=getattr(journal.runtime,'native_events',None)
     if not service or not record.get('nativeSource'):return
     data=receipt.get('data') or {}
-    result=data.get('result') or {}
     def confirmation(value):
         if not isinstance(value,dict):return None
         if value.get('confirmationRef'):return value['confirmationRef']
@@ -177,7 +180,11 @@ def flow_native_notice(journal,record,receipt):
     if receipt['status'] not in ('completed','rejected','failed','unknown') and not decision:return
     target=NativeEventTarget(journal.actor,record['flowRef'],journal.namespace,record['flowRef'])
     semantic='decision:'+ref if decision else 'terminal:'+receipt['status']
+    facts={'status':receipt['status'],'reason':data.get('reason'),'confirmationRef':ref,
+           'required':data.get('required',[]),'needsUserDecision':bool(decision or data.get('required'))}
+    full_facts={**facts,'result':data.get('result') or {}}
     service.publish(target,'flow:'+record['flowRef']+':'+record['operation']+':'+semantic,
                     'business.decision' if decision else 'business.result',
-                    {'status':receipt['status'],'reason':data.get('reason'),'confirmationRef':ref,'required':data.get('required',[]),'needsUserDecision':bool(decision or data.get('required')),'result':result},
-                    evidence_ref={'flowRef':record['flowRef']},business_operation=record['operation'])
+                    full_facts if include_result else {**facts,'action':record['action']},
+                    evidence_ref={'flowRef':record['flowRef']},business_operation=record['operation'],
+                    legacy_facts=None if include_result else full_facts)

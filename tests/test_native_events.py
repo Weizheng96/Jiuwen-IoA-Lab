@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from ioalab_sdk.runtime import (NativeEvents,NativeEventTarget,HostRegistry,HostContext,HostRegistration,
     SubmissionResult,SubmissionEvent,SubmissionError,MachineTerminal,BindingAck,RuntimeStore,RuntimeFault,encode)
-from ioalab_sdk.runtime.scheduling import Scheduler
+from ioalab_sdk.runtime.scheduling import JobHandler, JobOutcome, Scheduler
 from conftest import wait_for
 
 
@@ -33,11 +33,11 @@ class Transport:
         return replace(receipt,state=state,terminal=terminal,delivery='handled' if state=='completed' else receipt.delivery)
 
 
-def assemble(store,hosts,*,default='host',max_models=2,budget=.04):
+def assemble(store,hosts,*,default='host',max_models=2,budget=.04,extra_handlers=None):
     registry=HostRegistry(hosts,default);registry.bind(store,identities=[SimpleNamespace(agent_id='actor',profile='personal')])
     runtime=SimpleNamespace(store=store,closing=threading.Event(),native_entry_required=False)
     service=NativeEvents(runtime,registry,poll_budget=budget,poll_interval=.01)
-    runtime.scheduler=Scheduler(store,service.handlers(),max_models=max_models)
+    runtime.scheduler=Scheduler(store,{**service.handlers(),**(extra_handlers or {})},max_models=max_models)
     registry.scheduler=runtime.scheduler
     return registry,runtime,service
 
@@ -83,6 +83,63 @@ def test_same_sid_unknown_blocks_without_blocking_other_hosts(tmp_path):
         wait_for(lambda:len(first.sent)==len(other.sent)==1)
         wait_for(lambda:runtime.scheduler.status()['states'].get('unknown')==2)
         assert runtime.scheduler.status()['states'].get('queued')==1
+    finally:finish(runtime);store.close()
+
+
+def test_unresolved_notice_does_not_block_original_protocol_job_after_restart(tmp_path):
+    path=tmp_path/'runtime.sqlite'
+    host=Transport()
+    enabled=threading.Event()
+    def protocol(job):
+        return JobOutcome('completed',{'opened':job['interaction']})
+    handlers={'protocol':JobHandler(protocol,'v1',uses_model=False,ready=enabled.is_set),
+              'model':JobHandler(lambda job:JobOutcome('completed',{}),'v1')}
+    store=RuntimeStore(path,'http://local',['actor'],owner_id='owner')
+    registry,runtime,service=assemble(store,{'host':host},extra_handlers=handlers)
+    queue=runtime.scheduler.start()
+    try:
+        _,op=publish(registry,service,tmp_path,'candidate',sid='original-sid')
+        notice=queue.reference('actor',service.handler,op)
+        wait_for(lambda:queue.get(notice)['status']=='unknown')
+        registry.bind_context('actor','contract',HostContext('host','original-sid',str(tmp_path)))
+        start=queue.submit('actor','contract','protocol',{},operation_id='original-start')['reference']
+        model=queue.submit('actor','contract','model',{},operation_id='followup-model')['reference']
+        assert queue.get(start)['status']==queue.get(model)['status']=='queued'
+    finally:finish(runtime);store.close()
+
+    store=RuntimeStore(path,'http://local',['actor'],owner_id='owner')
+    registry,runtime,service=assemble(store,{'host':host},extra_handlers=handlers)
+    enabled.set()
+    queue=runtime.scheduler.start()
+    try:
+        wait_for(lambda:queue.get(start)['status']=='completed',timeout=3)
+        assert queue.get(start)['data']=={'opened':'contract'}
+        assert queue.get(notice)['status']=='unknown'
+        assert queue.get(model)['status']=='queued'
+        assert host.sent==[(op,'original-sid')]
+    finally:finish(runtime);store.close()
+
+
+def test_compact_projection_preserves_frozen_legacy_notice(tmp_path):
+    store=RuntimeStore(tmp_path/'runtime.sqlite','http://local',['actor'],owner_id='owner')
+    host=Transport()
+    registry,runtime,service=assemble(store,{'host':host})
+    queue=runtime.scheduler.start()
+    try:
+        registry.record_origin('actor','original',HostContext('host','sid',str(tmp_path)))
+        target=NativeEventTarget('actor','original','host-origins',encode(['actor','original']))
+        references={'evidence_ref':{'flowRef':'original'},'business_operation':'request'}
+        legacy={'status':'completed','result':{'verifierPackages':['<&>夙'*4000]}}
+        first=service.publish(target,'candidate','business.result',legacy,**references)
+        job=queue.reference('actor',service.handler,first['eventRef'])
+        wait_for(lambda:queue.get(job)['status']=='unknown')
+        compact={'status':'completed','action':'request'}
+        assert service.publish(target,'candidate','business.result',compact,legacy_facts=legacy,**references)==first
+        saved=store.checkpoint('native-events',encode(['actor',first['eventRef']]))
+        assert saved['notice']['facts']==legacy
+        assert queue.get(job)['status']=='unknown' and len(host.sent)==1
+        with pytest.raises(RuntimeFault,match='changed'):
+            service.publish(target,'candidate','business.result',compact,legacy_facts={'status':'rejected'},**references)
     finally:finish(runtime);store.close()
 
 

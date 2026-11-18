@@ -42,6 +42,7 @@ class JobHandler:
     ready: Callable|None=None
     control: bool=False
     retain_model_on_unknown: bool=False
+    native_notice: bool=False
 
 
 class Scheduler:
@@ -52,6 +53,7 @@ class Scheduler:
         if any(not isinstance(name,str) or not isinstance(h,JobHandler) or not h.revision or not callable(h.run)
                or h.control and h.uses_model for name,h in handlers.items()):raise ValueError('Register explicit local handlers; control handlers cannot run models')
         if any(h.retain_model_on_unknown and (not h.uses_model or h.control) for h in handlers.values()):raise ValueError('Uncertain native execution retains a real model permit')
+        if any(h.native_notice and not h.uses_model for h in handlers.values()):raise ValueError('Native notices require a model permit')
         self.store,self.handlers=store,dict(handlers)
         self.max_models,self.max_pending,self.max_workers=max_models,max_pending,max_workers
         self.can_dispatch=can_dispatch
@@ -360,14 +362,18 @@ class Scheduler:
                     continue
                 if not handler or row['revision']!=handler.revision or handler.ready and not handler.ready():continue
                 blocked=False
+                scope=self.store.session_scope(row['actor'],row['interaction'],row['session'])
                 for other in held:
-                    scope=self.store.session_scope(row['actor'],row['interaction'],row['session'])
-                    if other['interaction']!=row['interaction'] and not (scope and scope==self.store.session_scope(other['actor'],other['interaction'],other['session'])):continue
                     prior=self.handlers.get(other['handler'])
+                    same_interaction=other['interaction']==row['interaction']
+                    if not same_interaction:
+                        # A native notice holds the host session, not the separate protocol interaction.
+                        if prior and (handler.native_notice or prior.native_notice) and not (handler.uses_model and prior.uses_model):continue
+                        if not scope or scope!=self.store.session_scope(other['actor'],other['interaction'],other['session']):continue
                     # Only installed non-model controls for this same interaction
                     # may receive facts while its business execution is unresolved.
                     # Controls still serialize with controls; business never bypasses.
-                    if handler.control and prior and not prior.control and other['interaction']==row['interaction']:continue
+                    if handler.control and prior and not prior.control and same_interaction:continue
                     blocked=True
                     break
                 if blocked:continue
