@@ -52,6 +52,29 @@ function Invoke-Checked([string]$Executable, [string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw ('Command failed at '+$stage+'; exit '+$LASTEXITCODE) }
     $result
 }
+function Find-SystemPython([bool]$ForNewEnvironment) {
+    $probe="import sys,json; print(json.dumps({'version':list(sys.version_info[:2]),'release':sys.version_info.releaselevel,'implementation':sys.implementation.name,'base':getattr(sys,'_base_executable',sys.executable)}))"
+    foreach ($request in @('python','python3','py -3','python3.12','python3.11','py -3.12','py -3.11')) {
+        $name,$selector = $request.Split(' ')
+        $probeArguments = @('-I','-c',$probe)
+        if ($selector) { $probeArguments = @($selector) + $probeArguments }
+        foreach ($candidate in (Get-Command $name -CommandType Application -All -ErrorAction SilentlyContinue)) {
+            try {
+                $found = (Invoke-Checked $candidate.Source $probeArguments) | ConvertFrom-Json
+                $base = $found.base
+                if (!$base) {continue}
+                if ($ForNewEnvironment) {
+                    if ($candidate.Source -ine $base) {
+                        $found = (Invoke-Checked $base @('-I','-c',$probe)) | ConvertFrom-Json
+                    }
+                    if ($found.implementation -cne 'cpython' -or $found.release -cne 'final' -or
+                        ($found.version -join '.') -notin @('3.11','3.12')) {continue}
+                } elseif ([version]($found.version -join '.') -lt [version]'3.11') {continue}
+                return $base
+            } catch {continue}
+        }
+    }
+}
 function Save-VerifiedDownload($Asset, [string]$Archive) {
     $failed = @()
     foreach ($url in @($Asset.url) + @($Asset.mirrors)) {
@@ -129,24 +152,39 @@ try {
     if ($published.TrimEnd("`n") -cne $running) {throw 'Running launcher differs from its clone HEAD Git object'}
     $stage='python'
     $python=$null
-    $probe="import sys,json; print(json.dumps({'version':list(sys.version_info[:2]),'base':getattr(sys,'_base_executable',sys.executable)}))"
-    foreach ($name in @('python','python3','py')) {
-        $candidate=Get-Command $name -ErrorAction SilentlyContinue
-        if (!$candidate) {continue}
+    if (!$ManagedPython) {
+        # The marker is only a hint for selecting the launcher Python; bootstrap.py verifies ownership and lifecycle.
+        $installationRecord=$null
+        $marker=Join-Path $InstallDir 'ioalab-bootstrap.json'
+        if (!$ReuseInstalled -and (Test-Path -LiteralPath $marker -PathType Leaf)) {
+            try { $installationRecord=Get-Content -LiteralPath $marker -Raw | ConvertFrom-Json } catch { }
+        }
+        $newEnvironment=!$ReuseInstalled -and ($installationRecord.phase -cne 'completed' -or
+                                             ($Upgrade -and $installationRecord.commit -cne $resolved))
+        # Python Install Manager and the legacy Windows launcher must only discover installed runtimes.
+        $previousManagerInstall=$env:PYTHON_MANAGER_AUTOMATIC_INSTALL
+        $previousLauncherInstall=$env:PYLAUNCHER_ALLOW_INSTALL
+        $previousLauncherAlwaysInstall=$env:PYLAUNCHER_ALWAYS_INSTALL
         try {
-            $options=if ($name -eq 'py') {@('-3','-I','-c',$probe)} else {@('-I','-c',$probe)}
-            $found=(Invoke-Checked $candidate.Source $options) | ConvertFrom-Json
-            if ($found.version[0] -gt 3 -or ($found.version[0] -eq 3 -and $found.version[1] -ge 11)) {$python=$found.base; break}
-        } catch {continue}
+            $env:PYTHON_MANAGER_AUTOMATIC_INSTALL='false'
+            $env:PYLAUNCHER_ALLOW_INSTALL=$null
+            $env:PYLAUNCHER_ALWAYS_INSTALL=$null
+            $python=Find-SystemPython $newEnvironment
+        } finally {
+            $env:PYTHON_MANAGER_AUTOMATIC_INSTALL=$previousManagerInstall
+            $env:PYLAUNCHER_ALLOW_INSTALL=$previousLauncherInstall
+            $env:PYLAUNCHER_ALWAYS_INSTALL=$previousLauncherAlwaysInstall
+        }
     }
-    if (!$python -or $ManagedPython) {
+    if (!$python) {
         $uvCommand=Get-Command uv -ErrorAction SilentlyContinue
         $uv=if ($uvCommand) {$uvCommand.Source} else {Get-PortableTool $uvAsset}
+        $managedVersion='cpython@3.12'
         # An explicit user mirror is used alone; otherwise official first, then registered mirrors.
         $sources=if ($PythonMirror) {@($PythonMirror)} else {@('') + $pythonMirrors}
         $installed=$false
         foreach ($mirror in $sources) {
-            $options=@('--no-config','python','install','3.12','--install-dir',(Join-Path $tools 'python'),'--no-bin','--no-registry')
+            $options=@('--no-config','python','install',$managedVersion,'--install-dir',(Join-Path $tools 'python'),'--no-bin','--no-registry')
             if ($mirror) {$options+=@('--mirror',$mirror)}
             $previousProxy=$env:HTTPS_PROXY
             try {
@@ -160,7 +198,7 @@ try {
         $previousPythonDirectory=$env:UV_PYTHON_INSTALL_DIR
         try {
             $env:UV_PYTHON_INSTALL_DIR=Join-Path $tools 'python'
-            $python=(Invoke-Checked $uv @('--no-config','python','find','--managed-python','--no-project','--no-python-downloads','3.12')).Trim()
+            $python=(Invoke-Checked $uv @('--no-config','python','find','--managed-python','--no-project','--no-python-downloads',$managedVersion)).Trim()
         } finally { $env:UV_PYTHON_INSTALL_DIR=$previousPythonDirectory }
         if (!$python) {throw 'Managed interpreter location is missing'}
     }

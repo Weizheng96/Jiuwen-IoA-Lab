@@ -2,7 +2,9 @@
 
 本目录由SDK P07附在两角色Skill的native目录中；entry-binding.json仅含SDK导出的非秘密绑定，不要放账号凭据或grant。
 
-通过原版公开extensions.import导入整个目录（目录名须ASCII标识符，保留现有同名目录）；该目录必须包含rail.py、entry.py、worker.py、turn.py及entry-binding.json。再在闲置测试实例通过extensions.toggle启用。Rail支持原生热加载；已开的其他会话是否加载必须分别核，不重启或覆盖用户安装。
+账号和两角色配置准备好后，九问内运行的 `skills-install --host jiuwen` 会尝试通过当前本机 WebChannel 导入并启用一份两角色共用的 Rail。安装回执 `nativeExtension.status=enabled` 时核对当前或新开的九问会话是否出现下述工具，再执行入口绑定。启用状态只证明宿主已登记为启用，已开会话的实际加载单独核对。
+
+九问要求由用户处理权限或当前实例缺公开自动接入时，使用其中一份最新 Skill 包内的整个 `native/` 目录手动导入（目录名须 ASCII 标识符，保留现有同名目录）。目录包含 `rail.py`、`entry.py`、`worker.py`、`turn.py` 及 `entry-binding.json`，通过九问扩展界面或公开 `extensions.import` 导入，再启用。发现已有同名或同类扩展时保留原件并核对归属，避免重复加载两组入口。
 
 个人助手使用ioa_assistant_entry，服务方使用ioa_provider_entry。参数仅operation、原operationId和arguments；宿主会话、目录、profile及grant由本轮原生工具上下文和SDK私有描述取得，不能填写或复制到聊天。controls只走同一caller且contextRef为null，不自动启动客户端或读取grant。
 

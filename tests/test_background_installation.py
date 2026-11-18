@@ -553,7 +553,9 @@ tail=args[2:] if args[:1]==['-C'] else args
 if tail==['rev-parse','--show-toplevel']:print(os.environ['STUB_TOPLEVEL'])
 elif tail==['remote','get-url','origin']:print(os.environ['STUB_ORIGIN'])
 elif tail==['rev-parse','HEAD']:print('a'*40)
-elif tail[:1]==['show']:print('# not the running launcher')
+elif tail[:1]==['show']:
+    launcher=os.environ.get('STUB_LAUNCHER')
+    print(Path(launcher).read_text(encoding='ascii') if launcher else '# not the running launcher')
 else:raise SystemExit(128)
 """
 
@@ -579,6 +581,79 @@ def test_windows_launcher_uses_its_official_clone_without_cloning_again(tmp_path
     calls=[json.loads(line) for line in (stub/'calls.txt').read_text(encoding='utf-8').splitlines()]
     assert not any('clone' in call or 'fetch' in call for call in calls)
     assert not (tmp_path/'client').exists()
+
+
+PYTHON_TOOL_STUB = """import json,os,sys
+from pathlib import Path
+tools=Path(__file__).parent
+tool,*args=sys.argv[1:]
+if tool=='uv':
+    assert 'cpython@3.12' in args
+    if args[1:3]==['python','install']:raise SystemExit(0)
+    if args[1:3]==['python','find']:
+        print(tools/'managed.cmd');raise SystemExit(0)
+    raise SystemExit(1)
+minor=os.environ['STUB_DEFAULT_PYTHON'] if tool=='default' else tool.split('-')[-1]
+if tool=='py':
+    minor=args.pop(0).split('.')[-1]
+    if minor!=os.environ.get('STUB_REGISTERED_PYTHON'):raise SystemExit(1)
+if tool=='managed':minor='12'
+if args[:2]==['-I','-c']:
+    assert os.environ['PYTHON_MANAGER_AUTOMATIC_INSTALL']=='false'
+    assert 'PYLAUNCHER_ALLOW_INSTALL' not in os.environ and 'PYLAUNCHER_ALWAYS_INSTALL' not in os.environ
+    base=tools/(('managed' if tool=='managed' else 'base-'+minor)+'.cmd')
+    release='candidate' if minor.endswith('rc') else 'final'
+    print(json.dumps({'version':[3,int(minor.removesuffix('rc'))],'release':release,'implementation':'cpython','base':str(base)}))
+elif args[0]=='-I' and Path(args[1]).name=='bootstrap.py':
+    assert os.environ['PYTHON_MANAGER_AUTOMATIC_INSTALL']=='true'
+    assert os.environ['PYLAUNCHER_ALLOW_INSTALL']==os.environ['PYLAUNCHER_ALWAYS_INSTALL']=='1'
+    print(json.dumps({'status':'completed','interpreter':tool,'options':args[2:]}))
+else:raise SystemExit(1)
+"""
+
+
+@pytest.mark.skipif(sys.platform!='win32',reason='Windows launcher')
+@pytest.mark.parametrize('default,registered,mode,expected',[
+    pytest.param('13','','fresh','managed',id='high-only'),
+    pytest.param('10','','fresh','managed',id='low-only'),
+    pytest.param('14','12','fresh','base-12',id='high-with-registered-312'),
+    pytest.param('13','11','fresh','base-11',id='high-with-registered-311'),
+    pytest.param('12','','fresh','base-12',id='supported-default'),
+    pytest.param('12rc','','fresh','managed',id='prerelease'),
+    pytest.param('13','','resume','managed',id='interrupted-install'),
+    pytest.param('13','','upgrade','managed',id='upgrade-rebuild'),
+    pytest.param('13','','verify','base-13',id='verify-existing'),
+    pytest.param('13','','reuse','base-13',id='reuse-installed'),
+    pytest.param('12','','force','managed',id='explicit-managed'),
+])
+def test_windows_launcher_selects_python_for_client_environment(tmp_path,default,registered,mode,expected):
+    import os
+    tools=tmp_path/'tools';tools.mkdir()
+    (tools/'git_stub.py').write_text(GIT_STUB,encoding='ascii')
+    (tools/'git.cmd').write_text('@"'+sys.executable+'" -I "%~dp0git_stub.py" %*\r\n',encoding='ascii')
+    (tools/'python_stub.py').write_text(PYTHON_TOOL_STUB,encoding='ascii')
+    for name,tool in [('python','default'),('py','py'),('uv','uv'),('managed','managed'),
+                      *((f'base-{minor}',f'base-{minor}') for minor in {default,registered} if minor)]:
+        (tools/(name+'.cmd')).write_text(f'@"{sys.executable}" -I "%~dp0python_stub.py" {tool} %*\r\n',encoding='ascii')
+    directory=tmp_path/'client'
+    options={'upgrade':['-Upgrade'],'reuse':['-ReuseInstalled'],'force':['-ManagedPython']}.get(mode,[])
+    if mode in ('resume','upgrade','verify','reuse'):
+        directory.mkdir()
+        (directory/'ioalab-bootstrap.json').write_text(json.dumps({
+            'phase':'installing' if mode=='resume' else 'completed',
+            'commit':'b'*40 if mode=='upgrade' else COMMIT,
+        }),encoding='ascii')
+    env={**os.environ,'PATH':str(tools)+os.pathsep+str(Path(os.environ['SystemRoot'])/'System32'),
+         'STUB_ORIGIN':'https://gitcode.com/WeiZheng96/jiuwen-IoA-lab','STUB_TOPLEVEL':ROOT.as_posix(),
+         'STUB_LAUNCHER':str(ROOT/'src/client/bootstrap.ps1'),
+         'PYTHON_MANAGER_AUTOMATIC_INSTALL':'true','PYLAUNCHER_ALLOW_INSTALL':'1','PYLAUNCHER_ALWAYS_INSTALL':'1',
+         'STUB_DEFAULT_PYTHON':default,'STUB_REGISTERED_PYTHON':registered}
+    result=_launcher('-HostType','codex','-InstallDir',str(directory),*options,env=env)
+    assert result.returncode==0,(result.stdout,result.stderr)
+    packet=json.loads(result.stdout)
+    assert packet['interpreter']==expected
+    assert ('--reuse-installed' in packet['options'])==(mode=='reuse')
+    assert ('--upgrade' in packet['options'])==(mode=='upgrade')
 
 
 @pytest.fixture

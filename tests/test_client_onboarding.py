@@ -11,6 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT/'src/client/skills'
 
 
+@pytest.fixture
+def client_runtime_installation(monkeypatch):
+    from ioalab_sdk.runtime import installation
+    version = installation.installed_version
+    # The source test runtime has SDK wheel metadata but no built client wheel.
+    monkeypatch.setattr(installation, 'installed_version',
+                        lambda name: '0.0.186' if name == 'ioalab-client' else version(name))
+    return installation.current('ioalab-client')
+
+
 @pytest.mark.parametrize('existing_default', [False, True])
 def test_skills_install_handoff_separates_actions_and_registration_preserves_default(tmp_path, monkeypatch, capsys, existing_default):
     from functools import partial
@@ -155,13 +165,153 @@ def test_manual_native_extraction_retains_program_binding_and_can_be_verified(tm
     assert not status('codex')[1]['installed']
 
 
-def test_jiuwen_returns_two_native_import_steps(tmp_path, monkeypatch):
+def test_jiuwen_exports_both_skills_before_assigning_import(tmp_path, monkeypatch):
     from ioalab_client.native_skills import install
     monkeypatch.setattr(Path, 'home', lambda: tmp_path)
     result = install('jiuwen', source=SOURCE)
     assert not result['installed']
-    assert all(item['status'] == 'manual_required' and item['instructions'] for item in result['skills'])
+    assert all(item['status'] == 'exported' and '完成原生入口绑定后' in item['instructions'][0]
+               for item in result['skills'])
     assert not (tmp_path/'.jiuwenswarm').exists()
+
+
+def test_jiuwen_account_controls_work_before_role_import_but_bind_requires_native(tmp_path, monkeypatch, capsys):
+    from types import SimpleNamespace
+    from ioalab_client import commands
+
+    config = tmp_path/'client/settings.local.json'
+    invoked = []
+
+    def invoke(python, arguments, **options):
+        assert python == Path(sys.executable) and not options
+        invoked.append(arguments)
+        return SimpleNamespace(returncode=0, stdout='{"status":"waiting","data":{}}', stderr='')
+
+    monkeypatch.setattr(commands, 'installation', lambda: SimpleNamespace(prepare=lambda: {
+        'status': 'completed', 'data': {'python': sys.executable}}))
+    monkeypatch.setattr(commands, 'invoke', invoke)
+    control = ['--role', 'assistant', '--host-type', 'jiuwen', '--host-ref', 'desk', '--config', str(config)]
+    assert commands.main([*control, 'account.setup']) == 0
+    assert commands.main([*control, 'account.setup.status']) == 0
+    assert commands.main([*control, 'runtime.entry.bind']) == 1
+    assert [json.loads(line)['status'] for line in capsys.readouterr().out.splitlines()] == ['waiting', 'waiting', 'rejected']
+    assert invoked == [['-m', 'ioalab_sdk.access', 'account-setup', '--config', str(config), '--role', 'assistant', '--both-roles'],
+                       ['-m', 'ioalab_sdk.access', 'account-setup-status', '--config', str(config)]]
+    assert not config.exists()
+
+
+@pytest.mark.parametrize('lost_import_receipt', [False, True])
+def test_jiuwen_install_uses_one_native_extension_for_both_roles(tmp_path, monkeypatch, lost_import_receipt, client_runtime_installation):
+    from http import HTTPStatus
+    from shutil import copytree
+    from threading import Thread
+    from websockets.sync.server import serve
+    from ioalab_client.native_skills import install
+    from ioalab_sdk.runtime import LocalClient, RuntimeConfig
+
+    config = tmp_path/'client/settings.local.json'
+    workspace = tmp_path/'jiuwen'
+    extensions = workspace/'agent/workspace/extensions'
+    extensions.mkdir(parents=True)
+    requests = []
+    state = {}
+    deny_handshake = False
+    started = False
+    connected = False
+
+    def runtime_status(client, operation):
+        assert operation == 'runtime.status'
+        if not started:
+            return {'status': 'waiting'}
+        configured = RuntimeConfig.load(config)
+        return {'status': 'completed', 'data': {'account': {'username': configured.username, 'platform': configured.platform,
+                                                            'authenticated': connected}, 'platformConnected': connected,
+                'installation': client_runtime_installation, 'configurationDigest': configured.public_summary()['configurationDigest']}}
+
+    monkeypatch.setattr(LocalClient, 'call', runtime_status)
+
+    def authorize(socket, request):
+        if deny_handshake:
+            return socket.respond(HTTPStatus.FORBIDDEN, 'Host permission required')
+
+    def handle(socket):
+        for frame in socket:
+            request = json.loads(frame)
+            method, params = request['method'], request['params']
+            requests.append(method)
+            if method == 'extensions.list':
+                payload = {'extensions': list(state.values())}
+            elif method == 'extensions.import':
+                source = Path(params['folder_path'])
+                binding = json.loads((source/'entry-binding.json').read_bytes())
+                assert set(binding['profiles']) == {'assistant', 'provider'}
+                assert binding['hostRef'] == 'current-jiuwen'
+                assert 'fixture-secret' not in (source/'entry-binding.json').read_text()
+                for role, skill in [('assistant', 'ioalab-delegate'), ('provider', 'ioalab-provider')]:
+                    with zipfile.ZipFile(config.parent/'role-skills/current-jiuwen'/f'ioalab-{role}-skill.zip') as bundle:
+                        assert all(file.read_bytes() == bundle.read(f'{skill}/native/{file.name}') for file in source.iterdir())
+                copytree(source, extensions/source.name)
+                payload = state[source.name] = {'name': source.name, 'class_name': 'IoAEntryRail', 'enabled': False}
+                if lost_import_receipt:
+                    return
+            else:
+                assert method == 'extensions.toggle' and params['enabled'] is True
+                payload = state[params['name']]
+                payload['enabled'] = True
+            socket.send(json.dumps({'type': 'res', 'id': request['id'], 'ok': True, 'payload': payload}))
+
+    with serve(handle, '127.0.0.1', 0, process_request=authorize) as server:
+        thread = Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            monkeypatch.setenv('JIUWENSWARM_START_CMD', '["jiuwenswarm"]')
+            monkeypatch.setenv('JIUWENSWARM_DATA_DIR', str(workspace))
+            monkeypatch.setenv('WEB_HOST', '127.0.0.1')
+            monkeypatch.setenv('WEB_PORT', str(server.socket.getsockname()[1]))
+            monkeypatch.setenv('WEB_PATH', '/ws')
+            options = dict(config=config, source=SOURCE, host_ref='current-jiuwen')
+            install('jiuwen', **options)
+            assert requests == []
+            config.write_text(json.dumps({'username': 'installer', 'password': 'fixture-secret', 'data_dir': 'data',
+                'host': {'default': 'current-jiuwen', 'registrations': {'current-jiuwen': {'type': 'jiuwen'}}},
+                'identities': [{'key': 'personal', 'role': 'assistant', 'name': 'Assistant'},
+                               {'key': 'seller', 'role': 'service', 'name': 'Provider'}]}))
+            assert install('jiuwen', **options)['nativeExtension']['reason'] == 'runtime_pending'
+            assert requests == []
+            started = True
+            assert install('jiuwen', **options)['nativeExtension']['reason'] == 'runtime_pending'
+            assert requests == []
+            connected = True
+            first = install('jiuwen', **options)['nativeExtension']
+            if lost_import_receipt:
+                assert first['status'] == 'waiting' and first['reason'] == 'import_unconfirmed'
+                assert requests == ['extensions.list', 'extensions.import']
+                assert all(not item['enabled'] for item in state.values())
+                first = install('jiuwen', **options)['nativeExtension']
+                assert requests == ['extensions.list', 'extensions.import', 'extensions.list', 'extensions.toggle']
+            else:
+                assert requests == ['extensions.list', 'extensions.import', 'extensions.toggle'], first
+            assert first['status'] == 'enabled' and first['nativeLoadedVerified'] is False, first
+            completed = list(requests)
+            assert install('jiuwen', **options)['nativeExtension']['status'] == 'enabled'
+            assert requests == completed+['extensions.list']
+            # A prior manually named import can be reused when its actual files match.
+            (extensions/first['name']).rename(extensions/'manual_ioa')
+            state['manual_ioa'] = state.pop(first['name'])
+            state['manual_ioa']['name'] = 'manual_ioa'
+            (extensions/'manual_ioa'/'README.md').write_bytes(b'old documentation')
+            assert install('jiuwen', **options)['nativeExtension']['name'] == 'manual_ioa'
+            assert requests == completed+['extensions.list']*2
+            (extensions/'manual_ioa'/'worker.py').write_bytes(b'user edit')
+            assert install('jiuwen', **options)['nativeExtension']['status'] == 'conflict'
+            assert requests == completed+['extensions.list']*3
+            assert (extensions/'manual_ioa'/'worker.py').read_bytes() == b'user edit'
+            deny_handshake = True
+            assert install('jiuwen', **options)['nativeExtension']['reason'] == 'permission_required'
+            assert requests == completed+['extensions.list']*3
+        finally:
+            server.shutdown()
+            thread.join()
 
 
 def test_exported_launcher_refuses_account_rebinding_in_fresh_process(tmp_path):
@@ -461,9 +611,10 @@ def test_failed_swap_restores_or_preserves_original_skill_directory(tmp_path,mon
     assert all(item['installed'] for item in status('codex',config=config))
 
 
-def test_pending_steps_are_structured_and_verified_read_only(tmp_path,monkeypatch,capsys):
+def test_pending_steps_are_structured_and_verified_read_only(tmp_path,monkeypatch,capsys,client_runtime_installation):
     from ioalab_client.cli import main
     from ioalab_client import installation
+    from ioalab_sdk.runtime import LocalClient, RuntimeConfig, private_json, read_configuration
     monkeypatch.setattr(installation,'prepare',lambda:{'status':'completed','data':{'python':sys.executable}})
     monkeypatch.setattr(Path,'home',lambda:tmp_path)
     config=tmp_path/'client/settings.local.json'
@@ -474,18 +625,55 @@ def test_pending_steps_are_structured_and_verified_read_only(tmp_path,monkeypatc
     account=next(item for item in steps if item['id']=='account')
     assert account['actor']=='user' and 'account.setup' in account['instruction']
     assert account['verify'][-2:]==['--verify','account'] and account['verify'][account['verify'].index('--config')+1]==str(config.resolve())
-    # Jiuwen has no native directory: its manual import is a user step naming the real package path.
-    skill=next(item for item in steps if item['id']=='skill:ioalab-delegate')
-    assert skill['actor']=='user' and str(config.resolve().parent/'role-skills/desk/ioalab-assistant-skill.zip') in skill['instruction']
+    assert all(item['id'] not in ('new_session', 'skill:ioalab-delegate', 'skill:ioalab-provider', 'execution_host') for item in steps)
     assert not any('在线试用' in item['instruction'] or '管理员助手' in item['instruction'] for item in steps)
     assert main([*base,'--verify','account'])==1
     assert json.loads(capsys.readouterr().out)['error']['code']=='step_pending'
     _account(config,tmp_path/'client/data')
     assert main([*base,'--verify','account'])==0
     assert json.loads(capsys.readouterr().out)['data']['verified'] is True
-    # New-session discovery is never self-certified by the program.
+    assert main([*base,'--verify','skill:ioalab-delegate'])==1
+    assert json.loads(capsys.readouterr().out)['data']['verified'] is False
     assert main([*base,'--verify','new_session'])==1
     assert 'password' not in capsys.readouterr().out.lower()
+
+    # Only the registered current host's bound projection releases the user handoff.
+    document = read_configuration(config)
+    document['host'] = {'default': 'desk', 'registrations': {'desk': {'type': 'jiuwen'}}}
+    private_json(config, document)
+    configured = RuntimeConfig.load(config)
+    binding = {'hostRef': 'desk', 'state': 'waiting', 'phase': 'reserved', 'operationId': 'original-setup'}
+    runtime = {'status': 'completed', 'data': {'account': {'username': configured.username, 'platform': configured.platform},
+        'installation': client_runtime_installation, 'configurationDigest': configured.public_summary()['configurationDigest'],
+        'nativeEntryBindings': {'desk': binding, 'different': {'hostRef': 'different', 'state': 'completed', 'phase': 'bound'}}}}
+    monkeypatch.setattr(LocalClient, 'call', lambda self, operation: runtime)
+    assert main(base)==0
+    steps=json.loads(capsys.readouterr().out)['data']['pending']
+    setup=next(item for item in steps if item['id']=='native_setup')
+    assert setup['actor']=='agent' and 'original-setup' in setup['instruction']
+    assert all(item['actor']=='agent' and item['id'] != 'execution_host' for item in steps)
+
+    binding.update(state='rejected', phase='migration_required')
+    assert main(base)==0
+    steps=json.loads(capsys.readouterr().out)['data']['pending']
+    setup=next(item for item in steps if item['id']=='native_setup')
+    assert '迁移原安装' in setup['instruction'] and 'original-setup' in setup['instruction']
+    assert all(item['actor']=='agent' for item in steps)
+
+    binding.update(state='completed', phase='bound', bindingRef='private-binding-reference')
+    assert main(base)==0
+    payload=json.loads(capsys.readouterr().out)['data']
+    steps=payload['pending']
+    user_steps=[item for item in steps if item['actor']=='user']
+    assert [item['id'] for item in user_steps]==['skill:ioalab-delegate','skill:ioalab-provider','new_session']
+    assert str(config.parent/'role-skills/desk/ioalab-assistant-skill.zip') in user_steps[0]['instruction']
+    assert 'native_setup' not in [item['id'] for item in steps]
+    assert 'execution_host' in [item['id'] for item in steps]
+    assert 'private-binding-reference' not in json.dumps(payload)
+    assert main([*base,'--verify','native_setup'])==0
+    assert json.loads(capsys.readouterr().out)['data']['verified'] is True
+    assert main([*base,'--verify','new_session'])==1
+    assert json.loads(capsys.readouterr().out)['data']['verified'] is False
     assert main([*base,'--format','markdown'])==0
     text=capsys.readouterr().out
     assert '[由你完成]' in text and 'private-reinstall-secret' not in text

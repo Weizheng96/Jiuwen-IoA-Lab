@@ -25,12 +25,30 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned -File "<clone>/src/client/bo
 ~~~
 
 - `-Channel` 默认 main，对应 GitCode 官方仓库；仅开发测试时在 GitHub develop 的下载中加 `-Channel develop`，结果不能称正式发行通过。
-- 首次可能下载私有 Git、uv、Python 3.12 与依赖并现场构建，耗时数分钟：用宿主的后台运行或最长超时执行，等待同一进程结束，不要重复启动。联网或写 `~/.ioalab`、宿主 Skill 目录需要审批时按宿主方式申请。
+- 首装或重建时，安装器先查找本机正式版 CPython 3.11 或 3.12。如果默认 Python 版本过低或过高，也会检查并存版本，缺少合适版本时自动用 uv 准备私有 3.12。工具、依赖下载及构建可能耗时数分钟，用宿主的后台运行或最长超时等待同一进程结束。联网或写 `~/.ioalab`、宿主 Skill 目录需要审批时按宿主方式申请。
 - 下载先走官方源，失败再试随源码登记的国内镜像，两者都核同一固定 SHA256；仍失败时问用户要代理并以 `-Proxy <url>` 重试，不关闭 TLS、不换非官方包。
 - 失败回执为 `status=rejected`，`data.handoff` 是固定六项摘要，`data.stage` 是失败阶段：原样报告，保留现场。`unsupported_python` 按回执的 `recoveryCommand` 执行；网络错误不当作 Python 版本问题。
 - 成功回执给出 `configurationFile`、`programDirectory`、两份 Skill 的安装结果 `nativeSkills`（`manual_required` 时含当前宿主的手动步骤，`reloadRequired` 表示需重载或新开会话）以及 `sourceClone`。
 
 ## 3. 账号、登记与启动
+
+### 在九问中接入
+
+第 2 步返回两份角色包时先保留实际路径。现阶段由智能体完成账号和原生入口准备，角色包留到绑定确认后处理。
+
+1. 使用同一已安装客户端的控制入口，`<客户端Python>` 为 `<programDirectory>/Scripts/python.exe`，配置与登记引用来自本轮实际安装回执。
+
+   ~~~text
+   <客户端Python> -I -m ioalab_client --role assistant --host-type jiuwen --host-ref <登记引用> --config <configurationFile> account.setup
+   <客户端Python> -I -m ioalab_client --role assistant --host-type jiuwen --host-ref <登记引用> --config <configurationFile> account.setup.status
+   ~~~
+
+   由智能体打开本机账号页。用户在该页登录原账号或生成新账号。账号动作待确认时查询原状态，已有账号只复用。
+2. 账号完成后，沿同一控制入口调用 `runtime.configuration`。需要登记时，将实际回执的摘要和 `{"expectedDigest":"<实际摘要>","changes":{"host":{"registrations":{"<登记引用>":{"type":"jiuwen"}}}}}` 写入独立 UTF-8 参数文件，调用 `runtime.configure --args-file <参数文件>`，保留其他宿主和现有默认。调用 `runtime.start` 启动或复用原实例，`waiting` 时沿原实例查 `runtime.status`。
+3. 客户端已启动、双角色配置已准备、原账号认证和平台连接已确认后，从本次九问运行 `<客户端Python> -I -m ioalab_client skills-install --host jiuwen --host-ref <登记引用> --config <configurationFile>`。后台宿主的可用性在绑定后核对。查看 `nativeExtension` 实际回执。扩展启用后，由智能体在**当前真实九问对话**调用 `ioa_assistant_entry`，传入 `operation=runtime.entry.bind`、本轮稳定的 `operationId` 和空 `arguments={}`。工具当轮尚未加载或绑定无终态时，保留待完成状态与已有原接入引用，按 `runtime.status` 查询同一登记。终端控制入口仅用于账号、配置、启停和只读查询。
+4. 取得 `runtime.status` 中当前 `hostRef` 的 `nativeEntryBindings` 为 `state=completed`、`phase=bound` 后，按接入摘要提示用户导入确需补装的角色 Skill，再做新会话验收。已核实导入本轮最新包的角色直接验收。
+
+### 在 Codex 或 Claude Code 中接入
 
 1. 用任一已安装 Skill 的 `scripts/ioalab.py` 按其 `references/account-setup.md` 调用 `account.setup` 打开本机账号页，再轮询 `account.setup.status`。账号密码只在本机页面录入或生成，不经模型或聊天；已有账号不重复注册。
 2. 账号完成后重装两份 Skill，取得带角色身份的入口绑定（只替换本客户端自己且未被修改的副本）：
