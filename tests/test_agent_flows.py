@@ -1,6 +1,7 @@
 """Public flow IPC with real platform/protocol; only host, browser and notification edges are doubles."""
 import copy
 import json
+import threading
 import uuid
 import pytest
 
@@ -135,6 +136,83 @@ def test_delegation_flow_push_fetch_preview_and_notification_without_acceptance(
             assistant.modules[0].flows.scan()
         assert len(effects)==1
         assert rpc.call('assistant.delegation.status',{'contractRef':contract})['data']['card']['signatures']==before
+
+
+@pytest.mark.parametrize('stale_phase',['calling','prepared'])
+def test_candidate_observe_cannot_replace_concurrently_completed_quote(platform,tmp_path,monkeypatch,stale_phase):
+    from a2c.client import Client
+
+    with participants(platform,tmp_path) as (provider,assistant,host,_,_):
+        rpc=LocalClient(assistant.config.home)
+        begun=rpc.call('assistant.delegation.flow',{'action':'begin','input':{
+            'purpose':'候选回执并发测试','budget':30,'proposalFeeLimit':2}})
+        ref=begun['data']['flowRef']
+        user_decision(assistant,begun['data']['evidence']['confirmationRef'])
+        wait_for(lambda:settled(rpc,'assistant.delegation.flow',ref))
+        service=provider.identities[0].agent_id
+        assert rpc.call('assistant.delegation.flow',{'action':'inspect','flowRef':ref,'input':{'service':service}})['status']=='completed'
+
+        trading=assistant.modules[0].trading
+        checkpoint=assistant.store.checkpoint
+        submit_request=Client.submit_request
+        release=threading.Event()
+        captured=threading.Event()
+        submissions=[]
+
+        def held_submit(client,request):
+            assert release.wait(12), 'The original quote request never met the concurrent observer'
+            submissions.append(request['requestId'])
+            return submit_request(client,request)
+
+        def observe_snapshot(namespace,key):
+            snapshot=checkpoint(namespace,key)
+            if namespace==trading.namespace and snapshot and snapshot.get('phase')=='calling' and not captured.is_set():
+                captured.set()
+                job=assistant.scheduler.reference(trading.identity.agent_id,'assistant.quote',snapshot['quoteRef'])
+                release.set()
+                wait_for(lambda:assistant.scheduler.get(job)['status']=='completed')
+            return snapshot
+
+        monkeypatch.setattr(Client,'submit_request',held_submit)
+        monkeypatch.setattr(assistant.store,'checkpoint',observe_snapshot)
+        try:
+            request=rpc.call('assistant.delegation.flow',{'action':'request','flowRef':ref,
+                'input':{'service':service,'spec':{'result':{}}}})
+            assert request['status']=='waiting',request
+            wait_for(lambda:settled(rpc,'assistant.delegation.flow',ref))
+            compared=observe(rpc,'assistant.delegation.flow',ref)
+            assert captured.is_set()
+            offered=compared['data']['result']['candidates'][0]
+            assert offered['state']=='offered'
+            quote=offered['quoteRef']
+
+            # Load the shape left by the prior observer's stale write after the
+            # genuine quote and signed request are durably available.
+            key='quote:'+quote
+            original=checkpoint(trading.namespace,key)
+            dropped={'status','result'}
+            if stale_phase=='prepared':dropped.update(('interactionId','admissionId'))
+            stale={k:v for k,v in original.items() if k not in dropped}
+            stale['phase']=stale_phase
+            transfers=len(platform.db.rows('SELECT * FROM transfers'))
+            assistant.store.checkpoint_set(trading.namespace,key,stale)
+
+            def restored_card():
+                stored=rpc.call('assistant.delegation.status',{'quoteRef':quote})['data']
+                return stored and stored.get('card')
+            wait_for(restored_card)
+            assert restored_card()==original['result']['card']
+            assert observe(rpc,'assistant.delegation.flow',ref)['data']['result']==compared['data']['result']
+            rpc.call('assistant.delegation.flow',{'action':'compare','flowRef':ref})
+            wait_for(lambda:settled(rpc,'assistant.delegation.flow',ref))
+            checked=observe(rpc,'assistant.delegation.flow',ref)['data']['result']['candidates'][0]
+            assert (checked['quoteRef'],checked['state'],checked['cardDigest'],checked['validUntil'])==(
+                quote,'offered',offered['cardDigest'],offered['validUntil'])
+            selected=rpc.call('assistant.delegation.flow',{'action':'select','flowRef':ref,'input':{'quoteRef':quote}})
+            assert selected['data']['reason']=='confirmation',selected
+            assert len(submissions)==len(host.turns)==1
+            assert len(platform.db.rows('SELECT * FROM transfers'))==transfers
+        finally:release.set()
 
 
 def test_messaging_flow_inbox_publication_and_two_rounds(platform,tmp_path,monkeypatch):
