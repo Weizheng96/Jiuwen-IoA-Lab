@@ -75,6 +75,8 @@ def export_skills(output, *, source=None, python=None, config=None, host=None, h
         files = {'native/'+key:value for key,value in native_files.items()}
         for path in sorted((source/folder).rglob('*.md')):
             files[path.relative_to(source/folder).as_posix()] = path.read_bytes()
+        if folder == 'assistant':
+            files['scripts/uninstall.ps1'] = (source/'assistant/scripts/uninstall.ps1').read_bytes()
         for path in sorted((source/'_shared/references').glob('*.md')):
             key = 'references/'+path.name
             if key in files: raise ValueError('Duplicate shared skill page: '+key)

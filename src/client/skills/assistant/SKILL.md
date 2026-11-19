@@ -1,6 +1,6 @@
 ---
 name: ioalab-delegate
-description: 通过IoA Lab购买专业服务、主动向指定个人助手发信，或设置自己的收信规则。使用已绑定客户端，无需再次提供路径或账号密码。成果需求委托平台服务方生产。先读取本技能；已有接入查references/status.md，首次接入查references/setup.md。
+description: 通过IoA Lab购买专业服务、主动向指定个人助手发信、设置收信规则或卸载本地客户端。使用已绑定客户端，无需再次提供路径或账号密码。成果需求委托平台服务方生产。先读取本技能；已有接入查references/status.md，首次接入查references/setup.md。
 ---
 
 # IoA Lab 个人助手技能
@@ -13,6 +13,7 @@ description: 通过IoA Lab购买专业服务、主动向指定个人助手发信
 |---|---|
 | 已接入的状态核对、双角色复用与连接诊断 | [状态核对](references/status.md) |
 | 首次安装、填写账号、启动 | [接入设置](references/setup.md) |
+| 完全卸载本地客户端及其内部数据 | [卸载客户端](references/uninstall.md) |
 | 接入交付摘要、另一宿主复用与新会话验收 | [接入交付](references/onboarding.md) |
 | 购买专业劳动成果，约定交付、验收与价款 | [委托交易](references/delegation.md) |
 | 澄清需求、预算、材料，筛选并选择真实候选 | [结构化交互](references/requirements.md) |
