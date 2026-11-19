@@ -15,7 +15,8 @@ from test_resident_fulfillment import invoke,operation
 ORIGINAL={'result.txt':{'text':'actual delivery bytes','mediaType':'text/plain'}}
 CHANGED={'result.txt':{'text':'different delivery bytes','mediaType':'text/plain'}}
 SCHEMA={'type':'object','properties':{'files':{'type':'object','minProperties':1,'additionalProperties':{
-    'type':'object','properties':{'mediaType':{'type':'string'},'text':{'type':'string'},'bytesBase64':{'type':'string'},'artifactPath':{'type':'string'}},
+    'type':'object','properties':{'mediaType':{'type':'string'},'text':{'type':'string'},'bytesBase64':{'type':'string'},
+        'artifactPath':{'type':'string','description':'本单 artifactDirectory 内的相对路径，如 sql.json。先将文件写入该目录。'}},
     'required':['mediaType'],'oneOf':[{'required':['text']},{'required':['bytesBase64']},{'required':['artifactPath']}],'additionalProperties':False}}},
     'required':['files'],'additionalProperties':False}
 
