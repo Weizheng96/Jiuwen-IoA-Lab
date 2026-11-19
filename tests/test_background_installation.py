@@ -519,6 +519,36 @@ def test_upgrade_without_proven_stop_or_with_failed_install_keeps_original(boots
     if rejection!='install-fails':assert not any('venv' in c or 'install' in c for c in boundary)
 
 
+@pytest.mark.skipif(sys.platform!='win32',reason='Windows uninstall script')
+def test_windows_uninstall_previews_and_removes_only_the_marked_installation(tmp_path):
+    import subprocess
+    script=ROOT/'src/client/skills/assistant/scripts/uninstall.ps1'
+    client=tmp_path/'client'
+    client.mkdir()
+    other=tmp_path/'unrelated.txt'
+    other.write_text('keep',encoding='ascii')
+    marker=client/'ioalab-bootstrap.json'
+    marker.write_text(json.dumps({'format':2,'phase':'completed','commit':COMMIT,
+        'repository':'https://gitcode.com/WeiZheng96/jiuwen-IoA-lab.git','configurationFile':str(other)}),encoding='ascii')
+    command=['powershell','-NoProfile','-ExecutionPolicy','RemoteSigned','-File',str(script),'-InstallDir',str(client)]
+    def run(*flags):
+        process=subprocess.run([*command,*flags],capture_output=True,text=True,timeout=60)
+        return process.returncode,json.loads(process.stdout)
+
+    code,rejected=run('-ConfirmRemoval')
+    assert code==1 and 'external configuration' in rejected['error'] and marker.is_file()
+    record=json.loads(marker.read_text(encoding='ascii'))
+    record.pop('configurationFile')
+    marker.write_text(json.dumps(record),encoding='ascii')
+    (client/'local-data').mkdir()
+    (client/'local-data'/'private').write_text('delete',encoding='ascii')
+    assert run()==(0,{'status':'planned','paths':[str(client)],'codexHook':False}) and marker.is_file()
+    code,result=run('-ConfirmRemoval')
+    assert code==0 and result['status']=='completed'
+    assert not client.exists() and other.read_text(encoding='ascii')=='keep'
+    assert run('-ConfirmRemoval')==(0,{'status':'completed','paths':[],'codexHook':False})
+
+
 def _launcher(*options,env=None):
     import subprocess
     return subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','RemoteSigned','-File',str(ROOT/'src/client/bootstrap.ps1'),*options],

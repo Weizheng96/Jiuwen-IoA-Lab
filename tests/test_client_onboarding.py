@@ -424,6 +424,7 @@ def test_same_role_markdown_and_references_are_identical_across_three_host_expor
                 names=archive.namelist()
                 # native/ is the selected adapter's entry, binding and enablement text; host adapter tests own its content.
                 assert any(n.endswith('/native/entry-binding.json') for n in names)
+                assert any(n.endswith('/scripts/uninstall.ps1') for n in names)==(path.name=='ioalab-assistant-skill.zip')
                 public={n:archive.read(n) for n in names if n.endswith('.md') and not n.split('/',1)[1].startswith('native/')}
                 assert any(n.endswith('/SKILL.md') for n in public) and any('/references/' in n for n in public)
                 roles.append(public)
