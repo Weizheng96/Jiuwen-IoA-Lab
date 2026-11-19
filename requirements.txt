@@ -8,6 +8,8 @@
 -e ./src/platform
 -e ./src/client/sdk
 -e ./src/client/hosts/jiuwen
+-e ./src/client/hosts/codex
+-e ./src/client/hosts/claude_code
 -e ./src/official
 
 # 仓库检查与构建工具。

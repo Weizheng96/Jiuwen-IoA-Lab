@@ -14,6 +14,10 @@
 
 **定向测试：** mcp_access、interaction_forms、interaction_forms_browser、operation_catalog、resident_runtime、trusted_user_port、user_confirmations、user_browser、jiuwen_host、access_products、package_installation。
 
+## PR1 CI依赖修复（2026-11-19）
+
+开发聚合清单漏装Claude宿主包，导致CI收集测试时缺少claude_agent_sdk；补齐Codex及Claude适配包，依赖版本仍由所属包维护。三份宿主测试134项通过、四轻量通过，全新环境与远端CI待核。整票及原生验收范围不变，配置、数据和运行实例未动；证据见[实施记录](../../../工程/实施资料/客户端同步整合.md#2026-11-19-pr1-ci宿主依赖修复)。
+
 ## 实施方案
 
 初始开发要求先不提交；后续已获用户授权并提交发布。实施时先明确新适配模块的代码/设计目录、接口、依赖和测试，更新架构模块表与相关流程并按 design 升版，再实现；实际进度和验证记录随本票及模块实现页维护。
