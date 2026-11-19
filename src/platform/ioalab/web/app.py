@@ -353,6 +353,8 @@ def create_app(platform: Platform) -> FastAPI:
     # ── 页面 ──────────────────────────────────────────────────────────
     from .frontend import build_router as frontend_router
     app.include_router(frontend_router(platform,subject,current_user))
+    from .agent_setup import router as agent_setup_router
+    app.include_router(agent_setup_router(platform))
 
     @app.get("/")
     async def index():

@@ -18,7 +18,7 @@ from ioalab_sdk.runtime import AgentConnection, RuntimeStore, RuntimeFault
 
 
 @pytest.fixture
-def https_platform(tmp_path):
+def https_platform(tmp_path,request):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, 'SDK TLS test')])
     now = datetime.now(timezone.utc)
@@ -26,7 +26,7 @@ def https_platform(tmp_path):
             .serial_number(x509.random_serial_number()).not_valid_before(now-timedelta(minutes=1))
             .not_valid_after(now+timedelta(days=1))
             .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
-            .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address('127.0.0.1'))]), critical=False)
+            .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address('127.0.0.2' if (getattr(request.node,'callspec',None) and request.node.callspec.params.get('trust')=='wrong_ip') or request.node.name=='test_bundled_ca_does_not_disable_server_hostname_verification' else '127.0.0.1'))]), critical=False)
             .sign(key, hashes.SHA256()))
     ca = tmp_path/'ca.pem'; ca.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
     private = tmp_path/'key.pem'
@@ -56,7 +56,7 @@ def test_sdk_uses_os_trust_and_still_rejects_unknown_ca_and_wrong_ip(tmp_path, m
     ca, port = https_platform
     if trust != 'unknown': monkeypatch.setenv('SSL_CERT_FILE', str(ca))
     else: monkeypatch.delenv('SSL_CERT_FILE', raising=False)
-    host = '127.0.0.2' if trust == 'wrong_ip' else '127.0.0.1'
+    host = '127.0.0.1'  # The mismatching certificate exercises IP validation on every OS.
     base = f'https://{host}:{port}'
     if transport == 'account':
         if trust == 'trusted':
@@ -114,7 +114,7 @@ def test_resident_wss_uses_the_same_system_ca_and_hostname_checks(tmp_path,monke
         ws.send(json.dumps({'type':'connection.error','error':{'code':'not_ready','message':'TLS authentication frame received','recovery':'retry'}}))
     server=serve(handler,'0.0.0.0',0,ssl=context)
     worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
-    host='127.0.0.2' if trust=='wrong_ip' else '127.0.0.1'
+    host='127.0.0.1'
     base=f'https://{host}:{server.socket.getsockname()[1]}'
     store=RuntimeStore(tmp_path/'wss.sqlite',base,['actor'],owner_id='test')
     connection=AgentConnection(base,'test',['actor'],store)
@@ -163,11 +163,11 @@ def test_packaged_ca_authenticates_only_its_exact_platform_origin(tmp_path, monk
         assert network.http.get(base+'/api/config').status_code == 200
         assert network.trust['source'] == 'bundled'
         with pytest.raises(RuntimeFault):
-            network.http.get(f'https://127.0.0.2:{port}/api/config')
-    with Network(f'https://127.0.0.2:{port}') as network:
+            network.http.get(f'https://localhost:{port}/api/config')
+    with Network(f'https://localhost:{port}') as network:
         assert network.trust['source'] == 'system'
         with pytest.raises(httpx.ConnectError):
-            network.http.get(f'https://127.0.0.2:{port}/api/config')
+            network.http.get(f'https://localhost:{port}/api/config')
 
 
 @pytest.mark.parametrize('damage', ['missing_policy', 'bad_digest', 'missing_ca', 'private_key', 'traversal'])
@@ -214,7 +214,7 @@ def test_public_chain_still_works_when_bundled_ca_is_inactive(tmp_path, monkeypa
 
 def test_bundled_ca_does_not_disable_server_hostname_verification(tmp_path, monkeypatch, https_platform):
     from ioalab_sdk.runtime.network import Network
-    ca, port = https_platform; base = f'https://127.0.0.2:{port}'
+    ca, port = https_platform; base = f'https://127.0.0.1:{port}'
     monkeypatch.delenv('SSL_CERT_FILE', raising=False)
     bundled_policy(tmp_path, monkeypatch, ca, [base])
     with Network(base) as network:

@@ -48,7 +48,7 @@ class QuoteHost(ScriptedSubmission):
 
 
 @contextmanager
-def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None,preload_verifier=True,template_terms=None,verifier_reads=None,quote_amount=9,provider_factory=None):
+def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,models=2,agent_host=None,verifier_source=None,business=None,verifier_kind='script',assistant_host=None,provider_tools=None,preload_verifier=True,template_terms=None,verifier_reads=None,quote_amount=9,provider_factory=None,service_name=None):
     pconfig,_=configuration(platform,tmp_path/'provider')
     value=read_json(pconfig);value['identities']=[value['identities'][1]];value['max_model_runs']=models
     value['provider']={'services':{'service':{'instructions':'按照请求提供可执行验收器与确定报价。','skills':[],'max_active_delegations':capacity,'accepting':True}}}
@@ -85,7 +85,7 @@ def participants(platform,tmp_path,*,formation='proposal',fee=1,capacity=2,model
             drafted=LocalClient(provider.config.home).call('provider.template.draft',{'profile':'service','terms':template_terms(host.verifier)})
             assert drafted['status']=='completed',drafted
             template=drafted['data']['template']
-        service={'profile':'service','name':'用户配置的专业服务','description':'业务决定来自本机原版宿主的已配置技能','tags':['开发'],
+        service={'profile':'service','name':service_name or '用户配置的专业服务','description':'业务决定来自本机原版宿主的已配置技能','tags':['开发'],
                  'categoryId':platform.discovery.categories()[0]['id'],'templates':[template]}
         prpc=LocalClient(provider.config.home);checked=prpc.call('provider.preview',{'service':service})
         assert checked['status']=='completed',checked

@@ -37,7 +37,7 @@ def test_regular_provider_rounds_submit_without_a_resource_scope(tmp_path,monkey
         async def run(self,request,**callbacks):
             requests.append(request)
             phase=phases[len(requests)-1]
-            assert request['input']==phase
+            assert request['input'].split('\n',1)[0]==phase
             if phase=='quote':
                 assert 'session_id' not in request
             else:
@@ -192,3 +192,45 @@ def test_callback_resource_failure_preserves_actual_effect_receipt_and_machine_t
     assert (result.error.code,result.error.phase,result.error.dispatch)==(
         'forbidden' if failure=='reader' else 'not_ready','callback_resources','accepted')
     assert effects==['actual-call']
+
+
+def test_text_only_submission_does_not_require_resource_scope(tmp_path,monkeypatch):
+    requests=[]
+    def factory(*_):raise RuntimeFault('not_ready','No resource authorization for this text-only round')
+    class Process:
+        async def run(self,request,**callbacks):
+            requests.append(request)
+            return {'type':'result','request_id':request['request_id'],'session_id':'sid','status':'completed','exit_code':0}
+    host=ProcessHost(['process'],tmp_path,resource_factory=factory)
+    monkeypatch.setattr(host,'_client',lambda **_:Process())
+    result=host.submit('op',HostInput('quote data',attempt=SubmissionAttempt('nonce','scope-digest','actor','profile')),
+        execution=execution(tmp_path/'work'),on_event=lambda event:BindingAck(event.result.session_id,event.result.request_id))
+    assert result.state=='completed' and result.terminal and len(requests)==1
+
+
+@pytest.mark.parametrize('restart',[False,True])
+def test_proven_unsubmitted_resource_failure_can_retry_original_operation(tmp_path,monkeypatch,restart):
+    from dataclasses import replace
+    data=b'authorized';ref=HostResource('r','material','text/plain',digest_bytes(data),'scope','sdk-material:r')
+    available=[False];requests=[]
+    def factory(*_):
+        if not available[0]:raise RuntimeFault('not_ready','Original resource not ready')
+        return lambda _:data,lambda *_:None
+    class Process:
+        async def run(self,request,**callbacks):
+            requests.append(request)
+            return {'type':'result','request_id':request['request_id'],'session_id':'sid','status':'completed','exit_code':0}
+    def host():
+        value=ProcessHost(['process'],tmp_path,resource_factory=factory)
+        monkeypatch.setattr(value,'_client',lambda **_:Process())
+        return value
+    current=host();original=HostInput('data',(ref,),SubmissionAttempt('first','scope-digest','actor','profile'))
+    args={'execution':execution(tmp_path/'work'),'on_event':lambda event:BindingAck(event.result.session_id,event.result.request_id)}
+    rejected=current.submit('op',original,**args)
+    assert rejected.error.dispatch=='not_submitted' and not requests
+    available[0]=True
+    if restart:current=host()
+    retry=replace(original,attempt=replace(original.attempt,nonce='retry'))
+    result=current.submit('op',retry,**args)
+    assert result.state=='completed' and result.attempt_id=='retry' and len(requests)==1
+    assert current.submit('op',retry,**args)==result and len(requests)==1

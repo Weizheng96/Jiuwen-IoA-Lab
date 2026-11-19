@@ -1,5 +1,6 @@
 """Public/authenticated query ownership and response privacy after query extraction."""
-from _support import new_user, username
+from _support import new_user, username, PASSWORD
+import uuid
 
 
 def test_account_queries_keep_own_scope_and_do_not_mutate_business_facts(platform, client):
@@ -57,7 +58,7 @@ def test_v1_owner_queries_preserve_shape_scope_and_search_actor(platform, client
     try:
         assert client.get('/api/v1/me').status_code == 401
         assert client.post('/api/v1/search', json={'query': 'test'}).status_code == 401
-        client.headers['authorization'] = 'Bearer ' + platform.auth.token('assistant:' + owner['id'])
+        client.headers['authorization'] = 'Bearer ' + platform.accounts.login(owner['username'],PASSWORD,audience='sdk',operation_id=str(uuid.uuid4()))['token']
         changes = platform.db.conn.total_changes
         response = client.get('/api/v1/me')
         assert response.status_code == 200
@@ -72,7 +73,7 @@ def test_v1_owner_queries_preserve_shape_scope_and_search_actor(platform, client
             'hits': [], 'mode': platform.discovery.last_mode}
         assert calls == [('test', 20, assistant)]
         assert platform.db.conn.total_changes == changes
-        client.headers['authorization'] = 'Bearer ' + platform.auth.token('assistant:' + other['id'])
+        client.headers['authorization'] = 'Bearer ' + platform.accounts.login(other['username'],PASSWORD,audience='sdk',operation_id=str(uuid.uuid4()))['token']
         assert client.get('/api/v1/me').json()['identities'] == [
             {'id': foreign, 'role': 'service', 'name': '他人服务', 'status': 'online', 'protocolId': foreign}]
         assert client.get('/api/v1/provider/mine').status_code == 404

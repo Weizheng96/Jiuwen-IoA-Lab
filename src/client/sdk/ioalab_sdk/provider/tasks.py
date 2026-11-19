@@ -21,10 +21,10 @@ class ProviderTasks:
     @staticmethod
     def namespace(identity):return 'provider-recovery:'+identity.agent_id
 
-    def wait(self,identity,job,session,definition,host_status,*,native_operation):
+    def wait(self,identity,job,session,definition,host_status,*,native_operation,reason='verifier_upload_round_finished'):
         if host_status not in ('completed','failed','cancelled'):raise ValueError('A known terminal host result is required')
         proof={'roundId':str(uuid.uuid4()),'messageId':job['payload']['messageId'],
-               'sessionId':session,'definitionDigest':definition,'hostStatus':host_status,'nativeOperation':native_operation}
+               'sessionId':session,'definitionDigest':definition,'hostStatus':host_status,'nativeOperation':native_operation,'reason':reason}
         self.runtime.store.checkpoint_set(self.namespace(identity),job['id'],proof)
 
     def clear(self,identity,job):self.runtime.store.checkpoint_delete(self.namespace(identity),job)
@@ -84,7 +84,7 @@ class ProviderTasks:
         endpoint=self.execution.context(identity,relation,job)
         try:endpoint.provider.resume_request(stable('task',message['messageId']))
         except A2CError as exc:return False,exc.code,None
-        return True,'verifier_upload_round_finished',proof
+        return True,proof.get('reason','verifier_upload_round_finished'),proof
 
     def snapshot(self,identity,job):
         if job['handler']=='provider.production':

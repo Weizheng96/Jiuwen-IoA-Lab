@@ -27,7 +27,7 @@ OUTPUT={'type':'object','properties':{'status':{'type':'string'}},'required':['s
 
 def declaration(**changes):
     return {'name':'travel.update','description':'接收亲友进展','inputSchema':INPUT,'outputSchema':OUTPUT,
-            'allowedSenders':None,'tools':[],**changes}
+            'allowedSenders':None,'tools':[],'enabled':True,**changes}
 
 
 @pytest.fixture
@@ -122,6 +122,7 @@ def test_actual_preview_change_cannot_reuse_user_approval(rules):
     {'tools':['unconfigured.shell']},
     {'inputSchema':{'type':'object','$ref':'http://external.invalid'}},
     {'inputSchema':{'type':'string'}},
+    {'inputSchema':{'type':'object','title':42}},
     {'allowedSenders':['missing@account.invalid']},
 ])
 def test_unsafe_or_unconfigured_rule_is_rejected_without_side_effects(rules,change):
@@ -199,3 +200,45 @@ def test_bad_name_keeps_existing_draft_scope_schemas_and_instructions_unchanged(
     assert saved['declaration']=={**original,'enabled':True}
     assert saved['instructions']=='只按原定范围处理，不删输出字段。'
     assert rejected=={**original,'name':'私密中文机器名'}
+
+
+def test_schema_titles_survive_preview_and_real_publication(rules):
+    schema=copy.deepcopy(INPUT)
+    schema['title']='来信'
+    schema['properties']['text']['title']='正文'
+    reference,value=draft(rules,inputSchema=schema)
+    assert value['valid']
+    operation=uid()
+    confirmation=accepted(rules,rules.publish(operation,reference,value['contentDigest'],0))
+    result=rules.publish(operation,reference,value['contentDigest'],0,confirmation)
+    assert result['status']=='completed'
+    assert rules.version('travel.update',1)['declaration']['inputSchema']==schema
+
+
+def test_new_rule_defaults_are_closed_and_explicit_permissions_survive(local_name_rules):
+    rules = local_name_rules
+    value = declaration()
+    for key in ('allowedSenders', 'enabled', 'tools'): value.pop(key, None)
+    original = copy.deepcopy(value)
+    operation = uid()
+    ref = rules.draft(operation, value, '只记录请求。')['draftRef']
+    saved = rules.read(ref)
+    assert saved['declaration'] == {**original, 'allowedSenders': [], 'enabled': False, 'tools': []}
+    assert value == original
+    assert rules.draft(operation, value, '只记录请求。')['draftRef'] == ref
+    assert rules.read(ref) == saved
+    explicit = {**value, 'allowedSenders': None, 'enabled': True, 'tools': ['local.notice']}
+    ref = rules.draft(uid(), explicit, '按用户授权通知。')['draftRef']
+    assert rules.read(ref)['declaration'] == explicit
+
+
+def test_existing_rule_text_keeps_original_defaults():
+    from ioalab_sdk.assistant.rules import render
+    value = declaration()
+    value.pop('allowedSenders')
+    value.pop('enabled')
+    text = render(value, '保留历史内容。')
+    saved = parse(text)
+    assert saved['declaration']['enabled'] is True
+    assert saved['declaration']['allowedSenders'] is None
+    assert parse(text) == saved

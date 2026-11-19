@@ -154,3 +154,22 @@ def test_resident_reminds_background_confirmations_and_restart_once(platform, tm
             assert len(opened) == 1
         finally:
             runtime.close()
+
+
+def test_form_confirmation_survives_restart_without_background_popup(confirmations):
+    from ioalab_sdk.runtime.forms import _form_scope
+    request=binding()
+    with _form_scope({'reference':'original-form'}):
+        original=confirmations.ensure(request)
+    # Re-reading the same business confirmation outside the form keeps its digest.
+    assert confirmations.ensure(request)['bindingDigest']==original['bindingDigest']
+    reopened=Confirmations(confirmations.store)
+    opener=Opener()
+    pending=UserPending(reopened,opener,coalesce=0,interval=0)
+    pending._step()
+    assert opener.count()==0 and pending.status()['pendingCount']==1
+    background=reopened.ensure(binding())
+    pending._step()
+    assert opener.count()==1
+    assert reopened.get(original['reference'])['status']=='pending'
+    assert reopened.get(background['reference'])['status']=='pending'

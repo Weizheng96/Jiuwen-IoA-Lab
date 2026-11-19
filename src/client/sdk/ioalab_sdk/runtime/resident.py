@@ -17,7 +17,8 @@ from .session import AccountSession
 from .store import RuntimeStore
 from .confirmations import Confirmations
 from .user_ui import UserUi
-from .installation import current as current_installation
+from .forms import InteractionForms
+from .installation import current as current_installation, record_runtime_owner
 
 
 class ResidentRuntime:
@@ -32,7 +33,7 @@ class ResidentRuntime:
         self.native_entry_bindings=None
         self.health=None
         self.installation=current_installation(assembly)
-        self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=self.user_ui=None
+        self._lease=self.account=self.store=self.scheduler=self.connection=self.ipc=self.forms=self.user_ui=None
         self.identities=[]
         self.operations=dict(operations or {})
         self.host_status=host_status or (lambda:{'available':False,'reason':'Host adapter is not configured'})
@@ -53,6 +54,11 @@ class ResidentRuntime:
             if not set(index).issubset({p['key'] for p in config.identities}):
                 raise RuntimeFault('identity_conflict','Keep existing identity profiles until their business is migrated','migrate')
             self.account=AccountSession(config.platform,config.username,config.password,config.home,allow_offline=True)
+            from .authentication import migrate_configuration
+            if self.account.verified:
+                config=migrate_configuration(config,self.account);self.config=config
+            elif not config.credential_ref:
+                raise RuntimeFault('authenticate','Migration requires an online device login','account.login')
             self.identities=[load_identity(self.account,config.home,profile) for profile in config.identities]
             actors=[p.agent_id for p in self.identities]
             self.store=RuntimeStore(config.home/'runtime.sqlite',config.platform,actors,owner_id=self.account.account['id'])
@@ -65,6 +71,7 @@ class ResidentRuntime:
             self.connection=AgentConnection(config.platform,self.account.bearer,actors,self.store,network=self.account.network)
             self.confirmations=Confirmations(self.store)
             job_handlers=dict(jobs or {})
+            form_definitions=[]
             if host_registry is not None:
                 from .native_events import NativeEvents
                 self.native_events=NativeEvents(self,host_registry)
@@ -79,6 +86,7 @@ class ResidentRuntime:
                 self.operations.update(registered)
                 job_handlers.update(registration.get('jobs',{}))
                 self.ready_profiles.update(registration.get('profiles',()))
+                form_definitions.extend(registration.get('forms',()))
             self.scheduler=Scheduler(self.store,job_handlers,max_models=config.max_model_runs,max_pending=config.max_pending_requests,
                                      can_dispatch=lambda:self.connection.connected and not self.stop_requested.is_set())
             if host_registry is not None:host_registry.scheduler=self.scheduler
@@ -87,7 +95,12 @@ class ResidentRuntime:
                 self.health=RuntimeHealth(host_registry,shutdown_seconds=config.host_unavailable_shutdown_seconds,
                     on_health=self._host_health,request_stop=self.stop_requested.set)
             self.connection.on_delivery=self._wake_roles
-            self.user_ui=UserUi(self.confirmations,browser=config.user_browser)
+            self.forms=InteractionForms(self.store,form_definitions,
+                can_advance=lambda:self.connection.connected and not self.stop_requested.is_set() and not self.closing.is_set(),
+                decision_ready=lambda reference:self.confirmations.get(reference)['status']!='pending')
+            from .account_setup import setup
+            self.user_ui=UserUi(self.confirmations,browser=config.user_browser,forms=self.forms,
+                                open_setup=lambda:setup(config.source,open_browser=True))
             if host_registry is not None and self.native_entry_required:
                 from .native_sources import NativeSources
                 from .protocol import encode
@@ -113,10 +126,12 @@ class ResidentRuntime:
             raise
 
     def start(self):
+        record_runtime_owner(self.config, self.installation)
         self.scheduler.start()
         self.connection.start(wait=False)
         for module in self.modules:module.start()
         self.ipc.start()
+        self.forms.start()
         # P36 background reminder needs the listening page origin.
         self.user_ui.reminders.start()
         return self
@@ -218,6 +233,17 @@ class ResidentRuntime:
             elif operation=='runtime.open_ui':
                 if args:raise RuntimeFault('invalid_input','Opening the local user page takes no arguments')
                 data={'opened':self.user_ui.open()}
+            elif operation.startswith('runtime.forms.') and operation in CATALOG:
+                if self.stop_requested.is_set():raise RuntimeFault('closed','Runtime is draining')
+                required,optional=CATALOG[operation].inputs[0]
+                if not set(required).issubset(args) or set(args)-set(required)-set(optional):
+                    raise RuntimeFault('invalid_input','Use the documented form fields')
+                action=operation.removeprefix('runtime.forms.')
+                if action=='open':data=self.forms.open(operation_id,args['kind'],args.get('values',{}))
+                elif action=='open_ui':
+                    form=self.forms.get(args['reference'])
+                    data={'opened':self.user_ui.open(form['reference']),'reference':form['reference']}
+                else:data=getattr(self.forms,action)(**args)
             elif operation=='confirmations.get':
                 if set(args)!={'reference'} or not isinstance(args['reference'],str):raise RuntimeFault('invalid_input','Original confirmation reference required')
                 data=self.confirmations.get(args['reference'])
@@ -279,6 +305,7 @@ class ResidentRuntime:
         if self.user_ui is not None:self.user_ui.reminders.close()
         # Keep the DB and OS ownership until all actual work/RPC threads stop.
         if self.scheduler:self.scheduler.drain()
+        if self.forms:self.forms.close()
         for module in self.modules:
             if hasattr(module,'quiesce'):module.quiesce()
         if self.callback_pool:

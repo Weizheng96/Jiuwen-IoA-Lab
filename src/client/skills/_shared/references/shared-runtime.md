@@ -1,5 +1,7 @@
 # 公共SDK启动与恢复
 
+接入请求先按[mcp-setup.md](mcp-setup.md)完成当前聊天的MCP启用，再按account-setup.md展示账号页。runtime.connect是无Apps时的脚本串联入口或账号已就绪后的恢复操作，不作为内嵌接入的第一步；runtime.mcp.configuration在无账号配置时即可返回登记资料。不得读取配置正文或让用户在聊天中提供密码。已有配置、原身份及在途业务按下文恢复规则复用。
+
 触发：配置后启动、诊断、停止或打开确认页。先按 location.md 取得当前技能实际入口；业务参数、真实确认与原操作恢复统一见 calling.md。
 
 客户端已由统一安装引导准备，两个角色使用同一解释器与外置账号配置。Skill 不下载依赖或创建环境。先调用 runtime.install.status 核完整性；失败保留原目录、账号、身份及运行数据，按原安装回执修复。
@@ -11,7 +13,7 @@ python "<skill_directory>/scripts/ioalab.py" runtime.status
 python "<skill_directory>/scripts/ioalab.py" identity.status
 ```
 
-python 只运行薄调用脚本，脚本转交已绑定客户端解释器。首次账号未完成时先按 account-setup.md，账号完成后按 host-setup.md 登记；已有实例复用。普通业务先核原安装、账号及配置，运行中复用，停止后按原配置启动；waiting 只观察同一实例，不重复启动，不占用前台轮询数分钟。
+python只运行薄调用脚本，转交绑定客户端。首次账号完成后按host-setup.md登记；已有实例由SDK核原装配，配置/校验/启动共用正确入口，停止后沿保存的归属恢复，不凭host字段推断迁移。READ只读调用不自动启动；查看收件不执行旧迁移或启停计划。用户明确要求恢复时才用runtime.start；归属缺失或冲突如实停止，不猜参数。waiting只观察原实例，不重复启动。
 
 configuration_changed 或 installation_changed 时，显式正常停止原实例、核 OS 锁释放，再启动；不换 data_dir、私钥或账号。runtime.stop、诊断、安装和账号准备不自动唤起。unknown 保留原参数和 operationId，只查原效果，不重做签约、付款或消息。
 

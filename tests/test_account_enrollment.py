@@ -133,17 +133,14 @@ def test_lost_login_response_recovers_original_credit(platform,tmp_path,monkeypa
 def test_expired_cache_needs_explicit_login_without_blocking_reauthentication(platform,tmp_path):
     user=new_user(platform)
     session=AccountSession(platform.s.base_url,user['username'],PASSWORD,tmp_path)
-    session.account.update(token=platform.auth.token('assistant:'+user['id'],expires_at=time.time()-1),
-                           expiresAt='2000-01-01T00:00:00Z')
-    session.cache.put('session','current',session.account)
+    session.api('POST','/sessions/'+session.account['sessionId']+'/revoke',{})
     session.close()
     with pytest.raises(RuntimeFault,match='explicitly log in'):
         AccountSession(platform.s.base_url,user['username'],PASSWORD,tmp_path)
     assert platform.wallets.balance(user['id'])==100
     session=AccountSession(platform.s.base_url,user['username'],PASSWORD,tmp_path,connect=False)
     try:
-        assert session.status()['authenticated'] is False
-        assert session.login(new_operation=True)['authenticated']
+        assert session.authenticate()['authenticated']
         assert platform.wallets.balance(user['id'])==200
     finally:session.close()
 
@@ -254,8 +251,8 @@ def test_valid_bearer_required_for_refresh_and_enrollment(platform,client):
     response=client.post('/api/auth/login',json=login_body(user['username']))
     assert response.status_code==200
     browser={'Authorization':'Bearer '+response.json()['token']}
-    assert client.post('/api/v1/token/refresh',headers=browser,json={}).status_code==401
+    assert client.post('/api/v1/token/refresh',headers=browser,json={'refreshToken':response.json()['token'],'operationId':uid()}).status_code==401
     assert client.post('/api/v1/identity/challenge',headers=browser,json={'operationId':uid(),'role':'service','agentId':'svc-'+uid()}).status_code==401
     assert client.post('/api/v1/connections/ticket',headers=browser,json={'agentIds':['not-a-grant']}).status_code==401
-    assert client.post('/api/v1/token/refresh',json={}).status_code==401
+    assert client.post('/api/v1/token/refresh',json={'refreshToken':'missing','operationId':uid()}).status_code==401
     assert client.post('/api/v1/identity/challenge',json={'operationId':uid(),'role':'service','agentId':'svc-'+uid()}).status_code==401

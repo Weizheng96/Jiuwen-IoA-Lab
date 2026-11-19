@@ -295,7 +295,7 @@ def test_ack_callback_failure_never_becomes_not_submitted(tmp_path):
 
 def launch_capture(tmp_path):
     project=tmp_path/'registered-project';project.mkdir(exist_ok=True)
-    cli=tmp_path/'registered-claude.exe';cli.write_bytes(b'never executed')
+    cli=tmp_path/'registered-claude.exe';cli.write_bytes(b'never executed');cli.chmod(0o700)
     return {'format':'ioalab.claude-launch/1','projectDirectory':str(project),'cli':str(cli),
         'configDirectoryState':'unset','configDirectory':None,'extensionDirectory':str(tmp_path/'extension')}
 

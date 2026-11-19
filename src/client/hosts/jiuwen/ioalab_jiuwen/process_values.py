@@ -20,6 +20,7 @@ class _Round:
     # tool restriction, so permissions keep their configured levels (D37).
     native_tools_enabled: bool=False
     definition_digest: str|None=None
+    proposal_schema: dict|None=None
 
 @dataclass
 class _Result:
@@ -29,3 +30,4 @@ class _Result:
     error: dict|None=None
     planned_request_id: str|None=None
     native_record: dict=field(default_factory=dict)
+    proposal: dict|None=None

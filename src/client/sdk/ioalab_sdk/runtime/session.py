@@ -12,12 +12,13 @@ import uuid
 import httpx
 from a2c.codec import digest_bytes
 from .network import Network
+from .credentials import CredentialVault
 from .account_store import LocalStore
 from .protocol import RuntimeFault,instant
 
 
 class AccountSession:
-    def __init__(self,base,username,password,home,*,connect=True,allow_offline=False):
+    def __init__(self,base,username,password,home,*,connect=True,allow_offline=False,registration_operation=None):
         parsed=urlsplit(base)
         if parsed.scheme not in ('http','https') or not parsed.netloc or parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError('A platform HTTP(S) address without embedded credentials is required')
@@ -25,6 +26,7 @@ class AccountSession:
         self.home=Path(home)
         self.home.mkdir(mode=0o700,parents=True,exist_ok=True)
         self.cache=LocalStore(self.home/'account.sqlite')
+        self.cache.db.execute('PRAGMA secure_delete=ON')
         if os.name!='nt':os.chmod(self.cache.path,0o600)
         try:self.network=Network(self.base)
         except BaseException:
@@ -32,6 +34,7 @@ class AccountSession:
             raise
         self.http=self.network.http
         self.account={}
+        self.vault=CredentialVault(self.home, {'platform':self.base,'username':username})
         self.allow_offline,self.verified=allow_offline,False
         try:
             binding={'platform':self.base,'username':username}
@@ -47,8 +50,15 @@ class AccountSession:
                 if isinstance(exc,httpx.HTTPStatusError) and exc.response.status_code<500:raise
                 self.config=self.cache.get('meta','public_config') if allow_offline else None
                 if not self.config:raise
+            with self.vault.lock():
+                secrets_record=self.vault.read()
+                self.vault.write(secrets_record)
+                self.account=secrets_record.get('current') or {}
+                device=self.cache.get('meta','device_id')
+                if not device:
+                    device=registration_operation or str(uuid.uuid4());self.cache.put('meta','device_id',device)
+                self.device_id=device
             if connect:self._connect()
-            else:self.account=self.cache.get('session','current') or {}
         except BaseException:
             self.close()
             raise
@@ -118,7 +128,7 @@ class AccountSession:
     def authenticate(self):
         """Explicit login only; valid credentials and unknown requests are reused."""
         with self.cache.transaction():
-            cached=self.cache.get('session','current')
+            cached=self.account
             pending=self._pending_login(self.cache.get('session','pending'))
             references={record['operationId'] for record in (cached,pending) if record and record.get('operationId')}
             if pending and pending['phase']=='rejected':
@@ -131,8 +141,15 @@ class AccountSession:
         return {**result,'newLogin':self.account.get('operationId') not in references}
 
     def login(self,*,new_operation=False):
+        with self.vault.lock():
+            self._secrets=self.vault.read()
+            self.account=self._secrets.get('current') or {}
+            if not self._password:self._password=(self._secrets.get('loginInput') or {}).get('password','')
+            return self._login(new_operation=new_operation)
+
+    def _login(self,*,new_operation=False):
         with self.cache.transaction():
-            cached=self.cache.get('session','current')
+            cached=self.account
             pending=self.cache.get('session','pending')
             if cached and isinstance(pending,dict) and cached.get('operationId')==pending.get('operationId'):
                 self.cache.delete('session','pending');pending=None
@@ -147,14 +164,22 @@ class AccountSession:
             if pending and pending['phase']=='rejected':
                 raise RuntimeFault('authenticate','Credentials were rejected; correct local configuration and explicitly log in again','account.login',operation_id=pending['operationId'])
             if not self.token or new_operation or pending:
+                if not self._password:
+                    raise RuntimeFault('authenticate','Open the controlled account page to log in again','account.setup')
                 pending=pending or {'operationId':str(uuid.uuid4()),'parameters':self._login_parameters(create=True),'phase':'pending'}
                 if not hmac.compare_digest(pending['parameters'],self._login_parameters()):
                     raise RuntimeFault('result_unknown','Original pending login input changed; preserve the original operation','inspect_original_login',operation_id=pending['operationId'])
                 self.cache.put('session','pending',pending)
         if pending is None:
+            expires=self.account.get('expiresAt')
+            if self._secrets.get('refreshPending') or not expires or instant(expires)<=time.time()+60:
+                self._refresh_locked()
             self._check_account()
             return self.status()
-        response=self.http.post(self.base+'/api/v1/token',json={'username':self.username,'password':self._password,'operationId':pending['operationId']})
+        self._secrets['loginInput']={'password':self._password}
+        self.vault.write(self._secrets)
+        response=self.http.post(self.base+'/api/v1/token',json={'username':self.username,'password':self._password,
+            'operationId':pending['operationId'],'deviceId':self.device_id,'deviceName':'IoA client'})
         try:response.raise_for_status()
         except httpx.HTTPStatusError:
             try:error=response.json().get('error',{})
@@ -174,43 +199,141 @@ class AccountSession:
             raise RuntimeFault('protocol_error','Login did not return the configured account')
         with self.cache.transaction():
             self._bind_owner(account['id'])
-            self.cache.put('session','current',account)
+            self._persist(account)
             if self.cache.get('session','pending')==pending:self.cache.delete('session','pending')
         self.account=account
+        self._password=''
         self._check_account()
         return self.status()
 
-    def refresh(self):
-        response=self.http.post(self.base+'/api/v1/token/refresh',headers={'Authorization':'Bearer '+self.token})
+    def _validate_receipt(self, account):
+        fields=('id','token','refreshToken','sessionId','deviceId','expiresAt','sessionExpiresAt')
+        if (not isinstance(account,dict) or any(not isinstance(account.get(key),str) or not 1<=len(account[key])<=8192 for key in fields)
+                or account['deviceId']!=self.device_id):
+            raise RuntimeFault('protocol_error','Device authentication receipt is incomplete')
+        try:
+            if instant(account['expiresAt'])>instant(account['sessionExpiresAt']):raise ValueError()
+        except (ValueError,TypeError,OverflowError):
+            raise RuntimeFault('protocol_error','Device authentication expiry is invalid') from None
+
+    def _persist(self, account):
+        self._validate_receipt(account)
+        self._secrets['current']=account
+        self._secrets.pop('loginInput',None)
+        self._secrets.pop('refreshPending',None)
+        self.vault.write(self._secrets)
+        self.cache.put('session','current',{k:v for k,v in account.items() if k not in ('token','refreshToken')})
+
+    def _refresh_locked(self):
+        pending=self._secrets.get('refreshPending')
+        if not pending:
+            if not self.account.get('refreshToken'):
+                raise RuntimeFault('authenticate','Open the controlled account page to log in again','account.setup')
+            pending={'refreshToken':self.account['refreshToken'],'operationId':str(uuid.uuid4())}
+            self._secrets['refreshPending']=pending
+            self.vault.write(self._secrets)
+        response=self.http.post(self.base+'/api/v1/token/refresh',json=pending)
+        if response.status_code==401:
+            self.verified=False
+            raise RuntimeFault('authenticate','Device session is expired or revoked; explicitly log in again','account.setup')
         response.raise_for_status()
         renewed=response.json()
-        if renewed.get('id')!=self.account.get('id') or renewed.get('credited') is not False:
-            raise RuntimeFault('protocol_error','Credential renewal returned a conflicting account result')
+        self._validate_receipt(renewed)
+        if (renewed.get('id')!=self.account.get('id') or renewed.get('credited') is not False
+                or renewed.get('sessionId')!=self.account.get('sessionId') or renewed.get('deviceId')!=self.device_id):
+            raise RuntimeFault('protocol_error','Credential renewal returned a conflicting device account')
         with self.cache.transaction():
             self._bind_owner(renewed['id'])
-            self.account.update(renewed)
-            self.cache.put('session','current',self.account)
+            account={**self.account,**renewed}
+            self._persist(account)
+        self.account=account
         self.verified=True
         return self.status()
 
-    def accept_registration(self,account,operation):
-        """Reuse the SDK registration session, without an additional rewarded login."""
-        if (not isinstance(account,dict) or account.get('username')!=self.username or not account.get('id')
-                or not account.get('token') or account.get('operationId')!=operation):
-            raise RuntimeFault('result_unknown','Registration response does not match the original operation','account.setup')
-        self.account=account
-        self._check_account()
-        with self.cache.transaction():
+    def refresh(self):
+        with self.vault.lock():
+            self._secrets=self.vault.read()
+            self.account=self._secrets.get('current') or {}
+            return self._refresh_locked()
+
+    def accept_registration(self, receipt, operation):
+        """Persist the original registration device session without another login award."""
+        if (not isinstance(receipt,dict) or receipt.get('username')!=self.username
+                or receipt.get('operationId')!=operation):
+            raise RuntimeFault('result_unknown','Registration receipt differs from the original account operation')
+        with self.vault.lock():
+            self._secrets=self.vault.read()
+            self._validate_receipt(receipt)
             if self.cache.get('session','pending'):
-                raise RuntimeFault('result_unknown','Preserve the original pending login','account.login')
-            self.cache.put('session','current',account)
-        return {'status':'completed','data':self.status(),'error':None}
+                raise RuntimeFault('result_unknown','Recover the original pending login before accepting registration')
+            current=self._secrets.get('current')
+            if current:
+                if current.get('operationId')!=operation or current.get('sessionId')!=receipt.get('sessionId'):
+                    raise RuntimeFault('identity_conflict','Preserve the original installed device session')
+                # A resumed setup must not roll back a refresh already persisted by this device.
+                self.account=current
+                if self._secrets.get('refreshPending') or instant(current['expiresAt'])<=time.time()+60:
+                    self._refresh_locked()
+                self._check_account()
+            else:
+                self.account=dict(receipt)
+                self._check_account()
+                with self.cache.transaction():self._persist(self.account)
+            self._password=''
+            return self.status()
 
     def bearer(self):
         expires=self.account.get('expiresAt')
-        if expires and time.time()<instant(expires)<time.time()+86400:
+        if not expires or instant(expires)<=time.time()+60:
             self.refresh()
         return self.token
+
+    def sessions(self):
+        return self.api('GET','/sessions')
+
+    def revoke(self, session=None):
+        # Persist the exact authorization before sending; never refresh a revoked session
+        # merely to retrieve the receipt for a lost logout response.
+        authorization=None
+        pending=self.vault.read().get('revokePending')
+        if (not pending and session) or (pending and self.token and pending['sessionId']!=self.account.get('sessionId')):
+            authorization=self.bearer()
+        with self.vault.lock():
+            records=self.vault.read()
+            pending=records.get('revokePending')
+            if pending and session and pending['sessionId']!=session:
+                raise RuntimeFault('result_unknown','Recover the original device revocation first','resume_revocation')
+            if pending and authorization:
+                pending['token']=authorization
+                records['revokePending']=pending
+                self.vault.write(records)
+            if not pending:
+                if not session:
+                    raise RuntimeFault('not_ready','No device revocation is pending')
+                pending={'sessionId':session,'token':authorization}
+                records=self.vault.read()
+                records['revokePending']=pending
+                self.vault.write(records)
+            response=self.http.post(self.base+'/api/v1/sessions/'+pending['sessionId']+'/revoke',json={},
+                                    headers={'Authorization':'Bearer '+pending['token']})
+            if response.status_code==401:
+                # A fresh explicit login can authorize recovery of the original target.
+                if self.token and self.token!=pending['token']:
+                    pending['token']=self.token
+                    records['revokePending']=pending
+                    self.vault.write(records)
+                raise RuntimeFault('authenticate','Log in again, then resume the original revocation','account.setup')
+            response.raise_for_status()
+            result=response.json()
+            if result!={'sessionId':pending['sessionId'],'status':'revoked'}:
+                raise RuntimeFault('result_unknown','Device revocation receipt needs recovery','resume_revocation')
+            if pending['sessionId']==self.account.get('sessionId'):
+                for key in ('current','refreshPending','loginInput'):records.pop(key,None)
+                self.cache.delete('session','current')
+                self.account={};self.verified=False;self._password=''
+            records.pop('revokePending',None)
+            self.vault.write(records)
+            return result
 
     def api(self,method,path,body=None):
         response=self.http.request(method,self.base+'/api/v1'+path,json=body,
@@ -242,7 +365,9 @@ class AccountSession:
         expires=self.account.get('expiresAt')
         return {'id':self.account.get('id'),'username':self.username,'platform':self.base,
                 'authenticated':bool(self.token) and (not expires or instant(expires)>time.time()),
-                'verifiedOnline':self.verified,'expiresAt':expires,'operationId':self.account.get('operationId')}
+                'verifiedOnline':self.verified,'expiresAt':expires,'operationId':self.account.get('operationId'),
+                'sessionId':self.account.get('sessionId'),'deviceId':self.device_id,
+                'sessionExpiresAt':self.account.get('sessionExpiresAt'),'credentialRef':self.vault.reference}
 
     def close(self):
         self.network.close()

@@ -183,7 +183,7 @@ def load(root, *, require_target=False):
         ordinary = pins(checked(root, unit['lock']).read_text(encoding='utf-8'))
         if set(ordinary).intersection(set().union(*UNITS.values())):
             raise ValueError('Local components cannot be replaced by mirror packages')
-        if name == 'participant' and len(ordinary) + len(versions) > 64:
+        if name == 'participant' and len(ordinary) + len(versions) > 128:
             raise ValueError('Participant release exceeds the SDK installation identity limit')
     assets = value['assets']
     if not isinstance(assets, dict) or not {'seed', 'assistantSkill', 'providerSkill', 'sources'}.issubset(assets):

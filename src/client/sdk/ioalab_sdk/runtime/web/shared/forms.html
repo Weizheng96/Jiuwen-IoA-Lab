@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IoA Lab · 业务表单</title><style>/* IOA_STYLE */</style></head>
+<body><main>
+<header><span class="brand">IoA Lab</span><button id="setupButton" type="button">接入与客户端配置</button><span id="state" class="badge">正在连接</span></header>
+<h1 id="title">业务表单</h1><p class="intro">补充所需信息，检查预览，再确认具体操作。</p>
+<ol class="steps"><li>填写信息</li><li>检查预览</li><li>确认与结果</li></ol>
+<p id="transportStatus" role="status" class="hint" hidden></p>
+<div id="error" role="alert" hidden></div>
+<section id="evidenceSection" hidden><h2>当前业务信息</h2><div id="evidence"></div></section>
+<details id="unsavedCopy" hidden open><summary>本页未保存内容（核对副本）</summary><p>这些内容尚未保存。加载最新版本后请核对并重新填写，不会自动覆盖后台。副本仅保留在当前页面，关闭或重新加载网页后清除。</p><div id="unsavedValues"></div></details>
+<p id="stageHint" class="hint" role="status"></p>
+<button id="edit" type="button" hidden>返回修改</button>
+<form id="fields" novalidate></form>
+<section id="previewSection" hidden><h2>操作预览</h2><div id="preview"></div></section>
+<section id="resultSection" hidden><h2 id="resultTitle">处理状态</h2><p id="resultText" role="status" aria-live="polite"></p><p id="contractProgress" hidden></p><p id="nextStep" class="hint" hidden></p><details><summary>查看原始回执</summary><pre id="result"></pre></details></section>
+<section id="confirmationCard" hidden class="confirmation-card" aria-label="独立用户确认">
+<h2 id="confirmationTitle">独立用户确认</h2><p>请核对下列原操作。本次决定仅批准当前显示的事项，不批准其他操作。</p>
+<p id="confirmationIdentity"></p><div id="confirmationPreview"></div>
+<details><summary>查看完整确认依据</summary><pre id="confirmationOriginal"></pre></details>
+<div id="confirmationQuestions"></div><div id="confirmationActions"></div>
+<p id="confirmationStatus" role="status" aria-live="polite"></p><button type="button" id="confirmationRefresh">核对确认结果</button><button type="button" id="confirmationReconnect" hidden>重新连接原确认</button>
+</section>
+<div class="actions"><p id="saveStatus" role="status" aria-live="polite" aria-atomic="true" hidden></p><button id="run" type="button" class="primary" hidden>执行</button><button id="save" type="button">保存草稿</button><button id="previewButton" type="button" class="primary">检查并继续</button><button id="submit" type="button" class="primary" disabled>提交并申请确认</button><button id="browser" type="button" hidden>打开确认页面</button><button id="recover" type="button" hidden>沿用原需求重新报价</button><button id="refresh" type="button">刷新状态</button><button id="discard" type="button" hidden>放弃本页修改并刷新</button></div>
+<p id="hint" class="hint">保存或提交表单不会替代您的批准。需要确认的操作会保持等待，直到您在受控页面作出决定。</p>
+</main><script>'use strict';
+/* IOA_FIELDS */
+/* IOA_VIEWS */
+/* IOA_TRANSPORT */
+/* IOA_CONFIRMATION */
+/* IOA_FORMS */
+</script></body></html>

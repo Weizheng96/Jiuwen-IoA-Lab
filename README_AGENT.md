@@ -75,3 +75,5 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned -File "<clone>/src/client/bo
 - `new_session` 的 `verify` 不会自报通过：按用户在新会话得到的两次结果记录，并保持“原生发现待验”。
 
 全部步骤处理后，用同一命令加 `--format markdown` 输出固定六项摘要。安装、账号、连接、Skill 发现与业务就绪分别报告，不把局部完成称为全部接入完成。最后告诉用户：客户端已不再依赖 `sourceClone.path` 这个下载目录，可以删除；以后升级时重新说接入那句话，并让智能体运行引导时加 `-Upgrade`。
+
+支持MCP Apps时，业务表单和独立用户确认优先内嵌展示，不支持时使用同一受控浏览器页；工具运行许可不等于业务批准。

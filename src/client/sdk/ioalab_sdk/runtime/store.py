@@ -387,6 +387,17 @@ class RuntimeStore:
         with self.lock:
             return [json.loads(row[0]) for row in self.db.execute('SELECT frame FROM runtime_inbox WHERE actor=? ORDER BY seq',(actor,)).fetchall()]
 
+    def received_requests(self, actor, *, before=None, limit=20):
+        """Bounded recipient-owned requests, newest first; no reply or outgoing rows."""
+        with self.lock:
+            where = "actor=? AND json_extract(frame,'$.message.kind')='message.request' AND json_extract(frame,'$.message.payloadAvailable') IS NOT 0"
+            args = [actor]
+            if before is not None:
+                where += ' AND seq<?'
+                args.append(before)
+            return [json.loads(row[0]) for row in self.db.execute(
+                'SELECT frame FROM runtime_inbox WHERE '+where+' ORDER BY seq DESC LIMIT ?', (*args,limit)).fetchall()]
+
     def message(self,actor,message_id):
         """Original role recovery by its exact inbox reference, without history scans."""
         with self.lock:

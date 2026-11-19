@@ -129,6 +129,9 @@ def test_interrupted_configuration_migration_preserves_original_session_owner(tm
     document['host']={'type':'codex','command':[sys.executable],'model':'test-model'}
     path.write_text(json.dumps(document));original=path.read_bytes()
     runtime=ResidentRuntime(RuntimeConfig.load(path))
+    # Login has already migrated the legacy password into the device vault.
+    # Host migration must preserve this authenticated configuration snapshot.
+    original=path.read_bytes()
     actor=runtime.identities[0].agent_id;actors=[item.agent_id for item in runtime.identities];owner=runtime.account.account['id'];home=runtime.config.home
     store=runtime.store
     store.prepare(actor,'message.send',{'messageId':'mid','recipient':'peer','kind':'message.request',

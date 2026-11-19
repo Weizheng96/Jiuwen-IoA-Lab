@@ -5,6 +5,7 @@
 | 子模块 | 代码 | 文件夹 |
 |---|---|---|
 | 共用运行时 | `src/client/sdk/ioalab_sdk/runtime/`、`adapters/`、`templates.py`、`src/client/skills/_shared/` | [接口](共用运行时/接口.md) · [依赖](共用运行时/依赖.md) · [实现](共用运行时/实现.md) |
+| MCP接入 | `src/client/sdk/ioalab_sdk/mcp/` | [接口](MCP接入/接口.md) · [依赖](MCP接入/依赖.md) · [实现](MCP接入/实现.md) |
 | 个人助手端 | `assistant/`、`src/client/skills/assistant/` | [接口](个人助手端/接口.md) · [依赖](个人助手端/依赖.md) · [实现](个人助手端/实现.md) |
 | 服务方端 | `provider/`、`src/client/skills/provider/` | [接口](服务方端/接口.md) · [依赖](服务方端/依赖.md) · [实现](服务方端/实现.md) |
 | 宿主适配 | `src/client/hosts/jiuwen/ioalab_jiuwen/` | [接口](宿主适配/接口.md) · [依赖](宿主适配/依赖.md) · [实现](宿主适配/实现.md) |

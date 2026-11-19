@@ -126,6 +126,10 @@ class Confirmations:
                 expiry=deadline.expires_at if deadline is not None else now+ttl
                 if expiry is not None and expiry<=now:
                     raise RuntimeFault('expired','Original business object has expired')
+                # Presentation provenance is not part of the approved business binding.
+                from .forms import form_source
+                form_reference=form_source()
+                if form_reference:serialized=encode({**payload,'formReference':form_reference})
                 conn.execute('INSERT INTO runtime_confirmations VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                              (cid,binding['actor'],binding['operationId'],kind,serialized,fingerprint,expiry,'pending',None,None,None,now))
                 row=conn.execute('SELECT * FROM runtime_confirmations WHERE id=?',(cid,)).fetchone()
@@ -140,13 +144,14 @@ class Confirmations:
         """Wake a local reminder after a new original pending row commits."""
         self._created.append(listener)
 
-    def pending_marker(self,*,after=None):
+    def pending_marker(self,*,after=None,background_only=False):
         """Bounded counts over the original pending rows; no preview or decision data.
 
         `after` is a (created,id) high-water mark from an earlier marker.
         """
         now=self.clock()
         pending="state='pending' AND (expires IS NULL OR expires>?)"
+        if background_only:pending+=" AND json_extract(binding,'$.formReference') IS NULL"
         with self.store.lock:
             count=self.store.db.execute('SELECT COUNT(*) FROM runtime_confirmations WHERE '+pending,(now,)).fetchone()[0]
             latest=self.store.db.execute('SELECT created,id FROM runtime_confirmations WHERE '+pending+' ORDER BY created DESC,id DESC LIMIT 1',(now,)).fetchone()
@@ -200,7 +205,7 @@ class Confirmations:
             payload.pop('ttl')
             payload['deadline']=deadline.value()
             serialized=encode(payload)
-            fingerprint=hashlib.sha256(serialized.encode()).hexdigest()
+            fingerprint=hashlib.sha256(encode({key:value for key,value in payload.items() if key!='formReference'}).encode()).hexdigest()
             conn.execute('UPDATE runtime_confirmations SET binding=?,fingerprint=?,expires=? WHERE id=?',
                          (serialized,fingerprint,deadline.expires_at,reference))
             return self._public(conn.execute('SELECT * FROM runtime_confirmations WHERE id=?',(reference,)).fetchone())

@@ -77,6 +77,37 @@ def configuration(platform,tmp_path,*,service=True):
     return path,user
 
 
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX terminal session hangup')
+def test_started_resident_survives_launcher_session_hangup(platform, tmp_path):
+    path, _ = configuration(platform, tmp_path, service=False)
+    receipt = tmp_path / 'started.json'
+    script = ("import json,sys,time; from pathlib import Path; from ioalab_sdk.runtime import start; "
+              "result=start(sys.argv[1]); Path(sys.argv[2]).write_text(json.dumps(result)); time.sleep(30)")
+    service_pid = None
+    with (tmp_path / 'launcher.log').open('w') as log:
+        launcher = subprocess.Popen([sys.executable, '-c', script, str(path), str(receipt)],
+            stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+    try:
+        wait_for(receipt.is_file, timeout=20)
+        assert json.loads(receipt.read_text())['status'] == 'completed'
+        home = RuntimeConfig.load(path).home
+        service_pid = read_json(home / 'runtime.json')['pid']
+        client = LocalClient(home, timeout=2)
+        original = client.call('runtime.status')['data']
+        os.killpg(launcher.pid, signal.SIGHUP)
+        launcher.wait(timeout=5)
+        current = client.call('runtime.status')['data']
+        assert current['bootId'] == original['bootId']
+        assert current['account'] == original['account']
+    finally:
+        if launcher.poll() is None:
+            os.killpg(launcher.pid, signal.SIGTERM)
+            launcher.wait(timeout=5)
+        if service_pid:
+            try: os.kill(service_pid, signal.SIGTERM)
+            except ProcessLookupError: pass
+
+
 def query(client):
     try:return client.call('runtime.status')['data']
     except RuntimeFault:return None
@@ -222,9 +253,12 @@ def test_resident_durably_acks_but_does_not_execute_without_rule_or_host(platfor
     config,user=configuration(platform,tmp_path,service=False)
     from test_agent_delivery import publish
     sender=people[1]
+    owner_runtime=ResidentRuntime(RuntimeConfig.load(config))
+    try:token=owner_runtime.account.token
+    finally:owner_runtime.close()
     with process(config) as (_,local,status):
         actor=status['identities'][0]['agentId']
-        owner={**user,'actor':actor,'token':platform.auth.bearer(user['id'],restricted=True)}
+        owner={**user,'actor':actor,'token':token}
         publish(client,owner,[sender['username']]).raise_for_status()
         original=request(actor)
         peer=Peer(client,sender)

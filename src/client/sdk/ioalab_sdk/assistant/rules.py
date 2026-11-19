@@ -16,8 +16,10 @@ from ..runtime import private_text
 from ..runtime import RuntimeFault,encode
 
 
+NEW_RULE_DEFAULTS={'allowedSenders': [], 'enabled': False, 'tools': []}
+
 FIELDS={'name','description','inputSchema','outputSchema','allowedSenders','enabled','tools'}
-KEYWORDS={'type','properties','required','additionalProperties','items','enum','minimum','maximum','minLength','maxLength','minItems','maxItems','description','format'}
+KEYWORDS={'type','properties','required','additionalProperties','items','enum','minimum','maximum','minLength','maxLength','minItems','maxItems','description','title','format'}
 
 
 def invalid(message):raise RuntimeFault('invalid_input',message,'edit_rule')
@@ -105,7 +107,8 @@ class Rules:
 
     def draft(self,operation,declaration,instructions):
         if not isinstance(declaration,dict) or not isinstance(instructions,str):invalid('A declaration and local processing text are required')
-        text=render(copy.deepcopy(declaration),instructions)
+        # Materialize defaults only on creation; stored rule text retains its semantics.
+        text=render(copy.deepcopy({**NEW_RULE_DEFAULTS, **declaration}),instructions)
         # Structural validation before writing; account/tool checks remain a pure preflight.
         parse(text)
         fingerprint=digest({'declaration':declaration,'instructions':instructions})

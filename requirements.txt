@@ -14,3 +14,7 @@
 pytest>=8
 setuptools>=68
 wheel>=0.43
+
+# 维护共享凭据后端约束所需的跨平台元数据（运行时按平台选择）。
+SecretStorage>=3.5,<4
+pywin32-ctypes>=0.2.3,<0.3

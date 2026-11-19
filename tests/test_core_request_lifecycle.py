@@ -12,6 +12,8 @@ from ioalab.errors import LabError
 from ioalab.app import Platform
 from ioalab.storage import DataOwner,DataInUse
 from ioalab.web.app import create_app
+from _support import new_user,PASSWORD
+import uuid
 
 
 @pytest.mark.parametrize('entry',['http','websocket','a2c','case-admin','case-query'])
@@ -44,8 +46,11 @@ def test_canceled_public_caller_keeps_original_writer_and_data_owned(tmp_path,mo
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
                 path={'http':'/api/admin/components','case-admin':'/api/admin/arbitrations',
                       'case-query':'/api/v1/arbitrations?agentId=isolated&admissionId=00000000-0000-0000-0000-000000000001'}.get(entry,'/a2a/isolated-writer')
-                subject='assistant:admin' if entry=='case-query' else 'admin'
-                await client.get(path,headers={'Authorization':'Bearer '+core.auth.token(subject)})
+                if entry=='case-query':
+                    user=new_user(core)
+                    token=core.accounts.login(user['username'],PASSWORD,audience='sdk',operation_id=str(uuid.uuid4()))['token']
+                else:token=core.auth.token('admin')
+                await client.get(path,headers={'Authorization':'Bearer '+token})
         else:
             queue=asyncio.Queue()
             await queue.put({'type':'websocket.connect'})

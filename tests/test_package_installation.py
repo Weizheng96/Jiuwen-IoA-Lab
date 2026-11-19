@@ -99,10 +99,12 @@ def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
         assert b.read('ioalab_client/data/licenses/a2c/NOTICE.md')==(ROOT/'src/a2c/NOTICE.md').read_bytes()
     with zipfile.ZipFile(wheel) as archive:
         names=archive.namelist()
+        assert 'ioalab_sdk/runtime/web/identity/setup.html' in names
+        assert 'ioalab_sdk/mcp/server.py' in names
+        assert 'ioalab_sdk/runtime/web/shared/app.js' in names
         assert required<=set(names)
         assert all(hashlib.sha256(archive.read(name)).hexdigest()==digest
                    for name,digest in resource_digests.items())
-        assert 'ioalab_sdk/runtime/web/account.html' in names
         assert 'ioalab_sdk/runtime/trust/platform-trust.json' in names
         assert 'ioalab_sdk/runtime/trust/ioalab-ca.pem' in names
         assert not any(b'PRIVATE KEY' in archive.read(name) for name in names if name.endswith(('.pem', '.key')))
@@ -116,7 +118,7 @@ def test_single_client_wheel_installs_both_roles_away_from_checkout(tmp_path):
                 resolved = {req.name for req in requirements if not req.marker or req.marker.evaluate({
                     'extra': host, 'sys_platform': platform, 'python_full_version': '3.11.4'})}
                 assert ('claude-agent-sdk' in resolved) == (host == 'claude-code')
-                assert ('pywin32' in resolved) == (host == 'claude-code' and platform == 'win32')
+                assert ('pywin32' in resolved) == (platform == 'win32')
         assert 'a2c/__init__.py' in names and 'jiuwenswarm_sdk/__init__.py' in names
         assert not any(name.endswith('/installer.py') or 'settings.local.json' in name for name in names)
     environment=tmp_path/'environment';venv.EnvBuilder(with_pip=True).create(environment)
@@ -195,7 +197,7 @@ def test_pip_installs_client_from_git_tag_and_records_its_commit(tmp_path):
     Path(purelib,'zz-third-party.pth').write_text(DEPENDENCY_PATHS,encoding='utf-8')
     Path(purelib,'zz-third-party.pth').write_text('import sys; sys.path[:0] = '+repr(DEPENDENCY_SITES)+'\n',encoding='utf-8')
     requirement='git+'+repository.as_uri()+'@client-test#subdirectory=src/client'
-    run([str(python),'-I','-m','pip','install','--no-index','--no-deps','--no-build-isolation',requirement],tmp_path)
+    run([str(python),'-I','-m','pip','install','--no-index','--no-deps','--no-build-isolation','--ignore-installed',requirement],tmp_path)
     Path(purelib,'zz-third-party.pth').write_text(DEPENDENCY_PATHS,encoding='utf-8')
     result=json.loads(run([str(python),'-I','-m','ioalab_client','status'],tmp_path))
     assert result['status']=='completed'
@@ -235,6 +237,9 @@ def test_built_packages_have_own_versions_and_platform_resources(tmp_path,offici
         assert not any(name.startswith('ioalab/psp/') for name in archive.namelist())
     with zipfile.ZipFile(next(wheels.glob('ioalab_sdk-*.whl'))) as archive:
         assert 'ioalab_sdk/runtime/web/user.html' in archive.namelist()
+        assert 'ioalab_sdk/mcp/__main__.py' in archive.namelist()
+        assert {'ioalab_sdk/runtime/web/shared/forms.html', 'ioalab_sdk/runtime/web/shared/app.js',
+                'ioalab_sdk/runtime/web/shared/browser.js', 'ioalab_sdk/runtime/web/messaging/fields.js'}.issubset(archive.namelist())
         assert 'ioalab_sdk/runtime/__main__.py' not in archive.namelist()
         assert not any(name.startswith('ioalab_jiuwen/') for name in archive.namelist())
         assert 'ioalab_sdk/assistant.py' not in archive.namelist()
@@ -274,6 +279,9 @@ import ioalab.config as core_config
 import ioalab_services.catalog as service_catalog
 from ioalab.config import Settings
 from ioalab_services.catalog import definitions,seed_manifest
+from ioalab_sdk.runtime import form_page
+from ioalab_sdk.mcp import create_server
+assert callable(create_server) and 'ui/initialize' in form_page('app') and '/user/forms/api' in form_page('browser')
 page=r.files('ioalab').joinpath('web/static/index.html').read_text(encoding='utf-8')
 print(json.dumps({'core':m.version('ioalab'),'sdk':m.version('ioalab-sdk'),'host':m.version('ioalab-jiuwen'),'official':m.version('ioalab-official'),
                  'ownedServices':len(definitions()),'ownedSeed':len(seed_manifest()['domains']),
@@ -311,3 +319,16 @@ def test_official_wheel_is_reproducible_when_source_mtimes_change(tmp_path,offic
     output=run([sys.executable,'-I','-c',
         "import sys;sys.path.insert(0,sys.argv[1]);from ioalab_services.catalog import definitions,seed_manifest;print(len(definitions()),len(seed_manifest()['domains']))",str(wheel)],tmp_path)
     assert output.strip()=='52 8'
+
+
+def test_shared_constraints_cover_system_credential_backends():
+    locked=(ROOT/'src/client/skills/_shared/requirements.lock').read_text()
+    requirements=[Requirement(line) for line in locked.splitlines() if line and not line.startswith('#')]
+    for host in ('jiuwen','codex','claude-code'):
+        for platform in ('win32','linux','darwin'):
+            names={req.name.lower().replace('_','-') for req in requirements if not req.marker or req.marker.evaluate({
+                'extra':host,'sys_platform':platform,'python_full_version':'3.11.4'})}
+            assert {'keyring','mcp'} <= names
+            assert ('secretstorage' in names)==(platform=='linux')
+            assert ('jeepney' in names)==(platform=='linux')
+            assert ('pywin32-ctypes' in names)==(platform=='win32')

@@ -15,8 +15,9 @@ def build_router(platform,current_user):
         return directory.bearer(request.headers.get('authorization',''))
 
     @router.post('/api/v1/connections/ticket')
-    def ticket(body:dict,uid=Depends(sdk_user)):
-        return directory.issue(uid,body.get('agentIds'))
+    def ticket(body:dict,request:Request,uid=Depends(sdk_user)):
+        _,session=platform.auth.devices.from_access(request.headers.get('authorization',''))
+        return directory.issue(uid,body.get('agentIds'),session=session)
 
     @router.post('/api/v1/messaging/interfaces')
     def publish(body:dict,uid=Depends(sdk_user)):
@@ -80,7 +81,8 @@ def build_router(platform,current_user):
         try:
             frame=await asyncio.wait_for(read(),timeout=5)
             if not isinstance(frame,dict) or frame.get('type')!='connection.auth':raise LabError('forbidden','First frame must authenticate',status=401)
-            uid,actors=await platform._worker(directory.consume,frame.get('ticket'))
+            uid,actors,session=await platform._worker(directory.consume,frame.get('ticket'))
+            if not session:raise LabError('authenticate','Obtain a device-session connection ticket',status=401)
             ready=await platform._worker(broker.connect,uid,actors,frame.get('runtimeId'),frame.get('cursors',{}),connection)
             generations=ready['generations']
             await send({'type':'connection.ready',**ready})
@@ -91,6 +93,7 @@ def build_router(platform,current_user):
             async def receive():
                 while True:
                     request=await read()
+                    await platform._worker(platform.auth.devices.check,session)
                     if not isinstance(request,dict) or len(json.dumps(request).encode())>131072:
                         raise LabError('invalid_input','Invalid control frame')
                     if request.get('type')=='connection.ping':
@@ -109,6 +112,7 @@ def build_router(platform,current_user):
             async def deliver():
                 while True:
                     event.clear()
+                    await platform._worker(platform.auth.devices.check,session)
                     await platform._worker(broker.cleanup)
                     more=False
                     for actor in actors:
@@ -118,7 +122,7 @@ def build_router(platform,current_user):
                             sent[actor]=value['recipientSeq']
                         more=more or len(batch)==100
                     if more:continue
-                    try:await asyncio.wait_for(event.wait(),timeout=platform.s.ws_heartbeat_seconds)
+                    try:await asyncio.wait_for(event.wait(),timeout=min(1,platform.s.ws_heartbeat_seconds))
                     except asyncio.TimeoutError:pass
 
             tasks=[asyncio.create_task(receive()),asyncio.create_task(deliver())]

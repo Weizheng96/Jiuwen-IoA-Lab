@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import wait_for
+from _support import PASSWORD
 from ioalab_sdk.provider import ProviderRole
 from ioalab_sdk.runtime.config import RuntimeConfig
 from ioalab_sdk.runtime.files import private_json,read_json
@@ -32,7 +33,12 @@ def product(tmp_path,monkeypatch,role,*,python=None):
 @pytest.mark.parametrize('role,operation',[('assistant','runtime.status'),('service','provider.status'),
     ('assistant','runtime.web-extension'),('service','runtime.web-extension'),('assistant','runtime.configure')])
 def test_bootstrap_only_forwards_user_paths_without_opening_them(tmp_path,monkeypatch,capsys,role,operation):
-    module=product(tmp_path,monkeypatch,role);calls=[]
+    module=product(tmp_path,monkeypatch,role);calls=[];resolved=[]
+    def assembly(path):
+        resolved.append(path)
+        return 'ioalab-client'
+    # Configuration parsing and owner verification belong to the public SDK.
+    monkeypatch.setattr('ioalab_sdk.runtime.runtime_assembly',assembly)
     def invoke(python,arguments):
         calls.append(arguments)
         return SimpleNamespace(returncode=0,stdout='{"status":"completed","data":{},"error":null}',stderr='')
@@ -40,9 +46,8 @@ def test_bootstrap_only_forwards_user_paths_without_opening_them(tmp_path,monkey
     config=tmp_path/'not-opened-settings.json';args=tmp_path/'not-opened-arguments.json'
     assert module.main([operation,'--config',str(config),'--args-file',str(args)])==0
     result=json.loads(capsys.readouterr().out);assert result['status']=='completed'
-    business=operation.startswith(('assistant.','provider.'))
-    assert len(calls)==(2 if business else 1)
-    if business:assert calls[0]==['-m','ioalab_client.runtime','start','--config',str(config.resolve())]
+    assert len(calls)==1  # Read-only role queries never start an instance.
+    assert resolved==([config.resolve()] if operation in ('runtime.web-extension','runtime.configure') else [])
     call=calls[-1]
     assert str(config.resolve()) in call and str(args.resolve()) in call
     assert '--home' not in call and not config.exists() and not args.exists()
@@ -60,6 +65,10 @@ def test_bom_configuration_and_arguments_cross_sdk_cli_and_ipc(platform,tmp_path
     runtime=ResidentRuntime(config,modules=(ProviderRole(),assistant)).start()
     try:
         wait_for(lambda:runtime.connection.connected)
+        # Initial authentication may migrate password configuration to a device
+        # credential. The subsequent CLI calls must preserve that settled file.
+        path.write_text(json.dumps(read_json(path),ensure_ascii=False),encoding='utf-8-sig')
+        original=path.read_bytes()
         payload={'profile':'service','terms':terms()}
         args=tmp_path/'起草参数.json';args.write_text(json.dumps(payload,ensure_ascii=False),encoding='utf-8-sig')
         assert original.startswith(b'\xef\xbb\xbf') and args.read_bytes().startswith(b'\xef\xbb\xbf')
@@ -140,7 +149,10 @@ def test_business_configuration_mismatch_has_no_effect_or_argument_rewrite(platf
         wait_for(lambda:runtime.connection.connected)
         before=LocalClient(runtime.config.home).call('runtime.status')['data']
         value=read_json(path)
-        if change=='account':value['username']='another-owner'
+        if change=='account':
+            value['username']='another-owner'
+            value.pop('credential_ref',None)
+            value['password']=PASSWORD  # Valid different-account configuration, not a foreign credential reference.
         else:value['max_model_runs']=1 if value.get('max_model_runs',2)!=1 else 2
         private_json(path,value);args=tmp_path/'effect.json';private_json(args,{})
         original=args.read_bytes()

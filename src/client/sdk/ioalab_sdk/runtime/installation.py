@@ -49,7 +49,7 @@ def current(assembly=None):
             if not isinstance(value['releaseId'],str) or not re.fullmatch('[a-f0-9]{64}',value['releaseId']):raise ValueError()
             if ready.read_text(encoding='utf-8')!=value['releaseId']:raise ValueError()
             expected=value['versions']
-            if not isinstance(expected,dict) or not 1<=len(expected)<=64 or 'ioalab-sdk' not in expected:raise ValueError()
+            if not isinstance(expected,dict) or not 1<=len(expected)<=128 or 'ioalab-sdk' not in expected:raise ValueError()
             if any(not isinstance(version,str) or not 1<=len(version)<=128 or installed_version(name)!=version for name,version in expected.items()):raise ValueError()
         except (OSError,ValueError,RuntimeFault):
             raise RuntimeFault('not_ready','Installed release identity is incomplete or changed; preserve its data and inspect the installation','run_bootstrap') from None
@@ -65,3 +65,48 @@ def current(assembly=None):
 def require_matching(actual,*,assembly=None):
     if not isinstance(actual,dict) or actual!=current(assembly):
         raise RuntimeFault('installation_changed','Running instance uses another or unverified installation; safely stop it before starting this release','runtime.stop')
+
+
+def record_runtime_owner(config, installation):
+    """The resident writes its actual assembly under the instance lease, not a guessed host."""
+    from .files import private_json
+    private_json(config.home/'runtime-owner.json', {
+        'format': 'ioalab.runtime-owner/1', 'assembly': installation['assembly'],
+        'environment': installation['environment'], 'platform': config.platform,
+        'username': config.username, 'dataDirectory': str(config.home.resolve())})
+
+
+def runtime_assembly(path):
+    """Resolve an authenticated live owner or its bounded, account-bound stopped record."""
+    from .config import RuntimeConfig
+    from .ipc import LocalClient
+    from .lifecycle import require_configuration
+    config = RuntimeConfig.load(path)
+    try:
+        result = LocalClient(config.home).call('runtime.status')
+    except RuntimeFault as exc:
+        if exc.recovery != 'runtime.start': raise
+    else:
+        if result.get('status') != 'completed':
+            error = result.get('error') or {}
+            raise RuntimeFault(error.get('code', 'not_ready'), 'Cannot verify the original runtime', error.get('recovery', 'inspect'))
+        state = result['data']; assembly = (state.get('installation') or {}).get('assembly')
+        require_configuration(state, config, assembly=assembly)
+        return assembly
+    record = config.home/'runtime-owner.json'
+    if not record.exists() and not record.is_symlink():
+        if any((config.home/name).exists() for name in ('runtime.sqlite', 'identity-index.json')):
+            raise RuntimeFault('not_ready', 'Original assembly record is missing; use its verified explicit entry, not host migration', 'inspect_original_assembly')
+        return 'ioalab-client'
+    try:
+        if record.is_symlink() or not record.is_file() or record.stat().st_size > 8192: raise ValueError()
+        value = json.loads(record.read_text(encoding='utf-8'))
+        if not isinstance(value, dict) or set(value) != {'format', 'assembly', 'environment', 'platform', 'username', 'dataDirectory'}: raise ValueError()
+        if (value['format'] != 'ioalab.runtime-owner/1' or value['environment'] != str(Path(sys.prefix).resolve())
+                or value['platform'] != config.platform or value['username'] != config.username
+                or value['dataDirectory'] != str(config.home.resolve())
+                or value['assembly'] is not None and not isinstance(value['assembly'], str)): raise ValueError()
+    except (OSError, ValueError):
+        raise RuntimeFault('identity_conflict', 'Original assembly record is invalid or belongs elsewhere; preserve it', 'inspect_original_assembly') from None
+    current(value['assembly'])  # Verify the selected assembly in this installation; upgrades keep ownership.
+    return value['assembly']

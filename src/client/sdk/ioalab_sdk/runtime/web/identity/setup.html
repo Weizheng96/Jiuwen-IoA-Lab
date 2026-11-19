@@ -1,0 +1,104 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>接入 IoA Lab</title><style>body{font:16px system-ui;margin:40px auto;max-width:640px;padding:0 20px;color:#172a3a;background:#f6f8fa}form,section{background:white;padding:24px;border-radius:16px;margin:20px 0}label{display:block;margin:14px 0}input,select,button{box-sizing:border-box;font:inherit;padding:10px;width:100%;border:1px solid #b8c5d2;border-radius:8px}button{background:#075b7b;color:white;margin:8px 0;cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere}small{color:#526272}</style>
+<h1>接入 IoA Lab</h1><p>登录或继续使用已有接入，账号密码仅在本页填写。</p><details><summary>了解凭据与连接方式</summary><p>设备登录凭据加密保存在本机。已有接入核对后复用；首次登录后由接入助手完成连接。</p></details>
+<form id="setup" hidden><label>平台地址<input name="platform" type="url" required placeholder="https://ioa.example.com"></label>
+<label>接入方式<select name="mode"><option value="login">登录已有账号</option><option value="register">注册新账号</option></select></label>
+<label>账号<input name="username" autocomplete="username"></label><label>密码<input name="password" type="password" autocomplete="current-password"></label>
+<small id="registerHelp">注册时可留空账号、密码，由本机程序安全生成；成功后请从下方一次性取回并自行保管密码。</small>
+<label id="inviteField">邀请码（平台要求时填写）<input name="invite" type="password" autocomplete="off"></label>
+<details id="identityOptions"><summary>身份与显示名称</summary><label>身份<select name="role"><option value="assistant">个人助手</option><option value="service">服务方</option></select></label>
+<label>显示名称<input name="name" maxlength="120" placeholder="我的 IoA 助手"></label></details>
+<button type="submit" disabled>保存并接入</button></form>
+<section><h2>接入状态</h2><p id="message" role="status">正在连接账号界面，请稍候…</p><p id="account"></p><details><summary>查看接入回执</summary><pre id="details"></pre></details><button id="resume" hidden disabled>恢复原请求</button><button id="refresh">刷新状态</button></section>
+<section id="reuseSection" hidden><h2>发现已有接入</h2><p>继续使用已有的个人助手或服务方，原配置和运行实例保持不变。</p><div id="existingAccess"></div></section>
+<section id="credentialsSection" hidden><h2>本机账号</h2><p>自动生成的注册密码仅提供一次取回；请立即保存到自己的密码管理器，切勿粘贴到聊天窗口。手动输入的密码不提供取回。</p><button id="credentials">一次性取回注册密码</button><button id="discardSecret">清除尚未取回的注册密码</button><pre id="secret" hidden></pre><button id="hideSecret" hidden>隐藏密码</button></section>
+<section id="devicesSection" hidden><details><summary>设备登录管理</summary><p>管理前先安全停止下方已核对的客户端；完成后让接入助手启动原客户端。撤销当前设备将使它与平台的连接失效。</p>
+<button id="devices">查看设备列表</button><div id="deviceList"></div><button id="resumeRevoke">恢复上次未核实的撤销</button>
+<form id="relogin"><label>会话到期或撤销后重新登录<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">登录当前设备</button></form><p id="deviceMessage" role="status"></p></details></section>
+<section id="configuration" hidden><details><summary>高级：客户端与服务方配置</summary><p>修改前先安全停止原客户端，等待在途任务排空。保存后让接入助手继续启动并核对宿主能力。</p>
+<button id="stop">安全停止已核对的客户端</button>
+<form id="configform"><label>服务身份<select id="profile"></select></label>
+<label>本地专业说明<textarea id="instructions" rows="5" style="width:100%"></textarea></label>
+<label>已安装业务技能（每行一个名称）<textarea id="skills" rows="3" style="width:100%"></textarea></label>
+<label>最大同时委托数<input id="capacity" type="number" min="1" max="1000" value="1"></label>
+<label>接单状态<select id="accepting"><option value="true">允许接单</option><option value="false">暂停接单</option></select></label>
+<button type="submit">保存本地配置</button></form><p id="configmessage" role="status"></p><details><summary>配置操作回执</summary><pre id="configresult"></pre></details></details></section>
+<script>
+let csrf,busy=false,pageReady=false,clientState=null;const form=document.getElementById('setup'),message=document.getElementById('message'),details=document.getElementById('details');
+async function request(path,body){if(typeof accountApp!=='undefined')return accountApp.request(path,body);const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','X-Ioa-Csrf':csrf||''},...(body===undefined?{}:{body:JSON.stringify(body)})});const v=await r.json();if(!r.ok)throw new Error(v.error?.message||'请求未完成');return v;}
+function accountReady(ready){
+ pageReady=ready;
+ for(const control of form.querySelectorAll('input,select,button'))control.disabled=!ready||busy;
+ document.getElementById('resume').disabled=!ready||busy;
+ if(!ready){form.hidden=true;document.getElementById('reuseSection').hidden=true;document.getElementById('credentialsSection').hidden=true;}
+}
+function accountError(error){
+ if(error.accountConnection||error instanceof TypeError){accountReady(false);message.textContent='账号界面连接未完成，登录结果尚未核实。请先刷新状态；仍不可用时重新打开接入界面，或在浏览器继续。';}
+ else message.textContent=error.message;
+}
+function accountFields(){
+ const register=form.elements.mode.value==='register';
+ document.getElementById('registerHelp').hidden=!register;document.getElementById('inviteField').hidden=!register;
+ form.elements.username.required=!register;form.elements.password.required=!register;
+ const role=form.elements.role.value==='service'?'服务方':'个人助手';
+ document.querySelector('#identityOptions summary').textContent='接入身份：'+role+' · 修改名称与身份';
+}
+form.elements.mode.onchange=accountFields;form.elements.role.onchange=accountFields;accountFields();
+function show(v){
+ accountReady(true);
+ if(typeof accountApp!=='undefined')document.getElementById('credentialsSection').hidden=!['ready','configured'].includes(v.phase);
+ if(v.client){
+  clientState=v.client;document.getElementById('configuration').hidden=false;document.getElementById('credentialsSection').hidden=false;document.getElementById('devicesSection').hidden=false;
+  const select=document.getElementById('profile');select.replaceChildren();
+  for(const profile of v.client.configuration.identities.filter(p=>p.role==='service')){const o=document.createElement('option');o.value=profile.key;o.textContent=profile.name;select.append(o);}
+  document.getElementById('configform').hidden=!select.options.length;
+  document.getElementById('stop').disabled=!v.client.runtime.data?.bootId;
+ }
+ document.getElementById('reuseSection').hidden=v.phase!=='existing';
+ const accesses=document.getElementById('existingAccess');accesses.replaceChildren();
+ for(const item of v.existingAccess||[]){
+  const card=document.createElement('div'),label=document.createElement('p'),button=document.createElement('button');
+  label.textContent='账号：'+item.account.username+' · 平台：'+item.account.platform+' · 身份：'+item.identities.join('、')+' · 在线';
+  button.textContent='继续使用';button.onclick=()=>submit({mode:'reuse',reference:item.reference});
+  card.append(label,button);accesses.append(card);
+ }
+ if(v.phase==='existing'&&!v.existingAccess?.length)accesses.textContent='暂时无法核对已有接入。请刷新状态；若仍不可用，请让接入助手检查原客户端。无需填写配置路径，也不会启动第二个实例。';
+ const labels={existing:'这个账号已有接入，请使用原客户端',reused:'已核对原接入，请返回聊天继续；原配置和实例保持不变',input:'请在下方填写账号信息，完成后返回聊天继续。',pending:'原请求处理中',unknown:'结果待核实，请恢复原请求',rejected:'请求被拒绝，可纠正输入',configured:'已有本机配置；会话失效时请在设备登录管理中重新登录',ready:'账号已就绪，等待宿主配置与连接启动'};
+ if(v.defaults){for(const [key,value] of Object.entries(v.defaults)){const field=form.elements.namedItem(key);if(field&&!field.value)field.value=value;if(key==='role'&&field)field.value=value;}}
+ accountFields();
+ message.textContent=labels[v.phase]||v.phase;
+ if(v.nextAction==='use_existing_configuration'&&v.runtime?.platformConnected)message.textContent='已核对原接入，平台已连接。请返回聊天继续办理业务，无需再次登录。';
+ if(v.nextAction==='inspect_existing_runtime')message.textContent='账号接入记录已保留，原客户端尚未就绪。请返回聊天检查原连接，无需重新注册。';
+ if(v.runtimeError)message.textContent+='。'+v.runtimeError.message;
+ if(v.runtime?.connectionError)message.textContent+='。'+v.runtime.connectionError.message;
+ if(v.error)message.textContent+='。'+v.error.message;
+ document.getElementById('account').textContent=v.account?'账号：'+v.account.username+'；平台：'+v.account.platform:'';
+ details.textContent=JSON.stringify({account:v.account,error:v.error},null,2);
+ form.hidden=!['input','rejected'].includes(v.phase);document.getElementById('resume').hidden=['ready','input','existing','reused','configured'].includes(v.phase);
+}
+async function submit(values){if(busy||!pageReady)return;busy=true;for(const b of document.querySelectorAll('button'))b.disabled=true;try{show(await request('/user/setup',values));form.reset();show(await request('/user/api'));}catch(e){accountError(e);}finally{busy=false;for(const b of document.querySelectorAll('button'))b.disabled=false;accountReady(pageReady);document.getElementById('stop').disabled=!clientState?.runtime.data?.bootId;}}
+const secret=document.getElementById('secret'),hideSecret=document.getElementById('hideSecret');
+function clearSecret(){secret.textContent='';secret.hidden=true;hideSecret.hidden=true;}
+hideSecret.onclick=clearSecret;addEventListener('pagehide',clearSecret);
+document.getElementById('credentials').onclick=async()=>{try{const value=await request('/user/credentials',{});secret.textContent='账号：'+value.username+'\n密码：'+value.password;secret.hidden=false;hideSecret.hidden=false;setTimeout(clearSecret,30000);}catch(e){message.textContent=e.message;}};
+document.getElementById('discardSecret').onclick=async()=>{if(!confirm('清除后本机不再提供注册密码取回，请确认已自行保管。'))return;try{await request('/user/credentials',{action:'discard'});clearSecret();message.textContent='临时注册密码已清除';}catch(e){message.textContent=e.message;}};
+document.getElementById('stop').onclick=async()=>{try{const v=await request('/user/configuration',{action:'stop',bootId:clientState.runtime.data.bootId});document.getElementById('configresult').textContent=JSON.stringify(v,null,2);document.getElementById('configmessage').textContent=v.status==='completed'?'操作已完成；如修改了配置，请返回聊天核对连接状态。':'请查看操作回执并核对当前状态。';}catch(e){message.textContent=e.message;}};
+document.getElementById('configform').onsubmit=async e=>{e.preventDefault();const profile=document.getElementById('profile').value;const config={instructions:document.getElementById('instructions').value,skills:document.getElementById('skills').value.split('\n').map(s=>s.trim()).filter(Boolean),max_active_delegations:Number(document.getElementById('capacity').value),accepting:document.getElementById('accepting').value==='true'};try{const v=await request('/user/configuration',{action:'configure',expectedDigest:clientState.configuration.configurationDigest,changes:{provider:{services:{[profile]:config}}}});document.getElementById('configresult').textContent=JSON.stringify(v,null,2);document.getElementById('configmessage').textContent=v.status==='completed'?'操作已完成；如修改了配置，请返回聊天核对连接状态。':'请查看操作回执并核对当前状态。';show(await request('/user/api'));}catch(e){message.textContent=e.message;}};
+const deviceMessage=document.getElementById('deviceMessage');
+async function deviceAction(values){
+ if(busy)return;busy=true;
+ try{const result=await request('/user/devices',values);deviceMessage.textContent=values.action==='list'?'设备列表已更新':values.action==='login'?'当前设备登录成功':'原设备会话已撤销';
+ if(result.sessions){const list=document.getElementById('deviceList');list.replaceChildren();
+ for(const item of result.sessions){const row=document.createElement('div'),text=document.createElement('p');
+ text.textContent=item.deviceName+(item.current?'（当前设备）':'')+' · '+({active:'有效',revoked:'已撤销',expired:'已到期'}[item.status]||item.status)+' · 登录：'+item.createdAt+' · 到期：'+item.expiresAt+' · 设备编号：'+item.deviceId;row.append(text);
+ if(item.status==='active'){const button=document.createElement('button');button.textContent=item.current?'退出当前设备':'撤销此设备';button.onclick=()=>{if(confirm(item.current?'退出当前设备并停止其平台连接？':'撤销此设备的登录授权？'))deviceAction({action:'revoke',sessionId:item.sessionId});};row.append(button);}list.append(row);}}
+ else{document.getElementById('deviceList').replaceChildren();show(await request('/user/api'));}
+ }catch(e){deviceMessage.textContent=e.message+'；如撤销回执丢失，请恢复上次撤销。';}finally{busy=false;}
+}
+document.getElementById('devices').onclick=()=>deviceAction({action:'list'});
+document.getElementById('resumeRevoke').onclick=()=>deviceAction({action:'resume'});
+document.getElementById('relogin').onsubmit=e=>{e.preventDefault();const password=e.target.elements.password.value;e.target.reset();deviceAction({action:'login',password});};
+form.onsubmit=e=>{e.preventDefault();const values=Object.fromEntries(new FormData(form));for(const input of form.querySelectorAll('input[type=password]'))input.value='';submit(values);};document.getElementById('resume').onclick=()=>submit({});document.getElementById('refresh').onclick=async()=>{try{show(await request('/user/api'));}catch(e){accountError(e);}};
+accountReady(false);
+(async()=>{if(typeof accountApp!=='undefined'){message.textContent='正在连接账号界面…';form.querySelector('button[type=submit]').onclick=e=>{e.preventDefault();if(form.reportValidity())form.onsubmit(e);};await accountApp.init(show,accountError);return;}const token=location.hash.slice(1);history.replaceState(null,'',location.pathname);if(token)csrf=(await request('/user/session',{token})).csrf;const v=await request('/user/api');csrf=v.csrf;show(v);})().catch(accountError);
+</script></html>

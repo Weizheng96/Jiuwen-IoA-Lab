@@ -89,6 +89,11 @@ class Auth:
         self.admin_hash = self._admin_hash()
 
     # ── 管理员 ───────────────────────────────────────────────────────
+    @property
+    def devices(self):
+        from .devices import DeviceSessions
+        return DeviceSessions(self.db, self)
+
     def _admin_hash(self) -> str:
         if not self.s.admin_username or not self.s.admin_password:
             raise ValueError('Configure the existing administrator credentials explicitly')
@@ -260,7 +265,7 @@ class Auth:
         """脚本用的长效 token（30 天），与 cookie 同一算法。"""
         return self.token(("assistant:" if restricted else "")+subject, ttl=30 * 86400)
 
-    def verify(self, token: str | None) -> str | None:
+    def signed_subject(self, token: str | None) -> str | None:
         """返回 subject（用户 id 或 "admin"），无效返回 None。"""
         if not token:
             return None
@@ -270,6 +275,14 @@ class Auth:
             if not hmac.compare_digest(sig,want) or int(exp)<time.time():return None
         except (ValueError,TypeError,UnicodeError):
             return None
+        return subject
+
+    def verify(self, token: str | None) -> str | None:
+        subject = self.signed_subject(token)
+        if subject and subject.startswith('device:'):
+            try: return 'assistant:' + self.devices.check(subject.removeprefix('device:'))
+            except LabError: return None
+        if subject and subject.startswith('assistant:'):return None
         return subject
 
 

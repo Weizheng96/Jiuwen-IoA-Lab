@@ -325,54 +325,64 @@ def test_exported_launcher_refuses_account_rebinding_in_fresh_process(tmp_path):
     assert json.loads(result.stdout)['error']['code'] == 'identity_conflict'
 
 
+def account_page(path, platform):
+    from ioalab_sdk.runtime import private_json
+    from ioalab_sdk.runtime.account_setup import options_for
+    from ioalab_sdk.runtime.onboarding import Onboarding
+    page = Onboarding(path)
+    private_json(page.home/'options.json', options_for(path, {'platform_url': platform.s.base_url}))
+    return page
+
+
 def test_new_account_prepares_both_roles_but_existing_configuration_is_untouched(platform, tmp_path):
-    from ioalab_sdk.runtime.account_setup import AccountSetupUi, setup_document
+    from ioalab_sdk.runtime.account_setup import options_for
     from ioalab_sdk.runtime import RuntimeConfig
     from ioalab_sdk.provider import validate_provider
     path = tmp_path/'client/settings.local.json'
-    options = {'platform_url': platform.s.base_url, 'prepare_both_roles': True}
-    ui = AccountSetupUi(path, options)
-    assert ui.decision({'mode': 'register'}, None)['authenticated']
+    page = account_page(path, platform)
+    assert page.submit({'mode':'register'})['phase'] == 'ready'
     config = RuntimeConfig.load(path)
     assert {p['role'] for p in config.identities} == {'assistant', 'service'}
     assert validate_provider(config.provider, config.identities)['service']['accepting'] is False
     before = path.read_bytes()
-    setup_document(path, options)
+    options_for(path, {'prepare_both_roles': True})
     assert path.read_bytes() == before
-    # A user-only view can show the same credentials for website login; public receipts cannot.
-    private = ui.snapshot()
-    assert private['credentials']['username'] == config.username
-    assert private['credentials']['password'] == config.password
-    assert private['configurationFile'] == str(path.resolve())
-    assert config.password not in json.dumps(json.loads(ui.receipt.read_text(encoding='utf-8')))
+    secret = page.credentials({})['password']
+    assert secret and config.password == '' and config.credential_ref
+    assert secret not in path.read_text() and secret not in json.dumps(page.status())
+    from ioalab_sdk.runtime import RuntimeFault
+    with pytest.raises(RuntimeFault):page.credentials({})
 
 
 def test_handoff_uses_actual_platform_and_never_returns_configured_secrets(platform, tmp_path, monkeypatch):
     from ioalab_client.onboarding import summary, markdown
-    from ioalab_sdk.runtime.account_setup import AccountSetupUi
     monkeypatch.setattr(Path, 'home', lambda: tmp_path)
-    path = tmp_path/'client/settings.local.json'
-    ui = AccountSetupUi(path, {'platform_url': platform.s.base_url, 'prepare_both_roles': True})
-    ui.decision({'mode': 'register'}, None)
-    secret = ui.snapshot()['credentials']['password']
-    result = summary('codex', config=path)
+    page = account_page(tmp_path/'client/settings.local.json', platform)
+    page.submit({'mode':'register'})
+    secret = page.credentials({})['password']
+    result = summary('codex', config=page.path)
     assert result['data']['website']['home'] == platform.s.base_url
-    assert result['data']['accountName'] == ui.snapshot()['credentials']['username']
+    assert result['data']['accountName'] == page.status()['account']['username']
+    assert result['data']['credentialsLocation'].endswith('/credentials.enc')
     assert secret not in json.dumps(result) and secret not in markdown(result)
     assert result['data']['newSessionVerified'] is False and result['status'] == 'waiting'
 
 
-@pytest.mark.parametrize('mode', ['register', 'existing'])
+@pytest.mark.parametrize('mode', ['register', 'login'])
 def test_account_page_credentials_also_login_to_website(platform, client, tmp_path, mode):
-    from ioalab_sdk.runtime.account_setup import AccountSetupUi
     from _support import new_user, PASSWORD
-    ui = AccountSetupUi(tmp_path/'client/settings.local.json', {'platform_url': platform.s.base_url, 'prepare_both_roles': True})
+    from ioalab_sdk.runtime import RuntimeFault
+    page = account_page(tmp_path/'client/settings.local.json', platform)
     values = {'mode': mode}
-    if mode == 'existing':
+    if mode == 'login':
         user = new_user(platform)
         values.update(username=user['username'], password=PASSWORD)
-    ui.decision(values, None)
-    credentials = ui.snapshot()['credentials']
+    result = page.submit(values)
+    assert result['phase'] == 'ready'
+    password = page.credentials({})['password'] if mode == 'register' else PASSWORD
+    if mode == 'login':
+        with pytest.raises(RuntimeFault):page.credentials({})
+    credentials = {'username':result['account']['username'], 'password':password}
     response = client.post('/api/auth/login', json=credentials)
     assert response.status_code == 200
     assert client.get('/api/me').json()['username'] == credentials['username']
@@ -678,3 +688,42 @@ def test_pending_steps_are_structured_and_verified_read_only(tmp_path,monkeypatc
     assert main([*base,'--format','markdown'])==0
     text=capsys.readouterr().out
     assert '[由你完成]' in text and 'private-reinstall-secret' not in text
+
+
+@pytest.mark.parametrize('mismatch', [None, 'configuration', 'installation', 'account'])
+def test_existing_explicit_application_handoff_preserves_its_mode(tmp_path, monkeypatch, mismatch):
+    from ioalab_client.onboarding import summary
+    from ioalab_sdk.runtime import RuntimeConfig, LocalClient, private_json
+    from ioalab_sdk.runtime.installation import current
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    config = tmp_path/'settings.json'
+    private_json(config, {'username': 'existing', 'password': 'private-secret',
+        'data_dir': str(tmp_path/'data'), 'host': {'command': ['existing-jiuwen']},
+        'identities': [{'key': 'personal', 'role': 'assistant', 'name': 'Original'}]})
+    configured = RuntimeConfig.load(config)
+    state = {'installation': current('ioalab-jiuwen'),
+        'configurationDigest': configured.public_summary()['configurationDigest'],
+        'account': {'username': configured.username, 'platform': configured.platform, 'authenticated': True},
+        'platformConnected': True, 'runtimeId': 'original-runtime', 'bootId': 'original-boot',
+        'host': {'default': 'application', 'available': True},
+        'identities': [{'profile': 'personal', 'bound': True, 'executionReady': True, 'agentId': 'original-agent'}]}
+    if mismatch == 'configuration': state['configurationDigest'] = 'changed'
+    if mismatch == 'installation': state['installation']['environment'] = str(tmp_path/'another-install')
+    if mismatch == 'account': state['account']['username'] = 'another-account'
+    def reply(client, operation):
+        assert operation == 'runtime.status'
+        return {'status': 'completed', 'data': state}
+    monkeypatch.setattr(LocalClient, 'call', reply)
+    before = config.read_bytes()
+    data = summary('jiuwen', config=config)['data']
+    assert config.read_bytes() == before
+    assert 'private-secret' not in json.dumps(data)
+    pending = {item['id'] for item in data['pending']}
+    if mismatch:
+        assert data.get('runtimeMode') != 'application'
+        assert not data['connected'] and 'runtime' in pending
+    else:
+        assert data['runtimeMode'] == 'application'
+        assert data['executionHostRef'] == 'application'
+        assert data['connected'] and data['roles'][0]['agentId'] == 'original-agent'
+        assert not pending & {'runtime', 'connection', 'roles', 'host_migration', 'native_setup', 'execution_host'}

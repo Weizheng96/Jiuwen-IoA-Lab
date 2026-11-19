@@ -25,10 +25,15 @@ def legacy_pending_fixture(manager,reference):
 
 
 @pytest.mark.parametrize('soft',[False,True])
-def test_legacy_expired_pending_requires_same_object_and_a_new_real_decision(tmp_path,soft):
+@pytest.mark.parametrize('from_form',[False,True])
+def test_legacy_expired_pending_requires_same_object_and_a_new_real_decision(tmp_path,soft,from_form):
     path=tmp_path/'runtime.sqlite';store=RuntimeStore(path,'http://local',['actor'],owner_id='owner')
     clock=[1000.];manager=Confirmations(store,clock=lambda:clock[0]);actual=binding()
-    old=manager.ensure(actual);clock[0]=2000.
+    from contextlib import nullcontext
+    from ioalab_sdk.runtime.forms import _form_scope
+    with _form_scope({'reference':'original-form'}) if from_form else nullcontext():
+        old=manager.ensure(actual)
+    clock[0]=2000.
     assert manager.get(old['reference'])['status']=='expired'
     deadline=ConfirmationDeadline(response_due_at=1500.) if soft else ConfirmationDeadline(expires_at=10000.)
     new=manager.migrate_pending(old['reference'],old['bindingDigest'],actual,deadline=deadline)
@@ -41,6 +46,7 @@ def test_legacy_expired_pending_requires_same_object_and_a_new_real_decision(tmp
     try:
         assert manager.find(actual)==new
         assert manager.ensure(actual,deadline=deadline)==new
+        assert manager.pending_marker(background_only=True)['count']==(0 if from_form else 1)
         approve(manager,new);manager.claim(new['reference'],actual)
     finally:store.close()
 

@@ -7,12 +7,13 @@ import os
 import re
 import threading
 import uuid
+from types import SimpleNamespace
 
 from jiuwenswarm_sdk import Client
 from ioalab_sdk.runtime import private_json
 from .process_values import _Result
 from .submission import Submission
-from ioalab_sdk.runtime import RuntimeFault,encode
+from ioalab_sdk.runtime import RuntimeFault,encode,validate_output
 
 
 class ProcessHost(Submission):
@@ -71,11 +72,22 @@ class ProcessHost(Submission):
                 schema.setdefault('properties',{})['call_goal']={'type':'string','maxLength':2048,'description':'原版宿主用于展示的调用目的；不参与业务输入或权限。'}
                 metadata.add(name)
             description=tool.description if name==tool.name else '[Local tool '+tool.name+'] '+tool.description
+            if schema.get('properties'):
+                description+='\nInput structure (JSON Schema; keep each declared nesting level exactly): '+encode(schema)
             if tool.output_schema is not None:
                 description+='\nOutput contract (JSON Schema; preserve the actual result): '+encode(tool.output_schema)
             # The original public HostTool accepts only these three fields.
             declarations.append({'input_schema':schema,'name':name,'description':description})
         names=list(aliases)
+        # Keep the original native Agent definition stable across phases.
+        # The per-turn schema is data, not a change to the native tool catalog.
+        proposal_name='ioa_propose_result';proposal=[None]
+        while proposal_name in reserved:proposal_name='ioa_propose_result_'+uuid.uuid5(uuid.NAMESPACE_URL,proposal_name).hex[:10]
+        declarations.append({'name':proposal_name,
+            'description':'可选结构化提案，只收集数据，不执行业务。已有SDK业务工具回执时无需调用；不要重复提交已完成的效果。',
+            'input_schema':{'type':'object','properties':{'value':{'type':'object'},
+                'call_goal':{'type':'string'}},'required':['value'],'additionalProperties':False}})
+        names.append(proposal_name)
         workspace=Path(turn.workspace)
         workspace.mkdir(parents=True,exist_ok=True)
         request_id=turn.planned_request_id
@@ -87,11 +99,15 @@ class ProcessHost(Submission):
         # callback aliases receive a local grant; native permissions stay owned
         # by the user's existing Runtime configuration in every phase.
         permissions={name:'allow' for name in names}
+        permissions[proposal_name]='allow' if turn.proposal_schema is not None else 'deny'
         request={'mode':'agent.work.normal','request_id':request_id,'input':turn.input,'agent':definition,
                  'model':self.model,'host_tools':declarations,
                  'permissions':{'tools':permissions},
                  'workspace':{'cwd':str(workspace),'project_dir':str(workspace)},
                  'timeout_seconds':turn.timeout_seconds}
+        if turn.proposal_schema is not None:
+            request['input']+='\nOptional proposal schema for this turn (data): '+encode(turn.proposal_schema)+\
+                '\n可选结构化结果通过 '+proposal_name+' 提供。如已通过SDK工具完成本轮动作，直接结束并正常总结，无需另行提供提案。'
         if turn.session_id:request['session_id']=turn.session_id
         path=workspace/'runs'/(request_id+'.json')
         record={'operationId':turn.operation_id,'plannedRequestId':request_id,'requestId':None,'sessionId':turn.session_id,'state':'prepared',
@@ -129,6 +145,17 @@ class ProcessHost(Submission):
                 if not bound[0] or payload['name'] not in names:
                     raise RuntimeFault('forbidden','Host tool call has no matching local execution context')
                 arguments=payload['arguments']
+                if payload['name']==proposal_name:
+                    if turn.proposal_schema is None:
+                        return {'status':'rejected','error':{'code':'forbidden','message':'No proposal channel is enabled for this turn'}}
+                    candidate=arguments.get('value') if isinstance(arguments,dict) else None
+                    try:validate_output(SimpleNamespace(output_schema=turn.proposal_schema),candidate)
+                    except RuntimeFault:
+                        return {'status':'rejected','error':{'code':'invalid_proposal','recovery':'correct_input','message':'Use the original proposal schema in value'}}
+                    if proposal[0] is not None and proposal[0]!=candidate:
+                        return {'status':'rejected','error':{'code':'id_conflict','message':'The original proposal cannot change'}}
+                    proposal[0]=copy.deepcopy(candidate)
+                    return {'status':'recorded'}
                 if payload['name'] in metadata and isinstance(arguments,dict):arguments={key:value for key,value in arguments.items() if key!='call_goal'}
                 if turn.on_tool is None:raise RuntimeFault('forbidden','No role callback is configured')
                 return await asyncio.to_thread(turn.on_tool,aliases[payload['name']],arguments,payload['call_id'])
@@ -143,8 +170,9 @@ class ProcessHost(Submission):
                 try:return await asyncio.to_thread(turn.on_interaction,{**record,'_cancelled':aborted.is_set})
                 finally:aborted.set()
             try:
-                result=await self._client(cwd=workspace).run(request,on_event=event,on_tool_call=tool if names else None,
-                    on_interaction=interaction,cancel=cancel,deadline_seconds=turn.timeout_seconds+15 if turn.timeout_seconds is not None else None)
+                async with asyncio.timeout(turn.timeout_seconds+20 if turn.timeout_seconds is not None else None):
+                    result=await self._client(cwd=workspace).run(request,on_event=event,on_tool_call=tool if names else None,
+                        on_interaction=interaction,cancel=cancel,deadline_seconds=turn.timeout_seconds+15 if turn.timeout_seconds is not None else None)
                 await session(result)
                 return result
             finally:
@@ -153,7 +181,7 @@ class ProcessHost(Submission):
                     if not self._running[turn.operation_id]:self._running.pop(turn.operation_id)
         try:
             result=asyncio.run(execute())
-            outcome=_Result(result.get('status','unknown'),observed_session[0],result.get('usage') or {},result.get('error'),request_id,result)
+            outcome=_Result(result.get('status','unknown'),observed_session[0],result.get('usage') or {},result.get('error'),request_id,result,proposal[0])
             private_json(path,{**record,'state':outcome.status,'sessionId':outcome.session_id,'requestId':observed_request[0],'usage':outcome.usage,'error':outcome.error})
             return outcome
         except Exception as exc:
@@ -163,7 +191,7 @@ class ProcessHost(Submission):
                 # not erase that fact; the S01 journal records it independently.
                 return outcome
             private_json(path,{**record,'state':'unknown','sessionId':observed_session[0],'requestId':observed_request[0],'errorType':type(exc).__name__})
-            code='native_interaction_unanswered' if unanswered[0] else 'host_unknown'
+            code='native_interaction_unanswered' if unanswered[0] else 'host_timeout' if isinstance(exc,TimeoutError) else 'host_unknown'
             return _Result('unknown',observed_session[0],{}, {'code':code,'type':type(exc).__name__},request_id)
 
     def _cancel_operation(self,operation_id):

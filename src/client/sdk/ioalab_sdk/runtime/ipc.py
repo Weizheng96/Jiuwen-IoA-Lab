@@ -69,7 +69,7 @@ class IpcServer:
                     if owner.user_ui and owner.user_ui.handle(self):return
                     source_call=self.path=='/v1/native-source' and owner.native_sources is not None
                     control_call=self.path=='/v1/native-control' and owner.native_sources is not None
-                    if (self.path!='/v1/call' and not source_call and not control_call) or self.headers.get('Origin') is not None:
+                    if (self.path not in ('/v1/call', '/v1/ui/confirmation') and not source_call and not control_call) or self.headers.get('Origin') is not None:
                         raise RuntimeFault('forbidden','Local RPC does not accept browser or cross-origin calls')
                     if self.headers.get('Host')!=f'127.0.0.1:{owner.server.server_port}':
                         raise RuntimeFault('forbidden','Local RPC Host does not match its listener')
@@ -105,8 +105,15 @@ class IpcServer:
                         raise RuntimeFault('invalid_input','Expected operation, operationId and arguments')
                     if not isinstance(request['operation'],str) or not 1<=len(request['operation'])<=100 or not isinstance(request['operationId'],str) or not 1<=len(request['operationId'])<=128 or not isinstance(request['arguments'],dict):
                         raise RuntimeFault('invalid_input','Invalid local operation fields')
-                    metadata = {'context_ref': request['contextRef']} if 'contextRef' in request else {}
-                    result=owner.dispatch(request['operation'],request['operationId'],request['arguments'],**metadata)
+                    if self.path == '/v1/ui/confirmation':
+                        if (request['operation'] != 'ui.confirmation' or set(request['arguments']) != {'reference'}
+                                or not owner.user_ui):
+                            raise RuntimeFault('forbidden', 'Use the scoped confirmation presentation entry')
+                        result = {'operationId': request['operationId'], 'status': 'completed',
+                                  'data': owner.user_ui.confirmation_app_entry(request['arguments']['reference'])}
+                    else:
+                        metadata = {'context_ref': request['contextRef']} if 'contextRef' in request else {}
+                        result=owner.dispatch(request['operation'],request['operationId'],request['arguments'],**metadata)
                     self.reply(200,result)
                 except RuntimeFault as exc:
                     if not consumed and not self.headers.get('Transfer-Encoding'):
@@ -126,6 +133,10 @@ class IpcServer:
                 except Exception:
                     self.reply(500,{'status':'unknown','data':None,'error':{'code':'unknown_result',
                         'message':'Original operation needs local recovery','recovery':'resume_original'}})
+
+            def do_OPTIONS(self):
+                if owner.user_ui and owner.user_ui.handle(self):return
+                self.reply(405, {'error': {'code': 'forbidden'}})
 
             def do_GET(self):
                 if owner.user_ui and owner.user_ui.handle(self):return
@@ -155,7 +166,13 @@ class LocalClient:
     def __init__(self,home,*,timeout=10,boot_id=None):
         self.home,self.timeout,self.boot_id=Path(home),timeout,boot_id
 
+    def confirmation_entry(self, reference):
+        return self._request('ui.confirmation', {'reference': reference}, path='/v1/ui/confirmation')
+
     def call(self,operation,arguments=None,*,operation_id=None,context_ref=None):
+        return self._request(operation, arguments, operation_id=operation_id,context_ref=context_ref)
+
+    def _request(self,operation,arguments=None,*,operation_id=None,path='/v1/call',context_ref=None):
         if arguments is not None and not isinstance(arguments,dict):raise RuntimeFault('invalid_input','Local arguments must be an object')
         operation_id=operation_id or str(uuid.uuid4())
         try:descriptor=read_json(self.home/'runtime.json')
@@ -177,7 +194,7 @@ class LocalClient:
         wait=(arguments or {}).get('waitSeconds',0)
         budget=max(self.timeout,wait+5) if type(wait) in (int,float) and 0<wait<=30 else self.timeout
         try:
-            response=httpx.post(descriptor['url']+'/v1/call',json=payload,
+            response=httpx.post(descriptor['url']+path,json=payload,
                 headers={'Authorization':'Bearer '+descriptor['token'],'X-Ioa-Instance':descriptor['bootId']},
                 timeout=budget,trust_env=False)
         except httpx.TransportError:

@@ -1,6 +1,8 @@
 """Identity owns its table definitions and additive upgrades."""
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS device_sessions(id TEXT PRIMARY KEY,owner TEXT NOT NULL,device TEXT NOT NULL,body TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS device_sessions_owner ON device_sessions(owner,device);
 CREATE TABLE IF NOT EXISTS user_roles(user_id TEXT,role TEXT,PRIMARY KEY(user_id,role));
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE, pw_hash TEXT, kind TEXT DEFAULT 'external', display_name TEXT DEFAULT '', created REAL, last_login REAL, note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, owner_id TEXT, role TEXT, name TEXT, status TEXT DEFAULT 'online', created REAL, meta TEXT DEFAULT '{}');
@@ -28,6 +30,8 @@ CREATE TABLE IF NOT EXISTS identity_role_changes(
 def migrate(conn):
     from ..migrations import execute
     execute(conn, SCHEMA)
+    if 'session' not in {row['name'] for row in conn.execute('PRAGMA table_info(connection_tickets)')}:
+        conn.execute('ALTER TABLE connection_tickets ADD COLUMN session TEXT')
 
 
 def release_service_listings(conn):

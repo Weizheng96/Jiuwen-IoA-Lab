@@ -62,7 +62,7 @@ def test_invalid_native_envelope_is_not_associated_or_used_to_read_configuration
 
 
 def test_native_dispatched_rpc_loss_preserves_unknown_not_preflight(tmp_path,monkeypatch,capsys):
-    from ioalab_sdk.runtime import lifecycle
+    from ioalab_sdk.runtime import client as lifecycle
     config=tmp_path/'settings.json'
     private_json(config,{'data_dir':str(tmp_path/'home')})
     packet={'operation':'runtime.status','operationId':'original-read','arguments':{},'contextRef':None}
@@ -245,13 +245,15 @@ def test_complete_role_operation_is_forwarded_without_alias_or_error_reclassific
     expected={'status':status,'data':{'reference':'original'},'error':error};calls=[]
     def invoke(actual_python,command):
         calls.append((actual_python,command))
-        if command[1:3]==['ioalab_client.runtime','start']:
+        if command[1:4]==['ioalab_sdk.access','call','runtime.status']:
             return SimpleNamespace(stdout=json.dumps({'status':'completed','data':{}}),stderr='',returncode=0)
         return SimpleNamespace(stdout=json.dumps(expected),stderr='',returncode=1 if status=='rejected' else 0)
     monkeypatch.setattr(module,'invoke',invoke)
     assert module.main(['--role',role,operation,'--config',str(config),'--args-file',str(arguments)])==(1 if status=='rejected' else 0)
     assert json.loads(capsys.readouterr().out)==expected
-    assert calls==[(python,['-m','ioalab_client.runtime','start','--config',str(config.resolve())]),(python,['-m','ioalab_sdk.access','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
+    expected_calls=[(python,['-m','ioalab_sdk.access','call',operation,'--config',str(config.resolve()),'--args-file',str(arguments.resolve())])]
+    if operation=='assistant.delegation.prepare':expected_calls.insert(0,(python,['-m','ioalab_sdk.access','call','runtime.status','--config',str(config.resolve())]))
+    assert calls==expected_calls
     assert json.loads(arguments.read_text())=={'request':'unchanged'} and not config.exists()
 
 
@@ -281,6 +283,14 @@ def test_new_downloads_only_serve_fixed_product_names(platform,client,tmp_path,m
         assert client.get('/downloads/'+name).content==data
     (tmp_path/'private.json').write_text('private')
     assert client.get('/downloads/private.json').status_code==404
+    import hashlib
+    manifest=client.get('/api/access/bundles').json()
+    assert len(manifest['bundles'])==2
+    for item in manifest['bundles']:
+        actual=client.get('/downloads/'+item['name']).content
+        assert item['available'] and item['size']==len(actual)
+        assert item['sha256']==hashlib.sha256(actual).hexdigest()
+    assert client.get('/readme_agent.md',follow_redirects=False).status_code==404
 
 
 @pytest.mark.parametrize('parent_encoding',['ascii','gbk'])
@@ -316,7 +326,34 @@ def test_old_installation_status_preserves_observation_and_allows_safe_stop(plat
     finally:runtime.close()
 
 
-@pytest.mark.parametrize('operation',['runtime.stop','account.refresh','operations.get'])
+@pytest.mark.parametrize('role', ['assistant', 'service'])
+@pytest.mark.parametrize('existing', [False, True])
+def test_mcp_registration_precedes_account_and_preserves_configuration(tmp_path, monkeypatch, capsys, role, existing):
+    from types import SimpleNamespace
+    module = bootstrap()
+    config = tmp_path / 'account.json'
+    original = b'{"platform_url":"http://127.0.0.1:8750"}'
+    if existing:
+        config.write_bytes(original)
+    monkeypatch.setattr(module, 'installation', lambda: SimpleNamespace(prepare=lambda: {
+        'status': 'completed', 'data': {'python': sys.executable}}))
+    monkeypatch.setattr(module, 'invoke', lambda *args: pytest.fail('Registration must not open accounts or start a resident'))
+    assert module.main(['--role', role, 'runtime.mcp.configuration', '--config', str(config)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result['status'] == 'completed'
+    data = result['data']
+    assert (data['stage'], data['nextAction'], data['accountRequired']) == ('mcp', 'enable_in_current_chat', False)
+    assert data['setupArguments'] == {'role': role}
+    assert data['args'] == ['-m', 'ioalab_sdk.mcp', '--config', str(config)]
+    assert data['jiuwenJson']['mcpServers']['ioalab']['args'] == data['args']
+    assert data['jiuwenAutoSetup'] == {'tool': 'connect_mcp', 'arguments': {
+        'name': 'ioalab', 'command': sys.executable, 'args': data['args']}}
+    assert config.exists() == existing
+    if existing:
+        assert config.read_bytes() == original
+    assert not list(tmp_path.glob('.ioa-setup-*'))
+
+@pytest.mark.parametrize('operation',['runtime.stop','account.refresh','operations.get','assistant.messaging.received'])
 def test_control_and_original_observation_never_auto_start(tmp_path,monkeypatch,capsys,operation):
     from types import SimpleNamespace
     module=bootstrap()
@@ -358,7 +395,7 @@ def test_native_stdin_reuses_bound_caller_and_forwards_sdk_entry_envelope(tmp_pa
         return SimpleNamespace(stdout=json.dumps({'operationId':packet['operationId'],'status':'completed','data':{},'error':None}),stderr='',returncode=0)
     monkeypatch.setattr(module,'invoke',invoke)
     assert module.main(['--role','assistant','--config',str(tmp_path/'bound.json'),'--native-input'])==0
-    assert calls[0][0][1:3]==['ioalab_client.runtime','start']
+    assert calls[0][0][1:4]==['ioalab_sdk.access','call','runtime.status']
     assert calls[1][0][-1]=='--request-stdin'
     assert json.loads(calls[1][1]['input'])==packet
     assert 'entryRef' not in packet['arguments']
@@ -378,6 +415,8 @@ def test_native_control_stdin_reuses_private_args_file_and_never_starts(tmp_path
     import io
     from types import SimpleNamespace
     module=bootstrap()
+    private_json(tmp_path/'bound.json', {'username':'test-owner','password':'test-only',
+        'data_dir':str(tmp_path/'home'),'identities':[{'key':'personal','role':'assistant','name':'Owner'}]})
     monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
     monkeypatch.setattr(module,'ensure_running',lambda *args:pytest.fail('Control recursively started the runtime'))
     values={'expectedDigest':'original-config-digest','changes':{'max_model_runs':2}}
@@ -495,3 +534,58 @@ def test_p07_setup_identifier_comes_from_sdk_declaration_and_not_role_operations
     assert NATIVE_ENTRY_BIND_OPERATION not in bound['sourceOperations']
     assert 'runtime.status' not in bound['sourceOperations']
 
+
+@pytest.mark.parametrize('state,start', [
+    ({'status':'completed','data':{'installation':{'assembly':'ioalab-jiuwen'}}}, False),
+    ({'status':'rejected','error':{'recovery':'runtime.start'}}, True),
+    ({'status':'rejected','error':{'recovery':'inspect_configuration'}}, False),
+    ({'status':'unknown','error':{'recovery':'runtime.start'}}, False),
+])
+def test_role_call_reuses_live_assembly_and_preserves_preflight_errors(tmp_path,monkeypatch,capsys,state,start):
+    module=bootstrap();config=tmp_path/'config.json'
+    private_json(config, {'username':'test-owner','password':'test-only','data_dir':str(tmp_path/'home'),
+        'identities':[{'key':'personal','role':'assistant','name':'Owner'}]})
+    original=config.read_bytes()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    calls=[]
+    def invoke(python,command):
+        calls.append(command)
+        value=state if 'runtime.status' in command else {'status':'completed','data':{'items':[]}}
+        return SimpleNamespace(stdout=json.dumps(value),stderr='',returncode=0 if value['status']=='completed' else 1)
+    monkeypatch.setattr(module,'invoke',invoke)
+    module.main(['--role','assistant','assistant.messaging.flow','--config',str(config)])
+    output=json.loads(capsys.readouterr().out)
+    assert sum(command[1:3]==['ioalab_client.runtime','start'] for command in calls)==int(start)
+    if state['status']!='completed' and not start:
+        assert output==state and len(calls)==1
+    else:assert calls[-1][1:4]==['ioalab_sdk.access','call','assistant.messaging.flow']
+    assert config.read_bytes()==original
+
+
+def test_role_control_preserves_original_application_and_refuses_migration(platform,tmp_path,monkeypatch,capsys):
+    from contextlib import redirect_stdout
+    from importlib import import_module
+    module=bootstrap();config,_=configuration(platform,tmp_path,service=False)
+    original=json.loads(config.read_text());original['host']={'command':['/usr/bin/true'], 'data_dir':str(tmp_path/'swarm')}
+    private_json(config,original)
+    runtime=ResidentRuntime(RuntimeConfig.load(config),assembly='ioalab-jiuwen').start()
+    monkeypatch.setattr(module,'installation',lambda:SimpleNamespace(prepare=lambda:{'status':'completed','data':{'python':sys.executable}}))
+    def process(python,command,**options):
+        output=io.StringIO()
+        with redirect_stdout(output):code=import_module(command[1]+'.__main__').main(command[2:]) if command[1]=='ioalab_jiuwen' else import_module(command[1]).main(command[2:])
+        return SimpleNamespace(stdout=output.getvalue(),stderr='',returncode=code)
+    monkeypatch.setattr(module,'invoke',process)
+    try:
+        before=config.read_bytes();boot=runtime.ipc.boot_id
+        assert module.main(['--role','assistant','runtime.configuration','--config',str(config)])==0
+        data=json.loads(capsys.readouterr().out)['data']
+        assert set(data['hostFields'])=={'command','data_dir'}
+        args=tmp_path/'migration.json';private_json(args,{'expectedDigest':data['configurationDigest'],'changes':{'host':{'migrate_from':'jiuwen'}}})
+        assert module.main(['--role','assistant','runtime.configure','--config',str(config),'--args-file',str(args)])==1
+        rejected=json.loads(capsys.readouterr().out)
+        assert rejected['error']['code']=='invalid_input' and rejected['error']['recovery']!='runtime.stop'
+        assert LocalClient(runtime.config.home).call('runtime.status')['data']['bootId']==boot
+        assert config.read_bytes()==before
+    finally:runtime.close()
+    assert module.main(['--role','assistant','runtime.validate','--config',str(config)])==0
+    assert json.loads(capsys.readouterr().out)['status']=='completed'

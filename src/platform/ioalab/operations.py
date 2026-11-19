@@ -389,7 +389,9 @@ class AccountOperations:
         operation=self.sessions.operation(operation_id)
         policy=self.settings.policy()
         params=self.sessions.fingerprint({'username':username,'password':password,'display_name':display_name,'invite':invite,'audience':audience})
-        cached=self.sessions.restore(username,'register',operation,params)
+        with self.db.tx() as conn:
+            cached=self.sessions.restore(username,'register',operation,params,conn,
+                device_migration={'fingerprint':params,'device':{'id':operation,'name':'IoA client'}} if audience=='sdk' else None)
         if cached:return cached
         try:
             prepared=self.auth.prepare_registration(username,password,display_name=display_name,invite=invite,ip=ip)
@@ -409,23 +411,25 @@ class AccountOperations:
         self._project(user,operation,credits,registered=True)
         return result
 
-    def login(self,username,password,*,operation_id=None,audience='browser',ip=''):
+    def login(self,username,password,*,operation_id=None,audience='browser',ip='',device=None):
         if not isinstance(username,str) or not isinstance(password,str):
             raise LabError('invalid_input','Account fields must be strings')
         if audience not in ('sdk','browser'):raise ValueError('Unknown login audience')
         username=(username or '').strip()
         operation=self.sessions.operation(operation_id)
         policy=self.settings.policy()
-        params=self.sessions.fingerprint({'username':username,'password':password,'audience':audience})
-        cached=self.sessions.restore(username,'login',operation,params)
+        inputs={'username':username,'password':password,'audience':audience}
+        migration={'fingerprint':self.sessions.fingerprint(inputs),'device':device} if audience=='sdk' else None
+        params=self.sessions.fingerprint({**inputs,'device':device} if audience=='sdk' else inputs)
+        cached=self.sessions.restore(username,'login',operation,params,device_migration=migration)
         if cached:return cached
         verified=self.auth.authenticate(username,password,ip=ip,policy=policy)
         with self.db.tx() as conn:
-            cached=self.sessions.restore(username,'login',operation,params,conn)
+            cached=self.sessions.restore(username,'login',operation,params,conn,device_migration=migration)
             if cached:return cached
             user=self.auth.login_in(conn,verified)
             credits=self.wallets.login_credit_in(conn,user['id'],operation,policy['credits'])
             credits['initial']='0.00'
-            result=self.sessions.save(conn,username,'login',operation,params,user,verified['pw_hash'],audience,credits=credits)
+            result=self.sessions.save(conn,username,'login',operation,params,user,verified['pw_hash'],audience,credits=credits,device=device)
         self._project(user,operation,credits)
         return result

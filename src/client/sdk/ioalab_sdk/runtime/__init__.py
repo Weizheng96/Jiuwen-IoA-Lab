@@ -12,10 +12,15 @@ from .files import prepare_home, private_json, private_text, read_arguments, rea
 from .files_api import PrivateFiles
 from .host import AgentDefinition, BusinessTools, ToolBinding, validate_output,output_schema_check
 from .host_registry import HostRegistry, HostContext, native_source, source_scope, source_value, source_context
-from .installation import SAFE_CALLS, current, require_matching
+from .installation import SAFE_CALLS, current, require_matching, installed_version, runtime_assembly
 from .ipc import LocalClient, public_error
 from .lease import Lease
 from .lifecycle import require_configuration, run, setup_command, start
+from .client import ClientOperations
+from .account_setup import setup, account_page, account_app_origin
+from .forms import FormDefinition, QueryDefinition, WorkflowDefinition, form_source
+from .workflow import form_schema, form_text, form_next
+from .form_view import form_page
 from .observations import model_port
 from .protocol import RuntimeFault, configure_stdio, encode, instant, stamp
 from .questions import native_answer
@@ -34,11 +39,13 @@ __all__ = [
     'native_source', 'source_scope', 'source_value', 'source_context', 'HostRegistry', 'HostContext',
     'FrozenSkills', 'documents',
     'FlowJournal', 'flow_key',
+    'ClientOperations', 'FormDefinition', 'QueryDefinition', 'form_page',
     'AGENT', 'ASSISTANT', 'CATALOG', 'INTERNAL', 'OPERATIONS', 'PROVIDER', 'RUNTIME', 'SCRIPT', 'Operation', 'fields',
     'handled_by', 'DEFAULT_PLATFORM_URL', 'RuntimeConfig', 'data_directory', 'read_configuration', 'AgentConnection', 'Network', 'prepare_home',
     'private_json', 'private_text', 'read_arguments', 'read_json', 'restrict', 'windows_sid', 'PrivateFiles', 'AgentDefinition',
     'BusinessTools', 'ToolBinding', 'validate_output','output_schema_check', 'SAFE_CALLS', 'current',
     'require_matching', 'LocalClient', 'public_error', 'Lease', 'require_configuration', 'run', 'setup_command', 'start',
+    'installed_version', 'runtime_assembly', 'setup', 'account_page', 'WorkflowDefinition', 'form_schema', 'form_text', 'form_next',
     'model_port', 'RuntimeFault', 'configure_stdio', 'encode', 'instant', 'stamp', 'native_answer', 'ResidentRuntime',
     'JobHandler', 'JobOutcome', 'RuntimeStore', 'TrustedUserPort', 'TrustedUserServer', 'TEMPLATE_LIFETIME',
     'TEMPLATE_RENEW_BEFORE', 'draft_from_terms', 'template_from_definition',

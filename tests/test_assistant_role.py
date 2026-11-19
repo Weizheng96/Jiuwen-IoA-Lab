@@ -83,7 +83,7 @@ def user_decision(runtime,reference,*,decision='approve',answers=None):
 
 def publish(runtime,client,sender,*,name='slot.request',output_schema=None,instructions=None):
     draft=client.call('assistant.rules.draft',{'declaration':{'name':name,'description':'本地测试接口',
-        'inputSchema':INPUT,'outputSchema':output_schema or OUTPUT,'allowedSenders':[sender],'tools':['reserve_slot']},
+        'inputSchema':INPUT,'outputSchema':output_schema or OUTPUT,'allowedSenders':[sender],'tools':['reserve_slot'],'enabled':True},
         'instructions':instructions or '每条请求只处理input.slot指定的值。调用reserve_slot时slot必须原样使用，不得自行调整或尝试建议值。'
                        '仅调用一次业务工具，将该工具的完整结果原样作为ioa_reply的output返回。若冲突，只返回建议，等发送方再次请求。'})
     assert draft['status']=='completed',draft

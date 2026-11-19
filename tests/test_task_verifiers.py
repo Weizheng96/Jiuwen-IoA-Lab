@@ -99,6 +99,31 @@ def test_target_python_313_syntax_is_compiled_without_running_top_level_code(aut
     assert not marker.exists()
 
 
+@pytest.mark.parametrize('read',[
+    'ctx.read("spec.result.topic")',
+    'ctx.read(TOPIC_FIELD)',
+    'ctx.spec["result"]["topic"]',
+    'getattr(ctx, "spec", {})',
+])
+def test_contract_field_misuse_rejected_before_upload_and_corrected_in_same_task(author,monkeypatch,read):
+    publisher=author.modules[0].verifiers;identity=author.identities[1];uploads=[];api=author.account.api
+    def counted(*args,**kwargs):
+        if args[:2]==('POST','/provider/packages'):uploads.append(args[2])
+        return api(*args,**kwargs)
+    monkeypatch.setattr(author.account,'api',counted)
+    source=('TOPIC_FIELD="spec.result.topic"\n'
+            'def topic(ctx):\n    return '+read+'\n'
+            'def verify(ctx):\n    value=topic(ctx)\n    return {"status":"pass" if value else "fail"}\n')
+    value={**body(),'source':source,'reads':['spec.result.topic']}
+    with pytest.raises(RuntimeFault) as error:publisher.task(identity,'field-read',value)
+    assert error.value.code=='invalid_input' and error.value.recovery=='correct_input'
+    assert 'ctx.values' in str(error.value) and not uploads
+    assert not publisher.prepared(identity,'field-read')
+    good=source.replace(read,'ctx.values[TOPIC_FIELD]')
+    ref=publisher.task(identity,'field-read',{**value,'source':good})
+    assert len(uploads)==1 and publisher.prepared(identity,'field-read')[0]['reference']==ref
+
+
 def test_successful_syntax_is_cached_but_schema_size_and_manifest_are_always_checked(monkeypatch):
     import ioalab_sdk.provider.verifiers as module
     actual=module.Sandbox.get('cpython-3.13-wasi');calls=[]
@@ -200,11 +225,18 @@ class DynamicVerifierHost(ProductionHost):
     def __init__(self):
         super().__init__();self.created=[];self.denied=[]
         self.package={**body(),'verifierId':'generated_'+uuid.uuid4().hex+'@1.0'}
+        self.previous_reference=None
     def execute(self,turn):
         data=json.loads(turn.input)
         if data['phase']=='quote':
             assert self.verifier is None and not data['preparedVerifiers']
             self.turns.append(turn);turn.on_session(turn.session_id or 'dynamic-'+str(uuid.uuid4()))
+            if self.previous_reference:
+                rejected=turn.on_tool('provider.task.quote',{
+                    'acceptance':{'result':{'verifiers':{'script':self.previous_reference},'notCovered':[]}},
+                    'acceptWithin':{'result':'PT10M'},'lineItems':{'result':9}},'old-invalid-reference')
+                assert rejected['status']=='rejected' and rejected['error']['code']=='invalid_input',rejected
+                assert 'ctx.values' in rejected['error']['message']
             first=turn.on_tool('provider.task.verifier.publish',self.package,'first-host-call')
             assert first['status']=='completed',first
             assert turn.on_tool('provider.task.verifier.publish',self.package,'different-host-call')==first
@@ -230,11 +262,27 @@ class DynamicVerifierHost(ProductionHost):
         return super().execute(turn)
 
 
-def test_no_preset_reference_forms_and_completes_a_real_contract(platform,tmp_path):
+@pytest.mark.parametrize('previous_reference',[False,True])
+def test_no_preset_reference_forms_and_completes_a_real_contract(platform,tmp_path,monkeypatch,previous_reference):
     before=set(platform.packages.root.glob('*.zip'))
     host=DynamicVerifierHost();business={'resources':{},'instructions':'按当前请求提供真实内容验收和确定报价，不使用预置验收引用。'}
+    host.package.update(reads=['spec.result.topic'],source=VERIFIER.replace(
+        'value.get("delivered")=="actual file bytes"','value.get("delivered")==ctx.values["spec.result.topic"]'))
+    import test_resident_delegation as assembly
+    original=assembly.template_from_definition
+    def with_topic(*args,**kwargs):
+        template=original(*args,**kwargs)
+        template['deliverables'][0]['specSchema']['topic']={'const':'actual file bytes'}
+        return template
+    monkeypatch.setattr(assembly,'template_from_definition',with_topic)
     with participants(platform,tmp_path,agent_host=host,business=business,preload_verifier=False) as (provider,assistant,host,template,task):
         assert set(platform.packages.root.glob('*.zip'))==before
+        if previous_reference:
+            # A previously published package can still be structurally valid.
+            # New quotes must not reuse its known invalid Context calls.
+            host.previous_reference=provider.account.api('POST','/provider/packages',{
+                **host.package,'verifierId':'old_context_error@1.0',
+                'source':host.package['source'].replace('ctx.values["spec.result.topic"]','ctx.read("spec.result.topic")')})
         quote=candidate(assistant,provider,template,task);selected,_,_=confirm(assistant,quote);reference=selected['data']['contractRef']
         wait_for(lambda:contract_state(assistant,reference).get('formed'))
         key,_=invoke(assistant,reference,'start');wait_for(lambda:operation(assistant,reference,key))
@@ -248,35 +296,58 @@ def test_no_preset_reference_forms_and_completes_a_real_contract(platform,tmp_pa
         wait_for(lambda:contract_state(assistant,reference).get('closed'))
         actual=status(assistant,reference)['data']
         assert actual['payment']=='paid' and len(host.created)==1
-        assert len(set(platform.packages.root.glob('*.zip'))-before)==1
+        assert len(set(platform.packages.root.glob('*.zip'))-before)==1+int(previous_reference)
         assert acceptance_of(template,actual['card'])['result']['verifiers']['script']==host.created[0]
         assert platform.market.reputation(provider.identities[0].protocol_id)['completed']==1
         assert 'after-decision' in host.denied and 'production' in host.denied
 
 
 @pytest.mark.skipif(not os.environ.get('IOALAB_REAL_JIUWEN_COMMAND'),reason='Opt-in original Jiuwen model invocation')
-def test_original_jiuwen_creates_a_task_verifier_without_preset_references(platform,tmp_path):
+def test_original_jiuwen_creates_a_task_verifier_without_preset_references(platform,tmp_path,monkeypatch):
     from ioalab_jiuwen.process import ProcessHost
-    from dataclasses import replace
-    host=ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'))
-    assert host.probe()['available'],host.capabilities()
-    turns=[];events=[];original=host.run
-    def event(value):
-        if value.get('event_type') in ('chat.tool_call','chat.tool_result'):
-            events.append(value)
-    def execute(turn):
-        turns.append(turn);return original(replace(turn,on_event=event))
-    host.run=execute
+    from submission_fixture import RecordingSubmission
+    class Observed(RecordingSubmission):
+        def __init__(self,native):super().__init__(native);self.results=[]
+        def submit(self,*args,**kwargs):
+            result=super().submit(*args,**kwargs);self.results.append(result);return result
+    native=ProcessHost(json.loads(os.environ['IOALAB_REAL_JIUWEN_COMMAND']),os.environ['IOALAB_REAL_JIUWEN_DATA_DIR'],model=os.environ.get('IOALAB_REAL_JIUWEN_MODEL'))
+    host=Observed(native);turns=host.turns
+    assert host.check()['state']=='available'
+    import test_resident_delegation as assembly
+    original=assembly.template_from_definition
+    def with_topic(*args,**kwargs):
+        template=original(*args,**kwargs)
+        template['deliverables'][0]['specSchema']['topic']={'type':'string','maxLength':200}
+        return template
+    monkeypatch.setattr(assembly,'template_from_definition',with_topic)
     business={'resources':{},'instructions':
-        '本服务提供结构化摘要，交付文件result.json，必须有delivered字段，值严格等于actual file bytes。'
+        '本服务提供结构化摘要，交付UTF-8文件result.json，必须有delivered字符串字段，值严格等于本单合同spec.result.topic。验收脚本必须实际读取声明的合同字段并与交付内容比较，不能硬编码主题。'
         '交付报价固定9虚拟币，验收时长10分钟。未预置任何验收引用，按这项实际JSON内容要求准备本单L1 script验收器；不得只查文件存在。'
         '这是完整业务需求，不需要补充材料或外部操作。生产可直接用files中text提供真实JSON字节，先自测通过再交付。'}
     with participants(platform,tmp_path,agent_host=host,business=business,preload_verifier=False) as (provider,assistant,host,template,task):
-        quote=candidate(assistant,provider,template,task,timeout=180)
+        from test_resident_delegation import request,terminal
+        started,_=request(assistant,provider,template,task,spec={'result':{'topic':'company website acceptance checklist'}})
+        wait_for(lambda:terminal(assistant,started['data']['quoteRef']),timeout=580)
+        result=terminal(assistant,started['data']['quoteRef']);assert result['status']=='completed',result
+        quote=result['data']
         selected,_,_=confirm(assistant,quote);reference=selected['data']['contractRef']
-        wait_for(lambda:contract_state(assistant,reference).get('formed'),timeout=180)
-        key,_=invoke(assistant,reference,'start');wait_for(lambda:operation(assistant,reference,key),timeout=180)
-        wait_for(lambda:contract_state(assistant,reference).get('availablePeriods')==1,timeout=180)
+        wait_for(lambda:contract_state(assistant,reference).get('formed'),timeout=580)
+        key,_=invoke(assistant,reference,'start');wait_for(lambda:operation(assistant,reference,key),timeout=580)
+        def delivered_or_failed():
+            if len(host.results)>=2:
+                assert host.results[-1].state=='completed' and host.results[-1].error is None,host.results[-1]
+            return contract_state(assistant,reference).get('availablePeriods')==1
+        wait_for(delivered_or_failed,timeout=580)
+        # A delivery receipt can precede the actual model terminal. Do not let
+        # fixture teardown cancel that round and still call it fully verified.
+        wait_for(lambda:len(host.results)>=2,timeout=580)
+        production=[]
+        def production_finished():
+            tasks=LocalClient(provider.config.home).call('provider.tasks.get',{'profile':'service'})
+            production[:]=[item for item in tasks['data']['items'] if item['phase']=='production']
+            return production and all(item['status'] not in ('running','queued') for item in production)
+        wait_for(production_finished)
+        assert all(item['status']=='completed' for item in production),production
         key,_=invoke(assistant,reference,'fetch',period=1);wait_for(lambda:operation(assistant,reference,key))
         key,pending=accept_preview(assistant,reference)
         preview=assistant.confirmations.get(pending['data']['confirmationRef'],detail=True)['binding']['preview']['report']
@@ -291,10 +362,14 @@ def test_original_jiuwen_creates_a_task_verifier_without_preset_references(platf
         prepared=provider.modules[0].verifiers.prepared(provider.identities[0],quote_turns[0].operation_id)
         assert prepared and acceptance_of(template,actual['card'])['result']['verifiers']['script'] in [item['reference'] for item in prepared]
         assert len({turn.session_id for turn in turns if turn.session_id})==1
+        assert host.results and all(result.state=='completed' and result.error is None and result.terminal for result in host.results)
+        package=load(provider.account.fetch_package(prepared[0]['reference']['uri']),prepared[0]['reference'],'script')
+        assert 'spec.result.topic' in package.manifest['reads']
         assert platform.market.reputation(provider.identities[0].protocol_id)['completed']==1
         report={'scope':'Original Jiuwen public Process host generates task verifier without preset references and completes HTTP/WS/A2C/WASM/AP2; isolated trusted user confirmations',
-            'model':host.capabilities()['model'],'interactionId':actual['interactionId'],'contractRef':reference,
+            'model':native.model,'interactionId':actual['interactionId'],'contractRef':reference,
             'preparedVerifiers':prepared,'wasm':preview,'payment':'paid','closed':True,'reputationCompleted':1,
+            'productionTasks':production,'machineStates':[result.state for result in host.results],
             'limits':['Backend Process verification; not ordinary native frontend onboarding or new film','No external mail or Linux deployment proof']}
         if os.environ.get('IOALAB_REAL_TASK_VERIFIER_REPORT'):
             from pathlib import Path

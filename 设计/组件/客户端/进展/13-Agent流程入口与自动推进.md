@@ -16,7 +16,7 @@
 
 **定向测试：** assistant_flow_guidance、operation_catalog、access_products、user_confirmations、protocol_operations、inbox_rules、service_publication、task_recovery_receipts、resident_fulfillment、resident_multiperiod、runtime_delivery；定稿后补流程推进、交付推送触发取件、断点续接与效率对比用例。
 
-## 现状与初始方案
+## 实现与待验收
 
 本轮已实现三个Agent流程入口，原确定性操作、异步作业和确认沿原标识续接；产品技能按业务动作与flowRef调用。现行契约见[Agent流程](../个人助手端/接口/Agent流程.md)及[服务管理](../服务方端/接口/配置与管理.md#agent管理流程)，调用图和本机证据见[验证记录](../../../工程/实施资料/Agent流程本机验证.md)。尚无同场景原生模型分阶段耗时基线，不宣称原生耗时或token改善。
 

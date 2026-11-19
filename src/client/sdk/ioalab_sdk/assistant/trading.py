@@ -150,8 +150,16 @@ class Trading:
         if not record:raise RuntimeFault('forbidden','Quote belongs to another local assistant')
         if record.get('result') is not None:return {'status':record['status'],'data':record['result']}
         job=self.quote_job(reference)
+        closed=bool(record.get('interactionId')) and any(
+            frame['message'].get('kind')=='interaction.closed'
+            and frame['message'].get('sender')=='urn:ioa:platform'
+            and frame['message'].get('interactionId')==record['interactionId']
+            and frame['message'].get('body',{}).get('reason')=='proposal-request-expired'
+            for frame in self.store.messages(self.identity.agent_id))
         return {'status':job['status'] if job and job['status'] in ('completed','rejected','failed','unknown') else 'running' if job else 'waiting',
-                'data':{'quoteRef':reference,'phase':record['phase'],'job':job}}
+                'data':{'quoteRef':reference,'phase':record['phase'],'job':job,
+                        'canRequestAgain':bool(closed and job and job['status'] in ('unknown','failed','rejected'))}}
+
 
     def establish(self,record,operation,subject):
         sent=self.role.delegation.intent(operation,{'taskRef':record['taskRef'],'service':record['service'],subject:record['subject']})

@@ -61,7 +61,7 @@ class UserPending:
 
     def _step(self):
         with self._lock:covered=self._covered
-        marker=self.confirmations.pending_marker(after=covered)
+        marker=self.confirmations.pending_marker(after=covered,background_only=True)
         now=self._clock()
         if not marker['fresh']:
             self._batch=None
