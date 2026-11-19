@@ -18,13 +18,17 @@ def test_aliases_are_readable_stable_and_route_to_the_exact_original_name(tmp_pa
             requests.append(request)
             await callbacks['on_event']({'request_id':request['request_id'],'session_id':'actual-name-session'})
             declarations=request['host_tools'];names=[item['name'] for item in declarations]
-            assert len(names)==len(set(names))==len(originals)
+            assert len(names)==len(set(names))==len(originals)+1
+            assert names[-1]=='ioa_propose_result'
             assert names[:2]==['ioa_provider_task_quote','ioa_provider_task_verifier_publish']
             assert names[4]=='ioa_collision_one'
             assert all(re.fullmatch('[A-Za-z][A-Za-z0-9_]{0,63}',name) for name in names)
             assert request['agent']['tools']==['*']
-            assert set(names)==set(request['permissions']['tools'])
-            for index,name in enumerate(names):
+            assert request['permissions']['tools']=={**dict.fromkeys(names[:-1],'allow'),names[-1]:'deny'}
+            denied=await callbacks['on_tool_call']({'request_id':request['request_id'],'session_id':'actual-name-session',
+                'payload':{'name':names[-1],'arguments':{'value':{}},'call_id':'unavailable-proposal'}})
+            assert denied['status']=='rejected' and denied['error']['code']=='forbidden'
+            for index,name in enumerate(names[:-1]):
                 assert await callbacks['on_tool_call']({'request_id':request['request_id'],'session_id':'actual-name-session','payload':{'name':name,'arguments':{'call_goal':'metadata'},'call_id':str(index)}})=={'accepted':originals[index]}
             return {'type':'result','request_id':request['request_id'],'status':'completed','session_id':'actual-name-session','exit_code':0}
     host=ProcessHost(['original-process'],tmp_path)

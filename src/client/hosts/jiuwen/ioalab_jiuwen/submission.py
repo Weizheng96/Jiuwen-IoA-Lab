@@ -1,7 +1,11 @@
 """S01/S02 boundary for the explicit SDK Process application."""
+import asyncio
+from copy import deepcopy
+from types import SimpleNamespace
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import hashlib
+import json
 from importlib import metadata
 import os
 from pathlib import Path
@@ -11,8 +15,7 @@ import uuid
 
 from ioalab_sdk.runtime import (AgentDefinition, BindingAck, HostExecution, HostInput,
     HostRegistration, HostToolCall, HostToolResult, MachineTerminal, RuntimeFault,
-    SubmissionError, SubmissionEvent, SubmissionResult, ToolBinding, encode, private_json,
-    proposal_tool_declared)
+    SubmissionError, SubmissionEvent, SubmissionResult, ToolBinding, encode, private_json, output_schema_check, validate_output)
 from .process_values import _Round
 from .process_files import ProcessFiles
 
@@ -77,10 +80,9 @@ class Submission:
         resource_factory=self.resource_factory
         if submission_resources and not callable(resource_factory):
             return reject('not_ready','resources','Bind the original SDK per-submission resource factory')
-        if execution.proposal_schema is not None and not proposal_tool_declared(execution):
-            # No structured output channel: only a same-effect SDK tool lets this
-            # round proceed; the proposal then stays empty (D35).
-            return reject('not_ready','proposal','No structured proposal channel and no same-effect SDK tool')
+        if execution.proposal_schema is not None:
+            try:output_schema_check(execution.proposal_schema)
+            except RuntimeFault:return reject('invalid_proposal_schema','proposal','Use the original bounded self-contained proposal schema')
         if execution.tools and (not callable(on_tool) or not callable(on_event)):
             return reject('not_ready','binding','SDK tool effects require binding acknowledgement and original callback')
         timeout=None
@@ -97,15 +99,29 @@ class Submission:
         path=workspace/'runs'/('submission-'+hashlib.sha256(operation_id.encode()).hexdigest()+'.json')
         with self._lock:
             old=self._submissions.get(operation_id)
+            previous=[]
             if old:
                 if old['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Preserve original SDK submission')
-                return old['result']
-            if path.exists():raise RuntimeFault('unknown_result','Recover original Process receipt; never resubmit unknown')
+                result=old['result']
+                if (result.attempt_id==attempt or not old['finished'] or not result.error
+                        or result.error.dispatch!='not_submitted' or result.request_id or result.terminal or old['bound']):
+                    return result
+            if path.exists():
+                saved=json.loads(path.read_text(encoding='utf-8'));receipt=saved['result']
+                if saved['fingerprint']!=fingerprint:raise RuntimeFault('id_conflict','Preserve original SDK submission')
+                if ((receipt.get('error') or {}).get('dispatch')!='not_submitted'
+                        or receipt.get('request_id') or receipt.get('terminal') or receipt.get('resources')
+                        or receipt.get('output') is not None or receipt.get('proposal') is not None):
+                    raise RuntimeFault('unknown_result','Recover original Process receipt; never resubmit unknown')
+                if receipt['attempt_id']==attempt:
+                    return SubmissionResult(**{**receipt,'error':SubmissionError(**receipt['error'])})
+                previous=[*saved.get('previousAttempts',[]),
+                          {'plannedRequestId':saved['plannedRequestId'],'result':receipt}]
             if any(not s['finished'] and (s['workspace']==str(workspace) or session_id and s['result'].session_id==session_id) for s in self._submissions.values()):
                 return reject('busy','session','Original request still owns this SDK workspace/Session')
             request='ioa-'+uuid.uuid4().hex
             state={'fingerprint':fingerprint,'result':initial,'plannedRequestId':request,'finished':False,
-                   'workspace':str(workspace),'path':path,'bound':False,'operation':operation_id}
+                   'workspace':str(workspace),'path':path,'bound':False,'operation':operation_id,'previousAttempts':previous}
             self._submissions[operation_id]=state
             self._persist(state)
         files=None
@@ -161,7 +177,7 @@ class Submission:
         round=_Round(operation_id,execution.actor,execution.interaction_id,definition,input.text,str(workspace),request,
                      timeout_seconds=timeout,session_id=session_id,on_session=bind,on_tool=tool,
                      native_tools_enabled=execution.authorization.get('nativeToolsEnabled') is True,
-                     definition_digest=execution.definition.digest)
+                     definition_digest=execution.definition.digest,proposal_schema=deepcopy(execution.proposal_schema))
         try:
             if submission_resources:
                 try:
@@ -169,7 +185,7 @@ class Submission:
                 except Exception as exc:
                     value=reject(getattr(exc,'code','resource_mapping_failed'),'resources',
                         'Original authorized bytes could not be mapped; no native request submitted')
-                    state['result']=value;self._persist(state)
+                    state['result']=value;state['finished']=True;self._persist(state)
                     return value
                 # Per-turn data. Original SDK callbacks own read proof.
                 round.input+='\nSDK authorized resource mappings (data): '+encode(mapped)
@@ -185,6 +201,15 @@ class Submission:
                 terminal=MachineTerminal(operation_id,attempt,result.session_id,request,status,str(path))
             value=replace(state['result'],state=status,session_id=result.session_id,terminal=terminal,
                 output=raw.get('output_json') if raw.get('output_json') is not None else raw.get('output'),usage=result.usage)
+            # The optional collector has no effect until the matching machine
+            # terminal succeeds. Plain text and events are never proposals.
+            if terminal is not None and status=='completed' and execution.proposal_schema is not None and result.proposal is not None:
+                try:
+                    validate_output(SimpleNamespace(output_schema=execution.proposal_schema),result.proposal)
+                    value=replace(value,proposal=deepcopy(result.proposal))
+                except RuntimeFault:
+                    value=replace(value,error=SubmissionError('invalid_proposal','proposal','accepted',
+                        'Original structured result does not match its proposal schema','inspect_original_result'))
             if result.error:value=replace(value,error=SubmissionError(str(result.error.get('code','host_error')),'process','unknown','Original Process returned an error'))
             if state.get('resourceError') is not None:value=replace(value,error=state['resourceError'])
             state['result']=value;self._persist(state)
@@ -201,12 +226,13 @@ class Submission:
             known=state['result']
             value=replace(known,state=known.state if known.terminal else 'unknown',
                 error=SubmissionError('host_unknown','process','accepted' if known.terminal else 'unknown',type(exc).__name__))
-        state['result']=value;state['finished']=value.terminal is not None;self._persist(state)
+        state['result']=value;state['finished']=value.terminal is not None or bool(value.error and value.error.dispatch=='not_submitted');self._persist(state)
         return value
 
     def _persist(self,state):
         private_json(state['path'],{'fingerprint':state['fingerprint'],
             'plannedRequestId':state['plannedRequestId'],'result':asdict(state['result']),
+            'previousAttempts':state.get('previousAttempts',[]),
             'collectionError':asdict(state['resourceError']) if state.get('resourceError') else None})
 
     def get_request(self,query):

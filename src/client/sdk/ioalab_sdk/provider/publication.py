@@ -39,6 +39,8 @@ class ProviderRole:
         self.flows=ProviderFlows(self)
         registration=self.execution.bind()
         registration['jobs']['provider.preview']=JobHandler(self.run_preview,'provider-preview-v1',False)
+        from .forms import management_form
+        registration['forms']=(management_form(self),)
         return {'operations': {name: self._handler(name.split('.', 1)[1]) for name in handled_by(PROVIDER)},**registration}
 
     def start(self):

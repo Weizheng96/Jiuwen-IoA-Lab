@@ -228,4 +228,3 @@ class CodexHost:
         wire,sid,cancelled=owned;cancelled.set()
         try:wire.begin('turn/interrupt',{'threadId':sid,'turnId':request_id});return {'state':'accepted','requestId':request_id}
         except Exception:return {'state':'unknown','requestId':request_id}
-

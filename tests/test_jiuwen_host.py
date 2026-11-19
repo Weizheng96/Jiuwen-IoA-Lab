@@ -125,8 +125,8 @@ def test_native_tools_keep_configured_permissions_in_every_phase(tmp_path, monke
         assert result.status == 'completed'
     assert requests[0]['agent'] == requests[1]['agent']
     # The adapter never overwrites the Runtime's native permissions.
-    assert requests[0]['permissions']['tools'] == {'business': 'allow'}
-    assert requests[1]['permissions']['tools'] == {'business': 'allow'}
+    assert requests[0]['permissions']['tools'] == {'business': 'allow', 'ioa_propose_result': 'deny'}
+    assert requests[1]['permissions']['tools'] == {'business': 'allow', 'ioa_propose_result': 'deny'}
     assert requests[0]['agent']['tools'] == ['*']
     records = [json.loads(path.read_text()) for path in (tmp_path / 'work/runs').glob('ioa-*.json')]
     assert len({value['definitionDigest'] for value in records}) == 1
@@ -146,7 +146,7 @@ def test_invalid_or_unavailable_native_tool_does_not_start_a_process(tmp_path, m
     assert result.error['code'] == 'invalid_input'
 
 def _startable(tmp_path):
-    command=tmp_path/'bin'/'jiuwenswarm-process.exe';command.parent.mkdir();command.write_bytes(b'')
+    command=tmp_path/'bin'/'jiuwenswarm-process.exe';command.parent.mkdir();command.write_bytes(b'');command.chmod(0o700)
     data=tmp_path/'swarm';(data/'config').mkdir(parents=True);(data/'config'/'config.yaml').write_text('models: {}',encoding='utf-8')
     return command,data
 
@@ -194,5 +194,5 @@ def test_unlisted_native_tool_keeps_actual_runtime_failure_instead_of_claiming_a
     monkeypatch.setattr(host, '_client', lambda **kwargs: Process())
     result = _submit(host, 'op', 'actor', 'iid', AgentDefinition('business', 'Use owner-configured tool', (), native_tools=(('custom_business_tool', 'allow'),)), 'data', str(tmp_path / 'work'), allow_native_tools=True)
     assert result.status == 'unknown' and result.error['code'] == 'TOOL_NOT_FOUND'
-    assert len(requests) == 1 and requests[0]['permissions']['tools'] == {}
+    assert len(requests) == 1 and requests[0]['permissions']['tools'] == {'ioa_propose_result':'deny'}
     assert requests[0]['agent']['tools'] == ['*']

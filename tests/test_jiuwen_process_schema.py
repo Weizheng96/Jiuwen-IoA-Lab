@@ -40,7 +40,9 @@ except (TypeError,ValueError) as error:
         async def run(self, request, **callbacks):
             requests.append(request)
             assert validate(request['agent']) == {'accepted': True, 'tools': ['*']}
-            assert request['permissions']['tools'] == {request['host_tools'][0]['name']: 'allow'}
+            assert len(request['host_tools']) == 2 and request['host_tools'][1]['name'] == 'ioa_propose_result'
+            assert request['permissions']['tools'] == {
+                request['host_tools'][0]['name']: 'allow', 'ioa_propose_result': 'deny'}
             record = {'type': 'result', 'request_id': request['request_id'], 'session_id': 'upstream-schema-session',
                       'status': 'completed', 'exit_code': 0}
             await callbacks['on_event']({**record, 'type': 'event'})

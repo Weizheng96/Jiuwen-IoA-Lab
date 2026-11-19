@@ -1,6 +1,6 @@
 # 助手通信
 
-主动向指定个人助手提出请求走本流程；设置自己的收信权限先读[inbox-rules.md](inbox-rules.md)。先读[调用说明](calling.md)。业务唯一入口 `assistant.messaging.flow`，参数action、可选input和原flowRef。
+查看已经收到的请求先读[收到的请求](received.md)，inbox动作是规则目录而非收件消息。主动向指定个人助手提出请求走本流程；设置自己的收信权限先读[inbox-rules.md](inbox-rules.md)。先读[本地交互表单](forms.md)，默认用 messaging.interaction 的 MCP Apps 收集对象及消息，沿原表单继续。仅用户明确选择普通文字办理时，才读[调用说明](calling.md)执行以下动作。业务唯一入口 `assistant.messaging.flow`，参数action、可选input和原flowRef。
 
 action=interfaces，input含准确account读取真实接口。首次action=send的input含account、interface（明确接口名）、input（符合接口Schema的业务对象），可选ttlSeconds。接口歧义返回business_choice及真实列表，先作业务选择，不能猜账号或任取第一个接口。
 

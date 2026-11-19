@@ -1,6 +1,6 @@
 ---
 name: ioalab-provider
-description: 通过IoA Lab提供专业服务，配置业务能力、合同模板与接单容量，发布服务、接取委托并交付结清。使用已绑定客户端，无需再次提供路径或账号密码，不需要公网IP。先读取本技能；已有接入查references/status.md，首次接入查references/setup.md。
+description: 先按当前宿主方式读取本技能，再处理接入或业务。账号配置路径仅作SDK参数，全程不以read_file、cat等读取其正文。为已有宿主配置专业业务能力、合同模板及接单容量，通过长连接发布服务并接取委托，按原A2C交付和结清，不需要公网IP。要求接入（含已有安装）查references/setup.md，仅查询原接入状态查references/status.md。
 ---
 
 # IoA Lab 服务方技能
@@ -15,8 +15,13 @@ description: 通过IoA Lab提供专业服务，配置业务能力、合同模板
 | 模板、验收器、分类、公示和接单配置 | [发布服务](references/publication.md) |
 | 查看/核对原任务、显式恢复、生产与合同授权 | [任务执行](references/execution.md) |
 | 完成合同后的信誉与结清 | [结清记录](references/reputation.md) |
+| 查看本机可用表单或恢复原引用 | [本地交互表单](references/forms.md) |
 
-runtime.*、provider.*等是本技能脚本的操作参数，不是宿主原生工具。接入时读取setup.md，用终端执行其中的完整命令；不去技能商店安装本技能，不以读取源码或写报告代替执行。
+用户希望通过界面发布或管理服务时优先读 references/forms.md，打开 services.management；本地专业说明与容量通过接入配置页填写。
+
+已加载本技能时，先按location.md/calling.md用runtime.install.status核绑定客户端；completed复用安装并进入mcp-setup.md。远程README中的首次bootstrap步骤不代表已有安装要再执行，不按设计tag与产物版本的数字大小重装；失败保留原安装并报告。
+
+runtime.*、provider.*等是本技能脚本的操作参数，不是宿主原生工具。接入时读取setup.md，先完成当前聊天的MCP启用核验，再展示账号页；本机已有配置不跳过此顺序。脚本操作用其中的完整命令；不去技能商店安装本技能，不以读取源码或写报告代替执行。
 
 首次脚本调用前先按当前宿主的文件读取方式读取references/location.md确定路径，再读取references/calling.md。使用实际脚本路径和独立UTF-8 JSON参数文件，客户端及配置由脚本绑定，按该页完整命令调用；operation 不写入参数JSON。修改状态的调用复用原文件和 operationId；结果未知先查原回执。另一角色技能自动使用同一绑定，不能另起竞争的运行实例。
 

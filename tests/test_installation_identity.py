@@ -5,6 +5,30 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+
+def test_original_assembly_survives_stop_without_guessing_configuration(platform, tmp_path):
+    from ioalab_sdk.runtime import runtime_assembly
+    path, _ = configuration(platform, tmp_path, service=False)
+    runtime = ResidentRuntime(RuntimeConfig.load(path), assembly='ioalab-jiuwen').start()
+    try:
+        assert runtime_assembly(path) == 'ioalab-jiuwen'
+    finally:
+        runtime.close()
+    before = path.read_bytes()
+    assert runtime_assembly(path) == 'ioalab-jiuwen'
+    assert path.read_bytes() == before
+    record = RuntimeConfig.load(path).home / 'runtime-owner.json'
+    saved = record.read_text()
+    for field, value in [('username', 'another-account'), ('environment', '/another/environment'),
+                         ('dataDirectory', '/another/data')]:
+        wrong = json.loads(saved); wrong[field] = value; record.write_text(json.dumps(wrong))
+        with pytest.raises(RuntimeFault): runtime_assembly(path)
+    record.write_text('{broken')
+    with pytest.raises(RuntimeFault): runtime_assembly(path)
+    record.unlink()
+    with pytest.raises(RuntimeFault) as missing: runtime_assembly(path)
+    assert missing.value.recovery == 'inspect_original_assembly'
 from ioalab_sdk.runtime import installation
 from ioalab_sdk.access import main
 from ioalab_sdk.runtime import start
@@ -98,3 +122,13 @@ def test_cli_preflight_cannot_switch_to_another_boot_before_a_business_request(t
         result=json.loads(capsys.readouterr().out)
         assert result['error']['code']=='instance_changed' and not effects
     finally:first.close();second.close()
+@pytest.mark.parametrize('count,accepted',[(70,True),(128,True),(129,False)])
+def test_managed_identity_supports_credential_dependencies_but_remains_bounded(tmp_path,monkeypatch,count,accepted):
+    monkeypatch.setattr(installation.metadata,'version',lambda _: '1.0')
+    value=managed(tmp_path)
+    value['versions'].update({f'dependency-{i}':'1.0' for i in range(count-1)})
+    (tmp_path/'ioalab-release.json').write_text(json.dumps(value))
+    monkeypatch.setattr(installation,'sys',SimpleNamespace(prefix=str(tmp_path)))
+    if accepted:assert len(installation.current()['versions'])==count
+    else:
+        with pytest.raises(RuntimeFault,match='incomplete or changed'):installation.current()

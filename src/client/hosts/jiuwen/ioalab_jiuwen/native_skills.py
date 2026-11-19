@@ -12,6 +12,13 @@ NATIVE_FILES=('rail.py','entry.py','worker.py','turn.py','README.md')
 class JiuwenSkills:
     bind_before_skill_import = True
 
+    def mcp_setup(self, python, config):
+        """Describe the native foreground action without reading account data."""
+        if not Path(python).is_absolute() or not Path(config).is_absolute():
+            raise RuntimeFault('invalid_input', 'Use the bound absolute client and configuration paths')
+        return {'tool': 'connect_mcp', 'arguments': {'name': 'ioalab', 'command': str(python),
+                'args': ['-m', 'ioalab_sdk.mcp', '--config', str(config)]}}
+
     def destination(self): return None
     def entry(self, name): return '选择'+name
     def manual_steps(self, package, name):

@@ -182,7 +182,9 @@ class Fulfillment:
                 else:
                     if decision['status']!='approved':
                         data={'operationId':operation,'contractRef':args['contractRef'],'confirmationRef':decision['reference']}
-                        if decision['status']!='pending':self.save(operation,record,phase='finished',status='rejected',result=data)
+                        if decision['status']!='pending':
+                            data['reason']=decision['status']
+                            self.save(operation,record,phase='finished',status='rejected',result=data)
                         return {'status':'waiting' if decision['status']=='pending' else 'rejected','data':data}
                     self.runtime.confirmations.claim(decision['reference'],binding)
                 record=self.save(operation,record,phase='approved',approval=decision['reference'],binding=binding)

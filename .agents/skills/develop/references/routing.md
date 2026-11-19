@@ -14,6 +14,7 @@
 | `src/platform/ioalab/web/static/` | [网页UI](../../../../设计/组件/平台/网页UI/接口.md) |
 | `src/platform/ioalab/storage.py`、`migrations/`、`errors.py`、`files.py`、`keys.py`、`events.py`、`config*.py` | [平台基础](../../../../设计/组件/平台/平台基础/接口.md) |
 | `src/client/ioalab_client/`、`src/client/bootstrap.py`、`src/client/setup.py`、`src/client/sdk/ioalab_sdk/runtime/`、`adapters/`、`templates.py`、`src/client/skills/_shared/` | [共用运行时](../../../../设计/组件/客户端/共用运行时/接口.md) |
+| `src/client/sdk/ioalab_sdk/mcp/` | [MCP接入](../../../../设计/组件/客户端/MCP接入/接口.md) |
 | `src/client/sdk/ioalab_sdk/assistant/`、`src/client/skills/assistant/` | [个人助手端](../../../../设计/组件/客户端/个人助手端/接口.md) |
 | `src/client/sdk/ioalab_sdk/provider/`、`src/client/skills/provider/` | [服务方端](../../../../设计/组件/客户端/服务方端/接口.md) |
 | `src/client/sdk/ioalab_sdk/access.py` | [SDK装配](../../../../设计/组件/客户端/SDK装配/接口.md) |

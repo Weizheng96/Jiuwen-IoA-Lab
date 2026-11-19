@@ -73,7 +73,8 @@ def test_every_agent_operation_is_taught_by_its_product_skill(role, folders):
 def test_product_script_routes_exactly_the_cataloged_script_operations():
     source = (ROOT / 'src/client/ioalab_client/commands.py').read_text(encoding='utf-8')
     routed = set(re.findall(r"'((?:runtime|account)\.[a-z_.-]*[a-z_])'", source))
-    assert routed == set(handled_by(SCRIPT))
+    assert routed == set(handled_by(SCRIPT)) | {'runtime.status'}  # Authenticated resident preflight, not a script handler.
+    assert CATALOG['runtime.status'].handler == RUNTIME
 
 
 def test_runtime_registers_only_cataloged_role_operations(platform, tmp_path):

@@ -43,6 +43,8 @@ specSchema是“规格键→取值域”的映射，不是完整JSON Schema。�
 
 L1入口为`def verify(ctx)`，返回`{"status":"pass或fail","checks":[实际检查结果]}`。通过ctx.read("约定文件名")取得交付字节；reads声明要读取的合同spec/inputs字段。程序只在WASM中执行，不能在宿主import/exec交付源码。以下只示意文本非空检查，不能据此宣称源码功能完整：
 
+合同字段使用`ctx.values["spec.<交付件>.<字段>"]`或`ctx.values["inputs.<材料>.<字段>"]`读取，键必须与reads声明的完整路径一致；这是扁平字典，没有`ctx.spec`或`ctx.inputs`。例如声明`reads=["spec.result.topic"]`后，用`topic = ctx.values["spec.result.topic"]`取得合同主题，再与`ctx.read("result.txt").decode("utf-8")`的正文比较。不能把合同字段当文件名，也不能新增同名文件模拟合同字段。发布检查只能提前发现部分明确API错误，不能证明业务判据正确；生产仍须真实自检。
+
 ```python
 def verify(ctx):
     try:

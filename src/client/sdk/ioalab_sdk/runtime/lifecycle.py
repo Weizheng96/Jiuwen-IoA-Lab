@@ -68,6 +68,7 @@ def start(config_path,*,timeout=15,command=None,assembly=None,environment=None):
         entry=command or [sys.executable,'-m','ioalab_sdk.access']
         child=subprocess.Popen([*entry,'serve','--config',str(Path(config_path).resolve())],
                                cwd=Path(config_path).resolve().parent,stdin=subprocess.DEVNULL,stdout=stream,stderr=stream,
+                               start_new_session=os.name!='nt',
                                creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),env=environment)
     until=time.monotonic()+timeout
     while time.monotonic()<until:
@@ -94,7 +95,7 @@ def run(argv,*,modules,validate,service_fields):
         if name=='account-setup':
             item.add_argument('--platform');item.add_argument('--role',choices=('assistant','service'))
             item.add_argument('--worker');item.add_argument('--args-file',type=Path);item.add_argument('--browser')
-            item.add_argument('--both-roles',action='store_true')
+            item.add_argument('--both-roles',action='store_true');item.add_argument('--embedded',action='store_true')
     call=commands.add_parser('call')
     call.add_argument('operation')
     call.add_argument('--config',type=Path,required=True)
@@ -130,7 +131,7 @@ def run(argv,*,modules,validate,service_fields):
                         options={**options,'role':args.role}
                     if args.both_roles:options={**options,'prepare_both_roles':True}
                 if args.worker:
-                    serve(args.config,options,args.worker)
+                    serve(args.config,options,args.worker,embedded=args.embedded)
                     return 0
                 result=launch(args.config,options)
         elif args.command=='login':
@@ -160,13 +161,15 @@ def run(argv,*,modules,validate,service_fields):
             config_path=args.config.resolve();document=read_configuration(config_path)
             home=data_directory(config_path,document)
             if not args.request_stdin:values=read_arguments(args.args_file,configuration=config_path,home=home) if args.args_file else {}
-            operation=values.get('operationId') or str(uuid.uuid4())
-            client=LocalClient(home)
+            boot_id=None
             if args.operation not in SAFE_CALLS:
                 config=RuntimeConfig.from_mapping(config_path,document)
-                state=client.call('runtime.status')['data'];installation=state.get('installation')
-                require_configuration(state,config,assembly=installation.get('assembly') if isinstance(installation,dict) else None)
-                client=LocalClient(home,boot_id=state['bootId'])
+                state=LocalClient(home).call('runtime.status')['data']
+                require_configuration(state,config,assembly=(state.get('installation') or {}).get('assembly'))
+                boot_id=state['bootId']
+            operation=values.get('operationId') or str(uuid.uuid4())
+            from .client import ClientOperations
+            client=ClientOperations(config_path,boot_id=boot_id)
             if args.operation=='runtime.stop' and 'bootId' not in values:
                 values['bootId']=client.call('runtime.status')['data']['bootId']
             values['operationId']=operation
@@ -174,10 +177,6 @@ def run(argv,*,modules,validate,service_fields):
             metadata=packet['contextRef'] if packet else ({'entryRef':args.entry_ref} if args.entry_ref else None)
             native_submitted=bool(native_operation)
             result=client.call(args.operation,{key:value for key,value in values.items() if key!='operationId'},operation_id=operation,context_ref=metadata)
-            if args.operation=='runtime.status' and result['status']=='completed':
-                actual=result['data'].get('installation')
-                try:require_matching(actual,assembly=actual.get('assembly') if isinstance(actual,dict) else None)
-                except RuntimeFault as exc:result={**result,'status':'rejected','error':public_error(exc)}
         print(json.dumps(result,ensure_ascii=False))
         return 1 if result.get('status') in ('rejected','failed','unknown') else 0
     except RuntimeFault as exc:

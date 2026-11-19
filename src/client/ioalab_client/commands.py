@@ -52,9 +52,27 @@ def source_operations():
     return tuple(sorted(name for name,value in CATALOG.items() if value.handler in (ASSISTANT,PROVIDER)))
 
 
+def control_module(config):
+    """The SDK identifies the account's assembly; host fields never select an entry."""
+    from ioalab_sdk.runtime import runtime_assembly, RuntimeFault
+    modules = {'ioalab-client': 'ioalab_client.runtime', 'ioalab-jiuwen': 'ioalab_jiuwen',
+               'ioalab-codex': 'ioalab_codex', 'ioalab-claude-code': 'ioalab_claude_code',
+               None: 'ioalab_sdk.access'}
+    assembly = runtime_assembly(config)
+    if assembly not in modules:
+        raise RuntimeFault('not_ready', 'Use the verified original assembly control entry', 'inspect_original_assembly')
+    return modules[assembly]
+
+
 def ensure_running(python,config):
-    """The sole ordinary-call start seam; start owns identity checks and the OS lease."""
-    return invoke(python,['-m','ioalab_client.runtime','start','--config',str(config)])
+    """Reuse a verified live assembly; only a known stopped runtime may be started."""
+    current = invoke(python, ['-m','ioalab_sdk.access','call','runtime.status','--config',str(config)])
+    try: state = json.loads(current.stdout)
+    except ValueError: return current
+    if state.get('status') == 'completed': return current
+    if (state.get('status') != 'rejected' or
+            (state.get('error') or {}).get('recovery') != 'runtime.start'): return current
+    return invoke(python,['-m',control_module(config),'start','--config',str(config)])
 
 
 def main(argv=None):
@@ -127,6 +145,26 @@ def main(argv=None):
                 temporary=Path(cleanup.enter_context(tempfile.TemporaryDirectory(prefix='ioalab-native-control-')))
                 args.args_file=temporary/'arguments.json'
                 private_json(args.args_file,packet['arguments'])
+        if args.operation=='runtime.mcp.configuration':
+            from .native_skills import owner
+            output({'status':'completed','data':{'stage':'mcp','nextAction':'enable_in_current_chat',
+                 'accountRequired':False,'setupArguments':{'role':role},
+                 'name':'ioalab','transport':'stdio','command':str(python),
+                 'args':['-m','ioalab_sdk.mcp','--config',str(config)],
+                 'codexCommand':['codex','mcp','add','ioalab','--',str(python),'-m','ioalab_sdk.mcp','--config',str(config)],
+                 'claudeCommand':['claude','mcp','add','--transport','stdio','--scope','user','ioalab','--',str(python),'-m','ioalab_sdk.mcp','--config',str(config)],
+                 'jiuwenEntry':{'name':'ioalab','transport':'stdio','command':str(python),'args':['-m','ioalab_sdk.mcp','--config',str(config)],'enabled':True},
+                 'jiuwenJson':{'mcpServers':{'ioalab':{'command':str(python),'args':['-m','ioalab_sdk.mcp','--config',str(config)]}}},
+                 'jiuwenAutoSetup':owner('jiuwen').mcp_setup(python,config),
+                 'notice':'这里只生成登记资料，不表示已连接。账号配置可以尚不存在，不预创建配置、不先启动业务实例或打开浏览器登录页。'
+                          '九问当前提供connect_mcp时直接调用jiuwenAutoSetup中的原生请求，自动复用或创建连接器并加载当前聊天；不让用户复制JSON。'
+                          '只有原生回执sessionEnabled=true且当前聊天能调用ioa_setup才继续账号接入；保留宿主原生审批。'
+                          '仅没有原生自动登记工具时，才指导用户先选择已有IoA连接器；没有已有项再展示JSON创建步骤。'
+                          '手动创建入口：扩展 → 我的扩展 → 连接器 → 创建 → 配置连接器，在添加JSON代码中粘贴 jiuwenJson 并确认。'
+                          '不要读写宿主config.yaml、MCP私有目录或猜测API。'
+                          '登记后仍须在当前会话实际看到并调用ioa_setup，按setupArguments及用户给定平台进入账号页。'
+                          '当前会话未挂载不代表宿主不支持；先等待启用，不直接回退account.setup。'
+                          '配置完成、加载成功、MCP Apps 和后台 AgentHost 能力分别核验。'},'error':None});return 0
         if args.operation=='runtime.binding':
             if args.args_file:raise RuntimeError('runtime.binding does not use args-file')
             from .layout import locations
@@ -139,9 +177,9 @@ def main(argv=None):
                 raise RuntimeError('Use only host: jiuwen, codex or claude_code')
             from .onboarding import summary
             output(summary(values['host'],config=config,python=python,host_ref=args.host_ref));return 0
-        elif args.operation in ('account.setup','account.setup.status'):
-            arguments=['-m','ioalab_sdk.access','account-setup' if args.operation=='account.setup' else 'account-setup-status','--config',str(config)]
-            if args.operation=='account.setup':arguments+=['--role',role,'--both-roles']
+        elif args.operation in ('account.setup','account.setup.status') or args.operation=='runtime.connect' and not config.exists():
+            arguments=['-m','ioalab_sdk.access','account-setup-status' if args.operation=='account.setup.status' else 'account-setup','--config',str(config)]
+            if args.operation in ('account.setup','runtime.connect'):arguments+=['--role',role,'--both-roles']
             if args.args_file:
                 if args.operation.endswith('.status'):raise RuntimeError('Account status uses only --config')
                 arguments+=['--args-file',str(args.args_file.expanduser().resolve())]
@@ -151,23 +189,24 @@ def main(argv=None):
             result=invoke(python,['-m','ioalab_sdk.access','login','--config',str(config)])
         elif args.operation=='runtime.web-extension':
             if not args.args_file:raise RuntimeError('Use an args-file containing the owned profile key')
-            result=invoke(python,['-m','ioalab_client.runtime','web-extension','--config',str(config),
+            result=invoke(python,['-m',control_module(config),'web-extension','--config',str(config),
                 '--args-file',str(args.args_file.expanduser().resolve()),'--role',role])
         elif args.operation in ('runtime.configuration','runtime.configure'):
             if args.operation=='runtime.configure' and not args.args_file:raise RuntimeError('Create a separate non-credential changes file')
             if args.operation=='runtime.configuration' and args.args_file:raise RuntimeError('runtime.configuration only uses --config')
-            arguments=['-m','ioalab_client.runtime',args.operation.split('.',1)[1],'--config',str(config)]
+            arguments=['-m',control_module(config),args.operation.split('.',1)[1],'--config',str(config)]
             if args.args_file:arguments+=['--args-file',str(args.args_file.expanduser().resolve())]
             result=invoke(python,arguments)
-        elif args.operation in ('runtime.validate','runtime.start'):
-            checked=invoke(python,['-m','ioalab_client.runtime','validate','--config',str(config)])
+        elif args.operation in ('runtime.validate','runtime.start','runtime.connect'):
+            module=control_module(config)
+            checked=invoke(python,['-m',module,'validate','--config',str(config)])
             if checked.returncode:output(json.loads(checked.stdout));return checked.returncode
             summary=json.loads(checked.stdout)['data']
             if not any(item['role']==role for item in summary['identities']):raise RuntimeError('Add this role to the existing shared configuration before starting it')
             if args.operation=='runtime.validate':output(json.loads(checked.stdout));return 0
-            result=invoke(python,['-m','ioalab_client.runtime','start','--config',str(config)])
+            result=invoke(python,['-m',module,'start','--config',str(config)])
         else:
-            if args.operation in native_operations:
+            if args.operation in native_operations and CATALOG[args.operation].effect != 'read':
                 started=ensure_running(python,config)
                 readiness=json.loads(started.stdout)
                 if readiness.get('status')!='completed':return startup(started) if packet else relay(started)

@@ -66,6 +66,7 @@ class RuntimeConfig:
     provider: dict=field(default_factory=dict)
     host: dict=field(default_factory=dict)
     user_browser: str|None=None
+    credential_ref: str|None=None
     source: Path|None=field(default=None,repr=False,compare=False)
     source_digest: str|None=field(default=None,repr=False,compare=False)
     host_unavailable_shutdown_seconds: float=600
@@ -92,7 +93,7 @@ class RuntimeConfig:
 
     @classmethod
     def from_mapping(cls,path,value):
-        allowed={'platform_url','username','password','password_env','data_dir','identities',
+        allowed={'platform_url','username','password','password_env','credential_ref','data_dir','identities',
                  'max_model_runs','max_pending_requests','assistant','provider','host','user_browser','host_unavailable_shutdown_seconds'}
         def invalid(message):raise RuntimeFault('invalid_input',message,'configure')
         if not isinstance(value,dict) or set(value)-allowed:invalid('Unknown common runtime configuration fields')
@@ -110,9 +111,17 @@ class RuntimeConfig:
             if not isinstance(key,str) or not re.fullmatch('[A-Za-z_][A-Za-z0-9_]*',key):invalid('Invalid password environment reference')
             password=os.environ.get(key)
         else:password=value.get('password')
-        if not isinstance(password,str) or not password:invalid('Configure local account credentials')
+        credential_ref=value.get('credential_ref')
+        if credential_ref is not None:
+            if not isinstance(credential_ref,str) or not re.fullmatch('[0-9a-f]{64}',credential_ref):invalid('Invalid credential_ref')
+            if 'password' in value or 'password_env' in value:invalid('Migrate password configuration before using credential_ref')
+            password=''
+        elif not isinstance(password,str) or not password:invalid('Open the account setup page to create a device session')
         browser=browser_executable(value.get('user_browser'))
         home=data_directory(path,value)
+        if credential_ref:
+            expected=hashlib.sha256(json.dumps([str(home),{'platform':platform,'username':value['username'].strip()}],sort_keys=True).encode()).hexdigest()
+            if credential_ref!=expected:invalid('credential_ref belongs to another account directory')
         profiles=value.get('identities')
         if not isinstance(profiles,list) or not 1<=len(profiles)<=64:invalid('Configure one to 64 local identity profiles')
         keys=set();assistants=0
@@ -136,5 +145,5 @@ class RuntimeConfig:
             invalid('host_unavailable_shutdown_seconds requires a positive finite number')
         return cls(platform,value['username'].strip(),password,home.resolve(),tuple(dict(p) for p in profiles),
                    value.get('max_model_runs',DEFAULT_MAX_MODEL_RUNS),value.get('max_pending_requests',128),
-                   value.get('assistant',{}),value.get('provider',{}),value.get('host',{}),user_browser=browser,
+                   value.get('assistant',{}),value.get('provider',{}),value.get('host',{}),user_browser=browser,credential_ref=credential_ref,
                    host_unavailable_shutdown_seconds=duration)

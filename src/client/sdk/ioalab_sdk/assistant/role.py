@@ -18,6 +18,10 @@ from .termination import Termination
 from .flow import begin, guidance
 from .inbound import Inbound
 from .messaging import Messaging,stable
+from .forms import rule_form, interface_management
+from .received import inbox_form
+from .interaction import interaction_form
+from .trade_workflow import delegation_form, case_form, renewal_form
 
 
 class AssistantRole:
@@ -51,6 +55,7 @@ class AssistantRole:
         from .native_events import NativeProjections
         self.native_projections=NativeProjections(self)
         return {'operations':{name:self._operation(name.split('.',1)[1]) for name in handled_by(ASSISTANT)},
+                'forms': (inbox_form(self), rule_form(self), interface_management(self), interaction_form(self), delegation_form(self), case_form(self), renewal_form(self)),
                 'jobs':{'assistant.message':JobHandler(self.inbound.process,'assistant-message-v1',ready=lambda:self.ready(self.identity.profile) and bool(self.host and self.host.can_submit())),
                         'assistant.quote':JobHandler(self.trading.run,'assistant-quote-v1',False),
                         'assistant.compare':JobHandler(self.comparisons.run,'assistant-compare-v1',False),
@@ -138,6 +143,9 @@ class AssistantRole:
             return self.rules.publish(operation,draft['draftRef'],value['contentDigest'],args['expectedRevision'],args.get('confirmationRef'))
         elif name=='rules.list':
             data=self.rules.list()
+        elif name=='messaging.received':
+            from .received import received
+            data=received(self,args)
         elif name=='messaging.interfaces':
             data=self.messaging.interfaces(args['account'])
         elif name=='messaging.send':

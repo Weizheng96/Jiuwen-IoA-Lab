@@ -59,11 +59,11 @@ def prepare_home(path):
     path=Path(path)
     if (path/'keys.json').exists():
         raise RuntimeFault('identity_conflict','Direct-client identity directory needs explicit migration','migrate')
-    allowed={'client.lock','account.sqlite','account.sqlite-wal','account.sqlite-shm','account.sqlite.init.lock',
-             'runtime.sqlite','runtime.sqlite-wal','runtime.sqlite-shm','runtime.json','runtime.log',
+    allowed={'client.lock','credentials.enc','credentials.lock','account.sqlite','account.sqlite-wal','account.sqlite-shm','account.sqlite.init.lock',
+             'runtime.sqlite','runtime.sqlite-wal','runtime.sqlite-shm','runtime.json','runtime.log','runtime-owner.json',
              'identities','identity-index.json','roles','confirmations','materials','deliveries',
              'account-setup.json','account-setup-result.json','account-setup.lock','account-setup-launch.lock','account-ui'}
-    if path.exists() and any(child.name not in allowed and not child.name.startswith(('.runtime.json-','.identity-index.json-'))
+    if path.exists() and any(child.name not in allowed and not child.name.startswith(('.runtime.json-','.runtime-owner.json-','.identity-index.json-','.credentials.enc-'))
                              for child in path.iterdir()):
         raise RuntimeFault('invalid_input','Use a dedicated SDK data directory; unrelated files are present','configure_data_dir')
     path.mkdir(mode=0o700,parents=True,exist_ok=True)

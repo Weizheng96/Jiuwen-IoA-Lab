@@ -96,8 +96,9 @@ LEGACY={'code':'forbidden','message':'Payment changed or expired before transact
 REJECTED={'code':'payment_rejected','message':'card-invalid: 余量不足','recovery':'confirm_payment_retry'}
 
 
-def test_v22_old_shape_rejection_recovers_across_a_new_parent_without_submitting(payments):
-    p=payments;body=p.body();operation=p.remember('accept-one',body,error=LEGACY)
+@pytest.mark.parametrize("refusal", [LEGACY, {"code":"expired","message":"Explicit user renewal is required","recovery":"wait_for_user"}])
+def test_v22_old_shape_rejection_recovers_across_a_new_parent_without_submitting(payments, refusal):
+    p=payments;body=p.body();operation=p.remember('accept-one',body,error=refusal)
     with p.transport.operation('new-pay'):
         with pytest.raises(PaymentRejected) as caught:p.transport.send('pay','ap2.pay',body)
     assert caught.value.reference==operation and caught.value.body_digest==digest(body)
@@ -107,7 +108,7 @@ def test_v22_old_shape_rejection_recovers_across_a_new_parent_without_submitting
     state=p.transport.payment_recovery(p.ref,1)
     assert state['noPending'] is True and state['rejection']['reference']==operation
     assert state['attempts']==[{'operationId':operation,'bodyDigest':digest(body),'status':'rejected',
-                                'error':{'code':LEGACY['code'],'message':LEGACY['message']}}]
+                                'error':{'code':refusal['code'],'message':refusal['message']}}]
 
 
 def test_first_commit_rejection_is_typed_only_after_its_actual_saved_frame(payments):

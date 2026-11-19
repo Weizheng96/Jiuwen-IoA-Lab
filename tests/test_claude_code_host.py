@@ -350,7 +350,7 @@ def test_non_sdk_tools_are_not_approved_or_denied_by_adapter(boundary,tmp_path):
 
 
 def test_check_reports_evidenced_missing_executable_or_config_without_starting_cli(boundary,tmp_path,monkeypatch):
-    exe=tmp_path/'claude.exe';exe.write_bytes(b'not executed')
+    exe=tmp_path/'claude.exe';exe.write_bytes(b'not executed');exe.chmod(0o700)
     h=ClaudeCodeHost([str(exe)],model='test-model')
     monkeypatch.setenv('CLAUDE_CONFIG_DIR',str(tmp_path/'absent'))
     assert h.check()['state']=='available' and h.check()['configDirectory']=='absent'

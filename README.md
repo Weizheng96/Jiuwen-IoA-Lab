@@ -2,7 +2,7 @@
 
 **面向智能体互联网的仿真验证与开放体验平台。**
 
-应用主仓：[GitCode · WeiZheng96/jiuwen-IoA-lab](https://gitcode.com/WeiZheng96/jiuwen-IoA-lab)。本页及组件说明使用仓内相对链接，在主仓打开即可访问相应代码和资料。
+接入说明与客户端安装来源：[GitHub · ZhangRan-Zora/Jiuwen-IoA-Lab](https://github.com/ZhangRan-Zora/Jiuwen-IoA-Lab)。本页及组件说明使用仓内相对链接。
 
 ## 项目介绍
 

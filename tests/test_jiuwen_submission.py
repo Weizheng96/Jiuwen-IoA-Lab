@@ -107,6 +107,13 @@ def test_no_protocol_echo_keeps_planned_request_private_and_never_resubmits(tmp_
     journal=json.loads(next((tmp_path/'work/runs').glob('submission-*.json')).read_text())
     assert journal['plannedRequestId']==requests[0]['request_id']
     assert journal['result']['request_id'] is None
+    # Restart and a new SDK attempt cannot turn an unverified send into a retry.
+    from ioalab_sdk.runtime import RuntimeFault
+    restarted=ProcessHost(['process'],tmp_path)
+    monkeypatch.setattr(restarted,'_client',lambda **_:pytest.fail('Unknown request was replayed'))
+    with pytest.raises(RuntimeFault,match='never resubmit unknown'):
+        restarted.submit('op',replace(payload(),attempt=replace(payload().attempt,nonce='new-attempt')),
+                         execution=scope(tmp_path/'work'))
 
 
 def test_validation_before_native_dispatch_has_no_public_request_or_tool_effect(tmp_path,monkeypatch):
@@ -159,7 +166,7 @@ def test_native_tool_phase_is_recorded_but_never_restricts_configured_tools(tmp_
     assert Submission.registration.native_tool_restriction is False
     class Process:
         async def run(self,request,**callbacks):
-            assert request['permissions']['tools']=={}
+            assert request['permissions']['tools']=={'ioa_propose_result':'deny'}
             assert request['agent']['tools']==['*']
             return {'type':'result','request_id':request['request_id'],'session_id':'sid','status':'completed','exit_code':0}
     host=ProcessHost(['process'],tmp_path)
@@ -175,11 +182,11 @@ def test_native_tool_phase_is_recorded_but_never_restricts_configured_tools(tmp_
 PROPOSAL={'type':'object','properties':{'reply':{'type':'string'}},'required':['reply']}
 
 
-def test_proposal_round_without_channel_submits_through_same_effect_sdk_tool(tmp_path,monkeypatch):
+def test_proposal_round_can_use_same_effect_sdk_tool_without_optional_proposal(tmp_path,monkeypatch):
     calls=[]
     class Process:
         async def run(self,request,**callbacks):
-            assert [tool['name'] for tool in request['host_tools']]==['ioa_reply']
+            assert [tool['name'] for tool in request['host_tools']]==['ioa_reply','ioa_propose_result']
             await callbacks['on_event']({'type':'event','request_id':request['request_id'],'session_id':'sid'})
             await callbacks['on_tool_call']({'request_id':request['request_id'],'session_id':'sid',
                 'payload':{'name':'ioa_reply','arguments':{'reply':'hello'},'call_id':'call'}})
@@ -193,15 +200,17 @@ def test_proposal_round_without_channel_submits_through_same_effect_sdk_tool(tmp
     assert calls==[('ioa_reply',{'reply':'hello'})]
 
 
-def test_proposal_round_without_channel_or_same_effect_tool_is_not_submitted(tmp_path,monkeypatch):
+def test_proposal_collector_is_available_without_effect_tools(tmp_path,monkeypatch):
+    class Process:
+        async def run(self,request,**callbacks):
+            reply=await callbacks['on_tool_call']({'request_id':request['request_id'],'session_id':'sid',
+                'payload':{'name':'ioa_propose_result','arguments':{'value':{'reply':'hello'}},'call_id':'proposal'}})
+            assert reply=={'status':'recorded'}
+            return {'type':'result','request_id':request['request_id'],'session_id':'sid','status':'completed','exit_code':0}
     host=ProcessHost(['process'],tmp_path)
-    monkeypatch.setattr(host,'_client',lambda **_:pytest.fail('Unsupported proposal round started a Process'))
-    other=HostToolDeclaration('lookup','Read only',{'type':'object'})
-    for tools in ((),(other,)):
-        result=host.submit('op-'+str(len(tools)),payload(),execution=scope(tmp_path/'work',proposal_schema=PROPOSAL,tools=tools),
-                           on_event=ack,on_tool=lambda _:pytest.fail('No SDK effect'))
-        assert result.error.code=='not_ready' and result.error.phase=='proposal' and result.error.dispatch=='not_submitted'
-        assert result.request_id is None
+    monkeypatch.setattr(host,'_client',lambda **_:Process())
+    result=host.submit('op',payload(),execution=scope(tmp_path/'work',proposal_schema=PROPOSAL),on_event=ack)
+    assert result.state=='completed' and result.proposal=={'reply':'hello'}
 
 
 def test_native_ask_without_trusted_answer_channel_is_never_answered(tmp_path,monkeypatch):
@@ -219,3 +228,99 @@ def test_native_ask_without_trusted_answer_channel_is_never_answered(tmp_path,mo
     result=host.submit('op',payload(),execution=scope(tmp_path/'work'),on_event=ack)
     assert not answered and result.terminal is None and result.state=='unknown'
     assert result.error.code=='native_interaction_unanswered' and result.error.dispatch=='unknown'
+
+
+def test_explicit_deadline_bounds_unfinished_process_and_keeps_original_request(tmp_path,monkeypatch):
+    import asyncio
+    calls=[]
+    class Process:
+        async def run(self,request,**callbacks):
+            calls.append(request)
+            await callbacks['on_event']({'session_id':'original-timeout-session','request_id':request['request_id']})
+            await asyncio.Event().wait()
+    host=ProcessHost(['process'],tmp_path)
+    monkeypatch.setattr(host,'_client',lambda **_:Process())
+    expires=(datetime.now(timezone.utc)+timedelta(seconds=.1)).isoformat()
+    result=host.submit('bounded',payload(),execution=scope(tmp_path/'work',deadline=expires),on_event=ack)
+    assert result.state=='unknown' and result.terminal is None
+    assert result.session_id=='original-timeout-session' and result.request_id==calls[0]['request_id']
+    assert result.error.code=='host_timeout'
+    assert host.get_request(SubmissionQuery(result.operation_id,result.attempt_id,result.session_id,result.request_id))==result and len(calls)==1
+
+
+@pytest.mark.parametrize('terminal,structured,valid', [
+    ('completed', {'files': {}}, True), ('completed', {'wrong': True}, False),
+    ('failed', {'files': {}}, False), ('event', {'files': {}}, False),
+    ('completed', None, False),
+])
+def test_process_proposal_uses_schema_and_only_original_valid_success(tmp_path,monkeypatch,terminal,structured,valid):
+    schema={'type':'object','properties':{'files':{'type':'object'}},'required':['files'],'additionalProperties':False}
+    calls=[]
+    class Process:
+        async def run(self,request,**callbacks):
+            calls.append(request)
+            assert 'output_schema' not in request
+            proposal=request['host_tools'][0]
+            assert proposal['input_schema']['properties']['value']=={'type':'object'}
+            assert 'Optional proposal schema for this turn' in request['input']
+            if structured is not None:
+                receipt=await callbacks['on_tool_call']({'request_id':request['request_id'],'session_id':'sid',
+                    'payload':{'name':proposal['name'],'arguments':{'value':structured},'call_id':'proposal-call'}})
+                assert receipt['status']==('recorded' if structured=={'files':{}} else 'rejected')
+            return {'type':'event' if terminal=='event' else 'result','request_id':request['request_id'],
+                    'session_id':'sid','status':'failed' if terminal=='failed' else 'completed',
+                    'exit_code':1 if terminal=='failed' else 0,'output_json':structured,
+                    'output':'{"files":{}}'}
+    host=ProcessHost(['process'],tmp_path)
+    monkeypatch.setattr(host,'_client',lambda **_:Process())
+    execution=scope(tmp_path/'work',proposal_schema=schema)
+    result=host.submit('proposal',payload(),execution=execution,on_event=ack)
+    assert len(calls)==1
+    assert result.proposal==({'files':{}} if valid else None)
+    if terminal=='completed' and structured is not None and not valid:
+        assert result.terminal and result.error is None
+    assert host.submit('proposal',payload(),execution=execution,on_event=ack)==result
+    assert len(calls)==1
+
+
+def test_invalid_proposal_schema_rejects_before_process_dispatch(tmp_path,monkeypatch):
+    host=ProcessHost(['process'],tmp_path)
+    monkeypatch.setattr(host,'_client',lambda **_:pytest.fail('Invalid schema launched Process'))
+    result=host.submit('proposal',payload(),execution=scope(tmp_path/'work',proposal_schema={'$ref':'https://invalid.example/schema'}))
+    assert result.error.code=='invalid_proposal_schema' and result.error.dispatch=='not_submitted'
+
+
+def test_optional_proposal_does_not_force_json_after_sdk_tool_receipt(tmp_path,monkeypatch):
+    calls=[]
+    class Process:
+        async def run(self,request,**callbacks):
+            assert 'output_schema' not in request
+            record={'type':'result','request_id':request['request_id'],'session_id':'sid','status':'completed','exit_code':0}
+            name=request['host_tools'][0]['name']
+            receipt=await callbacks['on_tool_call']({**record,'payload':{'name':name,'arguments':{},'call_id':'effect'}})
+            assert receipt=={'status':'recorded'}
+            return {**record,'output':'Business tool completed; normal summary.'}
+    host=ProcessHost(['process'],tmp_path);monkeypatch.setattr(host,'_client',lambda **_:Process())
+    execution=scope(tmp_path/'work',tools=(HostToolDeclaration('sdk.effect','Authorized effect',{'type':'object'}),),proposal_schema={'type':'object'})
+    result=host.submit('tool-only',payload(),execution=execution,on_event=ack,
+        on_tool=lambda call:calls.append(call) or HostToolResult({'status':'recorded'}))
+    assert result.state=='completed' and result.error is None and result.proposal is None and result.terminal
+    assert len(calls)==1
+
+
+def test_optional_proposal_keeps_same_native_definition_across_phases(tmp_path,monkeypatch):
+    requests=[]
+    class Process:
+        async def run(self,request,**callbacks):
+            requests.append(request)
+            if len(requests)>1:
+                assert request['agent']==requests[0]['agent']
+                assert request['host_tools']==requests[0]['host_tools']
+            return {'type':'result','request_id':request['request_id'],'session_id':'original-session','status':'completed','exit_code':0,'output':'done'}
+    host=ProcessHost(['process'],tmp_path);monkeypatch.setattr(host,'_client',lambda **_:Process())
+    for index,schema in enumerate((None,{'type':'object','properties':{'files':{'type':'object'}}},None)):
+        result=host.submit('phase'+str(index),payload(),session_id='original-session' if index else None,
+            execution=scope(tmp_path/'work',proposal_schema=schema),on_event=ack)
+        assert result.state=='completed' and result.error is None and result.terminal
+    name=requests[0]['host_tools'][0]['name']
+    assert [r['permissions']['tools'][name] for r in requests]==['deny','allow','deny']

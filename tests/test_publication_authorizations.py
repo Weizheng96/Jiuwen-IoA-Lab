@@ -55,7 +55,7 @@ def configure(client,*changes,operation=None):
 def test_scope_requires_current_web_admin_and_bound_internal_service(platform,client,internal):
     account,identity=internal;body=publication(platform,identity);change=scope(identity,body)
     assert configure(client,change).status_code==401
-    token=platform.auth.token('assistant:'+account.account['id'])
+    token=account.bearer()
     assert client.post('/api/admin/publication-authorizations',headers={'Authorization':'Bearer '+token},
                        json={'operationId':uid(),'changes':[change]}).status_code==401
     admin(client,platform)
@@ -225,7 +225,7 @@ def test_sdk_managed_scope_recovers_lost_reply_without_another_signature_or_conf
         saved=runtime.store.checkpoint('provider:'+identity.agent_id,'publish:'+op)['body']
         assert saved['authorizationRevision']==1
         runtime.close()
-        restarted=ResidentRuntime(settings,modules=(ProviderRole(),)).start()
+        restarted=ResidentRuntime(RuntimeConfig.load(settings.source),modules=(ProviderRole(),)).start()
         try:
             with monkeypatch.context() as patch:
                 patch.setattr('ioalab_sdk.provider.publication.sign_template',lambda *a,**kw:(_ for _ in ()).throw(AssertionError('must recover the original signatures')))

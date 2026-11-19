@@ -48,6 +48,18 @@ class ProtocolRelay:
                     and all(item['state']=='completed' and item['request']['body']['op'] in ('request.submit','ap2.checkout') for item in history))
         except (LabError,KeyError,TypeError,ValueError):return False
 
+    def unquoted_request_in(self,conn,admission,read_messages):
+        """Original request only; never infer a model terminal result."""
+        try:
+            source=self.admissions.evidence_in(conn,admission)
+            history=self.evidence_in(conn,admission,read_messages)
+            if len(history)!=1:return False
+            item=history[0];request=item['request']
+            return (request['body']['op']=='request.submit' and request['messageId']==source['requestMessageId']
+                    and request['body']['body']['request']==source['signedRequest']
+                    and request['sender']==source['admission']['client'] and request['recipient']==source['admission']['service'])
+        except (LabError,KeyError,TypeError,ValueError):return False
+
     def context_in(self,conn,value):
         payload=value['body'];op=payload['op']
         if op in ('request.submit','card.countersign') or op=='ap2.checkout' and payload['body'].get('purpose')=='proposal-fee':return {}

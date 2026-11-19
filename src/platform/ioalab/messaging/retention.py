@@ -15,6 +15,11 @@ class Retention:
                          (now+self.s.message_retention_days*86400,now))
             conn.execute("UPDATE delivery_messages SET delivery_state='expired' WHERE expires<=? AND delivery_state='queued'",(now,))
             if self.admissions is not None and self.protocol is not None:
+                for admission in self.admissions.expired_unquoted_in(conn):
+                    interaction=conn.execute('SELECT * FROM delivery_interactions WHERE id=?',(admission['interaction'],)).fetchone()
+                    if interaction is None or interaction['state']!='open' or not self.protocol.unquoted_request_in(conn,admission['id'],self.protocol_history_in):continue
+                    self.admissions.finish_in(conn,admission['id'])
+                    self._end(conn,interaction,'proposal-request-expired');changed=True
                 for admission in self.admissions.expired_proposals_in(conn):
                     interaction=conn.execute('SELECT * FROM delivery_interactions WHERE id=?',(admission['interaction'],)).fetchone()
                     if interaction is None or interaction['state']!='open' or not self.protocol.proposal_finished_in(conn,admission['id'],self.protocol_history_in):continue

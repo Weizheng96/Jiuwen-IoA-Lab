@@ -5,7 +5,7 @@ from deploy.layout import Layout
 from deploy.files import save
 from deploy.test_server import clear_state, prune
 from test_deployment_activation import owned, candidate
-from test_production_release import source
+from test_production_release import linux_target, source
 from deploy import activation
 from types import SimpleNamespace
 from deploy.test_server import Reset

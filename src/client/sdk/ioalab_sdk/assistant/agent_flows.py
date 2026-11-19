@@ -8,7 +8,7 @@ from ..runtime import flow_native_notice
 class AssistantFlows:
     DELEGATION = ('begin', 'search', 'inspect', 'request', 'compare', 'select', 'answer_step',
                   'accept', 'pay', 'renew', 'close', 'termination_quote', 'terminate', 'dispute', 'dispute_status')
-    MESSAGING = ('interfaces', 'send', 'close', 'configure_inbox', 'disable_inbox', 'inbox', 'tools')
+    MESSAGING = ('interfaces', 'send', 'close', 'configure_inbox', 'disable_inbox', 'inbox', 'received', 'tools')
 
     def __init__(self, role):
         self.role = role
@@ -129,6 +129,8 @@ class AssistantFlows:
             result = self.step(journal,r,0,'rules.disable',args)
         elif action == 'tools':
             result = self.step(journal,r,0,'tools.list',args)
+        elif action == 'received':
+            result = self.step(journal,r,0,'messaging.received',args)
         elif action == 'inbox':
             result = self.step(journal,r,0,'rules.list',args)
         elif action == 'interfaces':

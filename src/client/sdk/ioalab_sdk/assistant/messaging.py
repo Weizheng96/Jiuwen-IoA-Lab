@@ -7,7 +7,7 @@ from a2c.codec import digest
 import httpx
 from jsonschema import Draft202012Validator,FormatChecker
 
-from ..runtime import RuntimeFault,encode,instant,stamp,native_source,source_context
+from ..runtime import RuntimeFault,encode,instant,stamp,native_source,source_context,form_source
 
 
 def stable(*values):return str(uuid.uuid5(uuid.NAMESPACE_URL,encode(list(values))))
@@ -79,9 +79,9 @@ class Messaging:
                     source=source_context(original,actor=self.role.identity.agent_id) if original['source']=='native' else None
                 else:
                     source=native_source(self.role.identity.agent_id)
-                    if self.role.runtime.native_entry_required and source is None:raise RuntimeFault('not_ready','Verified native source is required','connect_native_context')
+                    if self.role.runtime.native_entry_required and source is None and not form_source():raise RuntimeFault('not_ready','Verified native source is required','connect_native_context')
                 if source is not None:registry.record_origin(self.role.identity.agent_id,mid,source)
-                elif not self.role.runtime.native_entry_required:
+                elif not self.role.runtime.native_entry_required or form_source() or (relation and original['source']=='external'):
                     registry.record_application_origin(self.role.identity.agent_id,mid,
                         host_ref=original['hostRef'] if relation else registry.default,interaction=relation['id'] if relation else None)
             reference={'kind':'delivery','agentId':self.role.identity.agent_id,'operation':'message.send','operationId':operation}

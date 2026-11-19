@@ -7,7 +7,6 @@ from a2c.jws import header_of
 from a2c.provider import DefaultPolicy,Proposal
 from a2c.errors import A2CError,OUT_OF_ORDER
 from a2c.template import verifier_refs
-from a2c.verifier.package import load
 from jsonschema import Draft202012Validator
 
 from ..runtime import AgentDefinition,ToolBinding
@@ -84,6 +83,7 @@ class HostPolicy(DefaultPolicy):
             '本单验收入口为def verify(ctx)，用ctx.read读取约定交付字节，返回status(pass/fail)及checks；按业务要求检查实际行为，不用文件存在或恒真冒充功能验收。'
             '本单新建判据必须使用回调成功返回或preparedVerifiers中的真实引用，已配置的真实验收引用也可复用；上传unknown时结束本轮，不能猜引用、换内容或绕过校验。'
             'reads只声明spec.<deliverable>.<key>或inputs.<material>.<key>，不是文件名；仅ctx.read读取交付字节时省略reads或传[]。'
+            '声明的合同字段在ctx.values这个字典中，键是完整路径：例如reads=["spec.result.topic"]对应ctx.values["spec.result.topic"]。字段不是嵌套在ctx.spec/ctx.inputs；这两个属性不存在。'
             'ctx.files是实际文件列表，每项含name；ctx.read(name)必须用实际文件名，不能把spec路径当文件名。ctx.target是合同交付件标识，不一定是文件名；按业务约定读取文件，未约定固定名时依据ctx.files确定。'
             '生产selftest/deliver的files字典键是实际文件名，必须与验收程序读取的名称一致。自测明确fail/error时先核对报告并修正可修改的成果，不得把失败当通过；不能修改已签判据。'
             '本回调无profile/UUID/session参数；决定已记录或其他阶段不能再打包或修改本单判据。'
@@ -139,13 +139,14 @@ class HostPolicy(DefaultPolicy):
             if name!='provider.task.'+phase:
                 return {'status':'rejected','error':{'code':'forbidden','message':'当前阶段为'+phase+'，必须使用provider.task.'+phase+'；审查已确认卡时只能批准或拒绝，不得重新报价。'}}
             problem=next(Draft202012Validator(schema if phase=='quote' else DECISION).iter_errors(args),None)
-            if problem:return {'status':'rejected','error':{'code':'invalid_input','message':problem.message}}
+            if problem:return {'status':'rejected','error':{'code':'invalid_input','message':problem.message,'path':list(problem.absolute_path),'recovery':'correct_input'}}
             if phase=='quote' and 'reason' not in args:
                 try:
                     candidate=build_proposal_card(template,subject,card_id=subject['requestId']+'-v'+str(subject['version']),acceptance=args['acceptance'],accept_within=args['acceptWithin'],line_items=args['lineItems'])
                     validate_card(template,candidate,request=subject)
-                    for _,_,kind,ref in verifier_refs(template,candidate):load(self.runtime.account.fetch_package(ref['uri']),ref,kind)
+                    for _,_,kind,ref in verifier_refs(template,candidate):self.execution.role.verifiers.check_reference(ref,kind)
                 except A2CError as exc:return {'status':'rejected','error':{'code':exc.code,'message':exc.message}}
+                except RuntimeFault as exc:return {'status':'rejected','error':{'code':exc.code,'message':str(exc),'recovery':exc.recovery}}
             old=store.get('business',key)
             if old and old['decision']!=args:raise RuntimeFault('id_conflict','The original business decision is already saved')
             if not old:store.put('business',key,{'decision':args,'session':state['session'],'hostCall':call,'nativeOperation':native_operation})
@@ -155,6 +156,11 @@ class HostPolicy(DefaultPolicy):
         prompt={'phase':phase,'requiredAction':{'tool':'provider.task.'+phase,'inputSchema':schema if phase=='quote' else DECISION,
                        'instruction':'提交本单报价或拒绝原因' if phase=='quote' else '审查此张已确认合同，只提交approved及可选reason；不得重新报价'},
                        'template':template,'object':subject,'materials':[],'capabilityReferences':list(definition.skills)}
+        if phase=='quote':
+            names=[item['name'] for item in template['deliverables']]
+            prompt['requiredAction']['fieldPaths']=[path for name in names for path in
+                (['acceptance',name,'verifiers'],['acceptance',name,'notCovered'],['acceptWithin',name],['lineItems',name])]
+            prompt['requiredAction']['structureInstruction']='字段路径中的每个交付件名只出现一次。acceptance 的交付件对象直接包含 verifiers 和 notCovered，不能再套同名对象。按 inputSchema 提交，不把自然语言当成报价。'
         # Actual original protocol deadlines include queueing and model execution.
         request_signature=subject['signature'] if phase=='quote' else subject['signatures']['1']
         respond=parse_time(header_of(request_signature)['a2c-ts'])+parse_duration(template['deadlines']['respondWithin'])
@@ -192,5 +198,7 @@ class HostPolicy(DefaultPolicy):
         if result.error is not None:
             raise RuntimeFault(result.error.code,result.error.message,result.error.action or 'inspect_original_request')
         if result.state!='completed' or state['decision'] is None:
-            raise RuntimeFault('unknown_result','Inspect the original host decision; do not repeat it automatically')
+            if phase=='quote' and state['decision'] is None and result.terminal and result.state in ('completed','failed') and result.session_id==state['session']:
+                self.execution.tasks.wait(self.identity,self.job,state['session'],definition_hash,result.state,native_operation=native_operation,reason='quote_round_finished_without_decision')
+            raise RuntimeFault('unknown_result','Original host round has no verified quote decision; inspect the original task before explicit recovery','resume_original')
         return state['decision']
